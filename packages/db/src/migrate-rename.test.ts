@@ -26,6 +26,7 @@ import { createSql, type Sql } from "./index";
 import {
   COMPANY_MIGRATION,
   CONSORTIUM_SNAPSHOT_MIGRATION,
+  DECISION_REASON_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
@@ -173,6 +174,9 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
     );
     expect(resultFor(results, COMPANY_MIGRATION).status).toBe("applied");
     expect(resultFor(results, CONSORTIUM_SNAPSHOT_MIGRATION).status).toBe(
+      "applied",
+    );
+    expect(resultFor(results, DECISION_REASON_MIGRATION).status).toBe(
       "applied",
     );
     await appendOnlyStillGuards();

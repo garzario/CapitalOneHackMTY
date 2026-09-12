@@ -32,6 +32,43 @@ describe("GET /api/v1/run/current", () => {
     expect(run.totals.amount).toBe(1369901.55);
   });
 
+  it("says the run in pesos and not only in line counts", async () => {
+    /* The value of this product is the loss it prevents, which a judge told us on
+       2026-09-12 is the only framing that interests them. So the run answers in
+       pesos: what is stopped, what was let go, what is at risk. */
+    const { app } = createTestApp();
+    const run = paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+
+    expect(run.totals.heldAmount).toBe(325650.8);
+    expect(run.totals.toVerifyAmount).toBe(597040.5);
+    expect(run.totals.releasedAmount).toBe(447210.25);
+    expect(run.totals.stoppedAmount).toBe(922691.3);
+    expect(run.totals.amountAtRisk).toBeGreaterThan(0);
+
+    /* The three add up to the run, to the centavo, which is the check a judge
+       does on the screen with a calculator. */
+    expect(
+      run.totals.heldAmount +
+        run.totals.toVerifyAmount +
+        run.totals.releasedAmount,
+    ).toBeCloseTo(run.totals.amount, 2);
+  });
+
+  it("reports no retroactive 69-B exposure until a sweep priced one", async () => {
+    /* Honest zero, not a missing field: this fixture has a presunto supplier and
+       no publication swept against the ledger yet, so nothing has been priced.
+       The whole-ledger figure for a publication is SweepResult.totalExposure. */
+    const { app } = createTestApp();
+    const run = paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+
+    expect(run.totals.retroactive69bBase).toBe(0);
+    expect(run.totals.retroactive69bExposure).toBe(0);
+  });
+
   it("carries the synthetic flag on every object the UI renders", async () => {
     const { app } = createTestApp();
     const run = paymentRunSchema.parse(

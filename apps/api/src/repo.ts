@@ -28,7 +28,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
 import type {
   InstructionDetail,
@@ -177,11 +177,17 @@ export interface Repository {
   /* Writes. Each one is append-only from the ledger's point of view. */
   appendEvent(event: LedgerEvent): Promise<void>;
   saveIntake(record: IntakeRecord): Promise<void>;
+  /**
+   * A person confirms an action. `reason` is what they wrote about it, and it
+   * travels with the decision so the `decision_made` event carries the argument
+   * and not only the verdict.
+   */
   recordDecision(
     instructionId: string,
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined>;
   /**
    * A decision the engine reached itself on new evidence, with the findings it
@@ -350,6 +356,10 @@ export class MemoryRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        /* The pesos, from the same pure function the Postgres store calls. Two
+           implementations of "how much did this run stop" is how a screen and a
+           constancia end up disagreeing in front of a judge. */
+        ...runMoney(items),
       },
       items,
     };
@@ -589,6 +599,7 @@ export class MemoryRepository implements Repository {
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = this.decisionRow(instructionId);
     if (current === undefined) {
@@ -598,6 +609,14 @@ export class MemoryRepository implements Repository {
     current.action = action;
     current.decidedBy = decidedBy;
     current.decidedAt = decidedAt;
+    /* Deleted and not left in place when no reason is given: a release with an
+       argument, followed by a hold with none, must not read as if the second one
+       carried the first one's sentence. */
+    if (reason === undefined) {
+      delete current.reason;
+    } else {
+      current.reason = reason;
+    }
 
     return copy(current);
   }

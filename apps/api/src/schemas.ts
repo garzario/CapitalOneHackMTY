@@ -25,6 +25,7 @@ import type {
   Decision,
   EvidenceValue,
   Finding,
+  HoldWindow,
   KnownAccount,
   LedgerEvent,
   Metrics,
@@ -301,6 +302,17 @@ export const findingSchema = z.object({
 
 export const actionSchema = z.enum(["hold", "verify", "release"]);
 
+/**
+ * Longest reason a person may write on a decision.
+ *
+ * Long enough for the sentence an auditor needs ("el proveedor confirmo por
+ * telefono y la nomina sale hoy"), short enough that the field cannot become a
+ * place to paste a document. It is one constant because the request body and the
+ * stored decision have to agree: a reason the API accepts and the ledger refuses
+ * would be a decision recorded without its argument.
+ */
+export const REASON_MAX = 400;
+
 export const decisionSchema = z.object({
   instructionId: z.string().min(1),
   action: actionSchema,
@@ -309,6 +321,8 @@ export const decisionSchema = z.object({
   findings: z.array(findingSchema),
   decidedAt: instantSchema,
   decidedBy: z.string().min(1).optional(),
+  /** Why the person chose it. Absent on the engine's own proposal. */
+  reason: z.string().min(1).max(REASON_MAX).optional(),
 }) satisfies z.ZodType<Decision>;
 
 /** One turn of a verification call, as the voice provider reported it. */
@@ -437,12 +451,32 @@ export const metricsSchema = z.object({
 /* Compositions named by docs/09-api.md                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The run in counts and in pesos.
+ *
+ * The five original fields are counts, which answer "how many lines". The six
+ * that follow answer "how much money", which is the question the product is
+ * actually about: its value is the loss it prevents and not the minutes it
+ * saves. They come from `runMoney` in `@hackmty/core`, so the screen, the
+ * constancia and a judge with `curl` read one arithmetic.
+ */
 export const paymentRunTotalsSchema = z.object({
   instructions: z.number().int().nonnegative(),
   amount: z.number().nonnegative(),
   held: z.number().int().nonnegative(),
   toVerify: z.number().int().nonnegative(),
   released: z.number().int().nonnegative(),
+  heldAmount: z.number().nonnegative(),
+  toVerifyAmount: z.number().nonnegative(),
+  releasedAmount: z.number().nonnegative(),
+  /** `heldAmount` plus `toVerifyAmount`: the pesos that have not left. */
+  stoppedAmount: z.number().nonnegative(),
+  /** The largest single amount at risk on each line, added across lines. */
+  amountAtRisk: z.number().nonnegative(),
+  /** Subtotal already deducted to the suppliers a 69-B finding names. */
+  retroactive69bBase: z.number().nonnegative(),
+  /** ISR plus IVA that reverses on that subtotal. No fraud is needed for it. */
+  retroactive69bExposure: z.number().nonnegative(),
 });
 
 export const paymentRunItemSchema = z.object({
@@ -464,6 +498,46 @@ export const instructionDetailSchema = z.object({
   decision: decisionSchema.nullable(),
   findings: z.array(findingSchema),
   supplier: supplierSchema.nullable(),
+});
+
+/**
+ * How long a payment stays stopped, and what a person does next.
+ *
+ * `holdWindow` in `@hackmty/core` computes it from the decision and the clock,
+ * so it is never stored: a deadline in a column could disagree with the delay
+ * the expected-loss arithmetic charged for, and this one cannot.
+ */
+export const holdWindowSchema = z.object({
+  action: z.enum(["hold", "verify"]),
+  days: z.number().int().positive(),
+  deadline: instantSchema,
+  hoursLeft: z.number().int().nonnegative(),
+  /** Nothing is released or refused when it passes. A person answers instead. */
+  expired: z.boolean(),
+  outcome: verificationOutcomeSchema.optional(),
+  nextSteps: z
+    .array(
+      z.enum([
+        "call_supplier",
+        "retry_call",
+        "one_cent_cep",
+        "release_with_reason",
+        "keep_held",
+      ]),
+    )
+    .min(1)
+    .readonly(),
+}) satisfies z.ZodType<HoldWindow>;
+
+/**
+ * The detail panel, plus the hold window.
+ *
+ * A separate schema rather than a field on `instructionDetailSchema`, because the
+ * repository builds the detail and owns no clock, and the window is a function of
+ * the instant it is asked for.
+ */
+export const instructionDetailResponseSchema = instructionDetailSchema.extend({
+  hold: holdWindowSchema.nullable(),
 });
 
 export const verifiedBeneficiarySchema = z.object({
@@ -562,9 +636,20 @@ export const intakeResponseSchema = z.object({
   decision: decisionSchema,
 });
 
+/**
+ * What `POST /api/v1/instructions/:id/decide` answers.
+ *
+ * `amountAtRisk` is stated rather than left to be re-derived from the findings.
+ * The pesos a person accepted responsibility for are the point of the record,
+ * and a number every caller has to compute for itself is a number two callers
+ * compute differently. `hold` says how long the payment stays stopped, and it is
+ * null exactly when the action is `release`.
+ */
 export const decideResponseSchema = z.object({
   instruction: paymentInstructionSchema,
   decision: decisionSchema,
+  amountAtRisk: z.number().nonnegative(),
+  hold: holdWindowSchema.nullable(),
 });
 
 /**
@@ -593,6 +678,14 @@ export const verifyCallResponseSchema = z.object({
   transcript: z.array(verificationTurnSchema).optional(),
   /** Always present so the UI never has to infer it from the absence of a call. */
   releasesPayment: z.literal(false),
+  /**
+   * The hold window with the next step, present once an outcome was recorded.
+   *
+   * This is the answer to "what happens if nobody picks up": the same response
+   * that reports `no_answer` says how long the payment stays stopped and what
+   * the three ways forward are, one of which needs nobody to answer anything.
+   */
+  hold: holdWindowSchema.nullable().optional(),
 });
 
 /**
@@ -652,9 +745,19 @@ export const createInstructionBodySchema = z
     },
   );
 
+/**
+ * A person confirms an action.
+ *
+ * `decidedBy` is required, because a decision on money with nobody's name on it
+ * is not a decision anybody can be asked about later. `reason` is optional in
+ * the contract and asked for by the screen on an override, which is the honest
+ * split: an API that refused a release with no prose would be refused by the
+ * clerk instead, outside the product, where nothing is recorded at all.
+ */
 export const decideBodySchema = z.object({
   action: actionSchema,
   decidedBy: z.string().min(1).max(120),
+  reason: z.string().min(1).max(REASON_MAX).optional(),
 });
 
 /**
@@ -791,6 +894,10 @@ export type PaymentRunTotals = z.infer<typeof paymentRunTotalsSchema>;
 export type PaymentRunItem = z.infer<typeof paymentRunItemSchema>;
 export type PaymentRun = z.infer<typeof paymentRunSchema>;
 export type InstructionDetail = z.infer<typeof instructionDetailSchema>;
+export type InstructionDetailResponse = z.infer<
+  typeof instructionDetailResponseSchema
+>;
+export type DecideResponse = z.infer<typeof decideResponseSchema>;
 export type SupplierDetail = z.infer<typeof supplierDetailSchema>;
 export type VerifiedBeneficiary = z.infer<typeof verifiedBeneficiarySchema>;
 export type SatVersionSummary = z.infer<typeof satVersionSummarySchema>;

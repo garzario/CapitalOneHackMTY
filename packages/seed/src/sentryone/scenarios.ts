@@ -328,9 +328,14 @@ const listedSupplier: CaseInjector = {
     const theirs = draft.cfdis.filter(
       (cfdi) => cfdi.issuerRfc === LISTED_SUPPLIER_RFC,
     );
-    const deductedBase = theirs
-      .filter((cfdi) => settled.has(cfdi.uuid))
-      .reduce((sum, cfdi) => sum + cents(cfdi.subtotal), 0);
+    /* Only the settled ones. An invoice that has not been paid yet was not
+       deducted yet, so it carries no retroactive exposure, and counting it would
+       put a number on the pitch that the sweep does not agree with. */
+    const deducted = theirs.filter((cfdi) => settled.has(cfdi.uuid));
+    const deductedBase = deducted.reduce(
+      (sum, cfdi) => sum + cents(cfdi.subtotal),
+      0,
+    );
 
     let instruction = draft.instructions.find(
       (row) =>
@@ -379,7 +384,7 @@ const listedSupplier: CaseInjector = {
         kind: this.kind,
         description: this.description,
         applied: true,
-        detail: `${entry.rfc} ${entry.name} is ${entry.status} on list version ${entry.listVersion} published ${entry.publishedAt}; ${(deductedBase / 100).toFixed(2)} MXN of base was already deducted across ${theirs.length} invoices`,
+        detail: `${entry.rfc} ${entry.name} is ${entry.status} on list version ${entry.listVersion} published ${entry.publishedAt}; ${(deductedBase / 100).toFixed(2)} MXN of base was already deducted across ${deducted.length} of their ${theirs.length} invoices`,
         supplierRfc: LISTED_SUPPLIER_RFC,
       },
       instruction,
