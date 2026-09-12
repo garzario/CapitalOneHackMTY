@@ -46,9 +46,9 @@ Four parts, and the fourth is the one that matters.
 1. **`packages/consortium` talks to Snowflake over the SQL REST API and nothing else.**
    `POST /api/v2/statements` with a key-pair JWT, and `GET /api/v2/statements/<handle>` when the
    submission answers `202`, which Snowflake returns when a statement takes longer than 45 seconds or
-   was submitted asynchronously. No Snowflake SDK and no new dependency: Bun has WebCrypto for the
-   RS256 signature and `fetch` for the transport, so the client is a file an engineer can read
-   end to end.
+   was submitted asynchronously. No Snowflake SDK and no new dependency: the RS256 signature is
+   `createSign` from `node:crypto`, which `packages/cep` already imports, and the transport is
+   `fetch`, so the client is a file an engineer can read end to end.
 2. **What leaves the tenant is `BENEFICIARY_EVENTS`, and it is seven narrow columns.** A salted hash of the
    supplier RFC, a salted hash of the destination CLABE, the bank code those three digits already
    state in public, an outcome out of `verified`, `paid`, `mismatch` and `fraud_reported`, a date, and
@@ -57,8 +57,11 @@ Four parts, and the fourth is the one that matters.
    `docs/06-regulatory-privacy.md#8-the-consortium-network-what-leaves-the-tenant`.
 3. **Reading is an aggregate, never another tenant's row.** The view the pull reads counts distinct
    tenants, first and last sighting, fraud reports for the pair and other accounts seen for the same
-   supplier hash. A tenant learns how many other companies have paid the pair it is about to pay. It
-   cannot learn which ones, and it cannot ask about a pair it does not already hold.
+   supplier hash. A tenant learns how many companies have paid the pair it is about to pay, itself
+   included once `consortium:push` has sent its own outcomes, which is why the number a screen may
+   read as corroboration is one higher on a pair this company already pays than the count of other
+   companies alone. It cannot learn which ones, and it cannot ask about a pair it does not already
+   hold.
 4. **The hot path reads a local snapshot.** `consortium:pull` writes
    `consortium_snapshot` into the same Postgres the ledger lives in, the engine receives a
    `NetworkSignal` as an argument like every other input, and `source` is `snapshot` or
@@ -67,7 +70,8 @@ Four parts, and the fourth is the one that matters.
    with the network not consulted rather than degraded.
 
 **The network of other tenants in this repository is synthetic.** There is one tenant. The other
-tenants are generated deterministically by `packages/seed` from seed 69 so that the demo's legitimate
+tenants are generated deterministically by `packages/consortium/src/synthetic.ts`, off the same
+`packages/seed` generator and the same seed 69 as the demo company, so that the demo's legitimate
 supplier accounts carry months of sightings and the hard negatives carry none, every row is written
 with `synthetic = true`, and every document and the demo itself say so out loud. Claiming a live
 network of real companies would be the one Wizard-of-Oz move in a repository built to survive that
@@ -175,6 +179,13 @@ could find on their sites, which is the row `docs/04-market.md` already carries.
 - Negative: the network in the demo is synthetic, so the feature demonstrates a mechanism and not an
   installed base. Every document says so, which costs a sentence on stage and buys the credibility
   the rest of the demo runs on.
+- Negative, and it cost a broken pull to find: the SQL REST API returns every value as a string
+  whatever the column type, and a DATE as the number of days since the epoch rather than as
+  `YYYY-MM-DD`. The first live pull therefore rejected all 46 rows and wrote an empty snapshot with
+  `source = 'snowflake'`, which is the worst failure this signal has, because an empty snapshot reads
+  as a network that was consulted and has never seen any of these accounts. The statement now formats
+  both dates with `to_varchar` and the reader also decodes the epoch-day form. Anything added to the
+  view later has to answer the same question about its own type.
 - Follow-on work this creates: the aviso de privacidad has to name the consortium purpose before any
   pilot, the retention schedule has to cover `BENEFICIARY_EVENTS`, and `CONSORTIUM_SALT` has to stop
   being a documented constant the moment a second real tenant exists.
@@ -189,7 +200,7 @@ could find on their sites, which is the row `docs/04-market.md` already carries.
 |---|---|
 | A `consortium` schema in the same Tiger Data Postgres | Puts cross-tenant rows behind the single-tenant check constraint that makes every hot-path read safe, collapses two credentials into one, and still has to be rebuilt as a governed share the first time a real participant asks what we can see |
 | A live Snowflake query inside the beneficiary control | Ends the no-IO property of `packages/core`, makes a decision non-deterministic and untestable, waits on a warehouse resume billed with a 60-second minimum, and hands the API a credential that can enumerate the network |
-| The Snowflake Node SDK | A new dependency with a transitive tree, inside a three-day quarantine window, for an HTTP call Bun already makes. The JWT is WebCrypto and the transport is `fetch` |
+| The Snowflake Node SDK | A new dependency with a transitive tree, inside a three-day quarantine window, for an HTTP call Bun already makes. The JWT is `node:crypto` and the transport is `fetch` |
 | A real multi-tenant network for the demo | There is one tenant and 36 hours. Inventing other companies' data and presenting it as real is the failure mode the judges said they are hunting. Synthetic and labelled is the honest version of the same mechanism |
 | Private set intersection between tenants, the Cenote design | ADR-0002 already rejected it for this event: invisible cryptography, a three-institution cold start and an unproven three-party protocol under time pressure. It remains the right answer for a version where the operator must not see the pairs at all |
 | MongoDB Atlas for the network | Named rather than skipped, like the row in `docs/07-architecture.md#deliberately-not-in-this-tree`. The pull is one columnar aggregate over append-only events, which is a warehouse shape, and adopting a document store for a second prize would be the costume we refused there |
@@ -208,7 +219,7 @@ Read on 2026-09-12.
 
 | Source | Used for |
 |---|---|
-| Snowflake, SQL REST API overview and request handling, `https://docs.snowflake.com/en/developer-guide/sql-api/intro` and `/handling-responses` | The `/api/v2/statements` endpoint and the `202` plus polling behaviour |
+| Snowflake, SQL REST API overview and request handling, `https://docs.snowflake.com/en/developer-guide/sql-api/intro` and `/handling-responses` | The `/api/v2/statements` endpoint, the `202` plus polling behaviour, and that the result set is "encoded in JSON expressed as strings, regardless of the Snowflake data type of the column" with a DATE as an "Integer value (in a string) of the number of days since the epoch" |
 | Snowflake, Virtual warehouses, `https://docs.snowflake.com/en/user-guide/warehouses-overview` | Per-second billing with a 60-second minimum each time a warehouse starts, and 1 credit per hour for an X-Small |
 | Snowflake, Introduction to Secure Data Sharing, `https://docs.snowflake.com/en/user-guide/data-sharing-intro` | "no actual data is copied or transferred between accounts", provider-controlled grants, consumer pays compute only |
 | Snowflake, Supported cloud regions, `https://docs.snowflake.com/en/user-guide/intro-regions` | An account is hosted in a single region, data stays in it, and a Mexico Central region exists |

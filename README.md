@@ -112,16 +112,19 @@ vendor. It stays behind `ALLOW_CONSORTIUM=1`, and with the flag unset every cont
 beneficiary finding says the network was not consulted.
 
 ```bash
-bun run consortium:seed   # Snowflake database, schema, table and view, then the synthetic network of other tenants
-bun run consortium:push   # this company's registry outcomes, as salted hashes and nothing else
-bun run consortium:pull   # fills the local snapshot the engine reads
+bun run consortium:seed             # Snowflake database, schema, table and view, then the synthetic network of other tenants
+bun run consortium:push             # this company's registry outcomes, as salted hashes and nothing else
+bun run consortium:pull             # fills the local snapshot the engine reads
+bun run consortium:pull --offline   # fills the same snapshot from the generator, with no Snowflake account at all
 ```
 
 [`docs/adr/0006-consortium-snowflake.md`](docs/adr/0006-consortium-snowflake.md) is why the decision
 reads a snapshot and never the warehouse, and
 [`docs/06-regulatory-privacy.md`](docs/06-regulatory-privacy.md) section 8 lists what leaves a company
 and what never does. There is one real tenant: the other tenants are generated from the committed seed
-and every row carries `synthetic: true`.
+and every row carries `synthetic: true`. `--offline` is how the demo runs with no account and no
+uplink, and `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse the
+two.
 
 ## Screenshots
 

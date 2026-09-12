@@ -17,7 +17,7 @@ language the judge opens with. The Spanish rendering of each line goes on the pr
 |---|---|---|---|---|---|
 | 0:00 to 0:55 | **1. The payment run** | Tab 1, already loaded: the payment-run screen | This week's run, its totals, rows sorted with the alert rail on the right by pesos at risk, seven findings on 92 instructions, 885,658.73 MXN that is not leaving, the `datos sinteticos` watermark | "This is Thursday for the person who pays the suppliers of a 28-person metalworking shop in Apodaca. Ninety two transfers in one sitting, and all of this data is synthetic. SentryOne has already read every invoice, so the run arrives sorted by how much money is at risk instead of alphabetically." | Local instance on the second port, same screen, same data |
 | 0:55 to 1:50 | **2. The SAT publication replay, and a real RFC** | Click `Simular publicacion 69-B`. Then hand the judge the lookup box and let them type a real RFC | Eight months of ledger replay in under three seconds, newly listed suppliers lighting up, the exposure counters climbing (deducted base, ISR, IVA), a constancia PDF to download. The lookup box answers from the official list | "Here is the part nobody instruments. When the SAT publishes a new Article 69-B list, everything you already paid and already deducted to a supplier on it is exposed retroactively. We replay the ledger and quantify it. The list is the real one, and this box is separate from the simulation on purpose: real RFCs never touch our synthetic invoices." | The lookup box alone, offline from the committed list snapshot. If the replay stalls, the recorded video cued to this beat |
-| 1:50 to 2:35 | **3. An instruction arriving by QR** | Judge scans the QR on the printed card, photographs the CLABE printed on it, submits | The intake page accepts it, the big screen gains a row within two seconds over SSE, with the finding and the two digits that differ from the account we have paid 52 times, and the network chip next to it: how many other companies have paid this supplier on the historical account, and that this account is unseen in the network | "Send it yourself. That instruction went from your phone to the engine and back to this screen without a reload, and the reason it is flagged is on the chip: this account differs in two digits from the one we have paid this supplier on 52 times. The second chip is the part no Mexican tool has. Other companies in the network have been paying this supplier on the other account for months, and this account has never been seen by any of them. The network is synthetic, generated for this demo, and the warehouse behind it is real Snowflake." | Type the CLABE instead of photographing it. If the judge's phone fails, do it from our second phone. If SSE drops, reload once and say the stream dropped |
+| 1:50 to 2:35 | **3. An instruction arriving by QR** | Judge scans the QR on the printed card, photographs the CLABE printed on it, submits | The intake page accepts it, the big screen gains a row within two seconds over SSE, with the finding and the two digits that differ from the account we have paid 52 times, and the network chip next to it: the SentryOne network holds two fraud reports from other companies on this exact account, and months of payments to the account this supplier has always been paid on | "Send it yourself. That instruction went from your phone to the engine and back to this screen without a reload, and the reason it is flagged is on the chip: this account differs in two digits from the one we have paid this supplier on 52 times. The second chip is the part no Mexican tool has. Two other companies in the network have already reported this exact account as fraud, and the account this supplier has always been paid on is paid by many of them, for months. The network is synthetic, generated for this demo, and the warehouse behind it is real Snowflake." | Type the CLABE instead of photographing it. If the judge's phone fails, do it from our second phone. If SSE drops, reload once and say the stream dropped |
 | 2:35 to 3:20 | **4. The CEP and its signature** | Open the CEP viewer | The CEP fields, the clave de rastreo, the holder name next to the CFDI legal name, and the signature status as the parser reports it | "Before we release a payment to a new account, a person sends one cent. Banxico signs a receipt for every SPEI. We fetch it, compare the account holder name with the legal name on the invoice, and keep it as evidence. Say out loud that this one is the synthetic fixture and that the signature is reported as not checked: confirming the Banxico scheme needs the real certificate, which is issue #57." | The stored CEP fixture rendered from disk. Never fabricate a CEP on stage, and never say a signature was validated when it was not |
 | 3:20 to 4:00 | **5. The metrics page, and the business line** | Open the metrics page. For an engineer judge, open the detector beside its test file instead and run `bun test` | Precision, recall and false-positive rate with the case count next to them, per detector, plus the note naming anything we measured and refused to ship. 30 labelled holdout cases: 0.85 precision, 0.81 recall, 0.02 false positive rate | "The cases were written and labelled by someone who does not write the detectors, and the detector author does not read that folder until the code is merged, so these numbers are blind. Nothing here is a language model: the decision is deterministic and you can read it." | `bun test` output already captured in the terminal, or the metrics JSON from `GET /api/v1/metrics` |
 
@@ -75,22 +75,29 @@ customer is what proves the key, because an invalid key answers `200 []` on ever
 
 ### The network line, and what it must never claim
 
-The consortium signal appears once, in beat 3, as the second chip on the hero instruction. It is the
-only place in the demo where data from outside this company reaches a decision, so it carries the
-highest risk of a sentence we cannot back. The mechanism is ADR-0006 and the privacy half is
+The consortium signal appears on stage once, in beat 3, as the second chip on the hero instruction. It
+is the only place in the demo where data from outside this company reaches a decision, so it carries
+the highest risk of a sentence we cannot back. The mechanism is ADR-0006 and the privacy half is
 `docs/06-regulatory-privacy.md#8-the-consortium-network-what-leaves-the-tenant`.
 
-**Where it shows up.** Two chips, both read off the screen and never from memory. On the hero
-instruction, how many other companies have paid `SYN990202S02` on `012180100091764613` and that
-`012180101391764613` has been seen by none of them. On a released line, if a judge asks why something
-with no prior history here was released anyway, the same chip showing the account is long-established
-across the network. `bun run demo` prints both, which is how this paragraph gets checked before a
-rehearsal.
+**Where it shows up, and where it does not.** The chip is on the finding of an instruction that went
+through intake, which is beat 3, and the same numbers are readable through
+`GET /api/v1/consortium/signal?rfc=&clabe=`. It is not on the lines of the run the screen opens with:
+that run is assessed once at boot, before anything is pulled, so its stored findings carry no network
+and `apps/api/src/assess.ts` is deliberately unchanged. Post the instruction and the chip appears.
+Three shapes exist and beat 6 of `bun run demo` prints one of each, which is how this paragraph gets
+checked before a rehearsal.
+
+| What the network says | Which line it is on | What the chip reads |
+|---|---|---|
+| Two other companies reported this exact account as fraud | The hero account of `SYN990202S02`, posted through intake in beat 3 | `Red SentryOne 2 reportes de fraude`, and the finding is `critical` whatever the CEP says |
+| The network has never seen this account and does hold another one for the supplier | The largest stopped line of the run, posted through intake | `Red SentryOne sin registro de esta cuenta, 1 otra cuenta del proveedor` |
+| Many companies have paid this exact account for months | A released line, for the judge who asks why something with no history here was released anyway | `Red SentryOne pagada por N empresas desde <month>` |
 
 **Say this, in this order, and do not compress it.**
 
-1. "Other companies in the network have paid this supplier on the other account for months, and this
-   account has been seen by none of them."
+1. "Two other companies in the network have already reported this exact account as fraud, and the
+   account this supplier has always been paid on is paid by many of them, for months."
 2. "The network is synthetic. It is a network of other tenants we generated for this demo, from the
    same committed seed as everything else on this screen."
 3. "The warehouse is real. That is Snowflake, those are rows we wrote, and what leaves a company is
@@ -109,7 +116,9 @@ same way against a second real tenant, and the table has nowhere to put a name.
 
 **Never run `bun run consortium:pull` during the demo.** It needs `ALLOW_CONSORTIUM`, it resumes a
 warehouse that Snowflake bills with a 60-second minimum, and it moves `pulled_at` under the judges'
-feet. Pull before the rehearsal, demo off the snapshot.
+feet. Pull before the rehearsal, demo off the snapshot. On a laptop with no account, or with no
+uplink, `bun run consortium:pull --offline` fills the same table from the deterministic generator and
+records `source = 'synthetic'`, which is the path beat 6 of `bun run demo` exercises.
 
 ### Numbers the screen shows
 
@@ -122,6 +131,8 @@ it just drove, so the way to check this table before a rehearsal is to run it an
 | Not leaving yet | 885,658.73 MXN, 7 lines, 2 held and 5 to verify | The six controls over the seeded run |
 | Retroactive exposure | 404,152.59 MXN: 263,577.78 ISR and 140,574.81 IVA over a deducted base of 878,592.59 | `POST /api/v1/sat/publish` with `simulate` |
 | Blind evaluation | 30 labelled cases, 0.85 precision, 0.81 recall, 0.02 false positive rate | `GET /api/v1/metrics` over the holdout nobody on the detector side wrote |
+| The network, offline | 46 hashed pairs, 45 corroborated, 1 with a fraud report | Beat 6 of `bun run demo`, from the generator at seed 69, `source = 'synthetic'` |
+| The network, pulled from Snowflake | The same 46 pairs, and one more tenant per pair this company itself pays | `bun run consortium:pull` after `consortium:push`, because the view counts every tenant that wrote a row and we are one of them |
 
 ### Where it is deployed
 
@@ -158,14 +169,16 @@ Run this before every rehearsal and before every judge walk-up. It takes ninety 
 the difference between looking real and looking like a prototype.
 
 - [ ] `bun run demo` is green on this machine, right now
-- [ ] The deployed pair answers: `bun run deploy:vultr --smoke-only` prints the run id and the total, and <https://sentryone-one.vercel.app/?data=api> shows `Datos: solo API` with the same figures. `bun run demo --base https://api.104.238.147.69.sslip.io` drives the five beats over HTTP instead, and it appends one instruction to the live run, so follow it with `bun run seed` if the printed totals have to match this file exactly
+- [ ] The deployed pair answers: `bun run deploy:vultr --smoke-only` prints the run id and the total, and <https://sentryone-one.vercel.app/?data=api> shows `Datos: solo API` with the same figures. `bun run demo --base https://api.104.238.147.69.sslip.io` drives the beat sheet over HTTP instead, with beat 6 still in memory because a consortium snapshot is local to a store, and it appends one instruction to the live run, so follow it with `bun run seed` if the printed totals have to match this file exactly
 - [ ] `bun run seed` has run and printed the expected counts and IDs
 - [ ] `curl /health` returns ok, and `bun run doctor` names the live database path
 - [ ] The SSE stream is alive: the intake page posts one instruction and the row appears
 - [ ] The SAT list snapshot is loaded and its version and publication date are visible
-- [ ] `bun run consortium:pull` has run on this machine and the network chip renders on
-      `INS-2026-09-07-047` with its `pulled_at`, or `ALLOW_CONSORTIUM` is unset on purpose and the
-      finding says the network was not consulted. Never pull inside the demo window
+- [ ] `bun run consortium:pull` has run on this machine, `bun run doctor` prints the `snowflake` line
+      with the pair count and the `pulled_at` it wrote, and posting the hero account through intake
+      renders the network chip. `--offline` is the version that needs no account. Or
+      `ALLOW_CONSORTIUM` is unset on purpose and the finding says the network was not consulted, which
+      is also green. Never pull inside the demo window
 - [ ] The CEP fixture parses and the name comparison answers. TODO(garzario) issue #57: swap in the real CEP and its certificate, and only then say the signature was validated
 - [ ] One browser window, demo tabs in order, every other window closed
 - [ ] The printed card is on the table: QR code, the CLABE to photograph, the clave de rastreo, the real RFC

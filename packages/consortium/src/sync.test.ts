@@ -242,6 +242,28 @@ describe("the pull", () => {
     ).toBe("2024-03-04");
   });
 
+  test("reads a DATE the SQL API sent as days since the epoch", () => {
+    /* This is the shape a real pull actually receives. The SQL API documentation
+       says a DATE is an "Integer value (in a string) of the number of days since
+       the epoch", and reading only the ISO form skipped every row of the first
+       live pull and wrote an empty snapshot with source = 'snowflake', which the
+       screen would have shown as a network that has never seen any of these
+       accounts. 19786 days is 2024-03-04 and 20698 is 2026-09-02. */
+    const { rows, skipped } = readNetworkRows([
+      { ...row, FIRST_SEEN: "19786", LAST_SEEN: "20698" },
+    ]);
+
+    expect(skipped).toEqual([]);
+    expect(rows[0]?.firstSeen).toBe("2024-03-04");
+    expect(rows[0]?.lastSeen).toBe("2026-09-02");
+  });
+
+  test("reads the epoch itself, which is a day and not a missing value", () => {
+    expect(
+      readNetworkRows([{ ...row, FIRST_SEEN: "0" }]).rows[0]?.firstSeen,
+    ).toBe("1970-01-01");
+  });
+
   test("skips a row it cannot read, with the reason, instead of storing zeros", () => {
     /* A snapshot row of zeros would read on the screen as "nobody pays this
        account", which is a claim, and this row is a warehouse bug. */

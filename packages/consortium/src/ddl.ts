@@ -128,7 +128,14 @@ export function networkSelect(options: DdlOptions = {}): string {
     "SNOWFLAKE_SCHEMA",
   );
 
-  return `select rfc_hash, clabe_hash, bank_code, tenants, first_seen, last_seen,
+  /* The two dates are formatted in SQL rather than parsed out of whatever the
+     transport chose. The SQL REST API returns a DATE as the number of days since
+     the epoch in a string, not as YYYY-MM-DD, so selecting the column raw handed
+     the pull "19854" and every row was skipped. `to_varchar` with an explicit
+     format model moves that decision into the statement, where it is visible. */
+  return `select rfc_hash, clabe_hash, bank_code, tenants,
+                 to_varchar(first_seen, 'YYYY-MM-DD') as first_seen,
+                 to_varchar(last_seen, 'YYYY-MM-DD')  as last_seen,
                  fraud_reports, other_accounts
           from ${database}.${schema}.BENEFICIARY_NETWORK
           order by rfc_hash, clabe_hash`;

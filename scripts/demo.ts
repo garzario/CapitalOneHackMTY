@@ -1,8 +1,10 @@
 /**
  * bun run demo
  *
- * Drives the five beats of `docs/10-demo-script.md` headless and asserts the
- * invariants each one rests on. This is the command that runs before every
+ * Drives the five beats of `docs/10-demo-script.md` headless, plus a sixth that
+ * is a gate rather than a stage beat: the consortium network reaching a decision
+ * offline, which is what beat 3 says the second chip on the screen is. It asserts
+ * the invariants each one rests on. This is the command that runs before every
  * rehearsal and before every judge visit: if it is red, the demo is broken,
  * whatever the screen says.
  *
@@ -22,12 +24,15 @@
  */
 
 import { createApp } from "../apps/api/src/app.ts";
+import { createConsortiumSource } from "../apps/api/src/consortium.ts";
 import { createDeps } from "../apps/api/src/deps.ts";
 import { UNAVAILABLE_EXTRACTOR } from "../apps/api/src/extraction.ts";
 import { MemoryRepository } from "../apps/api/src/repo.ts";
 import {
+  consortiumSignalResponseSchema,
   intakeResponseSchema,
   metricsSchema,
+  type PaymentRunItem,
   paymentRunSchema,
   sweepResultSchema,
 } from "../apps/api/src/schemas.ts";
@@ -40,7 +45,21 @@ import {
   parseCep,
   syntheticCepXml,
 } from "../packages/cep/src/index.ts";
-import { formatAmount } from "../packages/core/src/index.ts";
+import {
+  aggregateNetwork,
+  syntheticNetwork,
+} from "../packages/consortium/src/index.ts";
+import type {
+  EvidenceValue,
+  NetworkSignal,
+  NetworkVerdict,
+} from "../packages/core/src/index.ts";
+import {
+  assessNetwork,
+  formatAmount,
+  networkLabel,
+} from "../packages/core/src/index.ts";
+import { loadSentryOne } from "../packages/seed/src/index.ts";
 
 const HTTP_TIMEOUT_MS = 10_000;
 
@@ -158,7 +177,7 @@ interface Hero {
 let hero: Hero | undefined;
 
 /* -------------------------------------------------------------------------- */
-/* The five beats                                                              */
+/* The beats                                                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -437,6 +456,300 @@ async function beatMetrics(api: Api, say: Say): Promise<void> {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Beat 6, the consortium network                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One API instance with the consortium on or off, plus the offline pull.
+ *
+ * The beat builds its own instances, and that is the design rather than a
+ * convenience. The consortium snapshot is LOCAL to a store, so the only way to
+ * prove what the network does to a decision is to write rows into the store the
+ * engine reads. It is the same `createApp` every other beat drives, the rows come
+ * out of the same two functions `bun run consortium:pull --offline` calls, and no
+ * socket is opened at any point.
+ *
+ * The main `api` of this script is deliberately left alone. Beats 1 to 5, the run
+ * totals `docs/10-demo-script.md` quotes and the boot assessment behind them are
+ * therefore identical to a run from before the consortium existed, which is also
+ * the property this beat asserts.
+ */
+interface NetworkInstance extends Api {
+  /** Fills the snapshot the way `consortium:pull --offline` does. Returns the rows. */
+  pullOffline(): Promise<number>;
+}
+
+function networkInstance(allowed: boolean): NetworkInstance {
+  const repo = new MemoryRepository(0, sentryoneDataset);
+  const app = createApp(
+    createDeps({
+      repo,
+      allowSeed: false,
+      extractor: UNAVAILABLE_EXTRACTOR,
+      /* Passed explicitly and never read off the environment: a demo whose
+         network switched itself on because this laptop happens to export
+         ALLOW_CONSORTIUM would prove something different on every machine. */
+      consortium: createConsortiumSource(repo, { allowed }),
+    }),
+  );
+
+  return {
+    label: allowed ? "in memory, network on" : "in memory, network off",
+    request: (path, init) => app.request(path, init),
+    pullOffline: async () => {
+      const company = loadSentryOne({});
+      const { events } = syntheticNetwork({
+        suppliers: company.suppliers,
+        instructions: company.instructions,
+        runDay: company.runDay,
+      });
+      const rows = aggregateNetwork(events);
+      await repo.replaceConsortiumSnapshot({
+        rows,
+        pulledAt: new Date().toISOString(),
+        /* The same value the script writes, for the same reason: nothing
+           downstream may read a rehearsal as a warehouse. */
+        source: "synthetic",
+      });
+      return rows.length;
+    },
+  };
+}
+
+function signalQuery(item: PaymentRunItem): string {
+  const rfc = encodeURIComponent(item.instruction.supplierRfc);
+  const clabe = encodeURIComponent(item.instruction.clabe);
+  return `/api/v1/consortium/signal?rfc=${rfc}&clabe=${clabe}`;
+}
+
+/** The message of the one error envelope, for the two refusals this beat asserts. */
+function errorMessageOf(body: unknown): string {
+  const envelope = body as { error?: { message?: string } };
+  return envelope.error?.message ?? "";
+}
+
+/** The network signal a finding carries, or undefined when it carries none. */
+function networkOf(finding: {
+  evidence: Record<string, EvidenceValue>;
+}): NetworkSignal | undefined {
+  const value = finding.evidence.network;
+  return typeof value === "object" ? value : undefined;
+}
+
+interface IntakeOutcomeLine {
+  action: string;
+  expectedLoss: number;
+  signal?: NetworkSignal;
+  explanation?: string;
+  severity?: string;
+}
+
+/** Posts one line of the run through intake and reads what the network did to it. */
+async function intakeLine(
+  instance: Api,
+  item: PaymentRunItem,
+): Promise<IntakeOutcomeLine> {
+  const intake = intakeResponseSchema.parse(
+    await json(
+      instance,
+      "/api/v1/instructions",
+      post({
+        supplierRfc: item.instruction.supplierRfc,
+        amount: item.instruction.amount,
+        clabe: item.instruction.clabe,
+        source: "whatsapp",
+      }),
+      201,
+    ),
+  );
+  const finding = intake.findings.find((row) => networkOf(row) !== undefined);
+
+  const outcome: IntakeOutcomeLine = {
+    action: intake.decision.action,
+    expectedLoss: intake.decision.expectedLoss,
+  };
+  if (finding !== undefined) {
+    const signal = networkOf(finding);
+    if (signal !== undefined) {
+      outcome.signal = signal;
+    }
+    outcome.explanation = finding.explanation;
+    outcome.severity = finding.severity;
+  }
+  return outcome;
+}
+
+/**
+ * Beat 6. The network says something about an account this company has no
+ * history with, and it says it offline.
+ *
+ * Four claims, and each one is the answer to a question a judge asks.
+ *
+ * 1. **With the flag off nothing happens.** `503` naming `ALLOW_CONSORTIUM`, and
+ *    a decision identical to the one the product made before issue #164.
+ * 2. **An empty snapshot is not a clean network.** `404` naming the pull, and the
+ *    same decision again: `NetworkSignal.source` is `not_consulted` and
+ *    `assessNetwork` multiplies the expected loss by exactly 1.
+ * 3. **A pulled snapshot reaches the decision.** One released line carries the
+ *    corroboration in its evidence and one stopped line carries what the network
+ *    holds against the account, both under the `network` key of the beneficiary
+ *    finding, and the released one is still released and the stopped one is still
+ *    stopped. Corroboration is never a reason to pay and the network never
+ *    releases a payment.
+ * 4. **Nothing is real except the mechanism.** The rows come from the synthetic
+ *    generator at seed 69, `consortium_pull.source` says `synthetic`, and this
+ *    beat prints that word rather than letting a rehearsal look like a warehouse.
+ *
+ * No Snowflake, no socket and no `.env`: this is the offline path of
+ * `bun run consortium:pull --offline`, which is why the demo survives conference
+ * Wi-Fi that has stopped working.
+ */
+async function beatNetwork(say: Say): Promise<void> {
+  const off = networkInstance(false);
+  const empty = networkInstance(true);
+  const on = networkInstance(true);
+
+  const run = paymentRunSchema.parse(await json(on, "/api/v1/run/current"));
+  const first = run.items[0];
+  need(
+    first !== undefined,
+    "the run is empty, so there is no pair to ask about",
+  );
+
+  const refused = await off.request(signalQuery(first));
+  need(
+    refused.status === 503,
+    `with the flag off the signal route answered ${refused.status}, expected 503`,
+  );
+  need(
+    errorMessageOf(await refused.json()).includes("ALLOW_CONSORTIUM"),
+    "the 503 does not name ALLOW_CONSORTIUM, so nobody can tell what to set",
+  );
+
+  const notPulled = await empty.request(signalQuery(first));
+  need(
+    notPulled.status === 404,
+    `with an empty snapshot the signal route answered ${notPulled.status}, expected 404`,
+  );
+  need(
+    errorMessageOf(await notPulled.json()).includes("consortium:pull"),
+    "the 404 on an empty snapshot does not name the pull that fills it",
+  );
+
+  const rows = await on.pullOffline();
+  need(rows > 0, "the synthetic network generated no rows");
+
+  /* What the network holds for every line of the run, read off the endpoint
+     rather than recomputed here: the chip on the screen and this list are then
+     the same answer from the same code. A 404 is the network having been
+     consulted and holding no row for the pair, which is an answer and not a
+     failure, and the finding still reports the accounts it holds for the
+     supplier. */
+  const reads: { item: PaymentRunItem; corroborated: boolean }[] = [];
+  for (const item of run.items) {
+    const response = await on.request(signalQuery(item));
+    if (response.status === 404) {
+      reads.push({ item, corroborated: false });
+      continue;
+    }
+    need(
+      response.status === 200,
+      `the signal route answered ${response.status} for ${item.instruction.id}`,
+    );
+    const body = consortiumSignalResponseSchema.parse(await response.json());
+    need(
+      body.network.source === "snapshot",
+      `${item.instruction.id} came back as not consulted from a pulled snapshot`,
+    );
+    reads.push({
+      item,
+      corroborated: assessNetwork(body.network).verdict === "corroborated",
+    });
+  }
+
+  const corroborated = reads.filter((read) => read.corroborated);
+  const doubted = reads.filter((read) => !read.corroborated);
+  need(
+    corroborated.length > 0,
+    "the network corroborates no line of the run, so there is nothing to release with a chip",
+  );
+  need(
+    doubted.length > 0,
+    "the network doubts no line of the run, so there is nothing to stop with a chip",
+  );
+
+  /* The two lines the stage narrative needs: the account the most other
+     companies pay, and the largest amount going to an account they do not. */
+  const released = [...corroborated].sort(
+    (left, right) =>
+      right.item.instruction.amount - left.item.instruction.amount,
+  )[0] as (typeof corroborated)[number];
+  const stopped = [...doubted].sort(
+    (left, right) =>
+      right.item.instruction.amount - left.item.instruction.amount,
+  )[0] as (typeof doubted)[number];
+
+  for (const [name, chosen] of [
+    ["released", released],
+    ["stopped", stopped],
+  ] as const) {
+    const pre = await intakeLine(off, chosen.item);
+    const unpulled = await intakeLine(empty, chosen.item);
+    const post = await intakeLine(on, chosen.item);
+
+    need(
+      pre.signal === undefined,
+      `the ${name} line carries a network chip with the flag off`,
+    );
+    need(
+      unpulled.signal === undefined,
+      `the ${name} line carries a network chip with an empty snapshot`,
+    );
+    need(
+      unpulled.action === pre.action &&
+        unpulled.expectedLoss === pre.expectedLoss,
+      `an empty snapshot changed the ${name} line from ${pre.action} at ${formatAmount(pre.expectedLoss)} to ${unpulled.action} at ${formatAmount(unpulled.expectedLoss)}`,
+    );
+    const signal = post.signal;
+    need(
+      signal !== undefined,
+      `the ${name} line carries no network evidence after the pull`,
+    );
+    need(
+      signal.source === "snapshot",
+      `the ${name} line reports the network as not consulted after a pull`,
+    );
+    /* Corroboration is never a reason to pay and the network never releases a
+       payment, so neither of these two lines may cross the other's side. */
+    need(
+      name === "released"
+        ? post.action === "release"
+        : post.action !== "release",
+      `the ${name} line came back as ${post.action} with the network read`,
+    );
+
+    /* The verdict the engine used, out of the signal the finding carries, and not
+       the one the endpoint probe above inferred: an unknown pair answers 404
+       there and still carries the supplier's other accounts here. */
+    const verdict: NetworkVerdict = assessNetwork(signal).verdict;
+    say(
+      `${name} ${chosen.item.instruction.id} ${formatAmount(chosen.item.instruction.amount)} MXN: ${pre.action} without the network, ${post.action} with it, expected loss ${formatAmount(pre.expectedLoss)} then ${formatAmount(post.expectedLoss)} MXN`,
+    );
+    say(
+      `  red SentryOne ${networkLabel(signal)}: ${verdict}, ${signal.tenants} tenants, ${signal.fraudReports} fraud reports, ${signal.otherAccounts} other accounts, pulled_at ${signal.pulledAt ?? "unknown"}`,
+    );
+    say(`  ${post.explanation ?? ""}`);
+  }
+
+  say(
+    `${rows} hashed pairs in the snapshot, source synthetic, seed 69: the other tenants are generated and every warehouse row says so`,
+  );
+  say(
+    "no Snowflake was contacted: this is the offline path of bun run consortium:pull --offline",
+  );
+}
+
 /** Narrows the instruction-detail payload to what beat 2 reads off it. */
 function instructionDetail(value: unknown): {
   action: string;
@@ -492,6 +805,13 @@ await beat("4. the CEP parses and the name comparison runs", (say) =>
   beatCep(api, say),
 );
 await beat("5. the metrics endpoint answers", (say) => beatMetrics(api, say));
+/* The network beat drives its own in-memory instances whatever `--base` says,
+   because the consortium snapshot is local to a store and the offline pull is the
+   path this repository promises works with the warehouse unplugged. */
+await beat(
+  "6. the consortium network reaches the decision, offline",
+  beatNetwork,
+);
 
 for (const result of results) {
   console.log(`[${result.ok ? "pass" : "FAIL"}] ${result.name}`);
