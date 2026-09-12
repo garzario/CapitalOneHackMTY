@@ -25,8 +25,18 @@
  * Purity, like everywhere in this package: no clock, no network, no mutation of
  * the caller's arrays. The decision instant is passed in or derived from the
  * evidence, so the same payment run decided twice gives the same answer.
+ *
+ * The second half of this file composes the other five controls into the
+ * findings that reach `decide`. Every control is an explicit, typed
+ * `DetectorAdapter` over one `ComposeInput`, and every one of them ends up in
+ * either `report.ran` or `report.skipped` with a reason. That accounting is the
+ * whole of issue #106: the registry it replaced discovered modules by dynamic
+ * import, guessed their argument tuples from arity, called none of them, and
+ * returned an empty payment run that every test read as "sin hallazgos".
  */
 
+import { detectSupplierBehaviour } from "./behaviour";
+import { detectClabe } from "./clabe";
 import type {
   Action,
   Cep,
@@ -39,8 +49,12 @@ import type {
   SatListEntry,
   Severity,
   Supplier,
+  SweepResult,
 } from "./domain";
+import { detectDuplicateInvoice } from "./duplicates";
 import { formatAmount, fromCents, toCents } from "./money";
+import { detectBankReconciliation } from "./reconciliation";
+import type { LedgerTx } from "./types";
 
 /**
  * How often a finding of each severity turns out to be a real loss, that is,
@@ -333,266 +347,377 @@ export function sortFindings(findings: readonly Finding[]): Finding[] {
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/* Composing the six controls                                                  */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Everything a detector is given. One object, so a detector that later needs
- * another source is a change in this file and not in six signatures.
+ * Everything the six controls of ADR-0002 are given, as one typed object.
+ *
+ * One object rather than six argument tuples, and that is the whole point of
+ * this type. The previous version of this file discovered detector modules by
+ * dynamic import and guessed their argument tuples by arity; the guesses stopped
+ * matching the real signatures and every slot quietly returned nothing while the
+ * tests stayed green. A payment run that reports "sin hallazgos" because the
+ * engine could not call its own detectors is the one failure this product cannot
+ * ship, so the call shape is a type now and a wrong one is a compile error.
+ *
+ * Building this is the caller's job, because gathering the evidence needs a
+ * database and this package owns no clock, no network and no connection.
  */
-export interface DetectorContext {
+export interface ComposeInput {
+  /** The payment about to leave. The composition is about this one. */
   instruction: PaymentInstruction;
   /** Absent when this RFC has never been paid before, which is itself a signal. */
   supplier?: Supplier;
-  cfdis: readonly Cfdi[];
-  complements: readonly PaymentComplement[];
-  satEntries: readonly SatListEntry[];
-  cep?: Cep;
-}
-
-/** The contract a detector module satisfies to be run by `composeFindings`. */
-export interface DetectorModule {
-  detector: Detector;
-  run(context: DetectorContext): Finding[] | Promise<Finding[]>;
-}
-
-export interface ComposeOptions {
   /**
-   * Run exactly these detectors and discover nothing. Two callers need it: a
-   * test that must not depend on which detector PR merged first, and a bundled
-   * deployment, where a dynamic import built from a variable is not resolved at
-   * build time and would silently find nothing.
+   * EVERY CFDI the company holds, not only this supplier's. The concentration
+   * signal of `supplier_behaviour` needs the whole ledger as its denominator:
+   * handed one issuer's invoices it would read every supplier as 100 percent of
+   * the spend. The duplicate detector narrows to `instruction.cfdiUuids` itself.
    */
-  detectors?: readonly DetectorModule[];
+  cfdis: readonly Cfdi[];
+  /** Every payment complement the company holds, for the same reason. */
+  complements: readonly PaymentComplement[];
+  /**
+   * The Article 69-B rows in force for `instruction.supplierRfc`, across every
+   * list version we hold, in any order.
+   *
+   * Empty means this RFC is on no version we hold, which is the good news. It
+   * does NOT mean no list is loaded: that is a question about the list registry
+   * and it is answered by the list endpoint, never by a detector.
+   */
+  satEntries: readonly SatListEntry[];
+  /** The CEP already verified for the account this instruction pays, if any. */
+  cep?: Cep;
+  /**
+   * The company's own bank statement, mirrored from Nessie and normalised into
+   * `LedgerTx`. Empty means the mirror was not loaded, and the reconciliation
+   * control says so rather than reporting every payment as missing from it.
+   */
+  bankMirror: readonly LedgerTx[];
+  /** The instant the run happens, ISO 8601. This package owns no clock. */
+  now: string;
+  /**
+   * The retroactive sweep of the newest 69-B publication, when one has been run.
+   * It carries what a newly listed supplier already cost us in deductions we
+   * have taken, which is money at risk that this instruction's own amount does
+   * not describe.
+   */
+  sweep?: SweepResult;
 }
 
 /**
- * Why a slot produced nothing: the module is not written yet, the detector
- * answered with something that is not a `Finding[]`, or it threw.
+ * Why a control produced nothing. Every value is a structural fact about the
+ * evidence, not a shrug: a skipped control is a control the clerk is not
+ * getting, and the screen has to be able to say which one and why.
+ *
+ * A detector that ran and found nothing is NOT a skip. "Este proveedor no esta
+ * en la lista" is an answer.
  */
-export type SkipReason = "not_built" | "no_result" | "threw";
+export type SkipReason =
+  | "no_supplier"
+  | "no_cep"
+  | "cep_other_account"
+  | "no_bank_mirror"
+  | "invalid_findings"
+  | "threw";
 
-/** Raised when no call shape produced findings, so the report can say so. */
-class DetectorShapeError extends TypeError {}
+/** What one adapter answers: findings, or a named reason there are none. */
+export type DetectorOutcome =
+  | { status: "ran"; findings: readonly Finding[] }
+  | { status: "skipped"; reason: SkipReason; detail: string };
+
+/** The control ran. Zero findings is a legitimate, and usual, answer. */
+export function detectorRan(findings: readonly Finding[]): DetectorOutcome {
+  return { status: "ran", findings };
+}
+
+/** The control could not run, and this is exactly what was missing. */
+export function detectorSkipped(
+  reason: SkipReason,
+  detail: string,
+): DetectorOutcome {
+  return { status: "skipped", reason, detail };
+}
+
+/**
+ * One of the six controls, adapted to `ComposeInput`.
+ *
+ * The adapter is the only place that knows a detector's real signature, and it
+ * is typed, so a detector whose arguments change breaks the build of its adapter
+ * instead of silently producing an empty payment run.
+ */
+export interface DetectorAdapter {
+  detector: Detector;
+  /** Pure. Dirty data is survived, never thrown on. */
+  run(input: ComposeInput): DetectorOutcome;
+}
+
+export interface SkippedDetector {
+  detector: Detector;
+  reason: SkipReason;
+  /** One sentence naming what was missing, for the report and for the screen. */
+  detail: string;
+}
 
 export interface CompositionReport {
+  /** Every finding, deduplicated, in alert rail order. */
   findings: Finding[];
-  /** Detectors that ran, whether or not they found anything. */
+  /** Controls that ran, whether or not they found anything. */
   ran: Detector[];
-  skipped: Array<{ detector: Detector; reason: SkipReason }>;
+  /** Controls that did not, each with the reason it did not. */
+  skipped: SkippedDetector[];
 }
 
 /**
- * Where each detector is expected to live and what it is expected to be called.
+ * Runs the adapters it is given and returns their findings in alert rail order,
+ * biggest pesos at risk first.
  *
- * The registry exists so that six detector pull requests can land in any order
- * during a 36 hour event without a merge conflict in this file and without a
- * broken import in `dev`. A slot whose module has not been written yet is
- * skipped and reported, never thrown on.
+ * Every adapter appears in exactly one of `ran` and `skipped`, so
+ * `ran.length + skipped.length` is the number of controls that were offered and
+ * a control can never disappear between the two. That accounting is the contract
+ * this function exists to keep: silence that reads as "nothing found" is the
+ * failure mode this file was rewritten to remove.
  *
- * Only modules inside this package are listed. `packages/sat` and
- * `packages/cep` are separate workspaces, and `packages/core` having zero
- * dependencies is the rule in its README, so those two detectors reach the
- * engine through `options.detectors` from `apps/api` instead.
- *
- * The export names and argument tuples come from the issues that define each
- * detector (#34 CLABE, #35 69-B, #36 duplicates and behaviour, #37 CEP, #39
- * reconciliation). They are a best effort at somebody else's signature; the
- * contract that is actually guaranteed is `DetectorModule`.
+ * Nothing is discovered. The adapters are an argument because a bundled
+ * deployment resolves no dynamic import, and because a test must not depend on
+ * which detector pull request merged first.
  */
-interface DetectorSlot {
-  detector: Detector;
-  /** Module specifiers relative to this file, tried in order. */
-  modules: readonly string[];
-  /** Export names, tried in order. */
-  exports: readonly string[];
-  /** Lowercase fragments that identify this detector in a shared module. */
-  keywords: readonly string[];
-  /** The positional arguments this detector is expected to take. */
-  positional: (context: DetectorContext) => readonly unknown[];
-}
-
-const DETECTOR_REGISTRY: readonly DetectorSlot[] = [
-  {
-    detector: "sat_69b",
-    modules: ["./sat69b", "./sat-69b"],
-    exports: ["detectSat69b", "detectSat69B"],
-    keywords: ["69b", "sat"],
-    positional: (context) => [context.supplier, context.satEntries],
-  },
-  {
-    detector: "clabe_forensics",
-    modules: ["./clabe", "./clabe-forensics"],
-    exports: ["detectClabeForensics", "detectClabe"],
-    keywords: ["clabe"],
-    positional: (context) => [context.instruction, context.supplier],
-  },
-  {
-    detector: "duplicate_invoice",
-    modules: ["./duplicates", "./duplicate-invoice", "./behaviour"],
-    exports: ["detectDuplicateInvoices", "detectDuplicateInvoice"],
-    keywords: ["duplicate"],
-    positional: (context) => [context.instruction, context.cfdis],
-  },
-  {
-    detector: "supplier_behaviour",
-    modules: ["./behaviour", "./supplier-behaviour", "./duplicates"],
-    exports: ["detectSupplierBehaviour", "detectSupplierBehavior"],
-    keywords: ["behaviour", "behavior"],
-    positional: (context) => [
-      context.supplier,
-      context.cfdis,
-      context.instruction,
-    ],
-  },
-  {
-    detector: "beneficiary_cep",
-    modules: ["./beneficiary", "./cep-beneficiary"],
-    exports: ["detectBeneficiaryCep", "detectCepBeneficiary"],
-    keywords: ["beneficiary", "cep"],
-    positional: (context) => [
-      context.cep,
-      context.supplier,
-      context.instruction,
-    ],
-  },
-  {
-    detector: "bank_reconciliation",
-    modules: ["./reconciliation", "./bank-reconciliation"],
-    exports: ["detectBankReconciliation", "detectReconciliation"],
-    keywords: ["reconcil"],
-    positional: (context) => [
-      context.instruction,
-      context.cfdis,
-      context.complements,
-    ],
-  },
-];
-
-/**
- * Runs every detector that exists and returns their findings in alert rail
- * order, biggest pesos at risk first.
- *
- * The arguments are the payment run as the clerk sees it: one instruction, the
- * supplier behind it if we have ever paid that RFC, the invoices it claims to
- * settle, the payment complements that established its known accounts, the SAT
- * list version in force, and the CEP when one has been fetched for this
- * beneficiary.
- *
- * A detector that has not been written yet, that throws, or that answers with
- * something that is not a `Finding[]` is skipped. Use `composeFindingsReport`
- * when the caller needs to know which of the six were live, for example to show
- * the clerk that the CEP control is not armed on this instruction.
- */
-export async function composeFindings(
-  instruction: PaymentInstruction,
-  supplier: Supplier | undefined,
-  cfdis: readonly Cfdi[],
-  complements: readonly PaymentComplement[],
-  satEntries: readonly SatListEntry[],
-  cep?: Cep,
-  options: ComposeOptions = {},
-): Promise<Finding[]> {
-  const report = await composeFindingsReport(
-    { instruction, supplier, cfdis, complements, satEntries, cep },
-    options,
-  );
-  return report.findings;
-}
-
-/** `composeFindings` plus which detectors ran and why the others did not. */
-export async function composeFindingsReport(
-  context: DetectorContext,
-  options: ComposeOptions = {},
-): Promise<CompositionReport> {
+export function composeFindingsReport(
+  input: ComposeInput,
+  adapters: readonly DetectorAdapter[],
+): CompositionReport {
   const report: CompositionReport = { findings: [], ran: [], skipped: [] };
   const collected: Finding[] = [];
 
-  if (options.detectors !== undefined) {
-    for (const module of options.detectors) {
-      await runInto(module, context, collected, report);
-    }
-    report.findings = sortFindings(collected);
-    return report;
-  }
-
-  for (const slot of DETECTOR_REGISTRY) {
-    const module = await loadSlot(slot);
-    if (module === undefined) {
-      report.skipped.push({ detector: slot.detector, reason: "not_built" });
+  for (const adapter of adapters) {
+    let outcome: DetectorOutcome;
+    try {
+      outcome = adapter.run(input);
+    } catch (error) {
+      // One control crashing is a missing control, not a blank payment run. The
+      // clerk still sees the other five and the report names the one that is
+      // out.
+      report.skipped.push({
+        detector: adapter.detector,
+        reason: "threw",
+        detail: messageOf(error),
+      });
       continue;
     }
-    await runInto(module, context, collected, report);
+
+    if (outcome.status === "skipped") {
+      report.skipped.push({
+        detector: adapter.detector,
+        reason: outcome.reason,
+        detail: outcome.detail,
+      });
+      continue;
+    }
+
+    // A single malformed row is dropped rather than shown to the clerk as half
+    // an alert. A detector whose every row is malformed has a bug, and that is
+    // reported instead of rendering as "nothing found".
+    const kept = outcome.findings.filter(isFinding);
+    if (kept.length === 0 && outcome.findings.length > 0) {
+      report.skipped.push({
+        detector: adapter.detector,
+        reason: "invalid_findings",
+        detail: `${adapter.detector} returned ${outcome.findings.length} rows and none of them is a Finding`,
+      });
+      continue;
+    }
+
+    collected.push(...kept);
+    report.ran.push(adapter.detector);
   }
+
   report.findings = sortFindings(collected);
   return report;
 }
 
+/** `composeFindingsReport` when the caller only wants the alert rail. */
+export function composeFindings(
+  input: ComposeInput,
+  adapters: readonly DetectorAdapter[],
+): Finding[] {
+  return composeFindingsReport(input, adapters).findings;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The four adapters that need nothing but this package                        */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Wraps whatever a detector module exported into the `DetectorModule` contract,
- * or refuses it.
+ * CLABE forensics, control 2.
  *
- * Three shapes are accepted, in this order: an object with a `run` method, a
- * function that takes the whole context, and a function that takes positional
- * arguments. The last two are told apart by arity as a first guess, and both
- * are attempted at call time, because a function declared with two parameters
- * and a function declared with one are the two honest readings of somebody
- * else's detector. A shape that answers with findings wins; if every shape
- * answers with an empty array, the answer is an empty array.
- *
- * `apps/api` uses this directly when it imports a detector statically, so that
- * a bundled deployment does not depend on the dynamic registry below.
+ * Runs on every instruction, supplier or not: an RFC with no history at all is
+ * the brand-new-supplier case, and the detector reports it as a warning rather
+ * than staying silent.
  */
-export function asDetectorModule(
-  detector: Detector,
-  value: unknown,
-  positional?: (context: DetectorContext) => readonly unknown[],
-): DetectorModule | undefined {
-  if (value !== null && typeof value === "object") {
-    const run = (value as { run?: unknown }).run;
-    if (typeof run === "function") {
-      return {
-        detector,
-        run: (context) =>
-          (run as (context: DetectorContext) => Finding[]).call(value, context),
-      };
-    }
-    return undefined;
-  }
-  if (typeof value !== "function") {
-    return undefined;
-  }
-  const fn = value as (...args: readonly unknown[]) => unknown;
-  const contextFirst = fn.length <= 1;
-  return {
-    detector,
-    run: async (context) => {
-      const shapes: Array<readonly unknown[]> = [];
-      const asPositional = positional?.(context);
-      if (contextFirst || asPositional === undefined) {
-        shapes.push([context]);
-        if (asPositional !== undefined) {
-          shapes.push(asPositional);
-        }
-      } else {
-        shapes.push(asPositional, [context]);
-      }
-      let empty = false;
-      for (const args of shapes) {
-        const findings = keepValidFindings(await fn(...args));
-        if (findings === undefined) {
-          continue;
-        }
-        if (findings.length > 0) {
-          return findings;
-        }
-        empty = true;
-      }
-      if (empty) {
-        return [];
-      }
-      throw new DetectorShapeError(
-        `detector ${detector} did not return findings`,
+export const clabeForensicsAdapter: DetectorAdapter = {
+  detector: "clabe_forensics",
+  run: (input) =>
+    detectorRan(
+      listOf(
+        detectClabe(input.instruction, input.supplier, { now: input.now }),
+      ),
+    ),
+};
+
+/**
+ * Duplicate invoices, control 3.
+ *
+ * Only the CFDIs this instruction claims to settle are under review. Without
+ * that narrowing the settlement rules flag every invoice the company has ever
+ * paid, which is every invoice in a healthy ledger. An instruction that names no
+ * CFDI settles nothing, so the control runs and finds nothing: a result, not a
+ * skip.
+ */
+export const duplicateInvoiceAdapter: DetectorAdapter = {
+  detector: "duplicate_invoice",
+  run: (input) =>
+    detectorRan(
+      detectDuplicateInvoice({
+        cfdis: input.cfdis,
+        complements: input.complements,
+        underReview: input.instruction.cfdiUuids,
+        now: input.now,
+      }),
+    ),
+};
+
+/**
+ * Supplier behaviour change, control 4.
+ *
+ * Skipped, with a reason, when the RFC has never been paid: there is no history
+ * to measure a change against, and the new-supplier case already belongs to
+ * `clabe_forensics`.
+ *
+ * A supplier whose history is too thin to test is NOT a skip. The detector runs,
+ * gates itself on sample size and stays silent, which is the honest answer and
+ * the one `assessSupplierBehaviour` spells out for the screen.
+ */
+export const supplierBehaviourAdapter: DetectorAdapter = {
+  detector: "supplier_behaviour",
+  run: (input) => {
+    const { supplier } = input;
+    if (supplier === undefined) {
+      return detectorSkipped(
+        "no_supplier",
+        `Nunca hemos pagado a ${input.instruction.supplierRfc}, asi que no hay historial contra el cual medir un cambio de comportamiento.`,
       );
-    },
-  };
+    }
+    return detectorRan(
+      listOf(
+        detectSupplierBehaviour({
+          supplier,
+          cfdis: input.cfdis,
+          now: input.now,
+        }),
+      ),
+    );
+  },
+};
+
+/**
+ * Bank reconciliation, control 6, asked from one instruction's side.
+ *
+ * The detector is a run-level control: it reconciles the whole mirror against
+ * every document the company holds. Composed for one payment it is asked a
+ * narrower question, "does our own bank statement already contradict this
+ * instruction", so the pass runs over everything and only the findings whose
+ * subject is this instruction or one of its CFDIs come back. An
+ * `unbacked_outflow` is money that left with no document at all: that is a
+ * finding about the run and not about the payment on the clerk's screen, and the
+ * run-level sweep calls `detectBankReconciliation` directly to get it.
+ *
+ * Skipped, with a reason, when the mirror is empty. An empty statement cannot
+ * tell "the bank posted nothing" from "the mirror was never imported", and
+ * reporting every sent payment as missing from a statement we do not hold is how
+ * a clerk learns to ignore a control.
+ */
+export const bankReconciliationAdapter: DetectorAdapter = {
+  detector: "bank_reconciliation",
+  run: (input) => {
+    if (input.bankMirror.length === 0) {
+      return detectorSkipped(
+        "no_bank_mirror",
+        "El espejo bancario no esta cargado, asi que no hay estado de cuenta contra el cual conciliar.",
+      );
+    }
+    const uuids = new Set(input.instruction.cfdiUuids);
+    const findings = detectBankReconciliation(
+      input.bankMirror,
+      [input.instruction],
+      input.cfdis,
+      input.complements,
+      { now: input.now },
+    );
+    return detectorRan(
+      findings.filter(
+        (finding) =>
+          (finding.subject.kind === "instruction" &&
+            finding.subject.id === input.instruction.id) ||
+          (finding.subject.kind === "cfdi" && uuids.has(finding.subject.id)),
+      ),
+    );
+  },
+};
+
+/**
+ * The four controls that need nothing outside this package, in the order
+ * `Detector` declares them.
+ *
+ * `sat_69b` and `beneficiary_cep` are not here and cannot be: they read
+ * `@hackmty/sat` and `@hackmty/cep`, both of which already depend on this
+ * package, and `packages/core` carries zero runtime dependencies by rule. Their
+ * adapters live in `@hackmty/engine`, which composes all six.
+ */
+export const CORE_DETECTORS: readonly DetectorAdapter[] = [
+  clabeForensicsAdapter,
+  duplicateInvoiceAdapter,
+  supplierBehaviourAdapter,
+  bankReconciliationAdapter,
+];
+
+/* -------------------------------------------------------------------------- */
+/* Pricing the relationship                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a day of delay costs with a supplier whose record does not price the
+ * relationship.
+ *
+ * Zero is conservative rather than neutral: with no delay cost the engine
+ * verifies anything that carries a positive expected loss and releases only what
+ * is clean. That is the reading that never moves money on a guess, and it is the
+ * number `Supplier.delayCostPerDay` exists to replace.
+ */
+export const DEFAULT_DELAY_COST_PER_DAY = 0;
+
+/** An ordinary supplier. Above 1 is the one whose delay stops the line. */
+export const DEFAULT_RELATIONSHIP_WEIGHT = 1;
+
+/**
+ * The cost model for one supplier, read off the supplier record.
+ *
+ * The caller passes the record and not a number, so the engine cannot be handed
+ * a constant somebody invented in a route handler. A record with no price, a
+ * negative price or a non-finite one falls back to the documented default rather
+ * than throwing: one bad supplier row must not blank out a payment run, and
+ * `assertSupplierModel` still guards a model built by hand.
+ *
+ * `relationshipWeight` has no field on `Supplier` yet, so it stays at 1 here.
+ */
+export function supplierModelOf(supplier?: Supplier): SupplierModel {
+  const priced = supplier?.delayCostPerDay;
+  const delayCostPerDay =
+    priced !== undefined && Number.isFinite(priced) && priced >= 0
+      ? priced
+      : DEFAULT_DELAY_COST_PER_DAY;
+  return { delayCostPerDay, relationshipWeight: DEFAULT_RELATIONSHIP_WEIGHT };
 }
 
 /**
@@ -619,107 +744,24 @@ export function isFinding(value: unknown): value is Finding {
     typeof subject.id === "string" &&
     (subject.kind === "instruction" ||
       subject.kind === "cfdi" ||
-      subject.kind === "supplier") &&
+      subject.kind === "supplier" ||
+      // The bank mirror is a legal subject: an outflow with no document behind
+      // it has nothing else to hang a finding on. Leaving it out of this guard
+      // dropped every `unbacked_outflow` on the floor.
+      subject.kind === "ledger_tx") &&
     typeof finding.amountAtRisk === "number" &&
     typeof finding.explanation === "string" &&
     typeof finding.createdAt === "string"
   );
 }
 
-async function runInto(
-  module: DetectorModule,
-  context: DetectorContext,
-  collected: Finding[],
-  report: CompositionReport,
-): Promise<void> {
-  try {
-    const findings = keepValidFindings(await module.run(context));
-    if (findings === undefined) {
-      report.skipped.push({ detector: module.detector, reason: "no_result" });
-      return;
-    }
-    collected.push(...findings);
-    report.ran.push(module.detector);
-  } catch (error) {
-    // One detector crashing is a missing control, not a blank payment run. The
-    // clerk still sees the other five, and the report says which one is out.
-    report.skipped.push({
-      detector: module.detector,
-      reason: error instanceof DetectorShapeError ? "no_result" : "threw",
-    });
-  }
+/** A detector that answers with one finding or none, as a list. */
+function listOf(finding: Finding | null): Finding[] {
+  return finding === null ? [] : [finding];
 }
 
-async function loadSlot(
-  slot: DetectorSlot,
-): Promise<DetectorModule | undefined> {
-  for (const specifier of slot.modules) {
-    let loaded: Record<string, unknown>;
-    try {
-      // The specifier is a variable so that a bundler leaves it alone instead
-      // of failing the build on a detector that has not been written yet. The
-      // cost is that a bundled caller finds nothing here and passes
-      // `options.detectors` instead, which is what ComposeOptions documents.
-      loaded = (await import(/* @vite-ignore */ specifier)) as Record<
-        string,
-        unknown
-      >;
-    } catch {
-      continue;
-    }
-    const exported = pickExport(loaded, slot);
-    if (exported === undefined) {
-      continue;
-    }
-    const module = asDetectorModule(slot.detector, exported, slot.positional);
-    if (module !== undefined) {
-      return module;
-    }
-  }
-  return undefined;
-}
-
-/**
- * The named export if it is there, otherwise any exported function whose name
- * mentions this detector. The keyword guard matters because issue #36 puts two
- * detectors in one module, and a bare "starts with detect" rule would let the
- * duplicate-invoice slot run the behaviour detector.
- */
-function pickExport(
-  loaded: Record<string, unknown>,
-  slot: DetectorSlot,
-): unknown {
-  for (const name of slot.exports) {
-    if (typeof loaded[name] === "function") {
-      return loaded[name];
-    }
-  }
-  for (const [name, value] of Object.entries(loaded)) {
-    if (typeof value !== "function") {
-      continue;
-    }
-    const lower = name.toLowerCase();
-    if (slot.keywords.some((keyword) => lower.includes(keyword))) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-/**
- * `undefined` when the value is not an array of findings at all, which is how a
- * wrong call shape is told apart from a detector that simply found nothing.
- * Individual malformed rows are dropped.
- */
-function keepValidFindings(value: unknown): Finding[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-  const findings = value.filter(isFinding);
-  if (value.length > 0 && findings.length === 0) {
-    return undefined;
-  }
-  return findings;
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function chooseRule(

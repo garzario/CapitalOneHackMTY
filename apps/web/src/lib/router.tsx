@@ -20,6 +20,7 @@ export type Route =
   | { name: "intake" }
   | { name: "sat" }
   | { name: "cep" }
+  | { name: "verifyCall" }
   | { name: "metrics" }
   | { name: "notFound"; path: string };
 
@@ -30,6 +31,7 @@ export const PATHS = {
   intake: "/intake",
   sat: "/sat",
   cep: "/cep",
+  verifyCall: "/verify-call",
   metrics: "/metrics",
 } as const;
 
@@ -37,6 +39,11 @@ export const DEFAULT_PATH = PATHS.run;
 
 export function instructionPath(id: string): string {
   return `/instructions/${encodeURIComponent(id)}`;
+}
+
+/** The verification call page, carrying the instruction it is about. */
+export function verifyCallPath(instructionId: string): string {
+  return `${PATHS.verifyCall}?instruction=${encodeURIComponent(instructionId)}`;
 }
 
 /** `/run` becomes `#/run`, the value that goes in an href. */
@@ -82,6 +89,8 @@ export function parsePath(target: string): Route {
         return { name: "sat" };
       case "cep":
         return { name: "cep" };
+      case "verify-call":
+        return { name: "verifyCall" };
       case "metrics":
         return { name: "metrics" };
       default:

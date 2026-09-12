@@ -10,6 +10,7 @@
 import { createApp } from "./app";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
 import type { PipelineClock } from "./pipeline";
+import type { VoiceDeps } from "./routes/verify-call";
 
 export const TEST_NOW = "2026-09-12T03:00:00.000Z";
 
@@ -26,14 +27,22 @@ export interface TestHarness {
   deps: ApiDeps;
 }
 
-export function createTestApp(overrides: DepsOverrides = {}): TestHarness {
+/**
+ * `voice` defaults to a configuration that is deliberately absent, so a test run
+ * on a laptop that has real ElevenLabs keys in its environment behaves exactly
+ * like CI. A test that wants the call path passes its own stub.
+ */
+export function createTestApp(
+  overrides: DepsOverrides = {},
+  voice: VoiceDeps = { readConfig: () => undefined },
+): TestHarness {
   const deps = createDeps({
     clock: createTestClock(),
     allowSeed: false,
     ...overrides,
   });
 
-  return { app: createApp(deps), deps };
+  return { app: createApp(deps, voice), deps };
 }
 
 /** Lets queued microtasks and timers with a zero delay run before asserting. */

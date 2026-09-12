@@ -11,6 +11,7 @@
 import type { LedgerEvent } from "@hackmty/core";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
+import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
 import { MemoryRepository, type Repository } from "./repo";
 
@@ -30,6 +31,12 @@ export interface ApiDeps {
   /** `POST /api/v1/seed` only answers when this is true. Dev and demo only. */
   allowSeed: boolean;
   /**
+   * Reads a CLABE off a photo or a voice note. Transcription only, never a
+   * decision: see `packages/extract/README.md`. It refuses everything when the
+   * server holds no `GEMINI_API_KEY`, which is also how the tests run it.
+   */
+  extractor: IntakeExtractor;
+  /**
    * Append to the ledger and push to every open SSE connection, in that order.
    * The ledger is the record; the stream is a view of it, so a subscriber can
    * never see an event that was not stored.
@@ -43,6 +50,7 @@ export interface DepsOverrides {
   clock?: PipelineClock;
   allowSeed?: boolean;
   satList?: () => Promise<SatIndex>;
+  extractor?: IntakeExtractor;
 }
 
 function readEnv(name: string): string | undefined {
@@ -58,6 +66,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   const clock = overrides.clock ?? createClock();
   const allowSeed = overrides.allowSeed ?? readEnv("ALLOW_SEED") === "1";
   const satList = overrides.satList ?? (() => officialSatIndex());
+  const extractor = overrides.extractor ?? createExtractor();
 
   return {
     repo,
@@ -65,6 +74,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
     clock,
     satList,
     allowSeed,
+    extractor,
     async emit(event) {
       await repo.appendEvent(event);
       events.publish(event);

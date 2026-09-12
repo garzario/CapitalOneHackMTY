@@ -8,7 +8,10 @@
  * enforce.
  *
  * The loader, the matcher and the sweep are tested in loader.test.ts,
- * match.test.ts, sweep.test.ts and official.test.ts.
+ * match.test.ts, sweep.test.ts and official.test.ts. The matchRfc block below
+ * stays here because it runs against the synthetic fixture, which is this
+ * file's subject, and because the `sat_69b` adapter in @hackmty/engine is built
+ * on exactly that call (issue #106).
  */
 
 import { describe, expect, it } from "bun:test";
@@ -19,6 +22,7 @@ import {
   isMoralRfc,
   isRfcShaped,
   isSyntheticRfc,
+  matchRfc,
   normalizeRfc,
   parseSatStatus,
   SAT_STATUS_LABELS,
@@ -161,6 +165,74 @@ describe("toOfficialCsv", () => {
     ]);
 
     expect(csv).toContain('"COMERCIALIZADORA ""SINTETICA"" UNO SA DE CV"');
+  });
+});
+
+/**
+ * matchRfc against the synthetic fixture rather than against hand-built rows.
+ * The rest of the matcher, including matchRfcAsOf and the tie-breaks, is in
+ * match.test.ts.
+ */
+describe("matchRfc", () => {
+  it("reads the situation in force off the newest publication", () => {
+    const match = matchRfc(SYNTHETIC_SNAPSHOT_ENTRIES, "SYN010203AB1");
+
+    expect(match.effective?.status).toBe("definitivo");
+    expect(match.listed).toBe(true);
+  });
+
+  it("does not list a taxpayer who cleared their name afterwards", () => {
+    // The same RFC twice: presumed in June, cleared in August. Alerting on the
+    // old row is the behaviour ADR-0002 forbids.
+    const match = matchRfc(
+      [
+        {
+          rfc: "SYN990909ZZ9",
+          name: "PROVEEDORA SINTETICA NOVENTA SA DE CV",
+          status: "presunto",
+          publishedAt: "2026-06-27",
+          listVersion: "2026-06-27",
+        },
+        {
+          rfc: "SYN990909ZZ9",
+          name: "PROVEEDORA SINTETICA NOVENTA SA DE CV",
+          status: "desvirtuado",
+          publishedAt: "2026-08-14",
+          listVersion: "2026-08-14",
+        },
+      ],
+      "SYN990909ZZ9",
+    );
+
+    expect(match.effective?.status).toBe("desvirtuado");
+    expect(match.listed).toBe(false);
+    expect(match.entries).toHaveLength(2);
+  });
+
+  it("matches an RFC a human typed with spaces and a hyphen", () => {
+    expect(matchRfc(SYNTHETIC_SNAPSHOT_ENTRIES, " syn010203-ab1 ").rfc).toBe(
+      "SYN010203AB1",
+    );
+    expect(matchRfc(SYNTHETIC_SNAPSHOT_ENTRIES, " syn010203-ab1 ").listed).toBe(
+      true,
+    );
+  });
+
+  it("answers not listed, with no effective row, for an RFC nobody published", () => {
+    const match = matchRfc(SYNTHETIC_SNAPSHOT_ENTRIES, "SYN000000XX0");
+
+    expect(match.entries).toEqual([]);
+    expect(match.effective).toBeUndefined();
+    expect(match.listed).toBe(false);
+  });
+
+  it("does not reorder the caller's array", () => {
+    const entries = [...SYNTHETIC_SNAPSHOT_ENTRIES];
+    const before = entries.map((entry) => entry.rfc);
+
+    matchRfc(entries, "SYN010203AB1");
+
+    expect(entries.map((entry) => entry.rfc)).toEqual(before);
   });
 });
 

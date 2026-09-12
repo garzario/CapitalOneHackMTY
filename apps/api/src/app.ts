@@ -16,6 +16,7 @@ import { runRoutes } from "./routes/run";
 import { satRoutes } from "./routes/sat";
 import { seedRoutes } from "./routes/seed";
 import { supplierRoutes } from "./routes/suppliers";
+import { type VoiceDeps, verifyCallRoutes } from "./routes/verify-call";
 
 /**
  * This app is transport only: read the request, validate it, delegate, shape a
@@ -35,7 +36,12 @@ const pingQuery = z.object({
   echo: z.string().min(1).max(64).optional(),
 });
 
-export function createApp(deps: ApiDeps = createDeps()) {
+/**
+ * `voice` is the second argument because the verification call is the one route
+ * that reaches a third party at request time. A test hands it a stub and stays
+ * offline; everything else keeps calling `createApp(deps)` unchanged.
+ */
+export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   const app = new Hono();
 
   app.use("*", requestId);
@@ -59,6 +65,10 @@ export function createApp(deps: ApiDeps = createDeps()) {
 
   v1.route("/run", runRoutes(deps));
   v1.route("/instructions", instructionRoutes(deps));
+  /* A second router on the same base path. `/:id/verify-call` cannot collide
+     with `/:id` or `/:id/decide`, and keeping the voice integration in its own
+     file means it is one revert rather than a diff inside a shared handler. */
+  v1.route("/instructions", verifyCallRoutes(deps, voice));
   v1.route("/suppliers", supplierRoutes(deps));
   v1.route("/sat", satRoutes(deps));
   v1.route("/cep", cepRoutes(deps));
