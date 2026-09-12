@@ -52,6 +52,17 @@ export interface PaymentComplement {
   relatedCfdiUuid: string;
   paidAt: string;
   paidAmount: number;
+  /**
+   * Monto of the Pago node: what left the bank in one transfer. One transfer can
+   * settle several invoices, and then `paidAmount` is this row's share of it. The
+   * CEP is matched against the transfer, never against the share.
+   */
+  paymentTotal?: number;
+  /**
+   * NumOperacion in the complement. For a SPEI this is the clave de rastreo,
+   * which is how the CEP for this payment is located at Banxico.
+   */
+  operationNumber?: string;
   /** CtaBeneficiario in the complement, the account the supplier says it received money on. */
   beneficiaryAccount?: Clabe;
   /** RfcEmisorCtaBen, the bank that holds that account. */
@@ -77,6 +88,12 @@ export interface PaymentInstruction {
   imageRef?: string;
   /** Confidence of the OCR when the CLABE came from an image, 0 to 1. */
   ocrConfidence?: number;
+  /**
+   * When the company marked the SPEI as sent, projected from the `payment_sent`
+   * ledger event. Absent while the instruction is still pending, which is what
+   * separates "not paid yet" from "paid and missing from the bank mirror".
+   */
+  sentAt?: string;
   synthetic: boolean;
 }
 
@@ -128,8 +145,14 @@ export interface Finding {
   detector: Detector;
   severity: Severity;
   state: FindingState;
-  /** What the finding is attached to. */
-  subject: { kind: "instruction" | "cfdi" | "supplier"; id: string };
+  /**
+   * What the finding is attached to. `ledger_tx` is a row of the bank mirror and
+   * is used when money left the account with no document to hang the finding on.
+   */
+  subject: {
+    kind: "instruction" | "cfdi" | "supplier" | "ledger_tx";
+    id: string;
+  };
   /** Pesos at risk in this payment run, the sort key of the alert rail. */
   amountAtRisk: number;
   /** Plain Spanish explanation shown to the clerk. */
