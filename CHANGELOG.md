@@ -177,6 +177,13 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Fixed
 
+- The API tests read the ambient environment, so a laptop that followed the setup in the README
+  and filled in `.env` saw 48 failures that CI never sees: `SEED=ceptinela` swapped the
+  hand-written fixture for the generated company, and a `GEMINI_API_KEY` turned the intake
+  refusal into a live model call. `createTestApp` now pins the repository and the extractor the
+  way it already pinned the clock, the seed guard and the voice configuration, and a test asserts
+  that it does.
+
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
   landed it called none of them and `composeFindings` returned an empty array for all six slots
