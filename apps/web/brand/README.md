@@ -8,6 +8,7 @@ every choice lives in `docs/design.md`.
 |---|---|---|
 | `og.html` | `../public/og.png` | 1200 x 630 |
 | the mark inlined below | `../public/apple-touch-icon.png` | 180 x 180 |
+| `shoot.ts` | `../../../assets/screenshots/*.png` | 1600 and 900 wide |
 
 `../public/favicon.svg` is hand-written and has no source step. It is the one
 copy of the mark that ships as vector; `src/components/Wordmark.tsx` holds the
@@ -38,3 +39,24 @@ the header stop matching:
 1. `apps/web/public/favicon.svg`
 2. `apps/web/src/components/Wordmark.tsx`
 3. `apps/web/brand/og.html`, then regenerate `public/og.png`
+
+## Screenshots
+
+`shoot.ts` captures the app for `assets/screenshots`, in both themes and at two
+widths. Serve the app first, then point it at the origin:
+
+```
+bun run --filter '@hackmty/web' preview
+bun run apps/web/brand/shoot.ts http://localhost:4173
+```
+
+It drives Chrome over the DevTools protocol rather than shelling out to
+`chrome --screenshot`, for two reasons that both bit during #46. The plain flag
+has no way to request a colour scheme, so half the set was impossible. And it
+races the entrance animations: about one capture in three came back with the
+alert rail heading and no cards under it, because `motion/react` was still
+running. The script asks for `prefers-reduced-motion: reduce`, the design
+tokens collapse every duration to 1 ms, and the capture is the same every time.
+
+Re-run it whenever the payment run changes shape. A stale screenshot in the
+README is a claim that stopped being true.

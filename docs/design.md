@@ -57,7 +57,13 @@ distinguishable only by hue, you have added a bug.
 
 ## Space, radius, elevation
 
-A 4 px step scale. Radius runs `xs` to `lg` plus `pill` for chips. Three
+A 4 px step scale. `--layout-max` is 1440 px, set by the payment run rather
+than by a reading measure: five columns, three decision buttons and an alert
+rail do not fit in 1240, and at that width the buttons fell off the right edge
+where a judge had to scroll sideways to reach them. Prose inside that width is
+held to a reading measure by `max-w-prose` where it matters.
+
+Radius runs `xs` to `lg` plus `pill` for chips. Three
 shadows, and they mean depth, not decoration: `--shadow-1` for a resting card,
 `--shadow-2` for something that floats, `--shadow-3` for the drawer that sits
 over the run. A flat surface with a border is the default; a shadow is a claim
