@@ -1,4 +1,4 @@
--- packages/db/migrations/0005_ceptinela_drift.sql  runs on ANY Postgres 16+
+-- packages/db/migrations/0005_sentryone_drift.sql  runs on ANY Postgres 16+
 --
 -- Closes the gap between 0003 and packages/core/src/domain.ts as it stands
 -- today. 0003 was written against an earlier domain and three things moved:

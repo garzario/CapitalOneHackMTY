@@ -28,7 +28,7 @@
  *   a correct 3-7-1 check digit, because the forensics detector must be exercised by
  *   accounts that pass the arithmetic and fail on something more interesting.
  *
- * The arithmetic the catalogue has to satisfy, asserted in ceptinela.test.ts:
+ * The arithmetic the catalogue has to satisfy, asserted in sentryone.test.ts:
  *
  * - `invoicesPerMonth` sums to 439, so a weekly payment run carries about 101 lines,
  *   which is inside the 70 to 110 the brief asks for. The run is not padded to hit a
@@ -65,7 +65,7 @@ export type SupplierSegment =
   | "transporte"
   | "troquelados";
 
-export interface CeptinelaSupplierSpec {
+export interface SentryOneSupplierSpec {
   rfc: Rfc;
   legalName: string;
   /** A municipality of the Monterrey metropolitan area. Real place, invented company. */
@@ -111,7 +111,7 @@ export const CONSUMABLE_SEGMENTS: readonly SupplierSegment[] = [
  * 28-person metalworking shop actually carries: enough that a clerk cannot hold every
  * account number in their head, which is the entire reason the product exists.
  */
-export const CEPTINELA_SUPPLIERS: readonly CeptinelaSupplierSpec[] = [
+export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
   {
     rfc: "SYN980101S01",
     legalName: "Aceros y Laminas del Norte SA de CV",
@@ -577,11 +577,11 @@ export const CEPTINELA_SUPPLIERS: readonly CeptinelaSupplierSpec[] = [
 ];
 
 /** Every synthetic RFC in the catalogue, for the invariants test and for the seeder. */
-export const CEPTINELA_SUPPLIER_RFCS: readonly string[] =
-  CEPTINELA_SUPPLIERS.map((supplier) => supplier.rfc);
+export const SENTRYONE_SUPPLIER_RFCS: readonly string[] =
+  SENTRYONE_SUPPLIERS.map((supplier) => supplier.rfc);
 
 export function findSupplierSpec(
   rfc: string,
-): CeptinelaSupplierSpec | undefined {
-  return CEPTINELA_SUPPLIERS.find((supplier) => supplier.rfc === rfc);
+): SentryOneSupplierSpec | undefined {
+  return SENTRYONE_SUPPLIERS.find((supplier) => supplier.rfc === rfc);
 }

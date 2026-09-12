@@ -1,11 +1,11 @@
-# The Ceptinela generator
+# The SentryOne generator
 
 One synthetic company, its suppliers, eight months of CFDIs and payment complements,
 the current week's payment run, and the bank mirror of everything that already left
 the account.
 
 ```
-src/ceptinela/
+src/sentryone/
   README.md          this file
   company.ts         the demo company and the constants the rest of the repo reads
   suppliers.ts       the 42-supplier catalogue, literals, with valid CLABEs
@@ -16,14 +16,14 @@ src/ceptinela/
   hard-negatives.ts  the four cases that look like fraud and are not
   scenarios.ts       the four cases the demo opens on
   mirror.ts          SPEI transfers and the Nessie-shaped bank mirror
-  generator.ts       generateCeptinela and summarizeCeptinela
-  loader.ts          loadCeptinela, what the API boots on with SEED=ceptinela
+  generator.ts       generateSentryOne and summarizeSentryOne
+  loader.ts          loadSentryOne, what the API boots on with SEED=sentryone
   index.ts           the surface
-  ceptinela.test.ts  the invariants
+  sentryone.test.ts  the invariants
 ```
 
 The deterministic RNG is `createRng` from `../rng.ts`: mulberry32, integer maths only,
-byte-identical output on every machine. The Ceptinela seed is 69 and the consumer
+byte-identical output on every machine. The SentryOne seed is 69 and the consumer
 generator's is 86, deliberately different, so a determinism bug in one does not look
 like a bug in the other.
 
@@ -65,7 +65,7 @@ Four demo scenarios, one per named hero instruction:
 | `listed_supplier_69b` | A supplier of two years whose RFC is on the simulated Article 69-B publication |
 
 `bun run seed` prints the instruction id of each one and writes them to
-`.seed/ceptinela.json`.
+`.seed/sentryone.json`.
 
 ## Three rules
 
@@ -82,7 +82,7 @@ Four demo scenarios, one per named hero instruction:
    an accusation and an invented one has to be unmistakably invented even in a
    screenshot with the watermark cropped off.
 3. **Nothing is dated after the run day.** A ledger a judge scrolls through must not
-   contain tomorrow, and that is one of the assertions in `ceptinela.test.ts`.
+   contain tomorrow, and that is one of the assertions in `sentryone.test.ts`.
 
 ## The arithmetic, which is the part that gets asked about
 

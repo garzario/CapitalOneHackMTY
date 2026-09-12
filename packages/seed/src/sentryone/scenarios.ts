@@ -24,7 +24,7 @@ import { addDays } from "../dates";
 import type { Rng } from "../rng";
 import { makeInstruction } from "./build";
 import { bankCodeOf, mintBrokenClabe, mintNearMissClabe } from "./clabe";
-import type { CeptinelaSupplierSpec } from "./suppliers";
+import type { SentryOneSupplierSpec } from "./suppliers";
 import {
   cents,
   dayOf,
@@ -33,7 +33,7 @@ import {
   WORK_DAY_END_MINUTE,
   WORK_DAY_START_MINUTE,
 } from "./timeline";
-import type { CaseInjector, CaseResult, CeptinelaDraft } from "./types";
+import type { CaseInjector, CaseResult, SentryOneDraft } from "./types";
 
 /** Below this the case is true and boring. The demo needs a number worth stopping. */
 const HERO_MIN_AMOUNT = 25_000;
@@ -65,7 +65,7 @@ function listedEntry(): SatListEntry {
   return entry;
 }
 
-function listedSupplierSpec(): CeptinelaSupplierSpec {
+function listedSupplierSpec(): SentryOneSupplierSpec {
   return {
     rfc: LISTED_SUPPLIER_RFC,
     legalName: listedEntry().name,
@@ -99,7 +99,7 @@ function notApplied(
  * a supplier with a year of history and exactly one account in it, so "the account we
  * have always used" is a thing that exists and the case is unambiguous.
  */
-function freeLines(draft: CeptinelaDraft): PaymentInstruction[] {
+function freeLines(draft: SentryOneDraft): PaymentInstruction[] {
   return draft.instructions.filter((instruction) => {
     if (
       draft.claimed.has(instruction) ||
@@ -124,7 +124,7 @@ function freeLines(draft: CeptinelaDraft): PaymentInstruction[] {
 }
 
 function knownClabeOf(
-  draft: CeptinelaDraft,
+  draft: SentryOneDraft,
   instruction: PaymentInstruction,
 ): string | undefined {
   return draft.suppliers.find((row) => row.rfc === instruction.supplierRfc)
@@ -132,7 +132,7 @@ function knownClabeOf(
 }
 
 /** A working-hours instant inside the run week. */
-function receivedInRunWeek(draft: CeptinelaDraft, rng: Rng): string {
+function receivedInRunWeek(draft: SentryOneDraft, rng: Rng): string {
   const day = nextBusinessDay(addDays(draft.weekOf, rng.int(0, 2)));
   return instantAt(day, rng.int(WORK_DAY_START_MINUTE, WORK_DAY_END_MINUTE));
 }

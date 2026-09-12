@@ -9,7 +9,7 @@ import { modulesPath, QUIET_ZONE } from "./QrCode";
  * structure is still a QR code, and a path that actually covers its dark
  * modules. A judge finding out at the booth is the failure mode.
  */
-const DEMO_URL = "https://ceptinela.tech/#/intake";
+const DEMO_URL = "https://sentryone.tech/#/intake";
 
 function matrixOf(value: string): boolean[][] {
   return encode(value).data as unknown as boolean[][];
@@ -51,7 +51,7 @@ describe("the encoded symbol", () => {
   it("grows with the payload rather than truncating it", () => {
     const short = matrixOf("https://a.tech/#/intake").length;
     const long = matrixOf(
-      `https://ceptinela.tech/#/intake?rfc=SYN010101AAA&amount=184300&clabe=012180001234567899&nota=${"x".repeat(120)}`,
+      `https://sentryone.tech/#/intake?rfc=SYN010101AAA&amount=184300&clabe=012180001234567899&nota=${"x".repeat(120)}`,
     ).length;
 
     expect(long).toBeGreaterThan(short);

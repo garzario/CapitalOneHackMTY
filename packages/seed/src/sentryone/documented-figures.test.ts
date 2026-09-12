@@ -24,7 +24,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { generateCeptinela } from "./generator";
+import { generateSentryOne } from "./generator";
 
 /** The exact run the three documents cite. */
 const SEED = 69;
@@ -37,7 +37,7 @@ const JOURNEY = join(REPO_ROOT, "docs", "03-user-journey.md");
 const ONE_PAGER = join(REPO_ROOT, "docs", "print", "one-pager.html");
 const DEMO_SCRIPT = join(REPO_ROOT, "docs", "10-demo-script.md");
 
-const dataset = generateCeptinela({ seed: SEED, weekOf: WEEK_OF });
+const dataset = generateSentryOne({ seed: SEED, weekOf: WEEK_OF });
 
 const instructions = dataset.instructions.length;
 const suppliers = dataset.suppliers.length;
@@ -152,7 +152,7 @@ describe("docs/print/one-pager.html", () => {
  * Only the generator-derived figures are asserted here. The engine-derived ones
  * in the same tables, the seven findings, the 885,658.73 that is not leaving
  * and the 404,152.59 of retroactive exposure, need the controls run over this
- * dataset, so they belong in a test in `apps/api` beside `ceptinela.test.ts`.
+ * dataset, so they belong in a test in `apps/api` beside `sentryone.test.ts`.
  * They are currently unprotected and that is worth someone's next twenty
  * minutes.
  */

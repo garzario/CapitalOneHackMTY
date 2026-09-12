@@ -385,7 +385,7 @@ async function main(): Promise<void> {
       "--disable-gpu",
       "--hide-scrollbars",
       `--remote-debugging-port=${PORT}`,
-      "--user-data-dir=/tmp/ceptinela-audit",
+      "--user-data-dir=/tmp/sentryone-audit",
       "about:blank",
     ],
     { stdio: "ignore" },

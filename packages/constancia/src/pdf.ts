@@ -297,7 +297,7 @@ export class PdfDocument {
     );
     objects.push(
       `<< /Title (${escapeText(this.metadata.title)}) ` +
-        `/Producer (${escapeText(this.metadata.producer ?? "Ceptinela")}) ` +
+        `/Producer (${escapeText(this.metadata.producer ?? "SentryOne")}) ` +
         `/CreationDate (${pdfDate(this.metadata.createdAt)}) >>`,
     );
 

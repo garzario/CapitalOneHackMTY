@@ -1,6 +1,6 @@
 import app from "./app";
-import { ceptinelaBootNotes } from "./ceptinela";
 import { repositoryBootNote } from "./deps";
+import { sentryoneBootNotes } from "./sentryone";
 
 /**
  * Entry point, deliberately thin: everything testable lives in app.ts, which
@@ -28,15 +28,15 @@ if (repository !== undefined) {
 }
 
 /**
- * Under `SEED=ceptinela`, say on stdout which company was loaded and what the
+ * Under `SEED=sentryone`, say on stdout which company was loaded and what the
  * engine found on it. The ids are the ones docs/10-demo-script.md curls, and a
  * boot line that reports the findings is a boot line that cannot promise a
  * payment run it did not actually assess.
  */
-const notes = ceptinelaBootNotes();
+const notes = sentryoneBootNotes();
 if (notes !== undefined) {
   console.log(
-    `ceptinela seed ${notes.seed}, run ${notes.runId} week of ${notes.weekOf}`,
+    `sentryone seed ${notes.seed}, run ${notes.runId} week of ${notes.weekOf}`,
   );
   console.log(
     `engine: ${notes.findings} findings, ${notes.held} held, ${notes.toVerify} to verify`,

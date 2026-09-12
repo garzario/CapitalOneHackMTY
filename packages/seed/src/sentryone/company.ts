@@ -77,9 +77,9 @@ export const RUN_SIZE_MIN = 70;
 export const RUN_SIZE_MAX = 110;
 
 /**
- * The seed the Ceptinela generator defaults to. Same seed, same company, byte for
+ * The seed the SentryOne generator defaults to. Same seed, same company, byte for
  * byte, on every machine. 69 after the article this whole product hangs off, and
  * deliberately not 86, which is the consumer generator's seed: two generators sharing
  * a seed makes a determinism bug in one of them look like a bug in the other.
  */
-export const CEPTINELA_DEFAULT_SEED = 69;
+export const SENTRYONE_DEFAULT_SEED = 69;

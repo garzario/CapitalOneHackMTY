@@ -3,10 +3,10 @@
 Worth 5 points directly (system design) and it underwrites the algorithmic-logic row, because a
 judge cannot believe the algorithm is real until they can see where it lives and what it touches.
 
-Owner: Patricio (`garzario`). Issue #64. Due M3, drafted at M0, rewritten for Ceptinela after
+Owner: Patricio (`garzario`). Issue #64. Due M3, drafted at M0, rewritten for SentryOne after
 ADR-0002 was accepted.
 
-Product: Ceptinela, track 3. The thesis and the six controls are in
+Product: SentryOne, track 3. The thesis and the six controls are in
 `docs/adr/0002-track-and-thesis.md`. The domain types are in `packages/core/src/domain.ts` and the
 HTTP contract is in `docs/09-api.md`. Nothing below invents a second shape for either.
 

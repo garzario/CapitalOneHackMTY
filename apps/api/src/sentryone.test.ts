@@ -1,5 +1,5 @@
 /**
- * The `SEED=ceptinela` boot path.
+ * The `SEED=sentryone` boot path.
  *
  * The generator has its own invariants in packages/seed; what is asserted here is
  * only the wiring: that the repository really serves the generated company through
@@ -12,13 +12,13 @@
  */
 
 import { beforeAll, describe, expect, it } from "bun:test";
-import {
-  ceptinelaBootNotes,
-  ceptinelaDataset,
-  wantsCeptinela,
-} from "./ceptinela";
 import { MemoryRepository } from "./repo";
 import { instructionDetailSchema, paymentRunSchema } from "./schemas";
+import {
+  sentryoneBootNotes,
+  sentryoneDataset,
+  wantsSentryOne,
+} from "./sentryone";
 import { createTestApp } from "./test-app";
 
 /**
@@ -32,27 +32,27 @@ import { createTestApp } from "./test-app";
  */
 let shared: ReturnType<typeof createTestApp> | undefined;
 
-function ceptinelaApp() {
+function sentryoneApp() {
   if (shared === undefined) {
     throw new Error("the shared app was not built");
   }
   return shared;
 }
 
-describe("SEED=ceptinela", () => {
+describe("SEED=sentryone", () => {
   beforeAll(() => {
-    shared = createTestApp({ repo: new MemoryRepository(0, ceptinelaDataset) });
+    shared = createTestApp({ repo: new MemoryRepository(0, sentryoneDataset) });
   }, 30_000);
 
   it("switches only on the documented value", () => {
-    expect(wantsCeptinela("ceptinela")).toBe(true);
-    expect(wantsCeptinela(undefined)).toBe(false);
-    expect(wantsCeptinela("")).toBe(false);
-    expect(wantsCeptinela("Ceptinela")).toBe(false);
+    expect(wantsSentryOne("sentryone")).toBe(true);
+    expect(wantsSentryOne(undefined)).toBe(false);
+    expect(wantsSentryOne("")).toBe(false);
+    expect(wantsSentryOne("SentryOne")).toBe(false);
   });
 
   it("serves the generated payment run through the documented shape", async () => {
-    const { app } = ceptinelaApp();
+    const { app } = sentryoneApp();
     const res = await app.request("/api/v1/run/current");
 
     expect(res.status).toBe(200);
@@ -88,7 +88,7 @@ describe("SEED=ceptinela", () => {
   });
 
   it("stops the two payments the demo is about, on evidence from the documents", async () => {
-    const { app } = ceptinelaApp();
+    const { app } = sentryoneApp();
     const run = paymentRunSchema.parse(
       await (await app.request("/api/v1/run/current")).json(),
     );
@@ -117,8 +117,8 @@ describe("SEED=ceptinela", () => {
   });
 
   it("prints hero ids the API can be asked for", async () => {
-    const { app } = ceptinelaApp();
-    const notes = ceptinelaBootNotes();
+    const { app } = sentryoneApp();
+    const notes = sentryoneBootNotes();
 
     expect(notes?.heroInstructionIds).toHaveLength(4);
     expect(notes?.demoRfcs).toHaveLength(4);
@@ -133,8 +133,8 @@ describe("SEED=ceptinela", () => {
   });
 
   it("answers the supplier drawer for every RFC it names", async () => {
-    const { app } = ceptinelaApp();
-    const notes = ceptinelaBootNotes();
+    const { app } = sentryoneApp();
+    const notes = sentryoneBootNotes();
     // The first RFC is the company's own, which is not a supplier.
     for (const rfc of (notes?.demoRfcs ?? []).slice(1)) {
       const res = await app.request(`/api/v1/suppliers/${rfc}`);
@@ -149,7 +149,7 @@ describe("SEED=ceptinela", () => {
    * does, so the timeout is raised rather than the work faked.
    */
   it("changes the data when the seed changes, which is what POST /seed claims", async () => {
-    const repo = new MemoryRepository(0, ceptinelaDataset);
+    const repo = new MemoryRepository(0, sentryoneDataset);
     const before = await repo.currentRun();
     const summary = await repo.reset(1234);
     const after = await repo.currentRun();

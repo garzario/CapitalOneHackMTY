@@ -12,7 +12,7 @@ import {
 /**
  * Intake and the human decision.
  *
- * Ceptinela never moves money. A release is a person saying yes, and the SPEI
+ * SentryOne never moves money. A release is a person saying yes, and the SPEI
  * still leaves from the company's own banking portal, which is why this file
  * appends `decision_made` and never `payment_sent`. That event arrives later,
  * from bank reconciliation, and it is the only one that means pesos actually
