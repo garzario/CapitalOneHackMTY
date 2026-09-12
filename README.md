@@ -79,10 +79,10 @@ that caught real bugs, and the list of work we consciously cut.
 
 | Person | Handle | Owns |
 |---|---|---|
-| Patricio Garza | [@garzario](https://github.com/garzario) | Lead, intelligence, architecture, CI |
-| Fabian | [@fabbyyyy](https://github.com/fabbyyyy) | Data platform, API, deploy |
-| Adan | [@Apanawa](https://github.com/Apanawa) | Frontend, UX, motion |
-| Fabricio | [@FabriBanda](https://github.com/FabriBanda) | Narrative, docs, market, pitch |
+| Patricio Garza | [@garzario](https://github.com/garzario) | Lead, engine (detectors, CEP, SAT sweep, synthetic company), Gemini extraction, ElevenLabs verification, architecture, CI, release |
+| Fabian | [@fabbyyyy](https://github.com/fabbyyyy) | Data platform (Tiger Data ledger), API and SSE, Nessie mirror, deploy (Vercel, Vultr), accounts, offline mode |
+| Fabricio | [@FabriBanda](https://github.com/FabriBanda) | UI/UX: brand and design system, screen designs, payment run and finding panel, persona and journey, demo script, judge card |
+| Adan | [@Apanawa](https://github.com/Apanawa) | Frontend with Fabricio (QR intake, SAT replay, CEP viewer, metrics, motion and accessibility), blind holdout and metrics harness, constancia PDF, regulatory doc |
 
 ## Docs
 
