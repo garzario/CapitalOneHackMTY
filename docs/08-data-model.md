@@ -210,7 +210,7 @@ and `packages/db/src/rows.ts` is the only file that translates between the two.
 
 ## Migrations
 
-Six files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
+Eight files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
 `packages/db/src/migrate.ts`, written out rather than discovered by reading the directory, so adding
 a file is a deliberate one-line change in a diff and a stray `.sql` left in the folder never runs.
 The plain files run first and the Timescale ones after, so a fresh database is fully usable even
@@ -224,8 +224,10 @@ laptops.
 | `0003_sentryone.sql` | any Postgres 16+ | the SentryOne schema: suppliers, known accounts, CFDIs, complements, instructions, findings, decisions and their join, the SAT list, the verified-beneficiary registry, and the append-only event ledger |
 | `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003, the two widened check constraints, the `ledger_tx` key, and the append-only trigger |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table |
+| `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
+| `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
 
 **`0001_init.sql`** is the bootstrap bank mirror from before ADR-0002, and it stayed. `ledger_tx` is
 what Nessie normalises into and what `bank_reconciliation` reads, so replacing it would have been a
@@ -290,8 +292,8 @@ intake joins it. One row, enforced by `id integer primary key default 1 check (i
 by convention, because a second company row would make "which one is us" a question with two
 answers.
 
-**`0002_timescale.sql` and `0004_timescale_sentryone.sql`** are the only files that need the
-extension, and `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips
+**`0002_timescale.sql`, `0004_timescale_sentryone.sql` and `0008_timescale_supplier_outflow.sql`**
+are the files that need the extension, and `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips
 them otherwise. They are separate files rather than guarded branches because a continuous aggregate
 cannot be created inside a transaction or a `DO` block.
 
@@ -314,6 +316,107 @@ request. On a plain Postgres 18 the same rollup is a `date_trunc` query over the
 `dailySpend` in `packages/db/src/queries.ts` is written in exactly the shape of `ledger_daily` so
 the two paths answer identically. `bun run doctor` reports which path is live, so nobody demos
 against the wrong database by accident. Recorded in `docs/adr/0003-datastore-and-timeseries.md`.
+### supplier_weekly_outflow, one name over two definitions
+
+**`0007_supplier_outflow.sql`** and **`0008_timescale_supplier_outflow.sql`** are the feed the
+`supplier_behaviour` detector and the supplier drawer read: what each supplier invoiced this
+company, per week. The object exists twice under one name, so `packages/db/src/queries.ts` holds one
+query, `packages/db/src/rows.ts` holds one mapper, and neither path gets a private shape.
+
+```sql
+-- 0007_supplier_outflow.sql   runs on ANY Postgres 16+
+create or replace view supplier_weekly_outflow as
+  select ledger_events.payload -> 'cfdi' ->> 'issuerRfc' as supplier_rfc,
+         date_trunc('week', ledger_events.at at time zone 'UTC') at time zone 'UTC'
+           as week,
+         count(*)::bigint as invoices,
+         sum((ledger_events.payload -> 'cfdi' ->> 'total')::numeric(14,2))
+           as outflow,
+         max((ledger_events.payload -> 'cfdi' ->> 'total')::numeric(14,2))
+           as max_invoice
+  from ledger_events
+  where ledger_events.type = 'cfdi_received'
+  group by ledger_events.payload -> 'cfdi' ->> 'issuerRfc',
+           date_trunc('week', ledger_events.at at time zone 'UTC') at time zone 'UTC';
+```
+
+```sql
+-- 0008_timescale_supplier_outflow.sql   only with timescaledb
+drop view if exists supplier_weekly_outflow;
+
+create materialized view supplier_weekly_outflow
+  with (timescaledb.continuous) as
+  select payload -> 'cfdi' ->> 'issuerRfc' as supplier_rfc,
+         time_bucket('7 days', at) as week,
+         count(*)::bigint as invoices,
+         sum((payload -> 'cfdi' ->> 'total')::numeric(14,2)) as outflow,
+         max((payload -> 'cfdi' ->> 'total')::numeric(14,2)) as max_invoice
+  from ledger_events
+  where type = 'cfdi_received'
+  group by payload -> 'cfdi' ->> 'issuerRfc', time_bucket('7 days', at);
+
+alter materialized view supplier_weekly_outflow
+  set (timescaledb.materialized_only = false);
+
+select add_continuous_aggregate_policy('supplier_weekly_outflow',
+  start_offset      => interval '1 year',
+  end_offset        => interval '1 hour',
+  schedule_interval => interval '1 hour',
+  if_not_exists     => true);
+```
+
+The Timescale file drops the view before it takes the name, which is safe because the plain files
+always run first and `schema_migrations` stops either file running twice. Four decisions, each a
+constraint rather than a preference.
+
+1. **The source is the event ledger, and on the Timescale path there is no alternative.** `cfdis`
+   cannot become a hypertable: `payment_complements.related_cfdi_uuid` references `cfdis (uuid)`,
+   that foreign key needs a unique index on `uuid` alone, and a unique index without the
+   partitioning column is exactly what `create_hypertable` refuses. `instructions` is pinned the
+   same way by `decisions.instruction_id`. Neither key can be widened without dropping a foreign key
+   the sweep and the payment run depend on, and `0003` is never edited. `ledger_events` is already
+   the hypertable `0004` made and it is the system of record, so the aggregate belongs there on the
+   merits as well. One `cfdi_received` is emitted per CFDI at `cfdi.issuedAt`, so the aggregate and
+   the `cfdis` table carry the same pesos. Over the seeded company that is 4,103 events against
+   4,103 rows and MXN 45,003,735.01 against MXN 45,003,735.01, with a difference of 0.00.
+2. **The bucket is Monday 00:00 UTC on both paths.** `date_trunc('week', ...)` lands on Monday, and
+   `time_bucket('7 days', ...)` counts from Timescale's default origin of 2000-01-03, itself a
+   Monday, in UTC, so every boundary is the same instant under both definitions. The week is cut in
+   UTC and not in Monterrey: an invoice stamped 23:59 UTC on a Sunday is 17:59 locally, a local cut
+   would move it into the next bucket, and nobody reads the hour a week opened. `dailySpend` does
+   cut in Monterrey, because a purchase at 23:30 belongs to the day the person made it. Different
+   question, different cut, both stated in the query.
+3. **Money is cast to `numeric(14,2)` coming out of the jsonb.** `total` is `numeric(14,2)` in
+   `cfdis` and a JSON number in the payload. Without the cast the sum is built out of floats and
+   stops agreeing with `sum(total) from cfdis` at the cent.
+4. **Real-time aggregation is on, and it is a demo-path decision.** TimescaleDB 2.13 changed the
+   default of `materialized_only` to true, and under that default a CFDI ingested during the demo
+   would not reach the detector until the next refresh ran. Set to false, a read unions the
+   materialised buckets with the rows newer than the refresh watermark. The policy is what makes the
+   aggregate cheaper than the view: buckets older than an hour are computed once and kept, and only
+   the tail is computed per request.
+
+**The two-path note.** The plain view is not a degraded mode. It is the same five columns over the
+same rows with the same bucket boundaries, computed at read time instead of kept materialised, so
+the offline database answers every question the managed one answers and answers it with the same
+numbers. What changes is cost, not truth. `migrate.test.ts` compares the two column lists without a
+database, so a column added to one and not the other fails in CI.
+
+`supplierHistory(rfc, weeks)` in `packages/db/src/queries.ts` is written against the name and never
+against either definition. It returns `SupplierBehaviourInput` from `packages/core/src/behaviour.ts`
+with the weekly series attached, so `assessSupplierBehaviour(await supplierHistory(sql, rfc))` runs
+with nothing in between: a feed that has to be reshaped before the detector accepts it is a feed
+that can be reshaped wrongly, and `rows.test.ts` holds the type-level assertion that keeps the two
+shapes in step without a database. The window is
+`SUPPLIER_BEHAVIOUR_DEFAULTS.baselineWeeks + recentWeeks` taken from the detector's own defaults
+rather than restated as a number, so lengthening the baseline cannot leave the feed handing it less
+history than it is about to measure against. It is bounded at the bottom and open at the top: the
+lower bound is what stops the read from growing with the age of the company, and an upper bound
+would add a boundary the detector does not share, because the detector keeps an invoice issued at
+exactly `now` and drops anything after it. The CFDI set is company wide and not this supplier's
+slice, because that is the denominator of the concentration signal. The weekly series is bounded by
+the bucket that contains the lower bound and not by the raw instant, or the series would start a
+week late.
 
 ## Field notes
 

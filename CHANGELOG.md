@@ -31,6 +31,24 @@ then the screens, then the narrative, then the plumbing.
   `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
   while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
 
+- `supplier_weekly_outflow`, the feed the `supplier_behaviour` detector and the supplier drawer read
+  (issue #72). One name over two definitions: `0007_supplier_outflow.sql` is a plain view that runs
+  on any Postgres 16 or newer, and `0008_timescale_supplier_outflow.sql` drops it and puts a
+  continuous aggregate with the same five columns and the same Monday 00:00 UTC buckets in its
+  place where `timescaledb` exists, so the offline database answers the same numbers and only the
+  cost changes. The source is `ledger_events` and not `cfdis`, which is forced rather than chosen: a
+  foreign key into `cfdis (uuid)` needs a unique index on `uuid` alone and that is exactly what
+  `create_hypertable` refuses, and `instructions` is pinned the same way by `decisions`. Real-time
+  aggregation is on, so a CFDI ingested during the demo reaches the detector without waiting for a
+  refresh. `supplierHistory(rfc, weeks)` in `packages/db/src/queries.ts` returns
+  `SupplierBehaviourInput` from `packages/core/src/behaviour.ts` with the weekly series attached, so
+  `assessSupplierBehaviour(await supplierHistory(sql, rfc))` runs with no mapping step in between,
+  and the window comes from the detector's own defaults so the two cannot drift. Tested three ways:
+  the mapper and the shape without a database in `rows.test.ts`, the two definitions compared column
+  by column in `migrate.test.ts`, and ten cases against a real server in `queries.test.ts`, gated on
+  `TEST_DATABASE_URL` and run against the local PostgreSQL 18.6 where the plain view is what
+  answers. Documented in `docs/08-data-model.md`.
+
 - The API answers every endpoint in `docs/09-api.md` out of Postgres, so the data platform is live
   behind the product rather than beside it (issue #41). `apps/api/src/postgres-repo.ts` implements
   the same `Repository` the screens were built against, over the query layer in `packages/db`, and

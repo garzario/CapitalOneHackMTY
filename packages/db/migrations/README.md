@@ -10,8 +10,10 @@ between four laptops.
 | `0003_sentryone.sql` | any Postgres 16+ | the SentryOne schema: suppliers, known accounts, CFDI, complements, instructions, findings, decisions, the SAT list, the verified beneficiary registry and the append-only event ledger |
 | `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003 (`delay_cost_per_day`, `audio_ref`, `sent_at`, `payment_total`, `operation_number`, the CEP evidence fields), `ledger_tx` as a finding subject and `verification_call` as a ledger event type |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table: who we are on the header of a constancia, and the bank account id the mirror hangs off |
+| `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events: the feed the `supplier_behaviour` detector and the supplier drawer read |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
+| `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
 
 The order in the table is the order they run: the plain files first, then the ones
 that need the extension. The list lives in `MIGRATIONS` in `packages/db/src/migrate.ts`
@@ -43,6 +45,21 @@ the rest of the variant is `jsonb`. The primary key is `(at, event_id)` and not
 every unique index, and `0004` partitions this table on `at`. `seq` is an identity
 column with a plain index, which gives a total order inside the same instant without
 adding a unique index that would block `create_hypertable`.
+
+## Why an object can be defined twice
+
+`supplier_weekly_outflow` is one name over two definitions: a plain view in `0007` and, where the
+extension exists, the continuous aggregate that replaces it in `0008`. The Timescale file drops the
+view before creating the aggregate, which is only safe because the plain files always run first and
+`schema_migrations` stops either of them from running twice. Both return the same five columns over
+the same rows with the same Monday 00:00 UTC buckets, so `packages/db/src/queries.ts` holds one
+query and neither path gets a private shape. `migrate.test.ts` compares the two column lists without
+a database, so a column added to one and not the other fails in CI.
+
+The source is `ledger_events` rather than `cfdis`, and that is forced rather than chosen: a foreign
+key into `cfdis (uuid)` needs a unique index on `uuid` alone, which is exactly the index
+`create_hypertable` refuses, and `instructions` is pinned the same way by `decisions`. The event
+ledger is the one hypertable, and `0003` already calls it the system of record.
 
 The retroactive sweep after a SAT publication is a replay over this table, so an
 update or a delete would rewrite history that a judge is being shown. `0003` made
