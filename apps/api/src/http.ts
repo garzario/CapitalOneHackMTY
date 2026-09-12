@@ -22,11 +22,12 @@ export type ErrorCode =
   | "forbidden"
   | "not_found"
   | "unprocessable"
+  | "rate_limited"
   | "http_error"
   | "internal_error";
 
 /** Statuses this API actually returns. Anything else is a bug, not a choice. */
-export type ErrorStatus = 400 | 403 | 404 | 422 | 500;
+export type ErrorStatus = 400 | 403 | 404 | 422 | 429 | 500;
 
 export type ErrorBody = {
   error: {

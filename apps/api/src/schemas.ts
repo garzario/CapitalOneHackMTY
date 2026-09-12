@@ -35,6 +35,7 @@ import type {
   VerificationOutcome,
   VerificationTurn,
 } from "@hackmty/core";
+import { normalizeRfc } from "@hackmty/sat";
 import { z } from "zod";
 
 /* -------------------------------------------------------------------------- */
@@ -381,9 +382,22 @@ export const supplierDetailSchema = z.object({
   verifiedBeneficiaries: z.array(verifiedBeneficiarySchema),
 });
 
+/** Which download of the official list answered, named even on an empty answer. */
+export const satLookupSourceSchema = z.object({
+  listVersion: z.string().min(1),
+  retrievedAt: publicationDateSchema,
+  url: z.string().min(1),
+  taxpayers: z.number().int().nonnegative(),
+  rows: z.number().int().nonnegative(),
+});
+
 export const satLookupResponseSchema = z.object({
   rfc: rfcSchema,
   entries: z.array(satListEntrySchema),
+  /** The newest situation is presunto or definitivo. Not "any row exists". */
+  listed: z.boolean(),
+  effective: satListEntrySchema.optional(),
+  source: satLookupSourceSchema,
 });
 
 export const satVersionSummarySchema = z.object({
@@ -591,11 +605,18 @@ export const seedBodySchema = z.object({
   reset: z.boolean().optional(),
 });
 
-/** A judge types the RFC by hand, so it is trimmed and upper-cased first. */
+/**
+ * A judge types the RFC by hand, so it is normalised before it is validated.
+ *
+ * `normalizeRfc` from `@hackmty/sat` upper-cases and strips the separators a
+ * human or a spreadsheet adds, and it deliberately keeps `&` and `Ñ`, which are
+ * legitimate characters in the name portion of a moral person's RFC. Doing it
+ * here rather than in the handler means "aaa 010101 aa1" and "AAA010101AA1" are
+ * the same request everywhere, including in the 400 the shape check produces.
+ */
 export const typedRfcSchema = z
   .string()
-  .trim()
-  .transform((value) => value.toUpperCase())
+  .transform((value) => normalizeRfc(value))
   .pipe(rfcSchema);
 
 export const satLookupQuerySchema = z.object({ rfc: typedRfcSchema });
