@@ -169,6 +169,25 @@ then the screens, then the narrative, then the plumbing.
   seed, with invariants covering reproducibility, reconciliation to the cent, every reference
   resolving and no date after the run day. `bun run seed` prints the hero instruction ids and the
   demo RFCs, and `SEED=ceptinela` serves the same company from the API.
+- `packages/db`: the Ceptinela query layer is implemented. Every stub in `queries.ts` has a body,
+  raw SQL over the tables of `0003`: the append-only event ledger (`appendLedgerEvent`,
+  `readLedger` with an exclusive `since`), suppliers with their known accounts (`upsertSupplier`
+  moves `first_invoice_at` earlier only and never downgrades the evidence behind an account), CFDI
+  and payment complements, instructions, findings, decisions (one row per decision moment, the
+  newest wins, the justifying findings through `decision_findings`), the versioned SAT list, the
+  verified beneficiary registry with the CEP stored byte for byte as `bytea`, the bank mirror read
+  back into `LedgerTx`, `currentPaymentRun` and `latestRunWeek` cut in Monterrey time, and the
+  counts and truncate the doctor and the seed use. The row shapes and mappers are in `rows.ts`,
+  pure and unit tested; `queries.test.ts` runs against a real Postgres when `TEST_DATABASE_URL`
+  is set and is skipped otherwise, and it was run green on both the local Postgres 18 and the
+  Tiger Data Timescale service.
+- `packages/db/migrations/0005_ceptinela_drift.sql`: the columns the domain grew after `0003`
+  (`delay_cost_per_day`, `audio_ref`, `sent_at`, `payment_total`, `operation_number`, the CEP
+  evidence fields), `ledger_tx` accepted as a finding subject and `verification_call` as a
+  ledger event type, `ledger_tx` keyed on `(occurred_at, id)` so `0002` can partition it, and
+  the append-only guard on `ledger_events` rewritten from two rules into a trigger that raises,
+  because Timescale refuses to turn a table with rules into a hypertable. `splitSqlStatements`
+  now respects quoted strings and dollar-quoted bodies, which is what the trigger needs.
 - Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
   back, and explicit blockers for the live URL and real CEP tracking key.
 - Finding panel reads all three evidence vocabularies in the repository through
@@ -510,6 +529,13 @@ then the screens, then the narrative, then the plumbing.
   of, and the four detectors that had shipped without a line of their own have one.
 
 ### Fixed
+
+- `insertLedgerTx` stored the bank mirror's `raw` column as a JSON string of JSON: postgres.js
+  serialises a value bound to a jsonb column itself, so the pre-stringified payload was encoded
+  twice. Every jsonb column now receives the object.
+- `0002_timescale.sql` could never run on a Timescale host: `create_hypertable` refuses a unique
+  index without the partitioning column and `ledger_tx` was keyed on `id` alone. `0005` rewrites
+  the key. Found the first time the migrations were applied to the Tiger Data service.
 
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
