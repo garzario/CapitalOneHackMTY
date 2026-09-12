@@ -22,6 +22,15 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   drives the five beats of `docs/10-demo-script.md` headless against a freshly seeded in-memory app
   and exits non-zero on any beat, with `--base <url>` to run the same beats over HTTP against a
   deployment.
+- `packages/constancia`, the retention artifact as a real PDF (issue #69). A PDF writer with no
+  dependency and no headless browser: base-14 Helvetica, WinAnsi bytes so accents and `Ñ` survive,
+  exact cross-reference offsets, uncompressed streams so a layout bug is readable with `less`.
+  Two documents on top of it, one for the retroactive 69-B sweep and one for the weekly payment
+  run, each stating what was checked and not only what was found, naming its own sources, and
+  carrying a SHA-256 digest of the ledger range it describes. The page calls that digest a huella
+  and says in as many words that it is not an electronic signature. Served by
+  `GET /api/v1/sat/constancia?listVersion=` and `GET /api/v1/run/:id/constancia`, linked from the
+  69-B screen and the payment run screen.
 - `GET /api/v1/sat/lookup` hardened for the RFCs a judge types (issue #70). The input is
   normalised before validation, so lower case, spaces and a hyphen before the homoclave all
   reach the same taxpayer, and the answer echoes the normalised form back. The response now

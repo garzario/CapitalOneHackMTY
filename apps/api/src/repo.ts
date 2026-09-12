@@ -39,6 +39,32 @@ import type {
 } from "./schemas";
 import { createSyntheticDataset, type SyntheticDataset } from "./synthetic";
 
+/** Who the company is, for the header of a constancia. */
+export interface CompanyIdentity {
+  rfc: string;
+  legalName: string;
+  /** True while the store is the synthetic one, which the document watermarks. */
+  synthetic: boolean;
+}
+
+/**
+ * Everything a constancia needs about one stored list version, read without
+ * publishing anything. `publishSatList` is the write; this is the read that
+ * lets the document be reprinted a year later without moving the ledger.
+ */
+export interface SweepSnapshot {
+  listVersion: string;
+  /** DOF publication date of the version, from its own rows. */
+  publishedAt: string;
+  subjects: SweepSubject[];
+  /**
+   * Supplier RFCs the company holds. It is the denominator: "one of twelve
+   * suppliers is on the list" is an answer, "one supplier is on the list" is a
+   * claim with nothing behind it.
+   */
+  suppliersChecked: number;
+}
+
 /** Everything a 69-B publication has to know about one newly listed supplier. */
 export interface SweepSubject {
   supplier: Supplier;
@@ -67,7 +93,12 @@ export interface ResetSummary {
 
 export interface Repository {
   /* Reads, one per endpoint in docs/09-api.md. */
+  company(): Promise<CompanyIdentity>;
   currentRun(): Promise<PaymentRun>;
+  /** One run by id. Undefined when this store does not hold that run. */
+  run(id: string): Promise<PaymentRun | undefined>;
+  /** A stored list version, priced but not republished. Undefined when unknown. */
+  sweepSnapshot(listVersion: string): Promise<SweepSnapshot | undefined>;
   instructionDetail(id: string): Promise<InstructionDetail | undefined>;
   supplierDetail(rfc: string): Promise<SupplierDetail | undefined>;
   findSupplier(rfc: string): Promise<Supplier | undefined>;
@@ -152,6 +183,59 @@ export class MemoryRepository implements Repository {
   }
 
   /* ---------------------------------------------------------------- reads */
+
+  async company(): Promise<CompanyIdentity> {
+    return {
+      rfc: this.data.companyRfc,
+      legalName: this.data.companyName,
+      // This store is the synthetic one by construction. The Postgres one will
+      // answer false, and the constancia stops printing the band on that day.
+      synthetic: true,
+    };
+  }
+
+  /**
+   * One run by id.
+   *
+   * There is exactly one run in this store, so the honest implementation is to
+   * answer it when the id matches and undefined otherwise, rather than to
+   * pretend a history exists. `current` is accepted as an alias so a link can
+   * be built before the run id is known, which is what the screens do.
+   */
+  async run(id: string): Promise<PaymentRun | undefined> {
+    if (id !== "current" && id !== this.data.runId) {
+      return undefined;
+    }
+    return this.currentRun();
+  }
+
+  /**
+   * Prices a stored list version against everything already paid, without
+   * publishing anything.
+   *
+   * It shares `sweepSubjectsFor` with `publishSatList`, because two different
+   * answers to "what did this version touch" is a bug waiting for a judge to
+   * find it: the constancia has to say the same thing the screen said.
+   */
+  async sweepSnapshot(listVersion: string): Promise<SweepSnapshot | undefined> {
+    const entries = this.data.satEntries.filter(
+      (entry) => entry.listVersion === listVersion,
+    );
+    if (entries.length === 0) {
+      return undefined;
+    }
+
+    const publishedAt = entries
+      .map((entry) => entry.publishedAt)
+      .sort()[0] as string;
+
+    return {
+      listVersion,
+      publishedAt,
+      subjects: this.sweepSubjectsFor(entries),
+      suppliersChecked: this.data.suppliers.length,
+    };
+  }
 
   async currentRun(): Promise<PaymentRun> {
     const items: PaymentRunItem[] = [];
@@ -384,27 +468,7 @@ export class MemoryRepository implements Repository {
       this.data.satEntries.push(copy(entry));
     }
 
-    const paidUuids = this.paidCfdiUuids();
-    const subjects: SweepSubject[] = [];
-
-    for (const entry of entries) {
-      const supplier = this.supplierRow(entry.rfc);
-      if (supplier === undefined) {
-        // A listed RFC we have never paid is not an exposure, it is news.
-        continue;
-      }
-      subjects.push(
-        copy({
-          supplier,
-          status: entry.status,
-          paidCfdis: this.data.cfdis.filter(
-            (cfdi) => cfdi.issuerRfc === entry.rfc && paidUuids.has(cfdi.uuid),
-          ),
-        }),
-      );
-    }
-
-    return subjects;
+    return this.sweepSubjectsFor(entries);
   }
 
   async saveVerifiedBeneficiary(row: VerifiedBeneficiary): Promise<void> {
@@ -461,6 +525,35 @@ export class MemoryRepository implements Repository {
   }
 
   /* --------------------------------------------------------------- private */
+
+  /**
+   * The suppliers a set of list rows touches, with the CFDI of theirs we have
+   * already paid. Shared by the publish write and the constancia read so the
+   * document can never disagree with the screen.
+   */
+  private sweepSubjectsFor(entries: readonly SatListEntry[]): SweepSubject[] {
+    const paidUuids = this.paidCfdiUuids();
+    const subjects: SweepSubject[] = [];
+
+    for (const entry of entries) {
+      const supplier = this.supplierRow(entry.rfc);
+      if (supplier === undefined) {
+        // A listed RFC we have never paid is not an exposure, it is news.
+        continue;
+      }
+      subjects.push(
+        copy({
+          supplier,
+          status: entry.status,
+          paidCfdis: this.data.cfdis.filter(
+            (cfdi) => cfdi.issuerRfc === entry.rfc && paidUuids.has(cfdi.uuid),
+          ),
+        }),
+      );
+    }
+
+    return subjects;
+  }
 
   private supplierRow(rfc: string): Supplier | undefined {
     return this.data.suppliers.find((supplier) => supplier.rfc === rfc);
