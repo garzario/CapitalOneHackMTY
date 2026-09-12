@@ -27,7 +27,12 @@ import {
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
-import { decideInstruction, getCurrentRun, useEvents } from "../lib/api";
+import {
+  decideInstruction,
+  getCurrentRun,
+  runConstanciaHref,
+  useEvents,
+} from "../lib/api";
 import type { PaymentRun } from "../lib/contract";
 import { formatClabe, formatCount, formatDate } from "../lib/format";
 import { SOURCE_LABEL } from "../lib/labels";
@@ -162,6 +167,20 @@ export function RunScreen() {
                 anySynthetic(run.items.map((i) => i.instruction))
               }
             />
+            {/* The retention artifact for this run: what was checked, what was
+                decided, and a digest of the ledger range behind it. Offered
+                only against the engine, because a constancia of a run the
+                browser made up would be a document about nothing. */}
+            {run && source !== "mock" ? (
+              <a
+                className="btn"
+                href={runConstanciaHref(run.id)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Constancia de la corrida (PDF)
+              </a>
+            ) : null}
             <span className="subtle t-xs">
               {stream.status === "open"
                 ? "Flujo de eventos conectado"

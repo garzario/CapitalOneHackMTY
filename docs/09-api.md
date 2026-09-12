@@ -18,6 +18,8 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
 | GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand |
 | GET | `/api/v1/ledger?since=` | `{ events: LedgerEvent[] }` | append-only ledger, for the timeline |
+| GET | `/api/v1/sat/constancia?listVersion=` | `application/pdf` | constancia of the retroactive sweep for one loaded list version |
+| GET | `/api/v1/run/:id/constancia` | `application/pdf` | constancia of one weekly payment run. `current` is accepted as the id |
 | GET | `/api/v1/instructions/:id/verify-call` | `{ script, voiceConfigured, releasesPayment: false }` | the words the voice agent reads, or the clerk does. Side effect free: no call is placed and nothing is appended |
 
 `PaymentRun` = `{ id, weekOf, totals: { instructions, amount, held, toVerify, released }, items: Array<{ instruction, supplier, decision, findings }> }`.
@@ -43,6 +45,17 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | fetches (or accepts) the CEP, validates the Banxico signature, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`. |
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand. Never releases a payment: the response always carries `releasesPayment: false` and no `decision_made` is ever appended. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company. Dev only, guarded by `ALLOW_SEED=1`. |
+
+### The constancias
+
+Two endpoints answer with a PDF rather than JSON, because the accountant files the document and reads it again when the SAT asks. They are the only non-JSON responses in the API.
+
+- `Content-Type: application/pdf`, `Content-Disposition: inline` with a filename, and `Cache-Control: no-store`. A constancia is a statement about a moment, and a cached one would hand back yesterday's exposure after a new list version landed.
+- The sweep constancia carries the company, the list version and its DOF publication date, where the snapshot came from, how many suppliers were checked against it, the newly listed suppliers with their deducted base and ISR plus IVA exposure, and the digest of the ledger range.
+- The run constancia carries the company, the run and its week, the number of instructions and the amount reviewed, the resolution counts, one row per instruction and the full explanation of every finding, and the same digest block.
+- Both print a SHA-256 digest of the canonicalised ledger range they describe. The page calls it a huella and states, on the document, that it is not an electronic signature: it proves two printings of the same range describe the same facts, and it does not prove who produced the file.
+- A version or a run this instance never held answers `404 not_found`. A constancia for something that does not exist would be a fabricated document.
+- Synthetic figures are watermarked on the page itself, from `synthetic: true` on the record.
 
 ## Streaming
 

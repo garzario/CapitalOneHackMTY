@@ -385,6 +385,22 @@ export async function getLedger(
   );
 }
 
+/**
+ * The constancia is a PDF, so it is a link and not a fetch.
+ *
+ * These build the href the anchor carries. Letting the browser navigate is what
+ * makes the file open in the reader the judge already has, keeps the filename
+ * the server chose, and costs no memory. Fetching the bytes into a blob would
+ * cost all three and buy nothing.
+ */
+export function sweepConstanciaHref(listVersion: string): string {
+  return `${API_PREFIX}/sat/constancia?listVersion=${encodeURIComponent(listVersion)}`;
+}
+
+export function runConstanciaHref(runId: string): string {
+  return `${API_PREFIX}/run/${encodeURIComponent(runId)}/constancia`;
+}
+
 /* -------------------------------------------------------------------- write */
 
 /** Intake from the QR page. Runs the detectors and answers with the decision. */

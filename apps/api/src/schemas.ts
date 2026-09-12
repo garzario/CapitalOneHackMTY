@@ -625,6 +625,11 @@ export const rfcParamSchema = z.object({ rfc: typedRfcSchema });
 
 export const idParamSchema = z.object({ id: z.string().min(1).max(200) });
 
+/** `GET /api/v1/sat/constancia?listVersion=`. */
+export const constanciaQuerySchema = z.object({
+  listVersion: z.string().min(1).max(200),
+});
+
 export const ledgerQuerySchema = z.object({
   since: instantSchema.optional(),
   limit: z.coerce.number().int().min(1).max(1000).optional(),

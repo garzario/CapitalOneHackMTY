@@ -22,7 +22,12 @@ import {
   LoadingBlock,
   SourceNotice,
 } from "../components/States";
-import { getSatVersions, lookupSatRfc, publishSatList } from "../lib/api";
+import {
+  getSatVersions,
+  lookupSatRfc,
+  publishSatList,
+  sweepConstanciaHref,
+} from "../lib/api";
 import type { SatLookup } from "../lib/contract";
 import { formatCount, formatDate, formatRfc } from "../lib/format";
 import { SAT_STATUS_BADGE, SAT_STATUS_LABEL } from "../lib/labels";
@@ -262,6 +267,26 @@ export function SatScreen() {
                     : ", calculada por el motor"}
                 </span>
               </div>
+
+              {/* The retention artifact. Offered only when the engine produced
+                  the numbers: a constancia of a sweep the browser calculated
+                  would be a document about nothing, and this is the one screen
+                  where that word carries fiscal weight. */}
+              {sweepSource === "mock" ? (
+                <p className="subtle t-xs">
+                  La constancia en PDF se genera en el servidor. Con la API
+                  apagada no hay documento que emitir.
+                </p>
+              ) : (
+                <a
+                  className="btn"
+                  href={sweepConstanciaHref(sweep.listVersion)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Descargar constancia (PDF)
+                </a>
+              )}
 
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {sweep.newlyListed.map((entry) => (
