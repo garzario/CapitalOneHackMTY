@@ -129,6 +129,10 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Fixed
 
+- The Gemini extraction test asserted the old default model name in the request URL, so `dev`
+  went red the moment the default moved to `gemini-3.6-flash`. It now asserts against
+  `GEMINI_MODEL` itself, which is the thing the test is actually about.
+
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
   landed it called none of them and `composeFindings` returned an empty array for all six slots
