@@ -1,131 +1,107 @@
 # 03. User journey
 
-Worth 7 points. The rubric pays for **structure**, so this map names a pre-trigger stage and a
-post-outcome stage. Most teams draw only the happy middle and lose half of this block.
+Issue #52. Persona: Lupita Elizondo, the sole administrative clerk at the synthetic 28-employee
+metalmecanica defined in `docs/02-persona.md`.
 
-Owner: Patricio (`garzario`), drafted for the team to validate. Screens confirmed by Fabricio
-(`FabriBanda`), who owns issues #46 to #51. Issue #52. Due M2.
+The journey begins when a CFDI XML arrives by email and ends when the verified payment evidence
+and decision memo are archived. Emotion uses a scale from -2, anxious, to +2, confident. Every
+product stage names the current screen and hash route that serves it.
 
-Persona: Lupita Elizondo, `docs/02-persona.md`. One cycle of the journey is one week, and the map
-runs from the XML landing in her inbox on Monday to the constancia archived after the run.
-
-## Journey
-
-Emotion scale is minus 2 to plus 2.
-
-```mermaid
-journey
-    title Lupita, from the XML in the inbox to the archived constancia
-    section Before, unaware
-      Invoices arrive by email and WhatsApp and get filed: 0: Lupita
-      Ledger parses each CFDI and checks the supplier quietly: 1: Ceptinela
-    section Thursday, the trigger
-      Assembles the run of 70 to 110 transfers: -1: Lupita
-      One supplier sent a different account this week: -2: Lupita
-    section Today, the workaround
-      Retypes 18 digits into the bank portal one payment at a time: -2: Lupita
-      Decides with the name the bank shows and nothing else: -2: Lupita
-    section With Ceptinela
-      Opens the run ranked by pesos at risk: 1: Lupita
-      Reads three findings with their evidence: 2: Lupita
-      Holds one, verifies one, releases the rest: 2: Lupita
-    section After
-      Files the constancia and the CEP as evidence: 2: Lupita
-      Replays the ledger when the SAT publishes again: 2: Ceptinela
-```
-
-## Stage table
-
-Every row names a real screen or it is a story, not a journey.
-
-| Stage | Trigger | User action | System action | Emotion | Friction today | Our intervention | Screen in `apps/web` | Evidence |
-|---|---|---|---|---|---|---|---|---|
-| 0. Pre-trigger, unaware | Monday to Wednesday, CFDI XML arrives by email, portal or WhatsApp | Saves the file, notes the amount in the spreadsheet | Parses CFDI 4.0 (#33), appends `cfdi_received`, links the supplier, matches the RFC against the loaded 69-B list versions (#35), no alert unless something changed | 0 | Nothing is checked at all. The cost accrues invisibly and surfaces months later | Continuous ingest, so Thursday starts with the work already done | Payment run screen, quiet state (#46) | TODO(FabriBanda) screenshot path in `assets/screenshots/` |
-| 1. Trigger | Thursday morning, bank cutoff hours away | Assembles what has to go out, 70 to 110 transfers | Builds the week's `PaymentRun`, runs all six detectors over every instruction, composes findings and an expected-loss decision per item | -1 | The list exists only in a spreadsheet, with no risk order | The run arrives already triaged, sorted by pesos at risk | Payment run screen with the alert rail (#46) | `GET /api/v1/run/current` in `docs/09-api.md` |
-| 2. Workaround today | The same Thursday, without us | Pastes eighteen digits per payment, eyeballs the beneficiary name the bank returns | Nothing. The bank shows a name after the account is typed and gives no history, no fiscal status and no duplicate check | -2 | Attention is spent uniformly across 80 payments, so the two that matter get the same seconds as the rest | Attention is spent where the pesos at risk are | Not our screen. This row exists to name what we replace | `docs/02-persona.md`, the workaround table |
-| 3. **The moment that is the product** | A row with MXN at risk sits at the top of the rail | Opens the finding, reads the evidence chips, chooses hold, verify or release | Shows the explanation in plain Spanish with its evidence: the two digits that differ from the historical CLABE, the bank change, the 69-B status with its DOF date, the duplicate original. Records the decision as a ledger event with the person who made it | +2 | The clerk has no way to see a supplier's payment history, its previous accounts or its fiscal status at the moment she pays | The three joins nobody else makes, at the moment of payment, with a person deciding | Finding detail panel and supplier drawer (#47), QR intake for anything that arrives mid-run (#48) | `Finding` and `Decision` in `packages/core/src/domain.ts` |
-| 4. Post-outcome | The run is sent | Files the constancia for the run and the CEP for the verified account | Appends `payment_sent` and `cep_verified`, adds the account to the supplier's `knownAccounts` with `establishedBy: "cep"`, so the same supplier is silent next week. On the next SAT publication, replays the ledger and quantifies exposure | +2 | The next SAT publication is discovered by the accountant months later, or by an assessment | The measurable change: verified beneficiaries accumulate, and the retroactive sweep runs the same week the list moves | SAT publication simulation with replay (#49), CEP viewer and beneficiary registry (#50), metrics page (#51) | `SweepResult` in `packages/core/src/domain.ts`, `POST /api/v1/sat/publish` |
-
-TODO(FabriBanda): confirm each screen exists or is planned and drop the screenshot path into the
-evidence column once it does. TODO(garzario) verify the cycle-level outcome numbers (payments
-verified per run, minutes saved) only after the generator in #43 and one timed run exist. No number
-goes in this table before then.
-
-## The moment that is the product
-
-Before stage 3, Lupita believes a payment is a data-entry task: the risk is that she mistypes, and
-the control is to read the digits twice. After stage 3 she believes a payment is a decision with
-evidence behind it, and that the evidence already exists: the invoice she received, the list the SAT
-published, and the receipt Banxico signs. Nothing about the transfer changed. What changed is that
-the three documents are joined at the one moment when joining them can still stop money.
-
-That is the sentence to say over the screen, and it is why the mental model changes rather than the
-data getting prettier. A dashboard would show her the same payments, sorted, in a chart. It would
-not tell her that this one supplier appeared on a list published eleven days ago.
-
-## The three branches, which are the honest part of this journey
-
-A journey with one happy path describes a demo, not a product. These three branches are the ones a
-judge asks about, and each one has a screen and a recorded outcome.
+## Journey map
 
 ```mermaid
 flowchart TD
-  I[Instruction in the run] --> D{Decision from the<br/>expected-loss engine}
-  D -->|release| R[Sent, no friction]
-  D -->|hold| H[Held with a reason]
-  D -->|verify| V[One-cent SPEI probe,<br/>then the CEP]
-  H --> A{Was the finding right?}
-  A -->|no, false positive| FP[Release with a reason.<br/>Case goes to the holdout set<br/>as a hard negative]
-  A -->|yes| OK[Money did not leave]
-  V --> N{Name on the CEP<br/>vs the CFDI legal name}
-  N -->|match| B[Account enters the registry,<br/>silent next week]
-  N -->|partial| P[Human check on a second channel]
-  N -->|mismatch| S[Stop. Escalate to the owner]
-  P --> B
-  P --> S
+  A["1. XML arrives by email<br/>Emotion: 0, routine<br/>Screen: Corrida de pagos, #/run"]
+  B["2. Thursday run is triaged<br/>Emotion: -1, time pressure<br/>Screen: Corrida de pagos, #/run"]
+  C["3. Lupita opens the evidence<br/>Emotion: -2, concerned<br/>Screen: Instruccion de pago, #/instructions/:id"]
+  D{"What does the evidence require?"}
+  E["4. One-cent probe and CEP comparison<br/>Emotion: 0, checking<br/>Screen: CEP, #/cep"]
+  F["5. Human confirms hold, verify or release<br/>Emotion: +1, in control<br/>Screen: Instruccion de pago, #/instructions/:id"]
+  G["6. Payment evidence and memo are archived<br/>Emotion: +2, confident<br/>Screen: Lista 69-B, #/sat, and CEP, #/cep"]
+
+  A --> B --> C --> D
+  D -->|"No finding"| F
+  D -->|"False positive"| FP["Release with reason<br/>Keep the override as a hard negative"] --> F
+  D -->|"Partial name match"| PM["Confirm through an independent channel<br/>Do not silently convert partial to match"] --> E
+  D -->|"Legitimate bank change"| LC["Verify the new account once<br/>Preserve the establishing evidence"] --> E
+  E --> F --> G
 ```
 
-### Branch 1, false positive
+The screen at `#/sat` currently shows the retroactive sweep and an explicit pending state for the
+constancia PDF. The final archive artifact is still `TODO(fabbyyyy)`. The journey names it because
+the post-outcome stage is required, but it does not claim that the PDF generator exists today.
 
-| | |
-|---|---|
-| What triggers it | A legitimate new account that has never been paid before, an OCR misread of a CLABE from a photo, or a supplier whose issuance pattern genuinely changed because it won more of our work |
-| What she sees | `requiere_verificacion`, never an accusation. The explanation names the quantity that produced it: "this CLABE differs in two digits from the account paid in the last 6 payments" |
-| What she does | Releases with a reason, in one click, from the same panel that raised it |
-| What the system records | `decision_made` with `action: "release"`, `decidedBy`, and the finding that was overridden |
-| What it costs | Minutes, not money. The expected-loss engine already weighs `amountAtRisk` against `delayCostPerDay`, which is why a small payment is not held for a weak signal |
-| Where it goes afterwards | Into the labelled holdout cases as a hard negative (#55), so the next measurement of the false-positive rate includes it. A false positive the team never sees again is a false positive the team never fixes |
+## Stage-by-stage map
 
-### Branch 2, partial name match
+| Stage | Trigger and user action | System result | Emotion | Exact screen |
+|---|---|---|---|---|
+| 1. Pre-trigger | A supplier's CFDI XML arrives by email. Lupita files it for Thursday. | The ledger records `cfdi_received`, links the synthetic supplier and makes the invoice available to the run. | 0, routine | **Corrida de pagos**, `RunScreen`, `#/run` |
+| 2. Trigger | On Thursday, Lupita opens the run and scans the highest pesos at risk first. | `PaymentRun` shows totals and ranks instructions with decisions and findings. The reference synthetic run contains 92 invoices totaling MXN 673,460.27. | -1, time pressure | **Corrida de pagos**, `RunScreen`, `#/run` |
+| 3. Evidence | She opens one row, reads the evidence chips and opens the supplier history when needed. | The detail shows the CFDI link, CLABE, source, findings, expected loss and delay cost without treating message text as evidence. | -2, concerned | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id`; **Expediente del proveedor**, `SupplierDrawer` |
+| 4. Verification | For an unproved account, she sends a human-initiated one-cent SPEI probe, enters its clave de rastreo or signed XML, and selects **Verificar**. | The CEP signature status and beneficiary holder are shown beside the CFDI legal name. A verified account enters the beneficiary registry. | 0, checking | **CEP**, `CepScreen`, `#/cep` |
+| 5. Decision and payment | She returns to the instruction and confirms **Retener**, **Verificar** or **Liberar**. The bank remains the place where the SPEI is sent. | The API appends `decision_made` with the action and `decidedBy`. Ceptinela advises; a person decides. | +1, in control | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
+| 6. Post-outcome | She keeps the signed CEP, the decision and the SAT sweep memo with the payment evidence. | `cep_verified` preserves the verified beneficiary. A later `sat_list_published` event replays the ledger and quantifies prior exposure. The constancia PDF remains `TODO(fabbyyyy)`. | +2, confident | **CEP**, `CepScreen`, `#/cep`; **Lista 69-B**, `SatScreen`, `#/sat` |
 
-| | |
-|---|---|
-| What triggers it | The CEP beneficiary name is not byte-identical to the CFDI legal name: a truncation by the bank, a missing "SA DE CV", a trade name where the invoice carries the legal name |
-| What she sees | `nameMatch: "partial"` with both strings shown side by side, the CFDI legal name and the CEP holder name, and the signature status of the CEP next to them |
-| What she does | Confirms on a second channel: the phone number on an earlier CFDI or a number she already had, never the number in the message that brought the new account |
-| What the system records | The CEP, the comparison result and who confirmed. A partial match confirmed by a person is stored as evidence, not silently upgraded to a match |
-| Why it is a branch and not a bug | This is the direct answer to "the bank already shows the beneficiary name". The bank shows a name after the account is typed and it does not compare it with anything. We compare it with the legal name on the invoice we are paying, and we keep the signed document that proves what it said |
-| Screen | CEP viewer with the side-by-side comparison and the clave de rastreo a judge can re-check (#50) |
+## Branch 1: false positive
 
-### Branch 3, legitimate bank change
+**Example trigger:** a legitimate pattern change or new account produces
+`requiere_verificacion`, but the independent evidence shows that the payment is valid.
 
-| | |
-|---|---|
-| What triggers it | The supplier really did change bank. This is the common case, and treating it as fraud is how a product like this gets uninstalled |
-| What she sees | The change, the history of accounts we have paid, and how each was established: `payment_complement`, `instruction` or `cep` |
-| What she does | Verifies once with the one-cent probe, or accepts the payment complement the supplier issued after a previous payment, which carries `CtaBeneficiario` and is itself a fiscal document |
-| What the system records | The account enters `knownAccounts` with `establishedBy: "cep"` or `"payment_complement"` and `establishedAt` |
-| The measurable outcome | Next week the same supplier produces no finding. Verification is paid once per account, not once per payment, and the verified beneficiary registry is the asset that accumulates |
-| Screen | Supplier drawer (#47) and the beneficiary registry (#50) |
+1. Lupita opens **Instruccion de pago** at `#/instructions/:id` and reads the exact evidence that
+   raised the finding.
+2. She checks the supplier history in `SupplierDrawer` and completes any independent verification
+   the evidence requires.
+3. She selects **Liberar**. The system stores `decision_made` with `action: "release"` and the
+   person who decided.
+4. The team adds the reviewed case to the labelled hard-negative set used by the blind metrics
+   harness. This is an evaluation step, not a claim that the runtime learns automatically.
 
-## Rules for this doc
+Emotion moves from -2, concern, to 0, cautious, to +1, resolved. The intended cost is review time,
+not a blocked legitimate payment with no explanation.
 
-- Five stages, no more. A twelve-stage map reads as padding.
-- One emotion score per row, and at least one negative. A journey that is pleasant at every stage is
-  not describing a real problem.
-- The pre-trigger stage names what she is doing while the cost accrues without her noticing.
-- The post-outcome stage names the measurable thing that changed and on what cycle: verified
-  beneficiaries per supplier, and exposure quantified the same week a list is published.
-- Stage 3 maps one-to-one to beats 1 and 3 of `docs/10-demo-script.md`.
-- The three branches are part of the journey, not an appendix. If a branch loses its screen, it
-  loses its row here in the same PR.
+## Branch 2: partial name match
+
+**Example trigger:** the Banxico CEP beneficiary name is similar to, but not byte-identical with,
+the CFDI legal name because of normalization, abbreviation or truncation.
+
+1. Lupita opens **CEP** at `#/cep` and sees the beneficiary holder and CFDI legal name side by
+   side with `nameMatch: "partial"` and the CEP signature status.
+2. She verifies through an independent channel already on file. She does not use the contact data
+   in the same instruction that introduced the account.
+3. If confirmed, she returns to **Instruccion de pago** and selects **Liberar**. If not confirmed,
+   she selects **Retener** and escalates to the owner.
+4. The partial result remains partial in the evidence. A human confirmation does not rewrite the
+   detector output into a perfect match.
+
+Emotion moves from 0, checking, to -1, uncertain, then to +1, resolved, or stays at -1 while held.
+Recording the second-channel confirmation is not yet represented as a separate API field and is an
+honest product gap.
+
+## Branch 3: legitimate bank change
+
+**Example trigger:** the supplier has genuinely moved to a new account, so the CLABE is valid but
+is absent from `knownAccounts`.
+
+1. **Instruccion de pago** and `SupplierDrawer` show the new CLABE beside prior accounts and how
+   each was established.
+2. Lupita initiates the one-cent SPEI in the company's bank, then uses **CEP** at `#/cep` to verify
+   the signed receipt and compare its beneficiary with the CFDI legal name.
+3. After a match and human decision, the account enters the beneficiary registry with
+   `establishedBy: "cep"` and she selects **Liberar** on the instruction.
+4. The same account carries its evidence into the next run, so the legitimate change does not
+   create an identical exception every Thursday.
+
+Emotion moves from -2, concern, to 0, checking, to +2, evidence established.
+
+## Why the branches matter
+
+The decision engine emits `hold`, `verify` or `release`; it never accuses a supplier and it never
+sends a SPEI. The false-positive branch protects operations, the partial-match branch preserves
+uncertainty, and the legitimate-bank-change branch lets verified knowledge accumulate. Together
+they make the journey a human decision workflow instead of a one-way alert funnel.
+
+## Validation status
+
+The journey has not been validated with two real people at the venue. The open interview tasks and
+exact questions are in `docs/02-persona.md#pending-human-validation`. Until those two conversations
+are recorded, the workload is synthetic and the workflow remains a design hypothesis.

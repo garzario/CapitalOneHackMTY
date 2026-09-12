@@ -14,8 +14,8 @@
  *    nothing.
  * 2. **The findings here are examples of the shape, not detector output.** They
  *    were written by hand so the alert rail has something to render. The real
- *    ones come from @hackmty/core, which is why `pipeline.ts` feature-detects
- *    `composeFindings` instead of importing a placeholder.
+ *    ones come from @hackmty/engine, which `pipeline.ts` runs on every
+ *    instruction that arrives through intake.
  * 3. **The labelled cases are not flattering, on purpose.** Four true
  *    positives, three false positives and one miss. A fixture that scores 1.0
  *    teaches the UI nothing and would be the first number a judge disbelieves.
@@ -34,6 +34,7 @@ import type {
   Detector,
   Finding,
   LedgerEvent,
+  LedgerTx,
   PaymentComplement,
   PaymentInstruction,
   SatListEntry,
@@ -107,6 +108,9 @@ const SUPPLIERS: readonly Supplier[] = [
       },
     ],
     firstInvoiceAt: "2024-06-11T17:45:00.000Z",
+    // Weekly freight: a late payment stops the trucks the next morning, so this
+    // relationship is priced and the engine has something to weigh against.
+    delayCostPerDay: 1800,
     synthetic: true,
   },
   {
@@ -135,6 +139,8 @@ const SUPPLIERS: readonly Supplier[] = [
       },
     ],
     firstInvoiceAt: "2024-03-08T18:00:00.000Z",
+    // Maintenance under contract with a late-payment penalty in the clause.
+    delayCostPerDay: 4200,
     synthetic: true,
   },
   {
@@ -953,6 +959,59 @@ function buildLabelledCases(): LabelledCase[] {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Bank mirror                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The company's own account as the bank posted it, in the shape every source
+ * normalises into. This is the Nessie mirror: `bank_reconciliation` reads it and
+ * nothing else does.
+ *
+ * NESSIE CARRIES NO TIME OF DAY. Its dates are `YYYY-MM-DD`, so the hour below
+ * is invented by this importer and it says so out loud: 06:00 UTC is midnight in
+ * Monterrey, which is UTC minus 6 all year. The detector reduces both sides to a
+ * calendar day precisely because that is the resolution the source has.
+ *
+ * Five of the six rows are the outflows the documents already explain, so the
+ * ordinary case is a clean statement. The sixth is money that left with no
+ * instruction and no CFDI behind it, which is the case the control exists for.
+ */
+function bankMirrorRow(
+  n: number,
+  day: string,
+  amount: number,
+  note: string,
+): LedgerTx {
+  return {
+    id: `tx-2026w37-${String(n).padStart(2, "0")}`,
+    accountId: "acc-synthetic-mtx",
+    occurredAt: `${day}T06:00:00.000Z`,
+    amount,
+    direction: "debit",
+    source: "seed",
+    raw: { day, note, synthetic: true },
+  };
+}
+
+function buildBankMirror(): LedgerTx[] {
+  return [
+    bankMirrorRow(1, "2026-08-24", 54200, "complemento B0000001"),
+    bankMirrorRow(2, "2026-08-31", 89600, "complemento B0000002"),
+    bankMirrorRow(
+      3,
+      "2026-09-04",
+      150000,
+      "complemento B0000003, primera exhibicion",
+    ),
+    bankMirrorRow(4, "2026-09-11", 42180, `instruccion ${instructionId(3)}`),
+    bankMirrorRow(5, "2026-09-11", 67450, `instruccion ${instructionId(9)}`),
+    // No instruction, no CFDI, no complement. The clerk is asked about it, and
+    // nobody is accused: the document may simply not be loaded yet.
+    bankMirrorRow(6, "2026-09-10", 18400, "sin documento"),
+  ];
+}
+
+/* -------------------------------------------------------------------------- */
 /* Ledger                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -1041,6 +1100,8 @@ export interface SyntheticDataset {
   decisions: Decision[];
   satEntries: SatListEntry[];
   beneficiaries: VerifiedBeneficiary[];
+  /** The bank statement as Nessie mirrors it. Only reconciliation reads it. */
+  bankMirror: LedgerTx[];
   ledger: LedgerEvent[];
   labelledCases: LabelledCase[];
 }
@@ -1090,6 +1151,7 @@ export function createSyntheticDataset(): SyntheticDataset {
     decisions,
     satEntries,
     beneficiaries,
+    bankMirror: buildBankMirror(),
     ledger,
     labelledCases: buildLabelledCases(),
   };

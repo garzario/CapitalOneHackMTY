@@ -10,7 +10,11 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@hackmty/cep": "workspace:*",
     "@hackmty/core": "workspace:*",
+    "@hackmty/engine": "workspace:*",
+    "@hackmty/extract": "workspace:*",
+    "@hackmty/voice": "workspace:*",
     "@hono/zod-validator": "0.9.1",
     "hono": "4.13.7",
     "zod": "4.5.4"
