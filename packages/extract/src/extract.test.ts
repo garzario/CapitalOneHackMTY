@@ -26,7 +26,7 @@ import {
   SYNTHETIC_KNOWN_CLABE,
   SYNTHETIC_READ_CLABE,
 } from "./fixtures";
-import { ExtractError, type HttpLike } from "./gemini";
+import { ExtractError, GEMINI_MODEL, type HttpLike } from "./gemini";
 
 interface Recorded {
   url: string;
@@ -135,7 +135,10 @@ describe("extractFromImage", () => {
 
     const call = calls[0] as Recorded;
     expect(call.url).not.toContain(KEY.apiKey);
-    expect(call.url).toContain("models/gemini-2.5-flash:generateContent");
+    // Asserted against the constant, not against a model name typed twice. The
+    // default moved to gemini-3.6-flash and this line kept asserting the old one,
+    // which is a test that breaks when the code is right.
+    expect(call.url).toContain(`models/${GEMINI_MODEL}:generateContent`);
     const headers = call.init?.headers as Record<string, string>;
     expect(headers["x-goog-api-key"]).toBe(KEY.apiKey);
   });
