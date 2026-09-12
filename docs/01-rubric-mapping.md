@@ -25,7 +25,7 @@ Status legend: **G** claim written and evidence exists, **Y** evidence partially
 | 11 | Adoption strategy, GTM (5) | TODO(FabriBanda): three concrete steps with a named beachhead category, no invented partners | `docs/05-business-model.md#gtm-in-three-steps` | R |
 | 12 | Specific user persona (7) | One named, quantified composite plus a corporate-treasury anti-persona, with venue validation explicitly pending | `docs/02-persona.md`, `assets/persona/lupita-elizondo.png` | Y |
 | 13 | Structured user journey map (7) | Journey from XML receipt to archived evidence, with emotion, exact screens and three human-decision branches | `docs/03-user-journey.md`, `apps/web/src/screens/` | Y |
-| 14 | Pitch (6) | Three timed variants written in the actual words, plus the eight hardest questions answered | `docs/11-pitch.md`, `docs/12-judge-qa.md`, rehearsal log in `docs/14-process.md` | R |
+| 14 | Pitch (6) | Three timed variants, hard-question answers and a judge-ready print leave-behind | `docs/11-pitch.md`, `docs/12-judge-qa.md`, `docs/print/`, rehearsal log in `docs/14-process.md` | Y |
 | plus | Engineering process (not scored directly) | Real PRs with real review threads, a board, ADRs, and a written list of what we cut | `docs/14-process.md`, `docs/adr/`, the project board | R |
 
 ## How to use this at a walk-up

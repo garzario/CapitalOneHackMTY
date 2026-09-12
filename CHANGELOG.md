@@ -12,6 +12,8 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
+  back, and explicit blockers for the live URL and real CEP tracking key.
 - `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
   says from the payment instruction and never speaks more than the last four digits of the account,
   promises no payment and accuses nobody; `VoiceClient` creates or updates the agent, places the
