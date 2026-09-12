@@ -2,10 +2,30 @@
  * Control 5 of ADR-0002, beneficiary verification with the CEP, adapted to
  * `ComposeInput`.
  *
- * The evidence is a document Banxico signed for a SPEI that a person, not this
- * software, actually sent: a one-cent probe from the company's own bank. Two
- * questions are asked of it and they are asked separately, because they fail
- * separately.
+ * Since issue #164 the control has a second, weaker source of beneficiary
+ * evidence next to the CEP: the SentryOne consortium, read from the LOCAL
+ * snapshot in `ComposeInput.network`. The two are not interchangeable and the
+ * code keeps them apart on purpose. A CEP is a document Banxico signed about
+ * THIS account; the network is other companies saying they pay it. One is proof
+ * and the other is corroboration, so a network signal never makes a finding
+ * `comprobable`, and `assessNetwork` in `@hackmty/core` owns every number it
+ * contributes. Three consequences, and they are the whole of the change:
+ *
+ * - a CEP finding carries the network in its evidence and says, in Spanish,
+ *   whether the network was consulted at all. A network nobody read changes
+ *   nothing else about the finding or the decision.
+ * - a fraud report in the network makes the finding `critical` whatever the
+ *   holder name and the seal say. One tenant reporting this pair outweighs any
+ *   amount of corroboration.
+ * - with no CEP, the control used to be silent. It now reports what the network
+ *   knows when the network knows something, because "forty companies pay this
+ *   supplier and none of them pays it here" is exactly the case a first payment
+ *   to a new account has no other evidence for.
+ *
+ * The evidence a CEP carries is a document Banxico signed for a SPEI that a
+ * person, not this software, actually sent: a one-cent probe from the company's
+ * own bank. Two questions are asked of it and they are asked separately, because
+ * they fail separately.
  *
  * 1. Does the account holder Banxico reports match the legal name on the CFDI?
  *    `nameMatch` in `@hackmty/cep` answers, and it knows what "SA de CV" and a
@@ -27,10 +47,19 @@ import type {
   Cep,
   DetectorAdapter,
   Finding,
+  NetworkAssessment,
+  NetworkSignal,
   PaymentInstruction,
+  SkipReason,
   Supplier,
 } from "@hackmty/core";
-import { detectorRan, detectorSkipped } from "@hackmty/core";
+import {
+  assessNetwork,
+  describeNetwork,
+  detectorRan,
+  detectorSkipped,
+  NOT_CONSULTED,
+} from "@hackmty/core";
 
 /**
  * The reasons that mean "we could not check the seal", as opposed to "the seal
@@ -75,46 +104,142 @@ function sealStateOf(cep: Cep): SealState {
 /**
  * Beneficiary verification with the CEP, control 5.
  *
- * Skipped, with a reason, when there is no CEP for this account or no supplier
- * to compare the holder against. Both are ordinary: most accounts have never
- * been probed, and the control being unarmed on this instruction is exactly what
- * the clerk needs told, rather than an empty panel that reads as "verificado".
+ * Three things can leave the CEP half of this control unarmed: no CEP for this
+ * account, a CEP for a different one, or no supplier to compare the holder
+ * against. All three are ordinary, and the clerk is told which one it is rather
+ * than shown an empty panel that reads as "verificado".
+ *
+ * When the network has something to say, the control reports THAT instead of
+ * staying silent, and the sentence names the reason the CEP could not answer, so
+ * the finding never implies a document nobody holds. When the network has nothing
+ * to say, or was not consulted at all, the control skips exactly as it did before
+ * the consortium existed and the skip detail still says what the network did.
  */
 export const beneficiaryCepAdapter: DetectorAdapter = {
   detector: "beneficiary_cep",
   run: (input) => {
     const { cep, supplier, instruction } = input;
+    const network = input.network ?? NOT_CONSULTED;
+    const read = assessNetwork(network);
+    const unarmed = (reason: SkipReason, detail: string) =>
+      networkOnly(instruction, network, read, input.now, detail) ??
+      detectorSkipped(reason, `${detail} ${describeNetwork(network)}`);
+
     if (cep === undefined) {
-      return detectorSkipped(
+      return unarmed(
         "no_cep",
         `No hay CEP verificado para la cuenta ${instruction.clabe}. El control se arma enviando el SPEI de un centavo desde el banco de la empresa.`,
       );
     }
     if (accountKey(cep.beneficiaryAccount) !== accountKey(instruction.clabe)) {
-      return detectorSkipped(
+      return unarmed(
         "cep_other_account",
         `El CEP que tenemos es de la cuenta ${cep.beneficiaryAccount} y esta instruccion paga a ${instruction.clabe}. Un CEP de otra cuenta no prueba nada sobre este pago.`,
       );
     }
     if (supplier === undefined) {
-      return detectorSkipped(
+      return unarmed(
         "no_supplier",
         `No tenemos la razon social de ${instruction.supplierRfc}, asi que no hay contra que comparar al titular de la cuenta.`,
       );
     }
-    return detectorRan([buildFinding(cep, supplier, instruction, input.now)]);
+    return detectorRan([
+      buildFinding(cep, supplier, instruction, input.now, network, read),
+    ]);
   },
 };
+
+/**
+ * The network's own contribution to the evidence of a finding.
+ *
+ * `network` carries the whole signal as one value, because `source` is what
+ * separates "the network has never seen this account" from "the network was not
+ * read" and the two must never collapse into the same chip. `networkAdjustment`
+ * is the factor the expected loss was multiplied by, so the screen can state the
+ * adjustment rather than leave a smaller number unexplained.
+ */
+function networkEvidence(
+  signal: NetworkSignal,
+  read: NetworkAssessment,
+): Finding["evidence"] {
+  return {
+    network: signal,
+    networkVerdict: read.verdict,
+    networkAdjustment: read.factor,
+  };
+}
+
+/**
+ * The finding the network alone justifies, when the CEP could not answer.
+ *
+ * Returns undefined when the network has nothing to say, and then the caller
+ * skips exactly as it did before the consortium existed. That is what keeps an
+ * instance with the flag off, an empty snapshot or an unreachable warehouse
+ * deciding what this product decided yesterday.
+ *
+ * `lead` is the sentence that says why the CEP half is unarmed, passed in by the
+ * caller rather than written here: there are three reasons and only the caller
+ * knows which one applies, and a finding that said "no hay CEP" about an
+ * instruction whose CEP is simply for another account would be a false statement
+ * on the clerk's screen.
+ *
+ * A corroborated pair still produces a finding and it is deliberately `info` with
+ * nothing at risk: good news is not an alert, and the reason it is here at all is
+ * that the clerk has to be able to see what the network said on a payment that
+ * was released. `sortFindings` puts it at the bottom of the rail.
+ */
+function networkOnly(
+  instruction: PaymentInstruction,
+  signal: NetworkSignal,
+  read: NetworkAssessment,
+  now: string,
+  lead: string,
+) {
+  if (read.verdict === "not_consulted" || read.verdict === "unseen") {
+    return undefined;
+  }
+  const severity: Finding["severity"] =
+    read.verdict === "fraud_reported"
+      ? "critical"
+      : read.verdict === "other_accounts_only"
+        ? "warning"
+        : "info";
+
+  return detectorRan([
+    {
+      id: `network:${instruction.id}`,
+      detector: "beneficiary_cep" as const,
+      severity,
+      /* Never `comprobable`: the network is other companies' experience and not a
+         document this company holds, so a person still checks it. */
+      state: "requiere_verificacion" as const,
+      subject: { kind: "instruction" as const, id: instruction.id },
+      amountAtRisk: severity === "info" ? 0 : instruction.amount,
+      explanation: `${lead} ${describeNetwork(signal)}`,
+      evidence: {
+        ...networkEvidence(signal, read),
+        proposedClabe: instruction.clabe,
+        networkTenants: read.tenants,
+        networkMonths: read.months,
+        networkFraudReports: read.fraudReports,
+        networkOtherAccounts: read.otherAccounts,
+      },
+      createdAt: now,
+    },
+  ]);
+}
 
 function buildFinding(
   cep: Cep,
   supplier: Supplier,
   instruction: PaymentInstruction,
   now: string,
+  signal: NetworkSignal,
+  read: NetworkAssessment,
 ): Finding {
   const match = nameMatch(cep.beneficiaryName, supplier.legalName);
   const seal = sealStateOf(cep);
-  const severity = severityOf(match, seal);
+  const severity = severityOf(match, seal, read);
   const atRisk = severity === "info" ? 0 : instruction.amount;
 
   const evidence: Finding["evidence"] = {
@@ -127,6 +252,7 @@ function buildFinding(
     transferredAt: cep.transferredAt,
     signatureValid: cep.signatureValid,
     signatureState: seal,
+    ...networkEvidence(signal, read),
   };
   if (cep.signatureReason !== undefined) {
     evidence.signatureReason = cep.signatureReason;
@@ -141,14 +267,15 @@ function buildFinding(
     severity,
     // Never `comprobable` while the seal is only claimed: a signature nobody
     // validated is not proof, and saying otherwise would be the single most
-    // expensive lie in this repository.
+    // expensive lie in this repository. A fraud report in the network is not a
+    // document either, so it cannot make this comprobable and it does not.
     state:
-      seal === "valid" && match === "match"
+      seal === "valid" && match === "match" && read.verdict !== "fraud_reported"
         ? "comprobable"
         : "requiere_verificacion",
     subject: { kind: "instruction", id: instruction.id },
     amountAtRisk: atRisk,
-    explanation: explain(cep, supplier, match, seal),
+    explanation: `${explain(cep, supplier, match, seal)} ${describeNetwork(signal)}`,
     evidence,
     createdAt: now,
   };
@@ -160,8 +287,20 @@ function buildFinding(
  * names are abbreviated by banks often enough that "comparten una palabra" is a
  * question, not an accusation. A full match on a validated seal is the good
  * news, and good news is `info`, so it never moves an action by itself.
+ *
+ * A fraud report in the consortium is critical too, and it is checked first for
+ * the reason it exists: the CEP proves who holds the account and it cannot prove
+ * what they did with the last company's money. A tenant who lost money to this
+ * exact pair knows something the document does not carry.
  */
-function severityOf(match: NameMatch, seal: SealState): Finding["severity"] {
+function severityOf(
+  match: NameMatch,
+  seal: SealState,
+  network: NetworkAssessment,
+): Finding["severity"] {
+  if (network.verdict === "fraud_reported") {
+    return "critical";
+  }
   if (match === "mismatch") {
     return "critical";
   }

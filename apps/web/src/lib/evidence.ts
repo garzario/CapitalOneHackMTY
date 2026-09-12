@@ -25,7 +25,13 @@
  * translated, so the gap is loud instead of silent.
  */
 
-import type { Finding, SatListStatus } from "@hackmty/core";
+import type {
+  Finding,
+  NetworkSignal,
+  NetworkVerdict,
+  SatListStatus,
+} from "@hackmty/core";
+import { assessNetwork, networkLabel } from "@hackmty/core";
 import { diffPositions, formatDecimal } from "./format";
 import { bankNameFromCode } from "./mock";
 
@@ -41,6 +47,8 @@ const ALIASES = {
   satListVersion: ["version_lista", "listVersion"],
   duplicateUuid: ["uuid_original", "originalUuid", "otherUuid"],
   duplicateFolio: ["folio_original", "originalFolio", "otherFolio"],
+  /** The consortium signal. One object, rendered as its own line. */
+  network: ["network"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** A bank reported as a three-digit code is named; anything else is passed on. */
@@ -152,6 +160,14 @@ const LABELS: Record<string, string> = {
   outflowAmount: "importe de la salida",
   outflowDate: "fecha de la salida",
 
+  // The SentryOne consortium. `network` itself is rendered on its own line.
+  networkVerdict: "red SentryOne",
+  networkAdjustment: "ajuste por la red",
+  networkTenants: "empresas que la pagan",
+  networkMonths: "meses en la red",
+  networkFraudReports: "reportes de fraude",
+  networkOtherAccounts: "otras cuentas del proveedor",
+
   // Bank reconciliation
   case: "caso",
   ledgerTxId: "movimiento del banco",
@@ -205,11 +221,28 @@ export interface EvidenceChip {
   value: string;
 }
 
+/**
+ * The consortium signal, ready to render as one line.
+ *
+ * `label` comes from `networkLabel` in `@hackmty/core` rather than from this file,
+ * so the screen and the finding's own explanation say the same thing about the
+ * same signal. `verdict` is here because the line is painted by what the network
+ * said, not by the finding's severity: a fraud report has to look different from
+ * corroboration even on a finding that is critical for another reason.
+ */
+export interface NetworkEvidence {
+  label: string;
+  verdict: NetworkVerdict;
+  /** Absent when the network was never consulted on this instance. */
+  pulledAt: string | null;
+}
+
 export interface EvidenceView {
   clabe: ClabeComparison | null;
   bankChange: BankChange | null;
   satStatus: SatStatusEvidence | null;
   duplicateOf: DuplicateOrigin | null;
+  network: NetworkEvidence | null;
   chips: EvidenceChip[];
 }
 
@@ -253,6 +286,39 @@ function renderValue(value: string | number | boolean): string {
   if (typeof value === "number") return formatDecimal(value);
 
   return value;
+}
+
+/** True for the one compound evidence value the domain has. */
+function isNetworkSignal(value: unknown): value is NetworkSignal {
+  if (value === null || typeof value !== "object") return false;
+  const signal = value as Partial<NetworkSignal>;
+
+  return (
+    (signal.source === "snapshot" || signal.source === "not_consulted") &&
+    typeof signal.tenants === "number" &&
+    typeof signal.fraudReports === "number" &&
+    typeof signal.otherAccounts === "number"
+  );
+}
+
+/**
+ * The network signal a detector attached, as one line.
+ *
+ * `null` when the finding carries none at all, which is every finding written
+ * before the consortium landed and every finding from a detector that has nothing
+ * to do with a beneficiary. One that carries a `not_consulted` signal is NOT null: it
+ * renders as "no consultada", because a clerk has to be able to tell a network
+ * that said nothing from a network nobody asked.
+ */
+function readNetwork(evidence: Finding["evidence"]): NetworkEvidence | null {
+  const value = evidence.network;
+  if (!isNetworkSignal(value)) return null;
+
+  return {
+    label: networkLabel(value),
+    verdict: assessNetwork(value).verdict,
+    pulledAt: value.pulledAt ?? null,
+  };
 }
 
 /**
@@ -323,15 +389,23 @@ export function readEvidence(
       ? { uuid: duplicateUuid, folio: duplicateFolio }
       : null;
 
+  const network = readNetwork(evidence);
+  for (const key of ALIASES.network) {
+    if (key in evidence) consumed.add(key);
+  }
+
   const chips: EvidenceChip[] = Object.entries(evidence)
     .filter(([key]) => !consumed.has(key))
+    /* A compound value has its own rendering or it has none: printing an object
+       as a chip is how a panel ends up saying "[object Object]" at a clerk. */
+    .filter(([, value]) => typeof value !== "object")
     .map(([key, value]) => ({
       key,
       label: LABELS[key] ?? fallbackLabel(key),
-      value: renderValue(value),
+      value: renderValue(value as string | number | boolean),
     }));
 
-  return { clabe, bankChange, satStatus, duplicateOf, chips };
+  return { clabe, bankChange, satStatus, duplicateOf, network, chips };
 }
 
 /** Exported for the test that keeps the dictionary honest. */

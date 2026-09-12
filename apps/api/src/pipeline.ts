@@ -26,6 +26,7 @@ import type {
 import { decide, supplierModelOf } from "@hackmty/core";
 import { runControls } from "@hackmty/engine";
 import { priceSweep, type SatIndex } from "@hackmty/sat";
+import type { ConsortiumSource } from "./consortium";
 import { type IntakeExtractor, UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
 import type { CreateInstructionBody, NameMatch } from "./schemas";
@@ -69,6 +70,12 @@ export interface IntakeDeps {
   extractor?: IntakeExtractor;
   /** The official Article 69-B list. See the note in `composeInputFor`. */
   satList?: () => Promise<SatIndex>;
+  /**
+   * The consortium, read from the local snapshot. Absent, or off, means the
+   * controls are handed no network and decide exactly what they decided before
+   * issue #164. See `src/consortium.ts`.
+   */
+  consortium?: ConsortiumSource;
 }
 
 /**
@@ -173,16 +180,27 @@ export async function runIntake(
     instruction.ocrConfidence = ocrConfidence;
   }
 
-  const input = await composeInputFor(repo, instruction, now, deps.satList);
+  const input = await composeInputFor(
+    repo,
+    instruction,
+    now,
+    deps.satList,
+    deps.consortium,
+  );
   const report = runControls(input);
   // The cost of delaying this payment comes off the supplier record, so the
   // engine weighs the expected loss against a number somebody can point at
   // instead of the zero this file used to invent.
+  //
+  // The network goes to `decide` as well as to the controls, because it is an
+  // input to the expected loss and not only to a finding's evidence. The same
+  // signal reaches both, so the adjustment the finding states is the adjustment
+  // the decision made.
   const decision = decide(
     instruction,
     report.findings,
     supplierModelOf(input.supplier),
-    { now },
+    { now, ...(input.network === undefined ? {} : { network: input.network }) },
   );
 
   return {
@@ -226,8 +244,11 @@ export async function runControlsFor(
   instruction: PaymentInstruction,
   now: string,
   satList?: () => Promise<SatIndex>,
+  consortium?: ConsortiumSource,
 ): Promise<CompositionReport> {
-  return runControls(await composeInputFor(repo, instruction, now, satList));
+  return runControls(
+    await composeInputFor(repo, instruction, now, satList, consortium),
+  );
 }
 
 /** Everything the six controls read, assembled from the repository. */
@@ -236,6 +257,7 @@ async function composeInputFor(
   instruction: PaymentInstruction,
   now: string,
   satList?: () => Promise<SatIndex>,
+  consortium?: ConsortiumSource,
 ): Promise<ComposeInput> {
   const supplier = await repo.findSupplier(instruction.supplierRfc);
   const detail =
@@ -261,6 +283,20 @@ async function composeInputFor(
   }
   if (beneficiary !== undefined) {
     input.cep = beneficiary.cep;
+  }
+  /* The local snapshot, never Snowflake. A server with `ALLOW_CONSORTIUM` unset,
+     or with nothing pulled, leaves `network` absent, and every control then reads
+     it as `NOT_CONSULTED` and decides what it decided before the consortium
+     existed. An unknown pair is NOT absent: it is a consulted network with zero
+     tenants, which is a real answer and a much stronger one. */
+  if (consortium?.enabled === true) {
+    const answer = await consortium.lookup({
+      rfc: instruction.supplierRfc,
+      clabe: instruction.clabe,
+    });
+    if (answer.signal.source === "snapshot") {
+      input.network = answer.signal;
+    }
   }
   return input;
 }

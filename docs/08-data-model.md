@@ -196,7 +196,7 @@ the honest version of the multi-tenancy answer in `docs/07-architecture.md`.
 
 ### Where the storage shape differs from the domain shape, and why
 
-Six places, all deliberate. The API returns the domain shape in every case, per `docs/09-api.md`,
+Seven places, all deliberate. The API returns the domain shape in every case, per `docs/09-api.md`,
 and `packages/db/src/rows.ts` is the only file that translates between the two.
 
 | Domain | Storage | Why |
@@ -207,10 +207,11 @@ and `packages/db/src/rows.ts` is the only file that translates between the two.
 | `Supplier.knownAccounts: KnownAccount[]` | `known_accounts` rows, keyed `(supplier_rfc, clabe)` | The order matters to the CLABE control, and a row per account is what lets `times_paid` be incremented without rewriting the supplier. `known_accounts_clabe` indexes the reverse lookup, because the same account under two suppliers is a signal |
 | `Cep` | Columns on `verified_beneficiaries`, not a table of its own | A CEP only exists here as evidence that one supplier was really paid on one account, so the registry row and the document are the same fact. There is no orphan CEP to store. `clave_rastreo` carries a unique index, so one Banxico receipt can prove exactly one row |
 | `COMPANY` | A one-row table, absent from `domain.ts` | Every pure function is called with one company's context already selected, so the tenant key never reaches the intelligence lane. That is what makes a detector testable with ten lines of fixture. The multi-tenant path is written out in `docs/07-architecture.md` |
+| `NetworkSignal` | `consortium_snapshot` plus the one-row `consortium_pull` | The domain object is one answer about one pair, and it is computed from three stored facts: the pull, the pair row and how many accounts the network holds for that RFC. The split is what lets "the network was not read" and "the network read and knows nothing" be different answers. `apps/api/src/consortium.ts` is the only file that assembles one, and it hashes the RFC and the CLABE on the way in, so no raw identifier ever reaches these tables |
 
 ## Migrations
 
-Eight files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
+Nine files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
 `packages/db/src/migrate.ts`, written out rather than discovered by reading the directory, so adding
 a file is a deliberate one-line change in a diff and a stray `.sql` left in the folder never runs.
 The plain files run first and the Timescale ones after, so a fresh database is fully usable even
@@ -225,6 +226,7 @@ laptops.
 | `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003, the two widened check constraints, the `ledger_tx` key, and the append-only trigger |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table |
 | `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events |
+| `0009_consortium_snapshot.sql` | any Postgres 16+ | `consortium_snapshot` and the one-row `consortium_pull`: the local projection of the cross-tenant network |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
@@ -417,6 +419,74 @@ exactly `now` and drops anything after it. The CFDI set is company wide and not 
 slice, because that is the denominator of the concentration signal. The weekly series is bounded by
 the bucket that contains the lower bound and not by the raw instant, or the series would start a
 week late.
+
+### consortium_snapshot, and why there are two tables
+
+**`0009_consortium_snapshot.sql`** holds the local projection of the SentryOne consortium: what other
+tenants have paid, for a hashed (supplier RFC, account) pair. It is the second data store in this
+product and the only one that is not per company, so it is worth being precise about where the line
+falls. The operational ledger stays on Tiger Data per company and answers on the hot path in
+milliseconds; the network is a cold, cross-tenant warehouse on Snowflake, which is what Snowflake is
+for. Neither ever calls the other at request time. `bun run consortium:pull` reads the warehouse on a
+laptop and writes these two tables, and the engine reads only these two tables.
+
+```sql
+-- 0009_consortium_snapshot.sql   runs on ANY Postgres 16+
+create table if not exists consortium_snapshot (
+  rfc_hash       char(64) not null check (rfc_hash ~ '^[0-9a-f]{64}$'),
+  clabe_hash     char(64) not null check (clabe_hash ~ '^[0-9a-f]{64}$'),
+  bank_code      char(3)  not null check (bank_code ~ '^[0-9]{3}$'),
+  tenants        integer  not null check (tenants >= 0),
+  first_seen     date     not null,
+  last_seen      date     not null,
+  fraud_reports  integer  not null default 0 check (fraud_reports >= 0),
+  other_accounts integer  not null default 0 check (other_accounts >= 0),
+  pulled_at      timestamptz not null default now(),
+  primary key (rfc_hash, clabe_hash)
+);
+
+create table if not exists consortium_pull (
+  id        integer primary key default 1 check (id = 1),
+  pulled_at timestamptz not null,
+  source    text    not null check (source in ('snowflake', 'synthetic')),
+  rows      integer not null check (rows >= 0)
+);
+```
+
+Four decisions, each a consequence rather than a preference.
+
+1. **Two tables, because three states have to be told apart.** No `consortium_pull` row means the
+   network was never consulted here, and the engine then reads `NOT_CONSULTED` and decides exactly
+   what this product decided before the consortium existed. A pull row with no matching snapshot row
+   means the network WAS consulted and has never seen this account, which is a much stronger claim.
+   A pull row and a snapshot row is what the network knows. One table could not separate the first
+   two, and reading "no row" as "nobody pays this account" would be the product inventing an answer.
+2. **The snapshot is replaced wholesale by a pull, never merged.** A pair the network has stopped
+   corroborating must not stay behind, because a stale corroboration is the one way this signal turns
+   into a false release. The delete and the insert run inside one transaction, so there is no instant
+   at which the snapshot is half a network.
+3. **The hashes are `char(64)` with a hex check, not `text`.** They are HMAC-SHA256 hex digests of
+   exactly that length, so the type is the documentation and neither a raw RFC nor a raw CLABE can
+   land in these columns by accident: neither is 64 characters of hex. There is no column for a name,
+   an amount, an invoice or a clave de rastreo, in this table or in the warehouse. The bank code is
+   the one public thing that survives, and it is printed on every SPEI receipt.
+4. **`first_seen` and `last_seen` are `date`.** The warehouse keeps a calendar day per event on
+   purpose, because an instant would narrow a payment to a window and a day does not. Storing a
+   timestamp here would invent a precision the source never had.
+
+`consortium_pull.source` is load bearing rather than decorative. `snowflake` means the rows came from
+the warehouse; `synthetic` means `bun run consortium:pull --offline` generated them from the
+deterministic network on this laptop, which is how a rehearsal works with no account and no Wi-Fi. A
+screen or a document that says "red SentryOne" has to be able to say which of the two it is looking
+at, so the value is constrained in the table and not left to whatever a script writes.
+
+The warehouse side is one table and one view, `SENTRYONE.CONSORTIUM.BENEFICIARY_EVENTS` and
+`BENEFICIARY_NETWORK`, and `packages/consortium/src/ddl.ts` is the only place they are defined.
+`aggregateNetwork` in the same package is the same fold in TypeScript, which is what makes the
+offline path produce the rows the view would have produced. There is no Timescale twin for 0009: a
+few thousand rows replaced once per pull is not a time series and a hypertable would buy nothing.
+`truncateSentryOne` deliberately leaves both tables alone, because the network is not company data
+and a re-seed of the company should not throw away a pull.
 
 ## Field notes
 

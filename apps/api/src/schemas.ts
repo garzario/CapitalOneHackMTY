@@ -23,10 +23,12 @@ import type {
   Cep,
   Cfdi,
   Decision,
+  EvidenceValue,
   Finding,
   KnownAccount,
   LedgerEvent,
   Metrics,
+  NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
   SatListEntry,
@@ -195,6 +197,42 @@ export const detectorSchema = z.enum([
 
 export const severitySchema = z.enum(["info", "warning", "critical"]);
 
+/**
+ * What the consortium holds for the account an instruction pays, from the local
+ * snapshot. Issue #164, and `packages/consortium/README.md` says what is and is
+ * not in it.
+ *
+ * `source` is the field the rest of the product branches on, so it is an enum and
+ * not a string: `not_consulted` means the network was not read at all and the
+ * decision is the pre-consortium one, and `snapshot` with `tenants: 0` means the
+ * network was read and has never seen this account. Nothing in this object could
+ * identify a company, a supplier, a person or an amount.
+ */
+export const networkSignalSchema = z.object({
+  source: z.enum(["snapshot", "not_consulted"]),
+  tenants: z.number().int().nonnegative(),
+  firstSeen: daySchema.optional(),
+  lastSeen: daySchema.optional(),
+  fraudReports: z.number().int().nonnegative(),
+  otherAccounts: z.number().int().nonnegative(),
+  pulledAt: instantSchema.optional(),
+}) satisfies z.ZodType<NetworkSignal>;
+
+/**
+ * A value a finding carries as evidence: a primitive, or the one compound value
+ * the product has.
+ *
+ * The network signal travels as an object rather than as seven sibling keys
+ * because `source` is what keeps a network nobody read from rendering as a clean
+ * one, and splitting it would let a screen show the counts without it.
+ */
+export const evidenceValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  networkSignalSchema,
+]) satisfies z.ZodType<EvidenceValue>;
+
 /** Never an accusation: a finding is provable, or it needs a human check. */
 export const findingStateSchema = z.enum([
   "comprobable",
@@ -213,10 +251,7 @@ export const findingSchema = z.object({
   }),
   amountAtRisk: z.number().nonnegative(),
   explanation: z.string().min(1),
-  evidence: z.record(
-    z.string(),
-    z.union([z.string(), z.number(), z.boolean()]),
-  ),
+  evidence: z.record(z.string(), evidenceValueSchema),
   createdAt: instantSchema,
 }) satisfies z.ZodType<Finding>;
 
@@ -620,6 +655,25 @@ export const typedRfcSchema = z
   .pipe(rfcSchema);
 
 export const satLookupQuerySchema = z.object({ rfc: typedRfcSchema });
+
+/**
+ * `GET /api/v1/consortium/signal?rfc=&clabe=`.
+ *
+ * The RFC is normalised the same way the lookup box normalises it, because both
+ * are typed by hand, and the CLABE is validated to eighteen digits here so a
+ * malformed one is a 400 rather than a hash of nothing that answers 404.
+ */
+export const consortiumQuerySchema = z.object({
+  rfc: typedRfcSchema,
+  clabe: clabeSchema,
+});
+
+/** What that endpoint answers with. The signal, and where it came from. */
+export const consortiumSignalResponseSchema = z.object({
+  rfc: rfcSchema,
+  clabe: clabeSchema,
+  network: networkSignalSchema,
+});
 
 export const rfcParamSchema = z.object({ rfc: typedRfcSchema });
 

@@ -220,6 +220,13 @@ export const DEMO_VARIABLES: Readonly<Record<string, DemoVariable>> = {
     consequence:
       "that endpoint answers 403 and the web app cannot regenerate the demo company between rehearsals",
   },
+  // apps/api/src/consortium.ts, and scripts/consortium-{seed,push,pull}.ts.
+  ALLOW_CONSORTIUM: {
+    readers:
+      "apps/api and the three consortium scripts, where only the exact value 1 opens the network",
+    consequence:
+      "the engine reads the network as not consulted and every decision is the one this product made before the consortium existed",
+  },
 };
 
 /** Reported as one line: the call needs both ids or it cannot dial. */
@@ -946,6 +953,85 @@ export async function checkNessie(input: {
     name: "nessie",
     status: "warn",
     detail: `${liveness}. A read cannot prove the key: an invalid key answers 200 [] on reads and only fails on a write. Run: bun run nessie:mirror`,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* 6b. the consortium warehouse                                                */
+/* -------------------------------------------------------------------------- */
+
+/** What the snapshot says about itself, or undefined when nothing was pulled. */
+export interface ConsortiumSnapshotFacts {
+  pulledAt: string;
+  source: string;
+  rows: number;
+}
+
+/**
+ * One line for the consortium: is it switched on, is there an account to reach,
+ * and does this laptop hold a snapshot the engine can read.
+ *
+ * It is pure over its arguments, and it deliberately never opens a socket. A
+ * doctor that authenticated against Snowflake would be a doctor that fails on a
+ * train, and the question that actually decides whether the demo works is local:
+ * `consortium_snapshot` either has rows or it does not.
+ *
+ * `warn` rather than `fail` in every branch, like the rest of this file: a
+ * teammate writing documentation has legitimately not set up a warehouse, and a
+ * doctor that fails for them is a doctor nobody runs.
+ */
+export function checkSnowflake(input: {
+  allowed: boolean;
+  account?: string;
+  user?: string;
+  privateKeyPath?: string;
+  keyPresent?: boolean;
+  snapshot?: ConsortiumSnapshotFacts;
+}): Check {
+  const name = "snowflake";
+  if (!input.allowed) {
+    return {
+      name,
+      status: "warn",
+      detail:
+        "ALLOW_CONSORTIUM is not 1, so the consortium is off: the network reads as not consulted and every decision is the one this product made before it existed",
+    };
+  }
+
+  const missing = [
+    input.account === undefined || input.account === ""
+      ? "SNOWFLAKE_ACCOUNT"
+      : undefined,
+    input.user === undefined || input.user === ""
+      ? "SNOWFLAKE_USER"
+      : undefined,
+  ].filter((variable): variable is string => variable !== undefined);
+
+  const snapshot =
+    input.snapshot === undefined
+      ? "no local snapshot, run: bun run consortium:pull"
+      : `local snapshot: ${plural(input.snapshot.rows, "pair")} from ${input.snapshot.source}, pulled ${input.snapshot.pulledAt}`;
+
+  if (missing.length > 0) {
+    return {
+      name,
+      status: "warn",
+      detail: `${listNames(missing)} ${missing.length === 1 ? "is" : "are"} empty, so there is no warehouse to seed or pull from. ${snapshot}. Offline path: bun run consortium:pull --offline`,
+    };
+  }
+
+  if (input.keyPresent !== true) {
+    return {
+      name,
+      status: "warn",
+      detail: `account ${input.account} is configured and SNOWFLAKE_PRIVATE_KEY_PATH points at no readable file, so the key-pair JWT cannot be signed. ${snapshot}`,
+    };
+  }
+
+  return {
+    name,
+    status: input.snapshot === undefined ? "warn" : "ok",
+    detail: `account ${input.account}, key pair readable. ${snapshot}`,
   };
 }
 

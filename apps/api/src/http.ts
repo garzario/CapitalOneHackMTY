@@ -24,10 +24,17 @@ export type ErrorCode =
   | "unprocessable"
   | "rate_limited"
   | "http_error"
-  | "internal_error";
+  | "internal_error"
+  /**
+   * A capability this server was not configured with, rather than a request that
+   * is wrong. The consortium with `ALLOW_CONSORTIUM` unset is the case: the route
+   * exists, the request is well formed, and this instance will not answer it.
+   * Distinct from `forbidden`, which is about who is asking.
+   */
+  | "service_unavailable";
 
 /** Statuses this API actually returns. Anything else is a bug, not a choice. */
-export type ErrorStatus = 400 | 403 | 404 | 422 | 429 | 500;
+export type ErrorStatus = 400 | 403 | 404 | 422 | 429 | 500 | 503;
 
 export type ErrorBody = {
   error: {
