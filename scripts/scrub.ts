@@ -41,6 +41,8 @@ const ROOT = resolve(import.meta.dir, "..");
 const BINARY_SNIFF_BYTES = 8192;
 
 interface Rule {
+  /** Identifiers (not credentials) are checked in the working tree only: history cannot be rewritten during the event and rotation does not apply. */
+  treeOnly?: boolean;
   id: string;
   /** What the pattern is looking for, in the words of a person who is tired. */
   what: string;
@@ -118,6 +120,7 @@ const RULES: Rule[] = [
   {
     id: "mx-phone",
     what: "a Mexican telephone number",
+    treeOnly: true,
     pattern: /\+52[ ]?1?[ ]?\d[\d .-]{8,}\d/g,
   },
   {
@@ -192,6 +195,7 @@ const suppressed: Allow[] = [];
 
 function scan(surface: string, where: string, path: string, text: string) {
   for (const rule of RULES) {
+    if (rule.treeOnly && surface !== "tree") continue;
     rule.pattern.lastIndex = 0;
     let match: RegExpExecArray | null = rule.pattern.exec(text);
     while (match !== null) {
