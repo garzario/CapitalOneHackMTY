@@ -1,6 +1,6 @@
 # ADR-0005: Static web on Vercel, API on the Node runtime
 
-- **Status:** Proposed
+- **Status:** Accepted, 2026-09-12 02:30 CST. Option 2: apps/web static on Vercel, apps/api on the Vercel Node runtime, no bun:* imports in apps/api
 - **Date:** 2026-09-11
 - **Deciders:** `garzario`, with `fabbyyyy`
 - **Affects:** `apps/api`, `apps/web`, `CONTRIBUTING.md`, milestone M1

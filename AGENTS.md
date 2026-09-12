@@ -17,8 +17,9 @@ Challenge overview, verbatim: "How can we leverage real-time financial data and 
 automation to build resilient tools that empower individuals, protect businesses, and safeguard
 digital capital?"
 
-- Track: TODO(product), one of the three, decided in `docs/adr/0002-track-and-thesis.md`.
-- Thesis, one sentence: TODO(product) <who> can <outcome> because we <mechanism nobody else has>.
+- Track: 3, Real-Time Anomaly & Security Sentinel. Product: Ceptinela (ceptinela.tech). Decided in `docs/adr/0002-track-and-thesis.md`, read it first.
+- Thesis: the payments clerk of a Mexican SMB can stop a fiscally toxic, duplicated or misdirected SPEI before it leaves, because Ceptinela joins at the moment of payment the company's CFDI ledger, the SAT Article 69-B list and the Banxico-signed CEP.
+- Product model: six controls (69-B with retroactive sweep, CLABE forensics, duplicates, supplier behaviour change, CEP beneficiary verification, expected-loss decision). Domain types live in `packages/core/src/domain.ts`; the HTTP contract in `docs/09-api.md`. The narrative rules in ADR-0002 are binding: the hook is fiscal (69-B) plus SPEI irreversibility, never "cambiamos de cuenta"; real RFCs never sit next to fabricated evidence; synthetic data is watermarked.
 
 Read `docs/00-challenge.md` next. Before writing code, read "Where things live" and
 "Nessie quirks" below. Judging is continuous: 2 to 3 engineers and 1 product person walk up to

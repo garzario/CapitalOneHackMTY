@@ -33,33 +33,26 @@ Read it before filing an issue or opening a PR.
    engines that analyze transaction ledgers in real time to flag unexpected transfer velocity,
    suspicious merchant category hops, or abnormal account behaviors.
 
-## Our track and thesis
+## Our track and thesis, decided
 
-Status: **pending ADR-0002**, decided by the team vote at M0 (2026-09-11 22:00).
+Track 3, Real-Time Anomaly & Security Sentinel. Product: Ceptinela. Full reasoning, the six controls,
+the narrative rules and the alternatives are in `docs/adr/0002-track-and-thesis.md`.
 
-TODO(garzario): once the vote closes, fill these four lines and merge
-`docs/adr/0002-track-and-thesis.md` in the same PR.
+Thesis: the payments clerk of a Mexican SMB can stop a fiscally toxic, duplicated or misdirected SPEI
+before it leaves, because Ceptinela joins, at the moment of payment, the company's own CFDI ledger, the
+SAT's official Article 69-B list and the CEP that Banxico signs for every SPEI.
 
-- Track chosen: `<1 | 2 | 3>`
-- Thesis, one sentence: `<who>` can `<outcome>` because we `<mechanism nobody else has>`.
-- Why this track, sentence 1, the persona: TODO(FabriBanda)
-- Why this track, sentence 2, the mechanism: TODO(garzario)
-- Why this track, sentence 3, why the other two tracks are a worse fit for it: TODO(garzario)
+Why this track: the least crowded of the three by expectation, and the only one where we hold two
+external, public, verifiable data sources. The hook is fiscal and irreversible, which every accountant
+in Mexico recognises.
 
-## Candidate ideas under evaluation
+## Ideas considered and set aside
 
-Seven finalists from internal scoring. The decision is pending ADR-0002. Nothing here is built
-yet and nothing here is committed to.
-
-| Candidate | Track | One line |
-|---|---|---|
-| Eslabon | 2, B2B | Multilateral debt netting over the CFDI obligation graph of a construction cluster, solved as a min-cost circulation and decomposed into explainable settlement cycles. |
-| TIMBRE | 3, Risk | Supplier payment-run sentinel over an event-sourced CFDI ledger, with independently explainable detectors including CLABE forensics and a SAT Article 69-B state machine. |
-| Anaquel | 2, B2B | Inventory working capital read out of CFDI line items, using the fiscal ledger as the ERP a small retailer never had. |
-| Cuadre | 2, B2B | Retailer deduction reconciliation, rebuilding each deposit line by line against the published deduction reason codes. |
-| Tracto | 2, B2B | Load selection for one-to-five-unit carriers under a cash constraint, telling the owner which load to reject because diesel and tolls are paid on day 0 and the invoice at 45 to 120 days. |
-| UMBRAL | 1, B2C | Gig-driver platform allocation against the IMSS single-platform income threshold, because income is not summed between platforms. |
-| CEPTINELA | 3, Risk | CLABE and beneficiary verification before an irrevocable SPEI transfer, against the supplier-account-change scam. |
+Twenty-seven ideas were generated and eleven were scored against this rubric by three independent
+evaluators each. The runners-up and why they lost are recorded in ADR-0002: Eslabon (legal friction of
+multilateral netting), Cenote (invisible cryptography, three-party cold start), Cuadre (synthetic
+deduction documents), Tracto (trivial core), UMBRAL (demo arithmetic), Anaquel (no SKU sales data),
+Sparring (closed-loop evaluation).
 
 ## Rubric, CONFIRMED from the Capital One slides
 
