@@ -159,6 +159,30 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Changed
 
+- `docs/01-rubric-mapping.md` carries a real claim sentence and real evidence for all fourteen
+  sub-criteria plus the engineering-process row: every evidence cell is a path, a PR number, a CI
+  run or a test name that exists on `dev` today. Five rows are yellow and each one names the single
+  thing that would turn it green, with the issue that tracks it. A self-score section states the
+  scoring rule (G full, Y half, R zero) and records M1 at 85 of 100, so the number is reproducible
+  instead of asserted. The scoring discipline now checks `dev` rather than `main`, which is where
+  the evidence actually lands.
+- `docs/14-process.md` replaces its M3 placeholders with the artifacts themselves: the board and
+  its nine views, the five epics, three pull requests worth reading with what each body argues
+  (#117 the detector registry that made every control silent, #119 what the real 4.5 MB SAT file
+  does to a parser, #118 why the call outcome is parsed deterministically), the CI run and the test
+  count, the rubric score trend, and the ADR index with each ADR's real status instead of the
+  placeholder ones. Build night mode now states what it bought and what it cost, including that no
+  merged PR carries a post-merge review thread yet. The cut list is written: the fourteen issues
+  superseded by the Ceptinela backlog after ADR-0002, the nine closed as duplicates, six deliberate
+  descopes each traced to the PR or doc that made the call, and the four surfaces decided out of
+  scope before the first commit.
+- `README.md` replaces its `TODO(product)` placeholders with what is true now: the problem stated
+  with the cited SAT, ISR, IVA and irrevocability figures and the named persona, the differentiator
+  and the gap, the four-lane architecture rule and three sentences on the algorithm, the real
+  screenshots, and stack rows for `packages/engine`, `packages/sat`, `packages/cep`, Gemini and
+  ElevenLabs. The GIF, the demo video and the live URL stay `TODO(garzario)` with their issue
+  numbers until they exist.
+
 ### Fixed
 
 - The API tests read the ambient environment, so a laptop that followed the setup in the README

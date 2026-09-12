@@ -55,8 +55,10 @@ score and they only exist if the thing works and we can talk about it.
 - Branches are `feat/<issue#>-<slug>`, `fix/...`, `docs/...`. Merge within four hours or split the
   issue.
 - Feature PRs are squash-merged into `dev`. The squash title is `<type>(<scope>): <summary> (#<issue>)`.
-- One approval from a different role owner, per the rotation below.
-- Few, meaningful commits. One logical commit per PR.
+- One review from a different role owner, per the rotation below. Since 03:30 on the 12th that
+  review is post-merge rather than blocking, which is build night mode in point 7 of the review flow.
+- Few, meaningful commits. One logical commit per PR. Of the 39 merged so far, 36 went into `dev`
+  and 3 were release PRs into `main`.
 - No required status checks, deliberately. A runner queue must never strand a PR at 04:00. CI is
   advisory and the reviewer reads it.
 - Admin bypass is on so the lead can land a P0 fix alone at 05:00, and the PR body records
@@ -82,44 +84,144 @@ score and they only exist if the thing works and we can talk about it.
 | Adan | Fabricio, or Patricio for data contracts |
 | Fabricio | Adan, or Patricio for `docs/07`, `docs/08` and the ADRs |
 
-7. **Build night mode.** Between 2026-09-12 03:30 and the morning standup the approval gate is off: a PR merges when CI is green and the body is complete. Post-merge reviews from the rotation still happen and still leave comments.
-8. Quality target by M5: every PR has one approval or a recorded stall-rule note, at least two review
-   comments, zero direct pushes to `main` or `dev`, and `git log dev --oneline` reads as a legible story.
+7. **Build night mode, and what it actually cost us.** Between 2026-09-12 03:30 and the morning
+   standup the approval gate is off: a PR merges when CI is green and the body is complete.
+   The trade was made on purpose. Four people running assistants in parallel on a shared monorepo
+   produce PRs faster than four people can read them, and a PR waiting three hours for an approval
+   at 04:00 blocks the branch behind it rather than improving it. What we bought is throughput:
+   39 merged PRs, zero direct pushes to `main` or `dev`, and no branch stranded overnight.
 
-## Artifacts to link at M3
+   What it cost is visible and we state it rather than dress it up: **as of this writing no merged
+   PR carries a post-merge review thread.** The rotation below is owed on every one of them and the
+   debt is real. What stands in for it in the meantime is the PR body itself, which the template
+   makes mandatory: what changed, how, the evidence, one thing deliberately not done, and a
+   "For the reviewer" section that names the risky part and asks a real question. PR #117, #118 and
+   #119 above are what that looks like when it works.
+8. Quality target by M5: every merged PR has one post-merge review with at least two substantive
+   comments or a recorded stall-rule note, zero direct pushes to `main` or `dev`, and
+   `git log dev --oneline` reads as a legible story. The first of those three is the one at risk.
 
-TODO(garzario): fill these in at M3. This is the twenty minutes that answers "how did you work".
+## The board
 
-| Artifact | Link | Why this one |
+<https://github.com/users/garzario/projects/5>, "HackMTY 2026, Capital One". Every issue carries a
+status, an owner, a milestone, an epic parent and a `rubric/*` label, so the board answers "what is
+left" and "what is it worth" in the same read.
+
+Nine views, because four people at 03:00 need a different slice each:
+
+| # | View | What it is for |
 |---|---|---|
-| Project board | "HackMTY 2026, Capital One" (#5) | Status, owner, milestone and demo-critical for every issue |
-| Representative PR 1, engine | TODO | What the review conversation caught |
-| Representative PR 2, data or API | TODO | What the review conversation caught |
-| Representative PR 3, UI or docs | TODO | What the review conversation caught |
-| A CI run | TODO | Typecheck, tests and build, under three minutes |
-| Rubric score trend | TODO | The `docs/01` totals at M1, M2, M3, M4 |
+| 2 | Tablero de trabajo | The working kanban: Backlog, In Progress, In Review, Done |
+| 3 | Todo el backlog | Everything, flat, for triage |
+| 4 | Epicas | The five epics with their sub-issues underneath |
+| 5 | Demo-critical | Only `P0-demo-blocker`. This is the view the 04:00 gate is decided from |
+| 6 to 9 | Patricio, Fabian, Fabri, Adan | One per person, so nobody has to filter to find their own queue |
+| 10 | Done | The closed pile, which is where the cut list below was read from |
+
+The five epics, each with every related issue linked as a sub-issue:
+
+| Epic | Lead | Scope |
+|---|---|---|
+| [#80](https://github.com/garzario/CapitalOneHackMTY/issues/80) Engine | Patricio | `packages/core`, `packages/cep`, `packages/sat`, `packages/seed`, `packages/engine`, `packages/extract`, `packages/voice` |
+| [#81](https://github.com/garzario/CapitalOneHackMTY/issues/81) Data platform and API | Fabian | `packages/db`, `apps/api`, the ledger, SSE, the Nessie mirror, the evaluation harness |
+| [#82](https://github.com/garzario/CapitalOneHackMTY/issues/82) UI/UX | Fabricio designs, Fabricio and Adan build | `apps/web`, brand and design system, the six screens, persona and journey, the printed judge card |
+| [#83](https://github.com/garzario/CapitalOneHackMTY/issues/83) Infrastructure and release | Fabian | Vercel, Vultr, Tiger Data, `ceptinela.tech`, keys, offline demo mode, the real one-cent CEP, the release to `main` |
+| [#84](https://github.com/garzario/CapitalOneHackMTY/issues/84) Narrative and submission | everyone, Patricio closes | Market, business model, pitch, Devpost, rubric mapping, this file, the video, the rehearsals |
+
+## Three pull requests worth reading
+
+Picked because the body carries a real argument rather than a summary, not because they are the
+largest. Under build night mode the approval gate is off (see the review flow above), so on these
+three the PR body is the artifact and the post-merge review is still owed.
+
+| PR | What it is | What the body shows |
+|---|---|---|
+| [#117](https://github.com/garzario/CapitalOneHackMTY/pull/117) | `fix(core)`: explicit typed detector adapters, all six controls wired | The self-caught failure. The detector registry discovered modules by dynamic import and guessed each one's argument tuple from its arity, so once the real detectors landed it called none of them: the product returned "sin hallazgos" on every payment while the whole suite stayed green. That is exactly the prototype that only pretends to work, found by us rather than by a judge. The fix is typed adapters plus `composeFindingsReport`, which puts every control in `ran` or `skipped` with a named reason, so a silent control is now a test failure. The body also argues two judgement calls against itself and invites the reviewer to overrule them |
+| [#119](https://github.com/garzario/CapitalOneHackMTY/pull/119) | `feat(sat)`: official 69-B list loader, matcher and retroactive sweep | The data-reality PR. A table of what the real 4.5 MB SAT file does and what the parser had to be taught, each row with the count that provoked it: ISO-8859-1 rather than UTF-8, 2 records that span physical lines, 483 unreadable DOF cells, 93 cells with two dates, 91 RFCs redacted by court order that are reported rather than dropped. It also states the thing it deliberately did not do, which is feed the detector the real list, because ADR-0002 forbids joining a real RFC to a synthetic invoice |
+| [#118](https://github.com/garzario/CapitalOneHackMTY/pull/118) | `feat(voice)`: ElevenLabs verification call to the supplier | The failure-mode PR. Outcome parsing is deterministic and not a model, because ADR-0004 keeps inference out of the decision path and a judge has to be able to predict the answer. The named edge cases are the argument: a bare "si" is not a confirmation, a comma is what separates `No es correcta` from `No, es correcta`, uncertainty is never rounded to a denial, only four digits of the account are ever spoken, and a provider 401 becomes our 422 so a clerk is never told they are signed out. It ships with the telephony-fails path designed in, not bolted on |
+
+## Evidence you can check without us
+
+Counts are a snapshot, taken 2026-09-12 04:54 CST against `dev` at `8487841`. Re-read them off the
+commands rather than off this table if the hour matters.
+
+| Artifact | Where | Why this one |
+|---|---|---|
+| CI run | Run `34689622851` on `dev`, `verify` green in 33 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
+| Test suite | `bun test`: 1023 pass, 0 fail, 59 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
+| Blind evaluation | `bun run eval`: 30 labelled cases, 85.0 percent precision, 81.0 percent recall, 1.9 percent false positive rate | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
+| Rubric score trend | `docs/01-rubric-mapping.md#self-score` | M1, 2026-09-12 04:54 CST: **85 of 100** under the stated G/Y/R rule. M2, M3 and M4 go here as they are scored |
+| Changelog | `CHANGELOG.md`, `[Unreleased]` | Appended by whoever merges, in the same commit |
 
 ## What we cut, and why
 
-Every issue labelled `cut` with one line of reasoning. An issue closed as `cut` with a reason is
-evidence of scope judgment, which is exactly what an engineer is fishing for when they ask what we
-left out.
+An issue closed with a written reason is evidence of scope judgment, which is exactly what an
+engineer is fishing for when they ask what we left out. Three kinds of cut, all readable from the
+`Done` view of the board.
 
-TODO(garzario): list them at M3, one line each. Name two out loud in the pitch.
+### 1. A whole backlog, replaced once the track was decided
 
-Already decided as out of scope before the first commit, so that four people are not maintaining four
-infrastructure surfaces: a native iOS client, a Python model sidecar, extra cloud providers, and any
-sponsor integration that is not genuinely load-bearing.
+Issues **#7 to #10, #13, #15 to #22** were the generic plan written before the track vote. ADR-0002
+chose Ceptinela at 02:30 and made them wrong rather than merely incomplete: "feat: the aha screen"
+and "feat: dirty-data resilience" are not scopeable against a product that did not exist yet. All
+thirteen were closed with `Superseded by the Ceptinela backlog (#33 to #58)` rather than rewritten
+in place, so the history shows the pivot instead of hiding it. **#1 to #4, #11, #12 and #14** were
+closed as done in the bootstrap or superseded the same way.
+
+### 2. A double-filed backlog
+
+Issues **#24 to #32** were filed at 08:01 and the same nine were filed again at 08:02 as **#33 to
+#41**, inside one three-minute batch. The first nine were closed with `Duplicate of the complete
+backlog (#33 to #58)`. Not an interesting cut, listed because a board with nine unexplained
+closures is worse than a board with nine explained ones.
+
+### 3. Deliberate descopes, each recorded in the PR that made the call
+
+These are the ones worth defending out loud, because each is a thing that would have looked good
+and would have cost the demo.
+
+| Cut | Where it is recorded | Why |
+|---|---|---|
+| The composition report does not reach the HTTP contract | PR #117, "Deliberately not done" | Adding `controls: { ran, skipped }` to the intake response would have changed `docs/09-api.md` and `apps/web` while three people were editing those files. It is additive and it is its own PR |
+| The `sat_69b` detector is not fed the real committed SAT list | PR #119, and in `apps/api/src/pipeline.ts` next to the wiring | ADR-0002 forbids a real RFC sitting next to fabricated evidence. The real list is read-only, in the lookup box a judge types into. The comment exists so the next person does not "fix" it |
+| The `verification_call` event is not rendered in the instruction panel | PR #118, "Deliberately not done" | `InstructionScreen.tsx` and `Findings.tsx` belong to the UI front and were being edited at that hour. The event is already on `GET /api/v1/ledger` and on the SSE stream, so the panel needs no API change when it is built |
+| No ElevenLabs voice id is pinned | PR #118 | Nobody on the team had listened to a Mexican Spanish voice and chosen one, so `ELEVENLABS_VOICE_ID` is empty and the provider default applies rather than an id this repo invented |
+| Per-transaction basis points, and lead generation to a lender | `docs/05-business-model.md#revenue-lines` | The first makes a subscriber pay twice for one payment run. The second turns a control into an origination channel and invites the credit regime ADR-0002 deliberately stayed outside of |
+| The white-label licence to a financial institution | `docs/05-business-model.md#revenue-lines` | Real, and on a procurement cycle that cannot start from a hackathon. It is the year-two line, not the headline |
+
+### 4. Decided out of scope before the first commit
+
+Recorded in `docs/07-architecture.md#deliberately-not-in-this-tree`, because git cannot track an
+empty directory and a folder that never existed leaves no evidence of the decision.
+
+- **`apps/ios`**, a native client. ADR-0001 says a native app needs a differentiator that is
+  inherently on-device, and ours is not. The camera path we do need is a web intake page opened
+  from a QR code, which needs no signing and no store.
+- **`services/ml`**, a Python sidecar. All six controls are arithmetic, string distance, a state
+  machine or a check digit. A readable TypeScript implementation scores higher on algorithmic logic
+  than an opaque artifact.
+- **A queue or a worker tier.** The sweep is a replay that fits in one request at demo scale. The
+  threshold that would create one is written down in `docs/07-architecture.md`.
+- **A second database for the SAT list.** A list version is rows in Postgres plus an in-memory map
+  keyed by RFC, rebuilt on load.
+- **Extra cloud providers, and any sponsor integration that is not genuinely load-bearing.** Four
+  people cannot maintain four infrastructure surfaces in 36 hours.
 
 ## Decision record index
 
-| ADR | Decision | Status |
-|---|---|---|
-| [0001](adr/0001-stack-and-runtime.md) | Stack and runtime | Proposed |
-| [0002](adr/0002-track-and-thesis.md) | Track and thesis | Pending |
-| [0003](adr/0003-datastore-and-timeseries.md) | Datastore and time series | Proposed |
-| [0004](adr/0004-llm-boundary-and-privacy.md) | LLM boundary and privacy | Proposed |
-| [0005](adr/0005-deploy-target.md) | Deploy target | Proposed |
+| ADR | The decision, stated as the decision | Status in the file | Landed in |
+|---|---|---|---|
+| [0001](adr/0001-stack-and-runtime.md) | Bun and TypeScript monorepo, with the intelligence as a pure package | Accepted, 2026-09-12 02:30. Option A, no Python sidecar | bootstrap |
+| [0002](adr/0002-track-and-thesis.md) | Track 3 and the Ceptinela thesis, the product as six controls | Accepted, team vote 2026-09-12 02:30 | PR #23 |
+| [0003](adr/0003-datastore-and-timeseries.md) | One Postgres dialect, Timescale primary, local Postgres 18 as the offline fallback | Proposed | bootstrap |
+| [0004](adr/0004-llm-boundary-and-privacy.md) | No LLM in the per-transaction hot path | Proposed | bootstrap |
+| [0005](adr/0005-deploy-target.md) | Static web on Vercel, API on the Node runtime, amended in PR #104 | Accepted, 2026-09-12 02:30. Option 2 | bootstrap |
+
+Two of the five still read `Proposed`, and they are listed that way rather than quietly promoted.
+ADR-0004 in particular is already enforced in code by `packages/extract/src/boundary.test.ts`, so
+the status line is behind the repository and that is a real gap, tracked in
+`docs/01-rubric-mapping.md` on the system-design row.
 
 ADRs are the cheapest, highest-credibility artifact available, because they are written proof of the
-reasoning the engineers came to the table to probe.
+reasoning the engineers came to the table to probe. `docs/adr/0000-template.md` is the shape: the
+decision as a sentence, the alternatives that lost, and the consequence we accepted.
