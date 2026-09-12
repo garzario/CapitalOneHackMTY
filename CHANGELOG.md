@@ -153,6 +153,28 @@ then the screens, then the narrative, then the plumbing.
   `MemoryRepository` on the same seed, line for line, plus the endpoints and the SSE stream, and
   was run against the local PostgreSQL 18 and the managed TimescaleDB 2.30 service.
 
+- "Verificar cuenta" on the CEP screen, and the beat that follows it with nobody typing (issue
+  #167). One click posts `/api/v1/instructions/:id/verify-account`, and from there the panel
+  follows `GET /verification` and re-reads on every ledger event that names the instruction, so
+  the six states arrive on their own: sin verificar, centavo enviado with the clave de rastreo the
+  rail answered, esperando el CEP, CEP firmado por Banxico with the holder next to the CFDI legal
+  name, and pago liberado or pago bloqueado with the decision the engine took. The instruction
+  detail links into it from the destination account, so the beat starts on the screen that shows
+  the account it is about. Three rules hold the panel together. The rail is named on screen,
+  "espejo Nessie" in the demo, next to the sentence that says the CEP is Banxico's and the cent is
+  ours. The seal is rendered exactly as the API reports it and `sealVerdictOf` is the only place
+  that maps it: `valid` is the only value that reads valido, and anything else, including a value
+  this build has never seen, reads no verificado, which is what stops a `not_checked` seal from
+  being promoted to evidence. And offline the panel moves the first two beats and stops, because a
+  browser with no API holds no signed document and walking a mock to "CEP firmado" would fabricate
+  the evidence the control rests on. The ledger stream is read structurally rather than by a
+  switch on the event type, since `cent_sent` and `cep_awaited` are added to the union in issue
+  #166 and a switch would have compiled, dropped both and frozen the panel on "centavo enviado".
+  `?data=mock` carries a verification per instruction, one per state, so the offline run renders
+  all six. The 409 and the 503 are sentences a clerk can act on and not error codes: a payment
+  already released or blocked is not verified twice, and a deployment with no rail says which
+  configuration is missing instead of inventing a clave de rastreo.
+
 - The metrics page says how blind the blind evaluation actually is (issue #51). It used to claim
   the labels were written by a different person from the detectors, which the holdout README
   contradicts; the note now states the real position, names the four labels that disagree with
@@ -248,6 +270,14 @@ then the screens, then the narrative, then the plumbing.
   where the line between "no verificada" and "invalida" is drawn.
 
 ### Fixed
+
+- The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
+  synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the
+  running API the name comparison, which is the entire point of showing a CEP, printed "no
+  disponible" under the holder. `readLegalName` in `apps/web/src/lib/evidence.ts` reads both keys,
+  the engine's first, which is the module that already exists to keep the three evidence
+  vocabularies apart. `legalName` and `beneficiaryName` also gained Spanish labels, so the finding
+  panel stops printing our variable names at a clerk.
 
 - `POST /api/v1/cep/verify` does what `docs/09-api.md` says it does (issue #42). It had been the one
   write endpoint still wired to a stub: it only ever answered from the registry of verified

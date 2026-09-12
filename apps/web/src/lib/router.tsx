@@ -46,6 +46,15 @@ export function verifyCallPath(instructionId: string): string {
   return `${PATHS.verifyCall}?instruction=${encodeURIComponent(instructionId)}`;
 }
 
+/**
+ * The CEP page with one instruction already selected, so the one-cent
+ * verification is one click from the instruction detail and nobody retypes a
+ * folio in front of a judge.
+ */
+export function verifyAccountPath(instructionId: string): string {
+  return `${PATHS.cep}?instruction=${encodeURIComponent(instructionId)}`;
+}
+
 /** `/run` becomes `#/run`, the value that goes in an href. */
 export function href(path: string): string {
   return `#${path}`;

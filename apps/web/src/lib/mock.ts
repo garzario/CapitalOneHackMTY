@@ -46,8 +46,10 @@ import type {
   PaymentRunItem,
   PaymentRunTotals,
   SatVersion,
+  VerificationState,
   VerifiedBeneficiary,
 } from "./contract";
+import { notStartedVerification } from "./verification";
 
 /** The company running the payment run. Synthetic, like everything else. */
 export const COMPANY_RFC: Rfc = "SYN840101MTY";
@@ -827,6 +829,136 @@ export const BENEFICIARIES: VerifiedBeneficiary[] = [
     verifiedAt: "2026-09-02T11:16:03-06:00",
   },
 ];
+
+/* --------------------------------------------------- one-cent verification */
+
+/**
+ * The one-cent verification, one instruction per state.
+ *
+ * All six states are here, on six different rows, because the screen that
+ * renders them has to be demonstrable with no API behind it and a fixture that
+ * only carries the happy ending proves nothing about the other five. A test in
+ * `verification.test.ts` fails when a state loses its row.
+ *
+ * The names are the interesting part. `-004` is the partial match a bank
+ * produces by truncating a legal name, which is a question and not an
+ * accusation, and its seal is `not_checked` because a deployment with no
+ * Banxico certificate verified nothing: that row is the one that proves the
+ * screen never prints "valido" for a seal nobody checked. `-006` is the
+ * mismatch. `-007` is the account the registry above already holds, so the
+ * verified beneficiary, the CEP and the finding in the run all tell one story.
+ */
+export const VERIFICATIONS: Record<string, VerificationState> = {
+  "ins-2026w37-002": {
+    instructionId: "ins-2026w37-002",
+    state: "cent_sent",
+    rail: "nessie",
+    claveRastreo: "SYN20260909MTY00412",
+    centSentAt: "2026-09-09T18:44:12-06:00",
+    cepAt: null,
+    sealState: null,
+    holderName: null,
+    legalName: "Servicios Logisticos Peninsular SA de CV",
+    nameMatch: null,
+    decision: null,
+    updatedAt: "2026-09-09T18:44:12-06:00",
+  },
+  "ins-2026w37-003": {
+    instructionId: "ins-2026w37-003",
+    state: "awaiting_cep",
+    rail: "nessie",
+    claveRastreo: "SYN20260909MTY00417",
+    centSentAt: "2026-09-09T11:05:40-06:00",
+    cepAt: null,
+    sealState: null,
+    holderName: null,
+    legalName: "Aceros y Laminados del Golfo SA de CV",
+    nameMatch: null,
+    decision: null,
+    updatedAt: "2026-09-09T11:06:10-06:00",
+  },
+  "ins-2026w37-004": {
+    instructionId: "ins-2026w37-004",
+    state: "cep_signed",
+    rail: "nessie",
+    claveRastreo: "SYN20260910MTY00423",
+    centSentAt: "2026-09-10T08:29:02-06:00",
+    cepAt: "2026-09-10T09:14:55-06:00",
+    sealState: "not_checked",
+    holderName: "EMPAQUES FLEXIBLES MTY SA DE C",
+    legalName: "Empaques Flexibles Monterrey SA de CV",
+    nameMatch: "partial",
+    decision: null,
+    updatedAt: "2026-09-10T09:14:55-06:00",
+  },
+  "ins-2026w37-006": {
+    instructionId: "ins-2026w37-006",
+    state: "blocked",
+    rail: "nessie",
+    claveRastreo: "SYN20260910MTY00431",
+    centSentAt: "2026-09-10T16:52:20-06:00",
+    cepAt: "2026-09-10T17:31:09-06:00",
+    sealState: "valid",
+    holderName: "Comercializadora Sintetica del Valle SA de CV",
+    legalName: "Transportes Unidos del Noreste SA de CV",
+    nameMatch: "mismatch",
+    decision: decision(
+      "ins-2026w37-006",
+      "hold",
+      76500.0,
+      210.0,
+      [],
+      "2026-09-10T17:31:09-06:00",
+      "system",
+    ),
+    updatedAt: "2026-09-10T17:31:09-06:00",
+  },
+  "ins-2026w37-007": {
+    instructionId: "ins-2026w37-007",
+    state: "released",
+    rail: "nessie",
+    claveRastreo: MOCK_CEP.claveRastreo,
+    centSentAt: MOCK_CEP.transferredAt,
+    cepAt: "2026-09-02T11:16:03-06:00",
+    sealState: "valid",
+    holderName: MOCK_CEP.beneficiaryName,
+    legalName: "Herramentales y Moldes del Norte SA de CV",
+    nameMatch: "match",
+    decision: decision(
+      "ins-2026w37-007",
+      "release",
+      0,
+      640.0,
+      [],
+      "2026-09-11T09:33:02-06:00",
+      "system",
+    ),
+    updatedAt: "2026-09-11T09:33:02-06:00",
+  },
+};
+
+/**
+ * The verification of one instruction, offline.
+ *
+ * An instruction of the run with no row above has simply never been probed, so
+ * it answers `not_started` rather than nothing: an empty answer would render as
+ * a failure, and "nobody has verified this account" is a state and not an
+ * error. A folio this run does not contain answers null, which is what makes a
+ * typed-in mistake visible.
+ */
+export function mockVerification(
+  instructionId: string,
+): VerificationState | null {
+  const carried = VERIFICATIONS[instructionId];
+
+  if (carried !== undefined) {
+    return carried;
+  }
+
+  return mockInstruction(instructionId) === null
+    ? null
+    : notStartedVerification(instructionId, `${WEEK_OF}T00:00:00-06:00`);
+}
 
 /* ------------------------------------------------------------------ metrics */
 

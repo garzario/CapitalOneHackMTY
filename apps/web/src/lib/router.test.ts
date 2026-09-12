@@ -13,6 +13,7 @@ import {
   pathOf,
   queryOf,
   targetFromHash,
+  verifyAccountPath,
   verifyCallPath,
 } from "./router";
 
@@ -78,6 +79,21 @@ describe("verifyCallPath", () => {
     const path = verifyCallPath("ins 2026w37/01");
 
     expect(queryOf(path).get("instruction")).toBe("ins 2026w37/01");
+  });
+});
+
+describe("verifyAccountPath", () => {
+  test("lands on the CEP screen with the instruction selected", () => {
+    const path = verifyAccountPath("ins-2026w37-002");
+
+    expect(parsePath(path)).toEqual({ name: "cep" });
+    expect(queryOf(path).get("instruction")).toBe("ins-2026w37-002");
+  });
+
+  test("encodes an id that would otherwise break the query", () => {
+    const path = verifyAccountPath("ins 2026w37/02");
+
+    expect(queryOf(path).get("instruction")).toBe("ins 2026w37/02");
   });
 });
 

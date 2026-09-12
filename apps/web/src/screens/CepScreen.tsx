@@ -25,6 +25,7 @@ import {
   LoadingBlock,
   SourceNotice,
 } from "../components/States";
+import { NameComparison, VerifyAccountPanel } from "../components/Verification";
 import { getBeneficiaries, verifyCep } from "../lib/api";
 import {
   BANXICO_CEP_URL,
@@ -32,33 +33,29 @@ import {
   portalFields,
 } from "../lib/cep-portal";
 import { sealVerdict } from "../lib/cep-seal";
-import type {
-  CepVerification,
-  NameMatch,
-  VerifiedBeneficiary,
-} from "../lib/contract";
+import type { CepVerification, VerifiedBeneficiary } from "../lib/contract";
+import { readLegalName } from "../lib/evidence";
 import { formatClabe, formatDate, formatDateTime } from "../lib/format";
-import { NAME_MATCH_BADGE, NAME_MATCH_LABEL } from "../lib/labels";
 import { BENEFICIARIES, MOCK_CEP, SUPPLIERS } from "../lib/mock";
 import { useResource } from "../lib/resource";
+import { useRouteQuery } from "../lib/router";
 
 function registryFallback() {
   return { items: BENEFICIARIES };
 }
 
 /**
- * The legal name to compare against. The detector puts it in the evidence; when
- * it is not there, the synthetic supplier list is the only other place it lives
- * in the browser.
+ * The legal name to compare against. The detector puts it in the evidence, under
+ * whichever of the three vocabularies wrote the finding; when it is not there at
+ * all, the synthetic supplier list is the only other place it lives in the
+ * browser.
  */
 function legalNameFor(rfc: string, finding: Finding | null): string | null {
-  const fromEvidence = finding?.evidence.razon_social_cfdi;
-
-  if (typeof fromEvidence === "string") {
-    return fromEvidence;
-  }
-
-  return SUPPLIERS.find((item) => item.rfc === rfc)?.legalName ?? null;
+  return (
+    readLegalName(finding) ??
+    SUPPLIERS.find((item) => item.rfc === rfc)?.legalName ??
+    null
+  );
 }
 
 type VerifyState =
@@ -89,6 +86,10 @@ const EXAMPLE: CepVerification = {
 };
 
 export function CepScreen() {
+  /* A link from the instruction detail carries the folio, so the verification
+     panel loads itself and nobody retypes an id in front of a judge. The key
+     remounts the panel when the link changes, which is what resets its state. */
+  const fromLink = useRouteQuery().get("instruction") ?? "";
   const loadRegistry = useCallback(
     (signal: AbortSignal) => getBeneficiaries({ signal }),
     [],
@@ -149,11 +150,13 @@ export function CepScreen() {
     <>
       <SectionHeader
         title="Comprobante Electronico de Pago"
-        description="Se manda un SPEI de un centavo desde el banco de la empresa, se trae el CEP que firma Banxico y se compara el titular de la cuenta con la razon social del CFDI. La cuenta queda en el registro de beneficiarios verificados."
+        description="Un SPEI de un centavo viaja en la misma corrida que el pago grande, el banco devuelve la clave de rastreo y Banxico firma el CEP que dice a nombre de quien esta la cuenta. Se compara con la razon social del CFDI, el motor libera o bloquea el pago grande, y la cuenta queda en el registro de beneficiarios verificados."
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] [&>*]:min-w-0">
         <div className="flex flex-col gap-5">
+          <VerifyAccountPanel key={fromLink} instructionId={fromLink} />
+
           <section
             aria-labelledby="verify-heading"
             className="panel flex flex-col gap-4 p-5"
@@ -357,33 +360,6 @@ export function CepScreen() {
         </section>
       </div>
     </>
-  );
-}
-
-function NameComparison({
-  nameMatch,
-  holder,
-  legalName,
-}: {
-  nameMatch: NameMatch;
-  holder: string;
-  legalName: string | null;
-}) {
-  return (
-    <div className="panel-sunken flex flex-col gap-3 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="eyebrow">Comparacion de nombre</span>
-        <span className={NAME_MATCH_BADGE[nameMatch]}>
-          {NAME_MATCH_LABEL[nameMatch]}
-        </span>
-      </div>
-      <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Titular en el CEP">{holder}</Field>
-        <Field label="Razon social en el CFDI">
-          {legalName ?? <span className="muted">no disponible</span>}
-        </Field>
-      </dl>
-    </div>
   );
 }
 
