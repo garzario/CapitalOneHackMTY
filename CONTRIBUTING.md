@@ -111,7 +111,9 @@ that checked nothing is worse than a red one.
 - Two long-lived branches. `dev` is the integration branch: every feature PR targets `dev` and is
   squash-merged as soon as CI is green (no approval gate during the build night; post-merge reviews are still expected). `main` is the release branch: it only receives release PRs from `dev`, merged with
   a merge commit (`gh pr merge --merge`) and tagged (`v1.0.0` at M4). Vercel production deploys
-  from `main`, previews from `dev` and from every PR.
+  from `main`, previews from `dev` and from every PR. The exact commands for that release, in
+  order, are in `docs/playbooks/release.md`, and `bun run release-check` is the gate that runs
+  before it.
 - Branch names: `feat/<issue#>-<slug>`, `fix/<issue#>-<slug>`, `docs/<issue#>-<slug>`.
 - Branch from a freshly pulled `dev`. Merge within four hours or split the issue.
 - **Never push to `main` or `dev`.** This is a team repo and the pull requests are the judged

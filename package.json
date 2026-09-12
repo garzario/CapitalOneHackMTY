@@ -18,7 +18,9 @@
     "demo": "bun run scripts/demo.ts",
     "audit:web": "bun run apps/web/audit/audit.ts",
     "shoot:web": "bun run apps/web/brand/shoot.ts",
-    "voice-setup": "bun run scripts/voice-setup.ts"
+    "voice-setup": "bun run scripts/voice-setup.ts",
+    "scrub": "bun run scripts/scrub.ts",
+    "release-check": "bun run scripts/release-check.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",

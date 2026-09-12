@@ -39,7 +39,9 @@ they are meant to be followed under time pressure, not read once.
    not, because the old key is already dead.
 4. Replace the value in every `.env` and in the deploy environment, then run `bun run doctor`.
 
-All event keys are rotated or revoked after 2026-09-13 regardless of whether anything leaked.
+All event keys are rotated or revoked after the closing ceremony on 2026-09-13 regardless of
+whether anything leaked. The provider-by-provider checklist is under "Pre-submission scrub" below
+and it is tracked by issue #67.
 
 ## Supply chain
 
@@ -56,23 +58,77 @@ All event keys are rotated or revoked after 2026-09-13 regardless of whether any
   bulk.
 - npm, npx, yarn and pnpm are denied in the local assistant permission template (`docs/playbooks/assistant-permissions.json`) and must not be reintroduced.
 
-## Repository hygiene
-
-The pre-public scrub, run before making the repository public and again before the final
-submission:
+## Pre-submission scrub
 
 ```bash
-git log --all -p | grep -nEi '(api[_-]?key|secret|bearer |password|BEGIN .*PRIVATE KEY)' | head -20
-git log --all --name-only --pretty=format: | sort -u | grep -E '^\.env' || echo "no .env in history"
-grep -rnEi 'co-authored-by|generated with' --include='*.md' . || echo "no attribution in docs"
-grep -rn '' .env.example | grep -vE '=$' || echo ".env.example has no values, good"
+bun run scrub
 ```
 
-If the first command finds a secret, go to "If a key leaks" above and revoke first.
+One command, exit code 0 or 1, run before the repository went public, again before the final
+submission, and once more before the `v1.0.0` tag, because a tag makes the history permanent.
+`bun run release-check` runs it as its last gate, so a release that skipped it is a release that
+did not happen.
 
-Also check before the repository goes public or a screenshot is published: no real names other than
-the four team members, no other team's data, no `.env` contents, and no personal data in any image
-in `assets/`.
+It replaces the four hand-typed greps this file used to carry. Those greps read `git log -p`, and
+`git log -p` calls the committed SAT list binary because the file is ISO-8859-1, so the largest
+file in the repository was the one file they never looked at. `scripts/scrub.ts` reads blobs
+through `git cat-file --batch` and decides what is binary itself.
+
+**Three surfaces, because a repository can be clean in each of them separately and still leak.**
+
+| Surface | What it is | Why on its own |
+|---|---|---|
+| Tree | every file `git ls-files` reports | what a visitor clones today |
+| History | every blob reachable from every ref | a deleted branch is not a deleted object, and this repository is public |
+| Messages | every commit message on every ref | no diff scan ever reads them |
+
+**What it looks for.** A PEM private key block. An API key with the `sk` underscore prefix, the
+shape ElevenLabs and Stripe issue. A Google API key, the shape a Gemini key has. A long opaque
+token with an AQ prefix. A Twilio account SID, `AC` followed by thirty-two hexadecimal digits. A
+bare thirty-two hexadecimal digit token, which is the shape of a Nessie key. An Authorization
+bearer token. A secret-shaped name assigned a long string literal. A Mexican telephone number. AI
+attribution, which this repository carries nowhere. Plus four checks that are not a pattern: no
+`.env` file tracked or ever committed, no value in `.env.example` long enough to be a key, and
+every name and RFC in the CEP fixtures carrying its synthetic marker.
+
+**What it prints.** The rule, the location, the line, and a masked preview of four characters and
+a length. Never the match itself. A scrub is run under time pressure on a screen that is often
+being recorded.
+
+**Run it on a full clone.** A shallow checkout has one commit, so the history surface is empty and
+the command still says OK. `git clone` with no `--depth` is the only correct input.
+
+**When a match is legitimate**, add an entry to `ALLOW` in `scripts/scrub.ts` with the rule, the
+exact match or the path, and the reason. The reason is printed on every clean run, so an excuse
+nobody can defend is visible rather than buried. Never widen a pattern to make a hit go away.
+
+If it hits something real, go to "If a key leaks" above and revoke first. Rewriting history during
+the event is almost never the right call, because the old key is already dead by then.
+
+**Still a person's job**, because no pattern finds these: no real name other than the four team
+members, no other team's data, no `.env` contents on screen, and no personal data in any image in
+`assets/` or in the demo video.
+
+### Rotation checklist, after the closing ceremony
+
+Every event key is rotated or revoked after the closing ceremony on 2026-09-13, whether or not
+anything leaked, and whether or not `bun run scrub` was ever red. The repository is public and the
+keys outlive the weekend otherwise. Work top to bottom, and tick each one in issue #67.
+
+| # | Key | Where it lives | What to do |
+|---|---|---|---|
+| 1 | `NESSIE_API_KEY` | Nessie developer account | Regenerate the team key in the Nessie console. The old one dies with it. Remember that a `403 Missing Authentication Token` means a wrong path, not a dead key, so do not regenerate twice chasing one |
+| 2 | `GEMINI_API_KEY` | Google AI Studio, the project behind `packages/extract` | Delete the key, then create a new one only if the project keeps running. Deleting is the default |
+| 3 | `ELEVENLABS_API_KEY` | ElevenLabs account settings | Revoke the key. `ELEVENLABS_AGENT_ID`, `ELEVENLABS_PHONE_NUMBER_ID` and `ELEVENLABS_VOICE_ID` are identifiers and not secrets, but delete the conversational agent as well so nothing can dial on our account |
+| 4 | Twilio | the Twilio account behind the ElevenLabs telephone number | Rotate the auth token, release the purchased number, and remove the number from the ElevenLabs integration first so the two do not fight. The account SID is not a secret on its own and still goes, because it is half of a pair |
+| 5 | `DATABASE_URL`, Tiger Data | the hosted ledger service | Rotate the service password, then delete the service if nothing is left running on it. The connection string carries the password, so rotating it invalidates every copy in every `.env` and in the deploy environment at once |
+| 6 | `VULTR_API_KEY` | Vultr account, API section | Revoke the key and destroy any instance created for the event. An API key that can create instances is the most expensive one on this list to leave behind |
+
+After the last row: delete the local `.env` on all four laptops, clear the environment variables in
+Vercel and in any other deploy target, run `bun run doctor` to confirm the integrations now fail in
+the expected way, and run `bun run scrub` one final time. The tests pass with no key and no
+network, so a repository with every key dead still builds, still tests green and still runs
+`bun run demo`.
 
 ## Scope of this policy
 
