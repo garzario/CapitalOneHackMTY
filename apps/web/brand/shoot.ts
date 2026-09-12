@@ -47,21 +47,32 @@ interface Shot {
  * rest. Every file here is carried in git, so the set is the smallest one that
  * covers the README, the Devpost gallery and the responsive claim in #96.
  */
+/**
+ * The paths carry their `#`, and that is load bearing.
+ *
+ * `apps/web` is a hash router. Navigating to `/metrics` serves index.html, the
+ * app finds an empty hash and redirects itself to the payment run, and the
+ * shutter opens on the run screen inside a file called `metrics.png`. That is
+ * what happened: four of the eight captures were byte identical copies of the
+ * run screen under four different names, which is worse than having no
+ * screenshot at all, because a README that shows the wrong screen is a claim
+ * nobody checked.
+ */
 const SHOTS: Shot[] = [
-  { path: "/run", name: "run", width: 1440, height: 1000, both: true },
+  { path: "#/run", name: "run", width: 1440, height: 1000, both: true },
   {
-    path: "/instructions/ins-2026w37-002",
+    path: "#/instructions/ins-2026w37-002",
     name: "finding",
     width: 1200,
     height: 1100,
     both: true,
   },
-  { path: "/run", name: "run-tablet", width: 768, height: 1100 },
-  { path: "/run", name: "run-phone", width: 390, height: 900 },
-  { path: "/intake", name: "intake-phone", width: 390, height: 900 },
-  { path: "/sat", name: "sat", width: 1440, height: 1000 },
-  { path: "/cep", name: "cep", width: 1440, height: 1000 },
-  { path: "/metrics", name: "metrics", width: 1440, height: 1000 },
+  { path: "#/run", name: "run-tablet", width: 768, height: 1100 },
+  { path: "#/run", name: "run-phone", width: 390, height: 900 },
+  { path: "#/intake", name: "intake-phone", width: 390, height: 900 },
+  { path: "#/sat", name: "sat", width: 1440, height: 1000 },
+  { path: "#/cep", name: "cep", width: 1440, height: 1000 },
+  { path: "#/metrics", name: "metrics", width: 1440, height: 1000 },
 ];
 
 /**
@@ -70,12 +81,13 @@ const SHOTS: Shot[] = [
  * of the loop is to show what the product looks like, not to prove it works.
  * That is what `bun run demo` is for.
  */
+/** Same rule as SHOTS: the app is a hash router, so the fragment travels. */
 const TOUR = [
-  "/run",
-  "/instructions/ins-2026w37-002",
-  "/sat",
-  "/cep",
-  "/metrics",
+  "#/run",
+  "#/instructions/ins-2026w37-002",
+  "#/sat",
+  "#/cep",
+  "#/metrics",
 ];
 
 /** Frames per stop. Six at 8 fps reads as a deliberate pause, not a stutter. */
@@ -233,7 +245,12 @@ async function main(): Promise<void> {
           ],
         });
 
-        await devtools.send("Page.navigate", { url: `${base}${shot.path}` });
+        /* about:blank first. Two URLs that differ only in the fragment are
+           the same document to Page.navigate, so without this the second shot
+           of a session captures whatever the first one left on screen. */
+        await devtools.send("Page.navigate", { url: "about:blank" });
+        await wait(120);
+        await devtools.send("Page.navigate", { url: `${base}/${shot.path}` });
         /* The app falls back to the synthetic run when the API is absent, and
            that fallback is a failed fetch with a timeout behind it. */
         await wait(2500);
@@ -304,7 +321,9 @@ async function captureTour(devtools: Devtools, base: string): Promise<void> {
   let index = 0;
 
   for (const path of TOUR) {
-    await devtools.send("Page.navigate", { url: `${base}${path}` });
+    await devtools.send("Page.navigate", { url: "about:blank" });
+    await wait(120);
+    await devtools.send("Page.navigate", { url: `${base}/${path}` });
     await wait(2500);
 
     for (let frame = 0; frame < FRAMES_PER_STOP; frame++) {
