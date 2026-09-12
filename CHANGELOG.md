@@ -510,6 +510,29 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- `docs/07-architecture.md` and `docs/08-data-model.md` are finished against the merged tree
+  (issue #64), and every figure on both pages now comes from a run or from a cited file. 07 carries
+  the four-lane flowchart with the real packages, a sequence diagram of the intake path from the QR
+  photo through `packages/extract` to the SSE update, a second one of the SAT publication replay
+  through `simulatePublication`, `publishSatList` and `priceSweep`, and a justification table that
+  now covers Gemini boxed to extraction, ElevenLabs for the verification call and the hash router,
+  each row with the condition that would make us switch. The deliberately absent pieces are a table
+  with their reversal condition, MongoDB Atlas among them, and the scaling section states the
+  measured cost of a control pass (15.2 ms per line, 1395 ms for a 92-line run on an Apple M3 Pro)
+  and the honest multi-tenancy position: the schema is single-tenant by construction because
+  `0006_company.sql` refuses a second row, and the path to many tenants is one column plus a space
+  dimension. 08 transcribes the ERD from `domain.ts` including `delayCostPerDay`, `paymentTotal`,
+  `operationNumber`, `audioRef`, `sentAt`, the CEP evidence fields, `ledger_tx` as a finding subject
+  and `verification_call`, says which lines are real foreign keys and which are only join keys,
+  explains all six migrations including why `0005` exists, and reports the synthetic-data figures as
+  `summarizeCeptinela` returns them for seed 69 and week 2026-09-07. The blind-evaluation section
+  carries the measured table from `bun run eval` (30 cases, 85.0 precision, 81.0 recall, 1.9 false
+  positive rate, action agreement 28 of 30) and, separately, the false positive rate over the ten
+  hard negatives alone, which is 0 of 60 case-by-detector pairs. The stale parts are gone: the ERD
+  no longer shows a `ceps` table or an `instruction_cfdi` junction that the schema never had, the
+  migration section no longer describes a `supplier_weekly_outflow` aggregate that does not exist,
+  and the threshold TODO is answered rather than left open, by stating that no refusal threshold was
+  pre-registered before the first run and why claiming one would be false.
 - `detectBankReconciliation` buckets the expected payments by the day they are expected on and
   scans only the days inside the match window, instead of the whole company's documents once per
   outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from
