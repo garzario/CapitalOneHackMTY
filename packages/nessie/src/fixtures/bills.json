@@ -1,0 +1,26 @@
+[
+  {
+    "_id": "b1a2c3d4-5e6f-4708-9a1b-2c3d4e5f6071",
+    "status": "completed",
+    "payee": "CFE",
+    "nickname": "Luz",
+    "creation_date": "2026-08-12",
+    "payment_date": "2026-09-02",
+    "recurring_date": 2,
+    "upcoming_payment_date": "2026-10-02",
+    "payment_amount": 450.0,
+    "account_id": "012de01e-4f2b-4c9d-8a77-9b3a1d5e6f02"
+  },
+  {
+    "_id": "b1a2c3d4-5e6f-4708-9a1b-2c3d4e5f6072",
+    "status": "pending",
+    "payee": "Totalplay",
+    "nickname": "Internet",
+    "creation_date": "2026-08-12",
+    "payment_date": "2026-09-08",
+    "recurring_date": 8,
+    "upcoming_payment_date": "2026-10-08",
+    "payment_amount": 629,
+    "account_id": "012de01e-4f2b-4c9d-8a77-9b3a1d5e6f02"
+  }
+]

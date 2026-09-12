@@ -1,0 +1,11 @@
+# bunfig.toml  (committed, so the policy travels to all four laptops and to CI)
+[install]
+exact = true                 # bun add writes 1.2.3, never ^1.2.3
+auto = "disable"             # no magic auto-install, deps must be declared
+minimumReleaseAge = 259200   # 3-day supply-chain quarantine, repo-level
+
+[install.cache]
+disable = false
+
+[test]
+coverage = false             # keep CI under 3 min

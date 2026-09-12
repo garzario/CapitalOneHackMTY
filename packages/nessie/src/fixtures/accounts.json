@@ -1,0 +1,20 @@
+[
+  {
+    "_id": "012de01e-4f2b-4c9d-8a77-9b3a1d5e6f02",
+    "type": "Checking",
+    "nickname": "Gastos diarios",
+    "rewards": 0,
+    "balance": 1280,
+    "account_number": "4615936723498767",
+    "customer_id": "d8c3de04-7f1a-4c2e-9a0b-1c6f5b2e4d31"
+  },
+  {
+    "_id": "7a1c0b55-1de0-4f60-9c0a-2b8de4f17c90",
+    "type": "Savings",
+    "nickname": "Ahorro quincena",
+    "rewards": 0,
+    "balance": "4502.5",
+    "account_number": "4615936723498768",
+    "customer_id": "d8c3de04-7f1a-4c2e-9a0b-1c6f5b2e4d31"
+  }
+]

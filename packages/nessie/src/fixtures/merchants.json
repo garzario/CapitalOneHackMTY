@@ -1,0 +1,25 @@
+[
+  {
+    "_id": "5b6a0f3a1c9d440000a1b2c3",
+    "name": "OXXO Garza Sada",
+    "category": ["convenience"],
+    "address": {
+      "street_number": "2500",
+      "street_name": "Avenida Eugenio Garza Sada",
+      "city": "Monterrey",
+      "state": "NL",
+      "zip": "64840"
+    },
+    "geocode": { "lat": 25.6515, "lng": -100.2895 }
+  },
+  {
+    "_id": "5b6a0f3a1c9d440000a1b2c4",
+    "name": "HEB Contry",
+    "category": "groceries"
+  },
+  {
+    "_id": "5b6a0f3a1c9d440000a1b2c5",
+    "name": "Taqueria del Obispado",
+    "category": []
+  }
+]

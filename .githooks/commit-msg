@@ -1,0 +1,8 @@
+#!/bin/sh
+# Block AI attribution in commit messages. Non-negotiable.
+robot=$(printf '\360\237\244\226')
+if grep -Eiq 'co-authored-by:[[:space:]]*claude|generated with[[:space:]]*\[?claude|anthropic\.com/claude-code' "$1" \
+   || grep -qF "$robot" "$1"; then
+  echo "commit-msg: AI attribution detected. Remove it and commit again." >&2
+  exit 1
+fi

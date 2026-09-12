@@ -1,0 +1,35 @@
+[
+  {
+    "_id": "c1f7c5e8-0a3b-4f9d-8e21-5d6c7b8a9f01",
+    "type": "merchant",
+    "merchant_id": "5b6a0f3a1c9d440000a1b2c3",
+    "payer_id": "012de01e-4f2b-4c9d-8a77-9b3a1d5e6f02",
+    "purchase_date": "2026-09-10",
+    "amount": 46,
+    "status": "completed",
+    "medium": "balance",
+    "description": "OXXO recarga y cafe"
+  },
+  {
+    "_id": "c1f7c5e8-0a3b-4f9d-8e21-5d6c7b8a9f02",
+    "type": "merchant",
+    "merchant_id": "5b6a0f3a1c9d440000a1b2c4",
+    "payer_id": "012de01e-4f2b-4c9d-8a77-9b3a1d5e6f02",
+    "purchase_date": "2026-09-09",
+    "amount": "1245.50",
+    "status": "completed",
+    "medium": "balance",
+    "description": "Despensa de la semana"
+  },
+  {
+    "_id": "c1f7c5e8-0a3b-4f9d-8e21-5d6c7b8a9f03",
+    "type": "merchant",
+    "merchant_id": "5b6a0f3a1c9d440000a1b2c4",
+    "payer_id": "012de01e-4f2b-4c9d-8a77-9b3a1d5e6f02",
+    "purchase_date": "2026-09-11",
+    "amount": -320,
+    "status": "completed",
+    "medium": "balance",
+    "description": "Devolucion despensa"
+  }
+]

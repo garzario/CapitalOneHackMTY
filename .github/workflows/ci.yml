@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main, dev]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'assets/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'assets/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Restore dependency cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Formatting and style NEVER fail a PR. They annotate and move on.
+      - name: Lint (advisory)
+        continue-on-error: true
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test --pass-with-no-tests
+
+      - name: Build
+        run: bun run build

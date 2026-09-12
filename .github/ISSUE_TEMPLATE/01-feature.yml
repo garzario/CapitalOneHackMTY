@@ -1,0 +1,49 @@
+name: Feature
+description: A capability that moves the product or the rubric forward
+labels: ["type/feat"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Whose problem, in one sentence, naming the persona from docs/02.
+    validations: { required: true }
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable, observable outcomes. No "works well".
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] Unit test or screenshot attached as evidence
+    validations: { required: true }
+  - type: dropdown
+    id: rubric
+    attributes:
+      label: Primary rubric area
+      options: [Originality, Technical Depth, Impact and Feasibility, Design and Experience, Infra enabler]
+    validations: { required: true }
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Target milestone
+      options: [M0 Setup, M1 Vertical slice, M2 Core intelligence, M3 Polish and docs, M4 Demo-ready, M5 Submission]
+    validations: { required: true }
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      description: GitHub handle. Use this until all invites are accepted and assignees work.
+    validations: { required: true }
+  - type: checkboxes
+    id: demo
+    attributes:
+      label: Demo
+      options:
+        - label: The 4-minute demo fails without this (add P0-demo-blocker)
+  - type: textarea
+    id: judge
+    attributes:
+      label: Judge answer
+      description: One sentence you would say if an engineer asked why you built this.

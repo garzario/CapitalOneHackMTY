@@ -1,0 +1,19 @@
+[
+  {
+    "_id": "a9b8c7d6-1234-4f00-9abc-de0123456789",
+    "type": "deposit",
+    "medium": "balance",
+    "transaction_date": "2026-09-15",
+    "status": "completed",
+    "amount": 9000,
+    "description": "Nomina quincena"
+  },
+  {
+    "_id": "a9b8c7d6-1234-4f00-9abc-de012345678a",
+    "medium": "balance",
+    "transaction_date": "2026-08-31",
+    "status": "completed",
+    "amount": 320,
+    "description": "Transferencia recibida"
+  }
+]

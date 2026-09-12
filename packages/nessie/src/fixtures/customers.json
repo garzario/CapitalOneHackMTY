@@ -1,0 +1,27 @@
+[
+  {
+    "_id": "d8c3de04-7f1a-4c2e-9a0b-1c6f5b2e4d31",
+    "first_name": "Ximena",
+    "last_name": "Trevino",
+    "address": {
+      "street_number": "2100",
+      "street_name": "Avenida Eugenio Garza Sada",
+      "city": "Monterrey",
+      "state": "NL",
+      "zip": "64849"
+    },
+    "account_ids": []
+  },
+  {
+    "_id": "56c66be5a73e4927415071a3",
+    "first_name": "Rodrigo",
+    "last_name": "Cantu",
+    "address": {
+      "street_number": "6100",
+      "street_name": "Main Street",
+      "city": "Houston",
+      "state": "TX",
+      "zip": "77005"
+    }
+  }
+]

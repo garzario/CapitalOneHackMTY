@@ -1,0 +1,30 @@
+# Default: lead reviews anything unclaimed.
+*                        @garzario
+
+# Narrative: docs, market, pitch, README.
+/docs/                   @FabriBanda
+/README.md               @FabriBanda
+/CHANGELOG.md            @FabriBanda
+
+# Data platform, API, integrations.
+/apps/api/               @fabbyyyy
+/packages/nessie/        @fabbyyyy
+/packages/seed/          @fabbyyyy
+/scripts/                @fabbyyyy
+
+# Frontend and UX.
+/apps/web/               @Apanawa
+/assets/                 @Apanawa
+
+# Lead keeps the contracts and the plumbing. These MUST come last to win.
+/packages/core/          @garzario
+/packages/db/            @garzario
+/docs/07-architecture.md @garzario
+/docs/08-data-model.md   @garzario
+/docs/adr/               @garzario
+/.github/                @garzario
+/.claude/                @garzario
+/.githooks/              @garzario
+/package.json            @garzario
+/bunfig.toml             @garzario
+/bun.lock                @garzario

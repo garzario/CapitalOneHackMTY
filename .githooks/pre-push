@@ -1,0 +1,13 @@
+#!/bin/sh
+# Refuse any push to main or dev. This is a team repo and PRs are the judged artifact.
+# Feature branches merge into dev by squash PR; dev merges into main by release PR.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/dev)
+      echo "pre-push: direct pushes to main and dev are blocked. Open a PR against dev." >&2
+      echo "pre-push: bootstrap only, once: git push --no-verify -u origin main dev" >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0

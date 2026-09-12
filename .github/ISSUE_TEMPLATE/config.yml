@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Challenge brief, rubric and thesis
+    url: https://github.com/garzario/CapitalOneHackMTY/blob/main/docs/00-challenge.md
+    about: Read this before filing anything.

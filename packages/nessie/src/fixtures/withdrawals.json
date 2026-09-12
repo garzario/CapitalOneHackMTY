@@ -1,0 +1,11 @@
+[
+  {
+    "_id": "f0e1d2c3-4b5a-4987-8123-0a1b2c3d4e5f",
+    "type": "withdrawal",
+    "medium": "balance",
+    "transaction_date": "2026-09-05",
+    "status": "completed",
+    "amount": 1500,
+    "description": "Retiro en cajero"
+  }
+]

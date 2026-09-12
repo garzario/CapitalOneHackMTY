@@ -1,0 +1,41 @@
+name: Doc
+description: Write or update a document the judges will read
+labels: ["type/doc", "area/docs"]
+body:
+  - type: dropdown
+    id: file
+    attributes:
+      label: Target file
+      options:
+        - docs/00-challenge.md
+        - docs/01-rubric-mapping.md
+        - docs/02-persona.md
+        - docs/03-user-journey.md
+        - docs/04-market.md
+        - docs/05-business-model.md
+        - docs/06-regulatory-privacy.md
+        - docs/07-architecture.md
+        - docs/08-data-model.md
+        - docs/09-api.md
+        - docs/10-demo-script.md
+        - docs/11-pitch.md
+        - docs/12-judge-qa.md
+        - docs/13-devpost.md
+        - docs/14-process.md
+        - README.md
+        - other
+    validations: { required: true }
+  - type: input
+    id: subcriterion
+    attributes:
+      label: Rubric sub-criterion this earns
+      placeholder: "Market size TAM/SAM/SOM"
+    validations: { required: true }
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Every number has a cited source
+        - [ ] No invented partners, roles or endorsements
+        - [ ] Linked from docs/01-rubric-mapping.md

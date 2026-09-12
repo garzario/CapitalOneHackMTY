@@ -1,0 +1,21 @@
+name: Bug
+description: Something behaves wrong
+labels: ["type/bug"]
+body:
+  - type: textarea
+    id: repro
+    attributes: { label: Repro, value: "1. \n2. \n3. " }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected vs actual }
+    validations: { required: true }
+  - type: checkboxes
+    id: blocks
+    attributes:
+      label: Impact
+      options:
+        - label: Blocks the demo path in docs/10-demo-script.md
+  - type: input
+    id: commit
+    attributes: { label: Commit or branch where observed }
