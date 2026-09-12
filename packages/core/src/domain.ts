@@ -16,6 +16,20 @@ export interface Supplier {
   /** Accounts we have paid before, most recent first, with the evidence that established them. */
   knownAccounts: KnownAccount[];
   firstInvoiceAt: string;
+  /**
+   * Pesos this company loses for every day a payment to this supplier is late:
+   * late-payment interest, the early-payment discount that expires, the line
+   * that stops. It is the only number the expected-loss engine weighs the pesos
+   * at risk against, so it belongs on the supplier record and not in a caller's
+   * constant.
+   *
+   * Absent means the relationship has not been priced yet, and
+   * `supplierModelOf` reads that as zero. Zero is conservative rather than
+   * neutral: with no delay cost the engine verifies anything that carries a
+   * positive expected loss and releases only what is clean, which is the
+   * reading that never moves money on a guess.
+   */
+  delayCostPerDay?: number;
   synthetic: boolean;
 }
 
@@ -91,7 +105,9 @@ export interface PaymentInstruction {
   text?: string;
   /** Reference to an uploaded image (QR intake). OCR result goes into `clabe`. */
   imageRef?: string;
-  /** Confidence of the OCR when the CLABE came from an image, 0 to 1. */
+  /** Reference to an uploaded voice note. Its transcript goes into `text`. */
+  audioRef?: string;
+  /** Confidence of the transcription when the CLABE came from a file, 0 to 1. */
   ocrConfidence?: number;
   /**
    * When the company marked the SPEI as sent, projected from the `payment_sent`

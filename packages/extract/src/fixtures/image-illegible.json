@@ -1,0 +1,22 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"rawText\": \"Pago factura\\nCLABE: 0585 8000 07?? 456? ??\",\n  \"clabe\": null,\n  \"amount\": null,\n  \"supplierHint\": null,\n  \"clarity\": 0.2\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1748,
+    "candidatesTokenCount": 80,
+    "totalTokenCount": 1828
+  },
+  "modelVersion": "gemini-2.5-flash"
+}

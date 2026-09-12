@@ -87,6 +87,8 @@ export const supplierSchema = z.object({
   legalName: z.string().min(1),
   knownAccounts: z.array(knownAccountSchema),
   firstInvoiceAt: instantSchema,
+  /** Absent means the relationship has not been priced. See `supplierModelOf`. */
+  delayCostPerDay: z.number().nonnegative().optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Supplier>;
 
@@ -138,6 +140,7 @@ export const paymentInstructionSchema = z.object({
   receivedAt: instantSchema,
   text: z.string().optional(),
   imageRef: z.string().min(1).optional(),
+  audioRef: z.string().min(1).optional(),
   ocrConfidence: z.number().min(0).max(1).optional(),
   /** Set once the company marked the SPEI as sent. Absent while still pending. */
   sentAt: instantSchema.optional(),
@@ -473,10 +476,14 @@ export const seedResponseSchema = z.object({
 /* -------------------------------------------------------------------------- */
 
 /**
- * Intake from the QR page. `clabe` and `image` are both optional in the
+ * Intake from the QR page. `clabe`, `image` and `audio` are all optional in the
  * contract but one of them has to be there, because an instruction with no
  * destination account is not an instruction. The refinement says so once,
  * instead of every handler rediscovering it.
+ *
+ * `image` and `audio` are read by `@hackmty/extract`, which transcribes and
+ * nothing else. A server with no `GEMINI_API_KEY` answers 422 rather than
+ * accepting a file it cannot read.
  */
 export const createInstructionBodySchema = z
   .object({
@@ -488,11 +495,19 @@ export const createInstructionBodySchema = z
     text: z.string().max(4000).optional(),
     /** Base64 of the photographed instruction. Capped so a POST cannot be a DoS. */
     image: z.base64().max(4_000_000).optional(),
+    /** Base64 of a voice note. Same cap, same reason. */
+    audio: z.base64().max(4_000_000).optional(),
   })
-  .refine((body) => body.clabe !== undefined || body.image !== undefined, {
-    message: "Send a clabe, or an image to read one from.",
-    path: ["clabe"],
-  });
+  .refine(
+    (body) =>
+      body.clabe !== undefined ||
+      body.image !== undefined ||
+      body.audio !== undefined,
+    {
+      message: "Send a clabe, or an image or a voice note to read one from.",
+      path: ["clabe"],
+    },
+  );
 
 export const decideBodySchema = z.object({
   action: actionSchema,
