@@ -1,13 +1,19 @@
 /**
  * The blind evaluation.
  *
- * The point of this screen is not the numbers, it is that the numbers are blind:
- * per ADR-0002 the labelled cases are written by a different person from the one
- * who wrote the detectors. A screen that reports precision without saying who
- * made the answer key is a screen that reports nothing.
+ * The point of this screen is not the numbers, it is what is said next to them.
+ * A screen that reports precision without saying who wrote the answer key, and
+ * how independent that person really was, is a screen that reports nothing.
  *
- * So when the figures come from the synthetic placeholder instead of a real run,
- * the page says so in the loudest place on it, not in a footnote.
+ * Two consequences, and both of them are the difference between this page and
+ * a dashboard.
+ *
+ * - The note at the bottom states exactly how blind the evaluation is, in the
+ *   same words as `packages/seed/src/holdout/README.md`, including the part
+ *   that is weaker than the protocol originally promised. A claim on a screen
+ *   that the repository contradicts is the one a judge finds.
+ * - When the figures come from the synthetic placeholder instead of a real
+ *   run, the page says so in the loudest place on it and not in a footnote.
  */
 
 import type { Detector } from "@hackmty/core";
@@ -209,14 +215,29 @@ export function MetricsScreen() {
             </h2>
             <ul className="muted m-0 flex list-disc flex-col gap-2 pl-5 t-sm">
               <li>
-                Los casos etiquetados los escribio una persona distinta de quien
-                escribio los detectores, asi que la precision reportada es
-                ciega.
+                Que tan ciega es esta evaluacion, dicho completo: los detectores
+                ya estaban escritos cuando se escribieron las etiquetas, y las
+                etiquetas salieron de ADR-0002 y de los tipos del dominio, no de
+                leer el codigo de los detectores. Lo que sostiene el numero es
+                la otra regla: ningun caso se edito para que un detector pasara.
+              </li>
+              <li>
+                Cuatro etiquetas no coinciden con el motor y las cuatro siguen
+                contadas en contra, con el argumento escrito en
+                packages/seed/src/holdout/README.md. Un conjunto que se edita
+                hasta que coincide no mide nada.
+              </li>
+              <li>
+                Un hallazgo informativo no cuenta como falso positivo. Que un
+                beneficiario ya este verificado, o que un proveedor haya
+                desvirtuado su situacion, es contexto para la persona que
+                decide: no detiene un pago y no infla esta tasa.
               </li>
               <li>
                 Un detector con precision baja nunca retiene por si solo: pide
                 verificar. Retener el pago de un proveedor honesto tambien
-                cuesta dinero.
+                cuesta dinero, y la tasa de falsos positivos es la que hay que
+                defender antes que el recall.
               </li>
               <li>
                 Ningun modelo de lenguaje participa en la decision de un pago.
@@ -228,6 +249,13 @@ export function MetricsScreen() {
                 requiere verificacion, y siempre decide una persona.
               </li>
             </ul>
+
+            <p className="subtle m-0 t-xs">
+              Los mismos numeros salen de{" "}
+              <span className="code">bun run eval</span> en la terminal y de{" "}
+              <span className="code">GET /api/v1/metrics</span>. Es la misma
+              funcion sobre los mismos casos.
+            </p>
           </section>
         </>
       ) : null}

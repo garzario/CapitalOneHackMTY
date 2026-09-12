@@ -92,3 +92,28 @@ describe("screen states", () => {
     expect(stale).toEqual([]);
   });
 });
+
+/**
+ * One h1 per screen, and exactly one.
+ *
+ * The app shipped with no `h1` anywhere: every screen title was an `h2`, so a
+ * screen reader's outline began at level two under nothing, and the "jump to
+ * the main heading" gesture landed nowhere. `SectionHeader` is the page title
+ * on every screen, so the tag belongs there, and this test is what keeps a
+ * second one from being added to a screen later.
+ */
+describe("the document outline", () => {
+  test("every screen renders exactly one page title", () => {
+    for (const name of screenFiles()) {
+      const uses = source(name).match(/<SectionHeader/g) ?? [];
+
+      expect([name, uses.length]).toEqual([name, 1]);
+    }
+  });
+
+  test("no screen writes its own h1, so the count cannot drift", () => {
+    for (const name of screenFiles()) {
+      expect([name, source(name).includes("<h1")]).toEqual([name, false]);
+    }
+  });
+});
