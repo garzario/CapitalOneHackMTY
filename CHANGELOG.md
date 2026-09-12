@@ -12,6 +12,14 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- `GET /api/v1/sat/lookup` hardened for the RFCs a judge types (issue #70). The input is
+  normalised before validation, so lower case, spaces and a hyphen before the homoclave all
+  reach the same taxpayer, and the answer echoes the normalised form back. The response now
+  carries `listed`, which is the newest situation and not "any row exists", the `effective` row,
+  and the `source` of the snapshot that answered, present even on an empty result so that "not
+  listed" can never be read as "no list loaded". The endpoint is rate limited to 30 requests per
+  minute per client with the shared error envelope, `Retry-After` and the `RateLimit-*` headers.
+
 - Every screen is designed and enforced in four states. The QR intake page gained the two it was
   missing, an instruction that passes all six controls now says so instead of returning a bare
   decision badge, and `apps/web/src/screens/states.test.ts` fails the build when a screen ships
