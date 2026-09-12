@@ -1,4 +1,4 @@
-# Ceptinela, the last control before an irrevocable SPEI
+# SentryOne, the last control before an irrevocable SPEI
 
 <!-- TODO(garzario) assets/demo.gif here: under 6 MB, looping, 10 to 15 seconds, no cursor jitter. Issue #73 -->
 
@@ -25,7 +25,7 @@ instructions into correct transfers, and she has no tool that looks at a payment
 status at the same time. She is in [`docs/02-persona.md`](docs/02-persona.md), quantified, with the
 two venue interviews we still owe listed as open rather than invented.
 
-Ceptinela runs six explainable controls over the company's own CFDI ledger, the official SAT list
+SentryOne runs six explainable controls over the company's own CFDI ledger, the official SAT list
 and the Banxico-signed CEP at the moment of payment, and holds the transfer with the evidence on
 screen.
 
@@ -43,7 +43,7 @@ The three facts that decide whether a payment is safe are all public and all cur
 never read together at the moment that matters: the 69-B list belongs to a compliance product, the
 CFDI belongs to the accountant, and the CEP belongs to a post-mortem, because Banxico publishes it
 only after the transfer is already irrevocable. The gap stays open because that window, the few
-minutes between approving a payment run and sending it, is nobody's product surface. Ceptinela is
+minutes between approving a payment run and sending it, is nobody's product surface. SentryOne is
 built to sit in exactly that window.
 
 What the alternatives structurally cannot do: the Mexican 69-B checkers run on a list rather than
@@ -86,8 +86,12 @@ bun run seed                    # idempotent, prints the demo account IDs
 bun run dev                     # web and API together
 ```
 
-Optional preflight before the first run: `bun run doctor` checks the bun version, the environment
-variables and database reachability. Copy `.env.example` to `.env` first.
+Optional preflight before the first run and before every rehearsal: `bun run doctor` checks the bun
+version, every variable in `.env.example` with the files that read it and one clause saying what
+stops working without it, the committed SAT list snapshot, the CEP fixture, which database path is
+live and how much of it is migrated and seeded, and closes on whether this laptop can still demo with
+the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
+warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
 Three commands worth knowing about. `bun test` runs 1023 tests across 59 files with no network, no
 database and no API key, which is the fastest way to check that the intelligence is real. `bun run

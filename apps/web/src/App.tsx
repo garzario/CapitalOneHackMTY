@@ -65,7 +65,7 @@ export default function App() {
   /* The tab title follows the route, so a judge with six tabs open can tell
      them apart, and the history entry is readable. */
   useEffect(() => {
-    document.title = `${TITLES[route.name]} | Ceptinela`;
+    document.title = `${TITLES[route.name]} | SentryOne`;
   }, [route.name]);
 
   /* A bare URL lands on the payment run with a real hash, so every link on the

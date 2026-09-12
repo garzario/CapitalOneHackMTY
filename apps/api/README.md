@@ -1,6 +1,6 @@
 # apps/api
 
-The Hono transport for Ceptinela. It reads a request, validates it, delegates, and
+The Hono transport for SentryOne. It reads a request, validates it, delegates, and
 shapes a response. Nothing in here decides anything.
 
 The contract is `docs/09-api.md` and the types are
@@ -17,6 +17,9 @@ src/
   http.ts                  the one error envelope and the zod rejection hook
   schemas.ts               every request and response as a zod schema
   repo.ts                  Repository interface and MemoryRepository
+  postgres-repo.ts         the same interface over @hackmty/db, live on DATABASE_URL
+  sentryone.ts             the generated demo company, for the in-memory path
+  assess.ts                the six controls over a whole run, at boot and at load
   synthetic.ts             the seeded payment run the UI is built against
   pipeline.ts              intake, the retroactive sweep, calls into core
   events.ts                the SSE broadcaster (fan-out, not the route)
@@ -39,6 +42,25 @@ src/
 One file per route group, and each group is a factory that takes `ApiDeps`. There
 is no module-level singleton, which is why a test can build an app with its own
 repository and two tests never see each other's writes.
+
+## The two repositories
+
+`bootRepository()` in `deps.ts` picks one and the boot log says which.
+
+- **`DATABASE_URL` set**: `PostgresRepository` over the query layer in
+  `packages/db`. Every endpoint in `docs/09-api.md` is then answered out of the
+  event ledger, the hypertables and the continuous aggregates, and `bun run seed`
+  is what wrote them. Not one file in `src/routes` changed to get there, which is
+  what the `Repository` interface existed to prove.
+- **no database**: `MemoryRepository`, on the generated demo company under
+  `SEED=sentryone` and on the hand-written fixture otherwise.
+
+The two are asserted against each other in `postgres-repo.test.ts`, on the same
+seed: same run id, same week, same totals, same ordered lines, same findings and
+the same action per line. That suite runs only when `TEST_DATABASE_URL` names a
+database it may empty, and it has been run against the local PostgreSQL 18 on
+5432 and against the managed TimescaleDB 2.30 service on Tiger Data, which is the
+pair ADR-0003 names.
 
 ## The four rules this workspace lives under
 
@@ -78,7 +100,6 @@ implementation.
 | Gap | Issue | Owner | Where |
 |---|---|---|---|
 | The detectors and the expected-loss model | #34 #36 #38 #39 | `TODO(garzario)` | `packages/core`, feature-detected in `pipeline.ts` |
-| `PostgresRepository` behind the same interface | #40 | `TODO(fabbyyyy)` | `packages/db`, swapped in from `createDeps()` |
 | Fetching and parsing the published SAT list | #35 | `TODO(garzario)` | `packages/sat` |
 | CEP retrieval and XMLDSig validation | #37 | `TODO(garzario)` | `packages/cep` |
 | Reading a CLABE out of an image | #97 | `TODO(garzario)` | `pipeline.ts`, boxed to OCR only |
@@ -87,21 +108,26 @@ implementation.
 | Blob storage for an intake image | | `TODO(fabbyyyy)` | `pipeline.ts` |
 | Cross-instance SSE fan-out | | `TODO(fabbyyyy)` | Postgres `LISTEN`/`NOTIFY` in `events.ts` |
 
-Swapping the repository is one line in `createDeps()`. If a detector or a Postgres
-query forces a change inside `src/routes`, the `Repository` interface is wrong and
-it is cheaper to fix it than to work around it.
+Swapping the repository is one line in `bootRepository()`. If a detector or a
+Postgres query forces a change inside `src/routes`, the `Repository` interface is
+wrong and it is cheaper to fix it than to work around it.
 
 ## Running it
 
 ```
 bun install --frozen-lockfile
 bun run --filter '@hackmty/api' dev      # http://localhost:3000
-bun test                                 # 71 tests, no socket, no database
+bun test                                 # 150 tests, no socket, no database
 bun run typecheck
+
+TEST_DATABASE_URL=postgres://localhost:5432/sentryone_test bun test   # and the Postgres suite
 ```
 
-Every test drives the app through `app.request()`, including the SSE stream, so
-the suite needs no port and no Postgres.
+The route suite drives the app through `app.request()`, including the SSE
+stream, so it needs no port and no Postgres. `postgres-repo.test.ts` is the
+opt-in half and is skipped unless `TEST_DATABASE_URL` names a database it may
+empty; `DATABASE_URL` is deliberately not a fallback, because a run on a laptop
+set up for a rehearsal would otherwise wipe the demo company.
 
 ```bash
 curl -s localhost:3000/api/v1/run/current | jq '.totals'

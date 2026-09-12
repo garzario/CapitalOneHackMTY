@@ -1,5 +1,5 @@
 /**
- * Ceptinela domain contract. Every package and app codes against these types.
+ * SentryOne domain contract. Every package and app codes against these types.
  * Pure data, no behaviour. Money is in MXN major units; dates are ISO 8601.
  * Anything that came from a synthetic generator carries `synthetic: true` and the
  * UI renders the watermark from that flag, never from a name.

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ceptinela one-pager</title>
+    <title>SentryOne one-pager</title>
     <link rel="stylesheet" href="./print.css" />
     <style>
       @page {
@@ -13,9 +13,9 @@
     </style>
   </head>
   <body class="a4">
-    <main class="page" aria-label="Ceptinela one-pager">
+    <main class="page" aria-label="SentryOne one-pager">
       <header class="brand-line">
-        <div class="wordmark">CEPTINELA</div>
+        <div class="wordmark">SENTRYONE</div>
         <span class="tag">CapitalOne HackMTY 2026 | Track 3</span>
       </header>
 
@@ -27,11 +27,14 @@
             company's CFDI ledger, the SAT Article 69-B list and the Banxico CEP.
           </h1>
         </div>
-        <img
-          class="qr qr-large"
-          src="./repo-qr.png"
-          alt="QR code for the CapitalOneHackMTY GitHub repository"
-        />
+        <!--
+          The hero slot is the live app, because that is what a judge scans at
+          the table. It stays a placeholder until the URL exists. The repository
+          QR is in the labelled block at the bottom right and is not repeated
+          here: two identical unlabelled codes on one sheet means a judge scans
+          the second one expecting somewhere new and lands on the first.
+        -->
+        <div class="qr-placeholder qr-large">TODO<br />LIVE APP<br />QR</div>
       </section>
 
       <div class="onepager-grid">
@@ -45,9 +48,9 @@
               and the business bank portal, not an ERP or a treasury team.
             </p>
             <div class="stat-row">
-              <div class="stat"><strong>92</strong><span>invoices in the reference run</span></div>
-              <div class="stat"><strong>MXN 673k</strong><span>reference run total</span></div>
-              <div class="stat"><strong>42</strong><span>synthetic suppliers</span></div>
+              <div class="stat"><strong>92</strong><span>payment instructions in the reference run</span></div>
+              <div class="stat"><strong>MXN 2.17M</strong><span>reference run total</span></div>
+              <div class="stat"><strong>44</strong><span>synthetic suppliers</span></div>
             </div>
             <p class="subtle" style="margin: 2mm 0 0">
               Seed 69, week of 2026-09-07. Demo inputs, not Mexican SMB statistics.
@@ -60,7 +63,7 @@
             <p style="margin-bottom: 0">
               A new definitive Article 69-B publication can change the fiscal effect of invoices
               already paid. Once the wrong SPEI leaves, the product can only explain the loss.
-              Ceptinela joins the evidence while the clerk can still hold, verify or release.
+              SentryOne joins the evidence while the clerk can still hold, verify or release.
             </p>
           </section>
 
@@ -103,7 +106,7 @@
             <div
               class="mini-architecture"
               role="img"
-              aria-label="Compact Ceptinela architecture diagram"
+              aria-label="Compact SentryOne architecture diagram"
             >
               <div class="box">CFDI<br />SAT<br />CEP<br />Nessie</div>
               <div class="arrow">-&gt;</div>
@@ -143,7 +146,7 @@
       </div>
 
       <footer class="footer-line">
-        <span>ceptinela.tech | HackMTY 2026</span>
+        <span>sentryone.tech | HackMTY 2026</span>
         <span>Print status: blocked on live URL and real CEP tracking key.</span>
       </footer>
     </main>

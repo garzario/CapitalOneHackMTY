@@ -1,5 +1,5 @@
 /**
- * @hackmty/sat is the Article 69-B half of Ceptinela: load a published version of
+ * @hackmty/sat is the Article 69-B half of SentryOne: load a published version of
  * the SAT list, match a supplier RFC against it, and replay the event ledger to
  * price what a new publication just did to invoices we already deducted.
  *

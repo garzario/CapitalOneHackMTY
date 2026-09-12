@@ -112,7 +112,7 @@ No, RFC, Nombre del Contribuyente, Situacion del contribuyente,
 The loader resolves every column **by name**, never by position, because the SAT
 reorders and respells and a position is a silent corruption where a name is a loud
 failure. One row becomes one `SatListEntry` per dated situation, which is why the
-key in `packages/db/migrations/0003_ceptinela.sql` is `(list_version, rfc, status)`.
+key in `packages/db/migrations/0003_sentryone.sql` is `(list_version, rfc, status)`.
 
 ### What the loader had to be taught, with counts
 

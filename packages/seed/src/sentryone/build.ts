@@ -1,5 +1,5 @@
 /**
- * The object builders every phase of the Ceptinela generator shares.
+ * The object builders every phase of the SentryOne generator shares.
  *
  * The generator draws the baseline with them, and the injectors in
  * ./hard-negatives.ts and the scenarios in ./scenarios.ts build their extra invoices
@@ -20,7 +20,7 @@ import { addDays, addMonths } from "../dates";
 import type { Rng } from "../rng";
 import { bankCodeOf, syntheticBankRfc } from "./clabe";
 import { type CompanyProfile, IVA_RATE } from "./company";
-import type { CeptinelaSupplierSpec } from "./suppliers";
+import type { SentryOneSupplierSpec } from "./suppliers";
 import {
   addBusinessDays,
   cents,
@@ -36,7 +36,7 @@ import {
 
 /** Supplier row, with the account history we already trust. */
 export function buildSupplierRow(
-  spec: CeptinelaSupplierSpec,
+  spec: SentryOneSupplierSpec,
   windowFrom: string,
 ): Supplier {
   // Tenure is measured back from the start of the window, so firstInvoiceAt is a
@@ -86,7 +86,7 @@ export interface MakeCfdiOptions {
  */
 export function makeCfdi(
   rng: Rng,
-  spec: CeptinelaSupplierSpec,
+  spec: SentryOneSupplierSpec,
   company: CompanyProfile,
   day: string,
   folio: number,
@@ -231,7 +231,7 @@ export function makeInstruction(
  */
 export function dueDayOf(
   issuedDay: string,
-  spec: CeptinelaSupplierSpec,
+  spec: SentryOneSupplierSpec,
 ): string {
   return addDays(issuedDay, spec.termsDays);
 }

@@ -1,6 +1,6 @@
 # 02. Persona
 
-Issue #52. Owner: Fabricio (`FabriBanda`). This document defines the narrow user Ceptinela is
+Issue #52. Owner: Fabricio (`FabriBanda`). This document defines the narrow user SentryOne is
 designed for. It is a product-design hypothesis, not a report about a real person or company.
 The operational figures below come from the deterministic synthetic company in `packages/seed`.
 They are not market statistics.
@@ -11,24 +11,31 @@ The portrait is an illustration of a fictional composite. It does not depict a r
 
 ## Primary persona: Lupita Elizondo
 
-Lupita is the sole administrative clerk at a 28-employee metalmecanica in Apodaca, Nuevo Leon.
+Lupita is the sole administrative clerk at Metalicos del Norte SA de CV, the synthetic
+28-employee metalmecanica in Apodaca, Nuevo Leon, defined in
+`packages/seed/src/sentryone/company.ts`.
 She runs the supplier payment run every Thursday. She is not a fraud analyst or a corporate
 treasurer. She is the one person who has to turn invoices and payment instructions into correct
 transfers while the owner is working elsewhere in the business.
 
 | Dimension | Product definition | Evidence status |
 |---|---|---|
-| Company | 28 employees, metalworking, Apodaca | Synthetic scenario fixed in `packages/seed/src/ceptinela/company.ts` |
-| Workload | 92 invoices in the reference Thursday run | Seed 69 output for week `2026-09-07` |
-| Pesos per run | MXN 673,460.27 in that same reference run | Sum of `PaymentInstruction.amount` in `generateCeptinela`, not a real-company statistic |
-| Supplier base | 42 active synthetic suppliers | `packages/seed/src/ceptinela/suppliers.ts` |
+| Company | Metalicos del Norte SA de CV, 28 employees, metalworking, Apodaca | Synthetic scenario fixed in `packages/seed/src/sentryone/company.ts` |
+| Workload | 92 payment instructions in the reference Thursday run, settling 129 CFDIs | Seed 69 output for week `2026-09-07` |
+| Pesos per run | MXN 2,174,210.76 in that same reference run | Sum of `PaymentInstruction.amount` in `generateSentryOne`, not a real-company statistic |
+| Supplier base | 44 active synthetic suppliers | `packages/seed/src/sentryone/suppliers.ts` |
 | Tools today | Email inbox, WhatsApp, spreadsheet, CFDI portal, business bank portal and bank token | Workflow hypothesis to validate at the venue |
 | Decision rhythm | Review the run on Thursday, spend attention on exceptions, then send or escalate | Product hypothesis to validate at the venue |
 
-The generator produces 439 invoices per month across the synthetic supplier base. The exact
-reference run has 92 invoices because one payment instruction is generated for each invoice due
-inside its seven-day window. These numbers keep the demo and this persona consistent. They do not
-claim that a typical Mexican SMB has the same volume.
+The generator produces 4,103 CFDIs across nine months, about 456 a month, over the synthetic
+supplier base. The reference run holds 92 payment instructions rather than 4,103, because an
+instruction is created only for the invoices falling due inside that seven-day window, and one
+instruction can settle several of them. These numbers keep the demo and this persona consistent.
+They do not claim that a typical Mexican SMB has the same volume.
+
+Every figure in this section is asserted against the generator by
+`packages/seed/src/sentryone/documented-figures.test.ts`, so a change to the seed fails the build
+instead of quietly making this page false.
 
 ## What her job is measured on
 
@@ -39,7 +46,7 @@ Until the venue interviews are complete, these are explicit design hypotheses:
 - Avoid duplicate payments and supplier interruptions caused by an unjustified hold.
 - Leave the external accountant a traceable packet: CFDI, decision, payment evidence and memo.
 
-Ceptinela therefore does not optimize for the number of alerts. It optimizes for a short exception
+SentryOne therefore does not optimize for the number of alerts. It optimizes for a short exception
 queue with evidence that Lupita and the owner can act on.
 
 ## What she is afraid of
@@ -81,7 +88,7 @@ among six, not the product story.
 
 ## Anti-persona: corporate treasury with an ERP
 
-Ceptinela is deliberately not for a corporate treasury team whose ERP already maintains a
+SentryOne is deliberately not for a corporate treasury team whose ERP already maintains a
 supplier master, controlled bank-account changes, segregation of duties and a maker-checker
 approval flow.
 
@@ -92,7 +99,7 @@ approval flow.
 | Control | One person gathers evidence and asks the owner for exceptions | Formal maker-checker and role-based approvals |
 | Product fit | Add a lightweight decision layer without replacing the bank | Existing controls already cover the workflow; integration and procurement would dominate the value |
 
-Serving corporate treasury would pull Ceptinela toward long integrations and duplicate controls it
+Serving corporate treasury would pull SentryOne toward long integrations and duplicate controls it
 already owns. The chosen niche is the SMB with enough supplier volume for a weekly payment run but
 without a treasury system or dedicated risk analyst.
 
@@ -105,7 +112,7 @@ quote or observed statistic has been invented.
 - [ ] Ask one administrative clerk, owner or operations person who has personally paid suppliers
   for a small company.
 
-Ask both people these questions in this order, without showing Ceptinela first:
+Ask both people these questions in this order, without showing SentryOne first:
 
 1. How many supplier invoices do you pay in a normal week, and approximately how many pesos leave
    in one payment run?
@@ -129,5 +136,5 @@ than averaging it away.
 
 - Journey and its three branches: `docs/03-user-journey.md`
 - Domain decisions and evidence: `packages/core/src/domain.ts`
-- Synthetic scenario and generator: `packages/seed/src/ceptinela/`
+- Synthetic scenario and generator: `packages/seed/src/sentryone/`
 - API contract: `docs/09-api.md`

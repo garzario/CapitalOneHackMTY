@@ -6,10 +6,9 @@
  * a running API today, and the Postgres implementation lands behind the same
  * interface with no route change at all.
  *
- * TODO(fabbyyyy): issue #40, implement `PostgresRepository` in packages/db over the SQL
- * in `packages/db/src/queries.ts` and export it there, then swap it in from
- * `createDeps()` when DATABASE_URL is set. Nothing in `src/routes` should need
- * to change; if it does, this interface is wrong and it is cheaper to fix it now.
+ * `PostgresRepository` in `postgres-repo.ts` is the second implementation, over
+ * the SQL in `packages/db/src/queries.ts`, and `bootRepository()` picks it when
+ * DATABASE_URL is set without one file in `src/routes` changing.
  *
  * The rule this file exists to protect: a repository queries and aggregates,
  * it never decides. Anything that weighs evidence belongs in @hackmty/core.
@@ -170,7 +169,7 @@ export class MemoryRepository implements Repository {
 
   /**
    * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
-   * the seed. `SEED=ceptinela` hands in the generated company from @hackmty/seed
+   * the seed. `SEED=sentryone` hands in the generated company from @hackmty/seed
    * instead, and then the seed number actually changes the data.
    */
   constructor(
@@ -508,9 +507,9 @@ export class MemoryRepository implements Repository {
 
   /**
    * Rebuilds the company from the factory this repository was constructed with.
-   * Under `SEED=ceptinela` the seed number really does change the data; under the
+   * Under `SEED=sentryone` the seed number really does change the data; under the
    * hand-written fixture it rebuilds the same rows and only records the number,
-   * which is honest but not useful, and is why the ceptinela path exists.
+   * which is honest but not useful, and is why the sentryone path exists.
    */
   async reset(seed: number): Promise<ResetSummary> {
     this.data = this.build(seed);

@@ -1,5 +1,6 @@
 import app from "./app";
-import { ceptinelaBootNotes } from "./ceptinela";
+import { repositoryBootNote } from "./deps";
+import { sentryoneBootNotes } from "./sentryone";
 
 /**
  * Entry point, deliberately thin: everything testable lives in app.ts, which
@@ -16,15 +17,26 @@ const parsed = Number(process.env.PORT);
 const port = Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_PORT;
 
 /**
- * Under `SEED=ceptinela`, say on stdout which company was loaded and what the
+ * Say which store is live before anything else, because "the API is up" and "the
+ * API is serving the database you seeded" are different claims and the second one
+ * is the one a demo depends on. The connection string is named by host and
+ * database only: the credentials in it never reach a log line or a screenshot.
+ */
+const repository = repositoryBootNote();
+if (repository !== undefined) {
+  console.log(`repository: ${repository}`);
+}
+
+/**
+ * Under `SEED=sentryone`, say on stdout which company was loaded and what the
  * engine found on it. The ids are the ones docs/10-demo-script.md curls, and a
  * boot line that reports the findings is a boot line that cannot promise a
  * payment run it did not actually assess.
  */
-const notes = ceptinelaBootNotes();
+const notes = sentryoneBootNotes();
 if (notes !== undefined) {
   console.log(
-    `ceptinela seed ${notes.seed}, run ${notes.runId} week of ${notes.weekOf}`,
+    `sentryone seed ${notes.seed}, run ${notes.runId} week of ${notes.weekOf}`,
   );
   console.log(
     `engine: ${notes.findings} findings, ${notes.held} held, ${notes.toVerify} to verify`,

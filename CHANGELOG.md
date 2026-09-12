@@ -31,6 +31,23 @@ then the screens, then the narrative, then the plumbing.
   `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
   while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
 
+- The API answers every endpoint in `docs/09-api.md` out of Postgres, so the data platform is live
+  behind the product rather than beside it (issue #41). `apps/api/src/postgres-repo.ts` implements
+  the same `Repository` the screens were built against, over the query layer in `packages/db`, and
+  not one file in `src/routes` changed: `bootRepository()` picks it when `DATABASE_URL` is set and
+  the boot log names the host and database without the credentials. `bun run seed` now loads the
+  whole demo company into Postgres in one transaction, documents, event ledger, and the findings
+  and decisions the six controls produce over the run, replacing the company's own bank mirror by
+  account so the consumer dataset in `ledger_tx` survives; running it twice gives the same run.
+  Migration `0006_company.sql` adds the one-row `company` table the constancia header, the mirror
+  account id and the run anchor come from: the run screen reads the week the seed opened rather
+  than re-deriving it from the newest instruction, so an intake received in a later week joins the
+  open run instead of replacing it. The current decision is the newest row by append order and not
+  the largest `decided_at`, which is what lets a clerk override an engine decision stamped at a run
+  instant ahead of their own clock. `apps/api/src/postgres-repo.test.ts` asserts parity against
+  `MemoryRepository` on the same seed, line for line, plus the endpoints and the SSE stream, and
+  was run against the local PostgreSQL 18 and the managed TimescaleDB 2.30 service.
+
 - The metrics page says how blind the blind evaluation actually is (issue #51). It used to claim
   the labels were written by a different person from the detectors, which the holdout README
   contradicts; the note now states the real position, names the four labels that disagree with
@@ -65,7 +82,7 @@ then the screens, then the narrative, then the plumbing.
   has, and reduced motion jumps straight to the answer. The constancia PDF is linked from the
   result. The placeholder timeline and its hardcoded month list are gone.
 
-- End-to-end vertical slice. `SEED=ceptinela` now runs the six controls over the generated company
+- End-to-end vertical slice. `SEED=sentryone` now runs the six controls over the generated company
   at boot, so `GET /api/v1/run/current` serves the engine's own findings and proposed actions
   instead of an empty alert rail: 7 findings on 92 instructions, 2 held and 5 to verify, and
   885,658.73 MXN that does not leave. The API boot line prints the seed, the run and the hero ids.
@@ -96,9 +113,41 @@ then the screens, then the narrative, then the plumbing.
   reduced motion reaching the duration tokens, and WCAG contrast on every colour pairing in both
   themes, exiting non-zero on a failure. `bun run audit:web` and `bun run shoot:web`.
 - Screenshots for the six screens at four widths and the README loop, in `assets/screenshots`.
+- `bun run doctor` answers the pre-demo checklist and not only the setup one (issue #63). It names
+  the committed SAT list snapshot with its list version, retrieval date and counts and warns when
+  that download is more than 30 days old, parses the CEP fixture and reports the signature as not
+  checked rather than valid, says whether a real CEP has landed yet, and on the database says which
+  path is live, how many of the five migrations are applied with a Timescale-only file on a plain
+  host named as expected rather than missing, what the SentryOne tables hold and how many rows the
+  bank mirror has. Every variable in `.env.example` is reported with the files that actually read it,
+  grepped from `apps/`, `packages/` and `scripts/` rather than remembered, and one clause saying what
+  stops working without it, and the last line is whether this laptop can demo with the network
+  unplugged. That last line only counts what stops a demo: a SAT snapshot that is merely old still
+  answers offline, so its age is a clause after the verdict and not a reason against it, and an
+  unmigrated database is sent to `bun run migrate` while an empty one is sent to `bun run seed`,
+  because seeding cannot create tables. A database that refuses the connection prints a reason rather
+  than an empty one, which is what the driver gives on ECONNREFUSED. The checks moved to
+  `scripts/doctor/checks.ts`, pure or dependency-injected, with `scripts/doctor/checks.test.ts`
+  covering the stale snapshot, the edited migration, the plain Postgres path, the readiness rule and
+  those three, plus one database case gated on `TEST_DATABASE_URL`. Only a bun version mismatch still
+  fails a plain run; `--strict` exits 1 on any warning.
 
 ### Fixed
 
+- The demo script's seeded ids and amounts were correct and unprotected. Every figure in
+  `docs/10-demo-script.md` that comes from the generator is now asserted against it by
+  `packages/seed/src/sentryone/documented-figures.test.ts`, verified by hand against a seeded API
+  first. The engine-derived figures in the same tables, the seven findings, the 885,658.73 that is
+  not leaving and the 404,152.59 of retroactive exposure, are still unprotected and want a test in
+  `apps/api` beside `sentryone.test.ts`.
+- The persona, the journey and the printed one-pager quoted a reference run of 92 invoices at
+  MXN 673,460.27 over 42 suppliers. `generateSentryOne` produces 92 payment instructions at
+  MXN 2,174,210.76 over 44. Nobody wrote a wrong number: they were right when they were written
+  and the seed moved underneath them, so `packages/seed/src/sentryone/documented-figures.test.ts`
+  now asserts every quoted figure against the generator and fails the build when they drift.
+- The one-pager printed the repository QR twice, once unlabelled in the hero slot where a judge
+  expects the live app. That slot is the same dashed live-app placeholder the judge card already
+  used, so the sheet cannot go to print looking finished.
 - The capture script navigated to `/metrics` on a hash-routed app, so the app redirected itself
   to the payment run and the shutter opened there. Four of the eight stills were byte-identical
   copies of the run screen under four different names, and two more were duplicates at phone
@@ -145,7 +194,7 @@ then the screens, then the narrative, then the plumbing.
   Two discrepancies found while verifying and recorded rather than smoothed over: the reference run
   amount in `docs/02-persona.md` predates the finished generator, and the committed SAT snapshot is a
   different vintage from the open-data file cited in `docs/04-market.md`.
-- Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
+- SentryOne synthetic company in `packages/seed/src/sentryone`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
   paid them, this week's payment run of 70 to 110 instructions arriving by email, WhatsApp, PDF and
@@ -154,7 +203,26 @@ then the screens, then the narrative, then the plumbing.
   than described, and four demo scenarios land on named hero instructions. Deterministic from one
   seed, with invariants covering reproducibility, reconciliation to the cent, every reference
   resolving and no date after the run day. `bun run seed` prints the hero instruction ids and the
-  demo RFCs, and `SEED=ceptinela` serves the same company from the API.
+  demo RFCs, and `SEED=sentryone` serves the same company from the API.
+- `packages/db`: the SentryOne query layer is implemented. Every stub in `queries.ts` has a body,
+  raw SQL over the tables of `0003`: the append-only event ledger (`appendLedgerEvent`,
+  `readLedger` with an exclusive `since`), suppliers with their known accounts (`upsertSupplier`
+  moves `first_invoice_at` earlier only and never downgrades the evidence behind an account), CFDI
+  and payment complements, instructions, findings, decisions (one row per decision moment, the
+  newest wins, the justifying findings through `decision_findings`), the versioned SAT list, the
+  verified beneficiary registry with the CEP stored byte for byte as `bytea`, the bank mirror read
+  back into `LedgerTx`, `currentPaymentRun` and `latestRunWeek` cut in Monterrey time, and the
+  counts and truncate the doctor and the seed use. The row shapes and mappers are in `rows.ts`,
+  pure and unit tested; `queries.test.ts` runs against a real Postgres when `TEST_DATABASE_URL`
+  is set and is skipped otherwise, and it was run green on both the local Postgres 18 and the
+  Tiger Data Timescale service.
+- `packages/db/migrations/0005_sentryone_drift.sql`: the columns the domain grew after `0003`
+  (`delay_cost_per_day`, `audio_ref`, `sent_at`, `payment_total`, `operation_number`, the CEP
+  evidence fields), `ledger_tx` accepted as a finding subject and `verification_call` as a
+  ledger event type, `ledger_tx` keyed on `(occurred_at, id)` so `0002` can partition it, and
+  the append-only guard on `ledger_events` rewritten from two rules into a trigger that raises,
+  because Timescale refuses to turn a table with rules into a hypertable. `splitSqlStatements`
+  now respects quoted strings and dollar-quoted bodies, which is what the trigger needs.
 - Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
   back, and explicit blockers for the live URL and real CEP tracking key.
 - Finding panel reads all three evidence vocabularies in the repository through
@@ -182,7 +250,7 @@ then the screens, then the narrative, then the plumbing.
   they read the items rather than `run.totals` so the headline cannot contradict the table after a
   decision applied with no API. Screenshots in `assets/screenshots`, captured reproducibly by
   `apps/web/brand/shoot.ts`.
-- Ceptinela brand layer and the rationale behind the design system: the name lockup in
+- SentryOne brand layer and the rationale behind the design system: the name lockup in
   `apps/web/src/components/Wordmark.tsx`, the favicon, touch icon and social card in
   `apps/web/public/` with their sources in `apps/web/brand/`, and `docs/design.md`. The token
   contract is now enforced by `apps/web/src/design/tokens.test.ts`, which fails when a component
@@ -214,7 +282,7 @@ then the screens, then the narrative, then the plumbing.
   which runs the candidate matrix and reports `unconfirmed_scheme` rather than claiming a seal it
   cannot prove, `fetchCep` against the public portal with an injectable fetch, and `nameMatch` with
   Mexican legal-name normalisation. Synthetic fixture, zero dependencies, no network in the tests.
-- `docs/06-regulatory-privacy.md`: regulatory posture, privacy and LLM boundary for Ceptinela.
+- `docs/06-regulatory-privacy.md`: regulatory posture, privacy and LLM boundary for SentryOne.
   Legal position, framework map for Mexico, the verified text of CFF articles 69-B and 69-B Bis,
   the LFPDPPP obligations over CEP holder names and supplier data, the ethics rules the domain
   types enforce, a cost per verification table priced on 2026-09-12, and the synthetic data
@@ -307,7 +375,7 @@ then the screens, then the narrative, then the plumbing.
   as many words that it is not an electronic signature. Served by
   `GET /api/v1/sat/constancia?listVersion=` and `GET /api/v1/run/:id/constancia`, linked from the
   69-B screen and the payment run screen.
-- Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
+- SentryOne synthetic company in `packages/seed/src/sentryone`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
   paid them, this week's payment run of 70 to 110 instructions arriving by email, WhatsApp, PDF and
@@ -316,7 +384,7 @@ then the screens, then the narrative, then the plumbing.
   than described, and four demo scenarios land on named hero instructions. Deterministic from one
   seed, with invariants covering reproducibility, reconciliation to the cent, every reference
   resolving and no date after the run day. `bun run seed` prints the hero instruction ids and the
-  demo RFCs, and `SEED=ceptinela` serves the same company from the API.
+  demo RFCs, and `SEED=sentryone` serves the same company from the API.
 - Blind evaluation of the six controls. Thirty labelled holdout cases in
   `packages/seed/src/holdout/cases`: a true positive for every control, and the hard negatives
   that decide whether a clerk keeps the product switched on, including a bank change backed by
@@ -351,7 +419,7 @@ then the screens, then the narrative, then the plumbing.
   Server-Sent Events hook, a dependency-free hash router, the synthetic payment run the app falls
   back to when the API is absent, and the six screens (payment run, instruction detail, QR intake,
   Article 69-B simulation and lookup, CEP viewer, blind evaluation).
-- Ceptinela brand layer and the rationale behind the design system: the name lockup in
+- SentryOne brand layer and the rationale behind the design system: the name lockup in
   `apps/web/src/components/Wordmark.tsx`, the favicon, touch icon and social card in
   `apps/web/public/` with their sources in `apps/web/brand/`, and `docs/design.md`. The token
   contract is now enforced by `apps/web/src/design/tokens.test.ts`, which fails when a component
@@ -402,7 +470,7 @@ then the screens, then the narrative, then the plumbing.
   themes, exiting non-zero on a failure. `bun run audit:web` and `bun run shoot:web`.
 - Screenshots for the six screens at four widths and the README loop, in `assets/screenshots`,
   captured reproducibly by `apps/web/brand/shoot.ts`.
-- `docs/06-regulatory-privacy.md`: regulatory posture, privacy and LLM boundary for Ceptinela.
+- `docs/06-regulatory-privacy.md`: regulatory posture, privacy and LLM boundary for SentryOne.
   Legal position, framework map for Mexico, the verified text of CFF articles 69-B and 69-B Bis,
   the LFPDPPP obligations over CEP holder names and supplier data, the ethics rules the domain
   types enforce, a cost per verification table priced on 2026-09-12, and the synthetic data
@@ -460,7 +528,7 @@ then the screens, then the narrative, then the plumbing.
   count, the rubric score trend, and the ADR index with each ADR's real status instead of the
   placeholder ones. Build night mode now states what it bought and what it cost, including that no
   merged PR carries a post-merge review thread yet. The cut list is written: the fourteen issues
-  superseded by the Ceptinela backlog after ADR-0002, the nine closed as duplicates, six deliberate
+  superseded by the SentryOne backlog after ADR-0002, the nine closed as duplicates, six deliberate
   descopes each traced to the PR or doc that made the call, and the four surfaces decided out of
   scope before the first commit.
 - Docs consistency pass, with the live-integration evidence written down. `docs/14-process.md`
@@ -497,6 +565,13 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- `insertLedgerTx` stored the bank mirror's `raw` column as a JSON string of JSON: postgres.js
+  serialises a value bound to a jsonb column itself, so the pre-stringified payload was encoded
+  twice. Every jsonb column now receives the object.
+- `0002_timescale.sql` could never run on a Timescale host: `create_hypertable` refuses a unique
+  index without the partitioning column and `ledger_tx` was keyed on `id` alone. `0005` rewrites
+  the key. Found the first time the migrations were applied to the Tiger Data service.
+
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
   landed it called none of them and `composeFindings` returned an empty array for all six slots
@@ -508,7 +583,7 @@ then the screens, then the narrative, then the plumbing.
 - `isFinding` rejected `subject.kind: "ledger_tx"`, which the domain contract allows, so every
   `unbacked_outflow` from the reconciliation detector was dropped before it reached the clerk.
 - The API tests read the ambient environment, so a laptop that followed the setup in the README
-  and filled in `.env` saw 48 failures that CI never sees: `SEED=ceptinela` swapped the
+  and filled in `.env` saw 48 failures that CI never sees: `SEED=sentryone` swapped the
   hand-written fixture for the generated company, and a `GEMINI_API_KEY` turned the intake
   refusal into a live model call. `createTestApp` now pins the repository and the extractor the
   way it already pinned the clock, the seed guard and the voice configuration, and a test asserts

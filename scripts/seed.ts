@@ -6,10 +6,13 @@
  *
  * Two datasets, because the product has two halves:
  *
- * - **Ceptinela**, the demo company: 44 suppliers, eight months of CFDIs and payment
+ * - **SentryOne**, the demo company: 44 suppliers, eight months of CFDIs and payment
  *   complements, this week's payment run and the bank mirror of what already left the
- *   account. Its ids go to .seed/ceptinela.json and its bank mirror into `ledger_tx`.
- *   The API serves the same company in memory with `SEED=ceptinela`.
+ *   account. Its ids go to .seed/sentryone.json, and with `DATABASE_URL` set the whole
+ *   company goes into Postgres through `PostgresRepository.load`: the documents, the
+ *   event ledger, and the findings and decisions the six controls produce over the run.
+ *   The API then serves it from there. Without a database it is served from memory with
+ *   `SEED=sentryone`, and the two are the same company.
  * - **The consumer generator** from seed 86, which `bun run demo` and the rolling
  *   window functions in @hackmty/core run against.
  *
@@ -17,11 +20,11 @@
  *   --force              regenerate with today's window instead of reusing the saved one
  *   --nessie             also push the consumer dataset to Nessie through our own key
  *   --no-db              skip the local ledger, even when DATABASE_URL is set
- *   --no-ceptinela       skip the demo company
+ *   --no-sentryone       skip the demo company
  *   --customers=N        how many customers to invent (default 3)
  *   --months=N           how many months of history (default 6)
- *   --seed=N             Ceptinela seed (default 69)
- *   --week=YYYY-MM-DD    any day of the Ceptinela payment-run week (default today)
+ *   --seed=N             SentryOne seed (default 69)
+ *   --week=YYYY-MM-DD    any day of the SentryOne payment-run week (default today)
  *   --nessie-limit=N     cap purchases pushed per account (default 150, 0 means all)
  *
  * Idempotent by design. The windows are stored in .seed/ and reused, and the ledger
@@ -30,24 +33,25 @@
  */
 
 import { resolve } from "node:path";
+import type { SentryOneLoadResult } from "../apps/api/src/postgres-repo.ts";
 import type {
-  CeptinelaDataset,
   GeneratedDataset,
+  SentryOneDataset,
 } from "../packages/seed/src/index.ts";
 import {
-  CEPTINELA_DEFAULT_SEED,
   DEFAULT_SEED,
   generate,
-  generateCeptinela,
+  generateSentryOne,
   MTY_COLONIAS,
+  SENTRYONE_DEFAULT_SEED,
   summarize,
-  summarizeCeptinela,
+  summarizeSentryOne,
   toLedgerTx,
 } from "../packages/seed/src/index.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 const STATE_FILE = `${ROOT}/.seed/ids.json`;
-const CEPTINELA_FILE = `${ROOT}/.seed/ceptinela.json`;
+const SENTRYONE_FILE = `${ROOT}/.seed/sentryone.json`;
 
 const DEFAULT_CUSTOMERS = 3;
 const DEFAULT_MONTHS = 6;
@@ -100,10 +104,10 @@ const options = new Map(
 if (flags.has("--help")) {
   console.log(
     [
-      "bun run seed [--force] [--nessie] [--no-db] [--no-ceptinela]",
+      "bun run seed [--force] [--nessie] [--no-db] [--no-sentryone]",
       "             [--customers=N] [--months=N] [--seed=N] [--week=YYYY-MM-DD] [--nessie-limit=N]",
       "",
-      "Writes .seed/ceptinela.json and .seed/ids.json, mirrors both ledgers into Postgres,",
+      "Writes .seed/sentryone.json and .seed/ids.json, mirrors both ledgers into Postgres,",
       "and optionally pushes the consumer dataset to Nessie.",
       "Deterministic: the same seed and window always produce the same data.",
     ].join("\n"),
@@ -187,7 +191,7 @@ await Bun.write(STATE_FILE, `${JSON.stringify(state, null, 2)}\n`);
 
 // The demo company. Built before the database so the ids exist even when nothing
 // else does, which is what makes `bun run seed` safe to run at 03:00 with no Postgres.
-interface CeptinelaState {
+interface SentryOneState {
   seed: number;
   generatedAt: string;
   weekOf: string;
@@ -199,40 +203,40 @@ interface CeptinelaState {
   cases: Array<{ name: string; applied: boolean; instructionId?: string }>;
 }
 
-const previousCeptinela =
-  (await readJson<CeptinelaState>(CEPTINELA_FILE)) ?? undefined;
-const ceptinelaSeed = intOption(
+const previousSentryOne =
+  (await readJson<SentryOneState>(SENTRYONE_FILE)) ?? undefined;
+const sentryoneSeed = intOption(
   "--seed",
-  previousCeptinela?.seed ?? CEPTINELA_DEFAULT_SEED,
+  previousSentryOne?.seed ?? SENTRYONE_DEFAULT_SEED,
 );
 const weekOption =
-  options.get("--week") ?? (force ? undefined : previousCeptinela?.weekOf);
+  options.get("--week") ?? (force ? undefined : previousSentryOne?.weekOf);
 
-let ceptinela: CeptinelaDataset | undefined;
-if (!flags.has("--no-ceptinela")) {
-  ceptinela = generateCeptinela({
-    seed: ceptinelaSeed,
+let sentryone: SentryOneDataset | undefined;
+if (!flags.has("--no-sentryone")) {
+  sentryone = generateSentryOne({
+    seed: sentryoneSeed,
     ...(weekOption === undefined ? {} : { weekOf: weekOption }),
   });
-  const ceptinelaSummary = summarizeCeptinela(ceptinela);
-  const ceptinelaState: CeptinelaState = {
-    seed: ceptinela.seed,
+  const sentryoneSummary = summarizeSentryOne(sentryone);
+  const sentryoneState: SentryOneState = {
+    seed: sentryone.seed,
     generatedAt: new Date().toISOString(),
-    weekOf: ceptinela.weekOf,
-    runId: ceptinela.runId,
-    window: ceptinela.window,
+    weekOf: sentryone.weekOf,
+    runId: sentryone.runId,
+    window: sentryone.window,
     counts: {
-      suppliers: ceptinelaSummary.suppliers,
-      cfdis: ceptinelaSummary.cfdis,
-      complements: ceptinelaSummary.complements,
-      transfers: ceptinelaSummary.transfers,
-      instructions: ceptinelaSummary.runSize,
-      bankMirrorRows: ceptinelaSummary.bankMirrorRows,
-      events: ceptinelaSummary.events,
+      suppliers: sentryoneSummary.suppliers,
+      cfdis: sentryoneSummary.cfdis,
+      complements: sentryoneSummary.complements,
+      transfers: sentryoneSummary.transfers,
+      instructions: sentryoneSummary.runSize,
+      bankMirrorRows: sentryoneSummary.bankMirrorRows,
+      events: sentryoneSummary.events,
     },
-    heroInstructionIds: ceptinelaSummary.heroInstructionIds,
-    demoRfcs: { ...ceptinela.notes.demoRfcs },
-    cases: [...ceptinela.notes.scenarios, ...ceptinela.notes.hardNegatives].map(
+    heroInstructionIds: sentryoneSummary.heroInstructionIds,
+    demoRfcs: { ...sentryone.notes.demoRfcs },
+    cases: [...sentryone.notes.scenarios, ...sentryone.notes.hardNegatives].map(
       (outcome) => ({
         name: outcome.name,
         applied: outcome.applied,
@@ -243,13 +247,14 @@ if (!flags.has("--no-ceptinela")) {
     ),
   };
   await Bun.write(
-    CEPTINELA_FILE,
-    `${JSON.stringify(ceptinelaState, null, 2)}\n`,
+    SENTRYONE_FILE,
+    `${JSON.stringify(sentryoneState, null, 2)}\n`,
   );
 }
 
-// Local ledger.
+// Local ledger, and the demo company itself.
 let failed = false;
+let loaded: SentryOneLoadResult | undefined;
 const databaseUrl = Bun.env.DATABASE_URL;
 if (flags.has("--no-db")) {
   console.log("skipping the local ledger (--no-db)");
@@ -264,14 +269,27 @@ if (flags.has("--no-db")) {
     console.log(
       `ledger: ${written} rows written, ${ledger.length - written} already there (insert is idempotent)`,
     );
-    if (ceptinela !== undefined) {
-      // The bank mirror is the only half of the demo company Postgres can hold
-      // today: the supplier, CFDI and instruction writes in packages/db are still
-      // stubs (issue #40). Until they land, the API serves the rest from memory
-      // with SEED=ceptinela and `bank_reconciliation` reads these rows.
-      const mirrored = await insertLedgerTx(sql, ceptinela.bankMirror);
+    if (sentryone !== undefined) {
+      // The whole demo company, not only its bank mirror: suppliers, CFDI,
+      // complements, the run, the SAT version, the event ledger, and then the
+      // findings and decisions the six controls produce over it. One
+      // transaction, and it replaces the company's own rows rather than
+      // truncating ledger_tx, because the consumer dataset above lives there too.
+      const { PostgresRepository } = await import(
+        "../apps/api/src/postgres-repo.ts"
+      );
+      loaded = await new PostgresRepository(sql).load({
+        seed: sentryoneSeed,
+        ...(weekOption === undefined ? {} : { weekOf: weekOption }),
+      });
       console.log(
-        `bank mirror: ${mirrored} rows written, ${ceptinela.bankMirror.length - mirrored} already there`,
+        `sentryone into postgres: ${loaded.suppliers} suppliers, ${loaded.cfdis} CFDI, ${loaded.complements} complements, ${loaded.instructions} instructions`,
+      );
+      console.log(
+        `  ${loaded.bankMirrorRows} bank mirror rows, ${loaded.events} ledger events`,
+      );
+      console.log(
+        `  engine: ${loaded.findings} findings, ${loaded.held} held, ${loaded.toVerify} to verify`,
       );
     }
   } catch (cause) {
@@ -515,16 +533,16 @@ if (flags.has("--nessie")) {
 }
 
 // Report.
-if (ceptinela !== undefined) {
-  const notes = ceptinela.notes;
+if (sentryone !== undefined) {
+  const notes = sentryone.notes;
   console.log("");
   console.log(
-    `Ceptinela: ${ceptinela.company.legalName} (${ceptinela.company.rfc}), seed ${ceptinela.seed}`,
+    `SentryOne: ${sentryone.company.legalName} (${sentryone.company.rfc}), seed ${sentryone.seed}`,
   );
   console.log(
-    `  run ${ceptinela.runId}, week of ${ceptinela.weekOf}, prepared ${ceptinela.runDay}`,
+    `  run ${sentryone.runId}, week of ${sentryone.weekOf}, prepared ${sentryone.runDay}`,
   );
-  const counts = summarizeCeptinela(ceptinela);
+  const counts = summarizeSentryOne(sentryone);
   console.log(
     `  ${counts.suppliers} suppliers, ${counts.cfdis} CFDI, ${counts.complements} complements, ${counts.transfers} transfers`,
   );
@@ -551,10 +569,22 @@ if (ceptinela !== undefined) {
   for (const entry of notes.pending) {
     console.log(`  pending: ${entry}`);
   }
-  console.log(`ids written to .seed/ceptinela.json`);
+  console.log(`ids written to .seed/sentryone.json`);
   console.log(
-    `serve this company from the API with: SEED=ceptinela SEED_NUMBER=${ceptinela.seed} bun run --filter '@hackmty/api' dev`,
+    `serve this company from memory with: SEED=sentryone SEED_NUMBER=${sentryone.seed} bun run --filter '@hackmty/api' dev`,
   );
+  if (loaded !== undefined) {
+    // The connection string is never echoed: it carries a password, and this
+    // line is printed on a laptop that is about to be projected.
+    console.log(
+      `serve this company from Postgres with: DATABASE_URL=... bun run --filter '@hackmty/api' dev`,
+    );
+    console.log(
+      `  run ${loaded.runId}, week of ${loaded.weekOf}, ${loaded.findings} findings, ${loaded.held} held, ${loaded.toVerify} to verify`,
+    );
+    console.log(`  hero instructions: ${loaded.heroInstructionIds.join(", ")}`);
+    console.log(`  demo rfcs: ${loaded.demoRfcs.join(", ")}`);
+  }
 }
 
 console.log("");

@@ -31,9 +31,9 @@ import {
   syntheticBankRfc,
 } from "./clabe";
 import { IVA_RATE } from "./company";
-import { type CeptinelaSupplierSpec, CONSUMABLE_SEGMENTS } from "./suppliers";
+import { CONSUMABLE_SEGMENTS, type SentryOneSupplierSpec } from "./suppliers";
 import { cents, dayOf, fromCents, round2 } from "./timeline";
-import type { CaseInjector, CaseResult, CeptinelaDraft } from "./types";
+import type { CaseInjector, CaseResult, SentryOneDraft } from "./types";
 
 /** The share of outflow the new supplier is meant to reach. Issue #43 says 15%. */
 export const RAMP_TARGET_SHARE = 0.15;
@@ -68,7 +68,7 @@ const ROUND_STEP = 10_000;
 /** The supplier that ramps. Invented, like everything else in this package. */
 export const RAMPING_SUPPLIER_RFC = "SYN260401R43";
 
-const RAMPING_SUPPLIER: CeptinelaSupplierSpec = {
+const RAMPING_SUPPLIER: SentryOneSupplierSpec = {
   rfc: RAMPING_SUPPLIER_RFC,
   legalName: "Recubrimientos Ceramicos de Pesqueria SA de CV",
   city: "Pesqueria",
@@ -99,7 +99,7 @@ function cadenceKey(rfc: Rfc, year: number, month: number): string {
 }
 
 /** The median ticket of a supplier, the figure the plan sizes the ramp against. */
-function medianTicket(spec: CeptinelaSupplierSpec): number {
+function medianTicket(spec: SentryOneSupplierSpec): number {
   return (
     spec.ticket.min +
     (spec.ticket.max - spec.ticket.min) * AMOUNT_MEDIAN_POSITION
@@ -129,7 +129,7 @@ function subtotalFor(targetCents: number): number {
  * ordinary ticket covers it, otherwise the largest ten-thousand multiple that fits.
  * Undefined when no round figure fits inside its range at all.
  */
-function roundTotalFor(spec: CeptinelaSupplierSpec): number | undefined {
+function roundTotalFor(spec: SentryOneSupplierSpec): number | undefined {
   const fits = (total: number): boolean => {
     const subtotal = subtotalFor(cents(total));
     return subtotal >= spec.ticket.min && subtotal <= spec.ticket.max;
@@ -163,12 +163,12 @@ function notApplied(
 }
 
 /** Every invoice of one issuer, oldest first. */
-function invoicesOf(draft: CeptinelaDraft, rfc: Rfc): Cfdi[] {
+function invoicesOf(draft: SentryOneDraft, rfc: Rfc): Cfdi[] {
   return draft.cfdis.filter((cfdi) => cfdi.issuerRfc === rfc);
 }
 
 function complementsFor(
-  draft: CeptinelaDraft,
+  draft: SentryOneDraft,
   cfdis: readonly Cfdi[],
 ): PaymentComplement[] {
   const uuids = new Set(cfdis.map((cfdi) => cfdi.uuid));
@@ -178,7 +178,7 @@ function complementsFor(
 }
 
 /** Total invoiced, in pesos, for the calendar month a day belongs to. */
-function monthlyTotals(draft: CeptinelaDraft): Map<string, number> {
+function monthlyTotals(draft: SentryOneDraft): Map<string, number> {
   const totals = new Map<string, number>();
   for (const cfdi of draft.cfdis) {
     const key = dayOf(cfdi.issuedAt).slice(0, 7);
@@ -293,7 +293,7 @@ const rampingNewSupplier: CaseInjector = {
     );
 
     const startDay = addMonths(plan.window.from, RAMP_START_MONTH);
-    const spec: CeptinelaSupplierSpec = {
+    const spec: SentryOneSupplierSpec = {
       ...RAMPING_SUPPLIER,
       invoicesPerMonth,
       firstInvoiceDay: startDay,

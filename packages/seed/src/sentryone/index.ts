@@ -1,5 +1,5 @@
 /**
- * The Ceptinela half of @hackmty/seed: one synthetic company, its suppliers, eight
+ * The SentryOne half of @hackmty/seed: one synthetic company, its suppliers, eight
  * months of CFDIs and complements, the current week's payment run, and the bank
  * mirror of everything that already left the account.
  *

@@ -20,17 +20,15 @@ import { createRng } from "../rng";
 import {
   accountOf,
   bankCodeOf,
-  CEPTINELA_DEFAULT_SEED,
-  CEPTINELA_SUPPLIERS,
   clabeCheckDigit,
   DEMO_COMPANY,
   DEMO_SCENARIOS,
-  generateCeptinela,
+  generateSentryOne,
   HARD_NEGATIVE_INJECTORS,
   IVA_RATE,
   isClabeValid,
   LISTED_SUPPLIER_RFC,
-  loadCeptinela,
+  loadSentryOne,
   MTY_PLAZA_CODE,
   MX_BANKS,
   mintBrokenClabe,
@@ -40,15 +38,17 @@ import {
   RUN_SIZE_MAX,
   RUN_SIZE_MIN,
   runWindow,
-  summarizeCeptinela,
+  SENTRYONE_DEFAULT_SEED,
+  SENTRYONE_SUPPLIERS,
+  summarizeSentryOne,
   syntheticBankRfc,
 } from "./index";
 
 /** A Monday, fixed, so nothing in this file depends on the day it runs. */
 const WEEK_OF = "2026-09-07";
 
-const dataset = generateCeptinela({ weekOf: WEEK_OF });
-const summary = summarizeCeptinela(dataset);
+const dataset = generateSentryOne({ weekOf: WEEK_OF });
+const summary = summarizeSentryOne(dataset);
 
 function cents(value: number): number {
   return Math.round(value * 100);
@@ -104,7 +104,7 @@ describe("clabe arithmetic", () => {
     // The shape of the attack: an account the arithmetic cannot fault and only the
     // supplier's own history can. Checked over many draws, not one lucky one.
     const rng = createRng(7);
-    for (const supplier of CEPTINELA_SUPPLIERS.slice(0, 12)) {
+    for (const supplier of SENTRYONE_SUPPLIERS.slice(0, 12)) {
       const impostor = mintNearMissClabe(supplier.clabe, rng);
       const differing = [...impostor].filter(
         (digit, index) => digit !== supplier.clabe[index],
@@ -136,10 +136,10 @@ describe("clabe arithmetic", () => {
 
 describe("the supplier catalogue", () => {
   it("has 42 suppliers with unique RFCs, names and accounts", () => {
-    expect(CEPTINELA_SUPPLIERS).toHaveLength(42);
-    expect(new Set(CEPTINELA_SUPPLIERS.map((s) => s.rfc)).size).toBe(42);
-    expect(new Set(CEPTINELA_SUPPLIERS.map((s) => s.legalName)).size).toBe(42);
-    expect(new Set(CEPTINELA_SUPPLIERS.map((s) => s.clabe)).size).toBe(42);
+    expect(SENTRYONE_SUPPLIERS).toHaveLength(42);
+    expect(new Set(SENTRYONE_SUPPLIERS.map((s) => s.rfc)).size).toBe(42);
+    expect(new Set(SENTRYONE_SUPPLIERS.map((s) => s.legalName)).size).toBe(42);
+    expect(new Set(SENTRYONE_SUPPLIERS.map((s) => s.clabe)).size).toBe(42);
   });
 
   it("invents every RFC, which is the ADR-0002 rule", () => {
@@ -163,18 +163,18 @@ describe("the supplier catalogue", () => {
 
   it("draws its banks from the catalogue it documents", () => {
     const codes = new Set(MX_BANKS.map((bank) => bank.code));
-    for (const supplier of CEPTINELA_SUPPLIERS) {
+    for (const supplier of SENTRYONE_SUPPLIERS) {
       expect(codes.has(bankCodeOf(supplier.clabe))).toBe(true);
     }
     // More than one bank, or the bank-consistency half of the forensics detector has
     // nothing to work with.
     expect(
-      new Set(CEPTINELA_SUPPLIERS.map((s) => bankCodeOf(s.clabe))).size,
+      new Set(SENTRYONE_SUPPLIERS.map((s) => bankCodeOf(s.clabe))).size,
     ).toBeGreaterThan(3);
   });
 
   it("has a long tail rather than one cadence for everybody", () => {
-    const perMonth = CEPTINELA_SUPPLIERS.map((s) => s.invoicesPerMonth);
+    const perMonth = SENTRYONE_SUPPLIERS.map((s) => s.invoicesPerMonth);
     const total = perMonth.reduce((sum, value) => sum + value, 0);
     expect(total).toBe(439);
 
@@ -188,28 +188,28 @@ describe("the supplier catalogue", () => {
 
   it("adds the two suppliers the cases need, and no others", () => {
     // 42 from the catalogue, the one that ramps and the one the list names.
-    expect(dataset.suppliers).toHaveLength(CEPTINELA_SUPPLIERS.length + 2);
+    expect(dataset.suppliers).toHaveLength(SENTRYONE_SUPPLIERS.length + 2);
     expect(dataset.suppliers.map((s) => s.rfc)).toContain(LISTED_SUPPLIER_RFC);
   });
 });
 
 describe("determinism", () => {
   it("produces byte-identical output for the same seed and week", () => {
-    const again = generateCeptinela({ weekOf: WEEK_OF });
+    const again = generateSentryOne({ weekOf: WEEK_OF });
     expect(JSON.stringify(again)).toBe(JSON.stringify(dataset));
   });
 
   it("produces different output for a different seed", () => {
-    const other = generateCeptinela({
+    const other = generateSentryOne({
       weekOf: WEEK_OF,
-      seed: CEPTINELA_DEFAULT_SEED + 1,
+      seed: SENTRYONE_DEFAULT_SEED + 1,
     });
     expect(JSON.stringify(other)).not.toBe(JSON.stringify(dataset));
     // Same shape though: a different seed must not change the company or the
     // catalogue, only what the company bought.
     expect(other.company.rfc).toBe(dataset.company.rfc);
     expect(other.suppliers).toHaveLength(dataset.suppliers.length);
-    expect(summarizeCeptinela(other).runSizeInBand).toBe(true);
+    expect(summarizeSentryOne(other).runSizeInBand).toBe(true);
   });
 
   it("reads no clock when weekOf is given", () => {
@@ -292,7 +292,7 @@ describe("money", () => {
       (outcome) => outcome.name === "round_number_invoice",
     );
     for (const cfdi of dataset.cfdis) {
-      const spec = CEPTINELA_SUPPLIERS.find((s) => s.rfc === cfdi.issuerRfc);
+      const spec = SENTRYONE_SUPPLIERS.find((s) => s.rfc === cfdi.issuerRfc);
       if (spec === undefined) {
         continue;
       }
@@ -837,7 +837,7 @@ describe("the demo scenarios", () => {
 });
 
 describe("the loader the API boots with", () => {
-  const snapshot = loadCeptinela({ weekOf: WEEK_OF });
+  const snapshot = loadSentryOne({ weekOf: WEEK_OF });
 
   it("hands over the domain objects and nothing the engine should decide", () => {
     expect(snapshot.companyRfc).toBe(DEMO_COMPANY.rfc);

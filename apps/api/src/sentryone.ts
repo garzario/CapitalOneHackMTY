@@ -1,7 +1,7 @@
 /**
  * Boots the API on the generated demo company instead of the hand-written fixture.
  *
- * `SEED=ceptinela` switches `createDeps` onto this, and then every endpoint in
+ * `SEED=sentryone` switches `createDeps` onto this, and then every endpoint in
  * docs/09-api.md serves 44 suppliers, eight months of CFDIs and complements, and the
  * current week's payment run, all of it deterministic from one seed. Two laptops with
  * the same `SEED_NUMBER` serve byte-identical data, which is what makes a rehearsal
@@ -25,12 +25,12 @@
  * and lives in the holdout, not here.
  */
 
-import { CEPTINELA_SEED_NAME, loadCeptinela } from "@hackmty/seed";
+import { loadSentryOne, SENTRYONE_SEED_NAME } from "@hackmty/seed";
 import { assessRun } from "./assess";
 import type { SyntheticDataset } from "./synthetic";
 
 /** The demo ids `bun run seed` prints and `docs/10-demo-script.md` names. */
-export interface CeptinelaBootNotes {
+export interface SentryOneBootNotes {
   seed: number;
   weekOf: string;
   runId: string;
@@ -49,15 +49,19 @@ export interface CeptinelaBootNotes {
  * that day rather than the wall clock, so two laptops that boot the same seed an
  * hour apart still produce the same findings and a screenshot stays true.
  * 09:00 in Monterrey, which is UTC-6 all year.
+ *
+ * Exported because `PostgresRepository.load` assesses the same run before it
+ * stores it. Two copies of this constant would be two companies that disagree
+ * about what day it is, and the memory and Postgres runs would stop matching.
  */
-function runInstant(runDay: string): string {
+export function runInstant(runDay: string): string {
   return `${runDay}T15:00:00.000Z`;
 }
 
-let lastNotes: CeptinelaBootNotes | undefined;
+let lastNotes: SentryOneBootNotes | undefined;
 
-/** What the last `ceptinelaDataset` call loaded, for the boot log. */
-export function ceptinelaBootNotes(): CeptinelaBootNotes | undefined {
+/** What the last `sentryoneDataset` call loaded, for the boot log. */
+export function sentryoneBootNotes(): SentryOneBootNotes | undefined {
   return lastNotes;
 }
 
@@ -65,8 +69,8 @@ export function ceptinelaBootNotes(): CeptinelaBootNotes | undefined {
  * Builds the dataset for a seed. `POST /api/v1/seed` passes a different number and
  * gets a different company, which is what that endpoint always claimed to do.
  */
-export function ceptinelaDataset(seed: number): SyntheticDataset {
-  const snapshot = loadCeptinela(seed === 0 ? {} : { seed });
+export function sentryoneDataset(seed: number): SyntheticDataset {
+  const snapshot = loadSentryOne(seed === 0 ? {} : { seed });
   const assessed = assessRun({
     suppliers: snapshot.suppliers,
     cfdis: snapshot.cfdis,
@@ -109,6 +113,6 @@ export function ceptinelaDataset(seed: number): SyntheticDataset {
 }
 
 /** True when the environment asks for the generated company. */
-export function wantsCeptinela(seedName: string | undefined): boolean {
-  return seedName === CEPTINELA_SEED_NAME;
+export function wantsSentryOne(seedName: string | undefined): boolean {
+  return seedName === SENTRYONE_SEED_NAME;
 }

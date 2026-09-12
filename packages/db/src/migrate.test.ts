@@ -6,12 +6,14 @@
 
 import { describe, expect, it } from "bun:test";
 import {
-  CEPTINELA_MIGRATION,
-  CEPTINELA_TIMESCALE_MIGRATION,
+  COMPANY_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
   MIGRATIONS_DIR,
+  SENTRYONE_DRIFT_MIGRATION,
+  SENTRYONE_MIGRATION,
+  SENTRYONE_TIMESCALE_MIGRATION,
   splitSqlStatements,
   TIMESCALE_MIGRATION,
 } from "./migrate";
@@ -37,6 +39,33 @@ describe("splitSqlStatements", () => {
     expect(splitSqlStatements("-- nothing to do here\n-- really\n")).toEqual(
       [],
     );
+  });
+
+  it("keeps a semicolon inside a quoted literal or identifier", () => {
+    expect(
+      splitSqlStatements(
+        "insert into t values ('a;b', 'it''s;'); select \";\" from t;",
+      ),
+    ).toEqual(["insert into t values ('a;b', 'it''s;')", 'select ";" from t']);
+  });
+
+  it("keeps a dollar-quoted body whole, tagged or not", () => {
+    const body =
+      "create function f() returns trigger language plpgsql as $$\nbegin\n  raise exception 'no';\nend\n$$";
+    const tagged =
+      "create function g() returns int language sql as $fn$ select 1; $fn$";
+    expect(splitSqlStatements(`${body};\n${tagged};\nselect 2;`)).toEqual([
+      body,
+      tagged,
+      "select 2",
+    ]);
+  });
+
+  it("does not read a dollar sign inside a literal as a quote", () => {
+    expect(splitSqlStatements("select '$$'; select 1;")).toEqual([
+      "select '$$'",
+      "select 1",
+    ]);
   });
 
   it("splits 0001_init.sql into its table and its index", async () => {
@@ -66,10 +95,10 @@ describe("splitSqlStatements", () => {
   });
 });
 
-describe("0003_ceptinela.sql", () => {
+describe("0003_sentryone.sql", () => {
   it("splits into statements the runner can send one at a time", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -93,14 +122,14 @@ describe("0003_ceptinela.sql", () => {
     ]);
   });
 
-  it("carries no dollar quoting, which the splitter cannot survive", async () => {
+  it("is unchanged: the rules it wrote are replaced, not edited, by 0005", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
 
-    // A plpgsql body would be cut in half on its first internal semicolon, so the
-    // append-only guard is written as rules instead. This is the assertion that
-    // stops someone from quietly adding a function later.
+    // The rules were written when the splitter could not survive a plpgsql
+    // body. They stay here because an applied migration is never edited; 0005
+    // drops them and installs the trigger a hypertable accepts.
     expect(text).not.toContain("$$");
     expect(text).toContain("create or replace rule ledger_events_no_update");
     expect(text).toContain("create or replace rule ledger_events_no_delete");
@@ -108,7 +137,7 @@ describe("0003_ceptinela.sql", () => {
 
   it("keeps the cep xml as bytea and money as numeric(14,2)", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
 
     expect(text).toContain("cep_xml          bytea not null");
@@ -123,10 +152,10 @@ describe("0003_ceptinela.sql", () => {
 
   it("partitions the event ledger by the column its primary key carries", async () => {
     const plain = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
     const timescale = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_TIMESCALE_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_TIMESCALE_MIGRATION}`,
     ).text();
 
     // create_hypertable refuses a unique index that does not include the
@@ -136,10 +165,108 @@ describe("0003_ceptinela.sql", () => {
   });
 });
 
-describe("0004_timescale_ceptinela.sql", () => {
+describe("0005_sentryone_drift.sql", () => {
+  it("widens the two check constraints the domain outgrew", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    // The reconciliation detector hangs an unbacked outflow off a bank row,
+    // and the verification call is a ledger event. 0003 refused both.
+    const findings = statements.find((statement) =>
+      statement.includes("add constraint findings_subject_kind_check"),
+    );
+    expect(findings).toContain("'ledger_tx'");
+    const ledger = statements.find((statement) =>
+      statement.includes("add constraint ledger_events_type_check"),
+    );
+    expect(ledger).toContain("'verification_call'");
+    expect(ledger).toContain("'decision_made'");
+  });
+
+  it("is idempotent, so it is safe on a database that already ran 0003", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(text).not.toContain("create table");
+    for (const statement of statements) {
+      expect(
+        /^(alter table|drop rule if exists|drop trigger if exists|create or replace function|create trigger)/.test(
+          statement,
+        ),
+      ).toBe(true);
+    }
+    // Every column is guarded, the constraints are dropped by name first.
+    const adds = statements.filter((statement) =>
+      statement.includes("add column"),
+    );
+    for (const statement of adds) {
+      expect(statement).toContain("add column if not exists");
+    }
+    expect(
+      statements.filter((statement) =>
+        statement.includes("drop constraint if exists"),
+      ),
+    ).toHaveLength(3);
+  });
+
+  it("replaces the rules with a trigger, which is what a hypertable accepts", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    // Timescale refuses create_hypertable on a table that carries rules, so the
+    // guard 0003 wrote as two rules could never coexist with 0004. The function
+    // body arrives as one statement, semicolons and all.
+    const fn = statements.find((statement) =>
+      statement.startsWith(
+        "create or replace function ledger_events_append_only",
+      ),
+    );
+    expect(fn).toContain("raise exception");
+    expect(fn?.endsWith("$$")).toBe(true);
+    expect(statements).toContain(
+      "drop rule if exists ledger_events_no_update on ledger_events",
+    );
+    expect(statements).toContain(
+      "drop rule if exists ledger_events_no_delete on ledger_events",
+    );
+    const trigger = statements.find((statement) =>
+      statement.startsWith("create trigger ledger_events_append_only"),
+    );
+    expect(trigger).toContain("before update or delete on ledger_events");
+  });
+
+  it("names every field the domain has that 0003 lacked", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
+    ).text();
+
+    for (const column of [
+      "delay_cost_per_day",
+      "payment_total",
+      "operation_number",
+      "audio_ref",
+      "sent_at",
+      "sender_account",
+      "beneficiary_rfc",
+      "concepto",
+      "numero_certificado",
+      "signature_reason",
+    ]) {
+      expect(text).toContain(`add column if not exists ${column}`);
+    }
+  });
+});
+
+describe("0004_timescale_sentryone.sql", () => {
   it("keeps its continuous aggregate whole", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_TIMESCALE_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_TIMESCALE_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -153,6 +280,28 @@ describe("0004_timescale_ceptinela.sql", () => {
   });
 });
 
+describe("0006_company.sql", () => {
+  it("creates one guarded company row and nothing else", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${COMPANY_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain("create table if not exists company");
+    // One row, enforced by the table. Two company rows would make "who are we"
+    // a question with two answers on the header of every constancia.
+    expect(statements[0]).toContain(
+      "integer primary key default 1 check (id = 1)",
+    );
+    expect(statements[0]).toContain("bank_account_id text not null");
+    // The run anchor. Without it GET /api/v1/run/current has to guess the week
+    // from the newest instruction, and one late intake moves the whole run.
+    expect(statements[0]).toContain("week_of         date not null");
+    expect(statements[0]).toContain("run_id          text not null");
+  });
+});
+
 describe("MIGRATIONS", () => {
   it("runs the plain files before the ones that need the extension", () => {
     const first = MIGRATIONS.findIndex((spec) => spec.requiresTimescale);
@@ -163,9 +312,11 @@ describe("MIGRATIONS", () => {
     expect(plainAfter).toEqual([]);
     expect(MIGRATIONS.map((spec) => spec.file)).toEqual([
       INIT_MIGRATION,
-      CEPTINELA_MIGRATION,
+      SENTRYONE_MIGRATION,
+      SENTRYONE_DRIFT_MIGRATION,
+      COMPANY_MIGRATION,
       TIMESCALE_MIGRATION,
-      CEPTINELA_TIMESCALE_MIGRATION,
+      SENTRYONE_TIMESCALE_MIGRATION,
     ]);
   });
 

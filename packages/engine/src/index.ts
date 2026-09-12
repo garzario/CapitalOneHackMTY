@@ -42,7 +42,7 @@ export * from "./sat69b";
  * means writing an adapter and putting it in this list, and removing one is a
  * visible deletion rather than a module that quietly stopped resolving.
  */
-export const CEPTINELA_DETECTORS: readonly DetectorAdapter[] = [
+export const SENTRYONE_DETECTORS: readonly DetectorAdapter[] = [
   sat69bAdapter,
   clabeForensicsAdapter,
   duplicateInvoiceAdapter,
@@ -63,7 +63,7 @@ export const CEPTINELA_DETECTORS: readonly DetectorAdapter[] = [
  * there is nothing to await and the same input gives the same report.
  */
 export function runControls(input: ComposeInput): CompositionReport {
-  return composeFindingsReport(input, CEPTINELA_DETECTORS);
+  return composeFindingsReport(input, SENTRYONE_DETECTORS);
 }
 
 /** `runControls` when the caller only wants the alert rail. */

@@ -15,7 +15,7 @@ import type { VerificationTurn } from "@hackmty/core";
 
 const AGENT_OPENING: VerificationTurn = {
   role: "agent",
-  text: "Hola, buen dia. Le llamo de parte de Ceptinela, por un tema de pagos a proveedores. Hablo con Distribuidora Sintetica del Poniente?",
+  text: "Hola, buen dia. Le llamo de parte de SentryOne, por un tema de pagos a proveedores. Hablo con Distribuidora Sintetica del Poniente?",
   atSecond: 1,
 };
 

@@ -10,7 +10,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | Method | Path | Returns | Notes |
 |---|---|---|---|
 | GET | `/health` | `{ ok, service, version }` | liveness |
-| GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=ceptinela` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
+| GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier }` | detail panel |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
 | GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. Rate limited per client |
@@ -64,7 +64,10 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 ## Curl a judge can paste
 
 The ids are the seeded ones from `docs/10-demo-script.md`, which `bun run demo` prints. A local
-instance is `SEED=ceptinela bun run dev` in `apps/api`.
+instance is `SEED=sentryone bun run dev` in `apps/api`, which serves the generated company from
+memory; with a database it is `bun run migrate && bun run seed` once and then
+`DATABASE_URL=postgres://... bun run --filter '@hackmty/api' dev`, which serves the same company
+out of Postgres. The boot log says which of the two is live.
 
 ```bash
 curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' | jq
@@ -86,4 +89,4 @@ official list is caught by the control rather than only by the lookup box.
 
 ## Nessie, verified quirks
 
-HTTPS only. Docs at https://prod.nessieisreal.com/docs, API base https://api.nessieisreal.com. Auth is `?key=` in the query string. Our team key lives in each teammate's local `.env` (never in the repo or the chat); it was validated with a write on 2026-09-12 (POST /customers returned 201). `403 {"message":"Missing Authentication Token"}` means wrong path, not a bad key. An invalid key returns `200 []` on reads and `401` only on writes: validate the key with a write before the demo. Sub-collections live under `/accounts/{id}/{purchases,bills,deposits,withdrawals,loans,transfers}`; there is no top-level `/bills`, `/loans`, `/purchases` or `/withdrawals`. Empty sub-collections are inconsistent (`200 []` or a `404` with a bare string body): map 404 to `[]`. Dates are `YYYY-MM-DD` with no time. `amount` mixes int and float. `_id` mixes UUID and ObjectId. `/enterprise/*` is a shared pool contaminated by other teams: never compute on it. In Ceptinela, Nessie is the company's bank mirror: `bank_reconciliation` compares outflows against instructions and CFDIs and flags payments with no document behind them.
+HTTPS only. Docs at https://prod.nessieisreal.com/docs, API base https://api.nessieisreal.com. Auth is `?key=` in the query string. Our team key lives in each teammate's local `.env` (never in the repo or the chat); it was validated with a write on 2026-09-12 (POST /customers returned 201). `403 {"message":"Missing Authentication Token"}` means wrong path, not a bad key. An invalid key returns `200 []` on reads and `401` only on writes: validate the key with a write before the demo. Sub-collections live under `/accounts/{id}/{purchases,bills,deposits,withdrawals,loans,transfers}`; there is no top-level `/bills`, `/loans`, `/purchases` or `/withdrawals`. Empty sub-collections are inconsistent (`200 []` or a `404` with a bare string body): map 404 to `[]`. Dates are `YYYY-MM-DD` with no time. `amount` mixes int and float. `_id` mixes UUID and ObjectId. `/enterprise/*` is a shared pool contaminated by other teams: never compute on it. In SentryOne, Nessie is the company's bank mirror: `bank_reconciliation` compares outflows against instructions and CFDIs and flags payments with no document behind them.
