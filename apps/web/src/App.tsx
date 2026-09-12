@@ -13,6 +13,7 @@ import { IntakeScreen } from "./screens/IntakeScreen";
 import { MetricsScreen } from "./screens/MetricsScreen";
 import { RunScreen } from "./screens/RunScreen";
 import { SatScreen } from "./screens/SatScreen";
+import { VerifyCallScreen } from "./screens/VerifyCallScreen";
 
 const TITLES: Record<Route["name"], string> = {
   run: "Corrida de pagos",
@@ -20,6 +21,7 @@ const TITLES: Record<Route["name"], string> = {
   intake: "Alta de una instruccion",
   sat: "Lista 69-B",
   cep: "CEP",
+  verifyCall: "Llamada de verificacion",
   metrics: "Evaluacion ciega",
   notFound: "Pagina no encontrada",
 };
@@ -36,6 +38,8 @@ function screenFor(route: Route) {
       return <SatScreen />;
     case "cep":
       return <CepScreen />;
+    case "verifyCall":
+      return <VerifyCallScreen />;
     case "metrics":
       return <MetricsScreen />;
     case "notFound":

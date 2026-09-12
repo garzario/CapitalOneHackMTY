@@ -60,6 +60,9 @@ If the ADR is changed, change this section in the same PR.
 - `packages/core`, **the intelligence**. Pure functions, zero dependencies, unit-tested.
   New algorithmic logic goes here, never in a route handler. This is the file an engineer opens
   when they ask how it works, so it has to read well.
+- `packages/engine`, the six controls of ADR-0002 as one call, `runControls`. It exists only
+  because `packages/sat` and `packages/cep` already depend on `packages/core`, so core cannot
+  import them back. Adapters only: every rule lives in core.
 - `packages/nessie`, the only place that talks to Nessie. Read "Nessie quirks" before touching it.
   Tests run against recorded fixtures in `src/fixtures/`, with no network.
 - `packages/seed`, deterministic synthetic Mexican transaction generator, fixed RNG seed.

@@ -75,15 +75,13 @@ describe("clabe arithmetic", () => {
     expect(isClabeValid(transposed)).toBe(false);
   });
 
-  it("shows that the example CLABE in docs/09-api.md fails the check digit", () => {
-    // Found while writing this. The curl a judge is invited to paste carries
-    // 012180001234567895, whose check digit should be 9, not 5. Our own forensics
-    // detector would flag the example in our own contract.
-    // TODO(fabbyyyy): fix the example in docs/09-api.md to 012180001234567899 and
-    // delete this test. It exists to keep the bug from being forgotten, not to
-    // enshrine it.
-    expect(isClabeValid("012180001234567895")).toBe(false);
+  it("validates the example CLABE a judge is invited to paste", () => {
+    // The curl in docs/09-api.md used to carry 012180001234567895, whose check digit
+    // should be 9 and not 5, so our own forensics detector would have flagged the
+    // example in our own contract. It was corrected; this keeps it correct.
+    expect(isClabeValid("012180001234567899")).toBe(true);
     expect(clabeCheckDigit("01218000123456789")).toBe(9);
+    expect(isClabeValid("012180001234567895")).toBe(false);
   });
 
   it("mints what it validates", () => {

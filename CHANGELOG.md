@@ -22,6 +22,44 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   seed, with invariants covering reproducibility, reconciliation to the cent, every reference
   resolving and no date after the run day. `bun run seed` prints the hero instruction ids and the
   demo RFCs, and `SEED=ceptinela` serves the same company from the API.
+- Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
+  back, and explicit blockers for the live URL and real CEP tracking key.
+- `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
+  says from the payment instruction and never speaks more than the last four digits of the account,
+  promises no payment and accuses nobody; `VoiceClient` creates or updates the agent, places the
+  outbound call through the Twilio integration and reads the transcript back, all behind an
+  injectable fetch; `parseVerificationOutcome` turns a transcript into `confirmed`, `denied`,
+  `no_answer` or `unclear` with the quoted sentence, deterministically and with a bare "si"
+  deliberately not counting as a confirmation. Plus `verification_call` in the domain ledger,
+  `POST` and `GET /api/v1/instructions/:id/verify-call` in `apps/api` (422 with the script when the
+  keys are absent, and no path that releases a payment), the browser fallback at `/verify-call` in
+  `apps/web`, and `bun run voice-setup` which prints the ids for `.env`. Fixture transcripts, no
+  network and no key in the tests.
+- A quantified composite payment-clerk persona, explicit corporate-treasury anti-persona, and a
+  screen-mapped journey covering false positives, partial name matches and legitimate bank changes.
+- Payment-run screen rebuilt around the ten-second read: one hero figure for the money that is
+  not leaving, the worst finding named and linked, and the table ordered exceptions first and then
+  by amount. `apps/web/src/lib/run-view.ts` holds both answers as pure functions with tests, and
+  they read the items rather than `run.totals` so the headline cannot contradict the table after a
+  decision applied with no API. Screenshots in `assets/screenshots`, captured reproducibly by
+  `apps/web/brand/shoot.ts`.
+- Ceptinela brand layer and the rationale behind the design system: the name lockup in
+  `apps/web/src/components/Wordmark.tsx`, the favicon, touch icon and social card in
+  `apps/web/public/` with their sources in `apps/web/brand/`, and `docs/design.md`. The token
+  contract is now enforced by `apps/web/src/design/tokens.test.ts`, which fails when a component
+  reads a token that does not exist, when a colour has no dark counterpart, or when any file other
+  than `tokens.css` writes a colour.
+- `packages/engine`: the six controls of ADR-0002 behind one call, `runControls(input)`. It holds
+  the two adapters that `packages/core` cannot hold without a dependency cycle, `sat_69b` over
+  `matchRfc` plus the retroactive `SweepResult` exposure, and `beneficiary_cep` over `nameMatch`
+  and the CEP signature state. `apps/api` depends on it.
+- `matchRfc` in `packages/sat`: the Article 69-B situation in force for one RFC, newest DOF
+  publication first, so a taxpayer who cleared their name is never reported as listed.
+- `Supplier.delayCostPerDay`, optional, with a documented default of zero, and `supplierModelOf`
+  in `packages/core` to read it. The expected-loss engine now weighs the delay against a number on
+  the supplier record instead of a constant in a route handler.
+- `Repository.allComplements` and `Repository.bankMirror` in `apps/api`, so the duplicate and
+  reconciliation controls see every complement and the Nessie bank statement.
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 - `apps/api` scaffold for the contract in `docs/09-api.md`: one file per route group under
@@ -50,9 +88,38 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   with that supplier, and never auto-releases while a critical finding exists. `composeFindings`
   runs whichever of the six detectors exist in the package and returns their findings in alert
   rail order, biggest amount at risk first.
+- `packages/sat`, the Article 69-B half of the product. A loader that parses the SAT's published
+  listing by column name (ISO-8859-1, CRLF, records that span lines, RFC 4180 quoting, DOF dates
+  written four different ways) and reports every row it cannot read with its line number instead of
+  dropping it; `matchRfc` and `matchRfcAsOf` over normalised RFCs, which answer "listed today" and
+  "listed on the day we deducted this invoice" separately; `sweep`, a fold over `LedgerEvent[]` that
+  prices what a publication did to invoices already paid, with ISR at 30 percent documented as an
+  assumption and IVA summed from the CFDIs rather than multiplied out of a rate; and
+  `simulatePublication`, which refuses any RFC that is not synthetic.
+- A dated snapshot of the real SAT list, `packages/sat/src/snapshot/official-2026-09-12.csv`: the
+  complete Article 69-B listing as published, 14234 rows current to 2025-12-31, committed as public
+  data with its provenance in the adjacent README so `GET /api/v1/sat/lookup` answers a real RFC
+  with no network. 91 rows the SAT redacted by court order are reported as unreadable, never
+  matched and never silently dropped.
+- `GET /api/v1/sat/lookup` and `POST /api/v1/sat/publish` in `apps/api` are wired to `@hackmty/sat`:
+  the lookup merges the official list with the versions this instance holds, and the publish
+  endpoint builds the demo publication through `simulatePublication` and prices it with the real
+  rates. ADR-0002 holds either side of that line, in code: the real list is read and joined to
+  nothing, and the only publication that meets an invoice is one built from synthetic suppliers.
 - CLABE forensics detector in `packages/core`: check digit over the 3-7-1 weights, a dated snapshot
   of the Banxico participant catalogue, plaza parsing, OCR-aware Damerau-Levenshtein against the
   supplier's paid accounts, and a `Finding` whose evidence names the differing digit positions.
+- `packages/extract`: the only package that reaches a language model, and it may only transcribe.
+  `extractFromImage` reads the CLABE, the amount and the payee off a photographed instruction and
+  `extractFromAudio` transcribes a voice note, both through the Gemini REST `generateContent`
+  endpoint with the file inline, a fixed JSON response schema, an injectable `fetch` and
+  `GEMINI_API_KEY` from the environment. The post-processor is pure: it scans the transcription for
+  18-digit CLABE candidates tolerating spaces and hyphens, validates the check digit with the 3-7-1
+  rule imported from `packages/core`, and discounts the confidence by named factors when the check
+  digit fails, when candidates are ambiguous or when the model and its own transcription disagree.
+  Wired into `POST /api/v1/instructions` behind the presence of the key, which answers 422 when it is
+  absent. `scripts/extract-demo.ts` runs it over a file, or replays a recorded fixture with no key
+  and no network. The boundary is enforced by a test that reads the package's own source.
 - `packages/core/src/cfdi.ts`: CFDI 4.0 de ingreso and complemento de recepcion de pagos 2.0 parsed
   into the domain types, on a dependency-free XML tokenizer that never throws. Synthetic SAT
   fixtures in `packages/core/src/fixtures/` and 62 tests covering totals, IVA, the timbre UUID, the
@@ -62,4 +129,17 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Fixed
 
+- The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
+  dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
+  landed it called none of them and `composeFindings` returned an empty array for all six slots
+  while the tests stayed green. It is replaced by explicit, typed `DetectorAdapter`s over a single
+  `ComposeInput`, and `composeFindingsReport` now accounts for every control in either `ran` or
+  `skipped` with a named reason, so silence can never be read as a clean payment again.
+- `isFinding` rejected `subject.kind: "ledger_tx"`, which the domain contract allows, so every
+  `unbacked_outflow` from the reconciliation detector was dropped before it reached the clerk.
+
 ### Removed
+
+- The dynamic `DETECTOR_REGISTRY`, `asDetectorModule` and the call-shape guessing in
+  `packages/core/src/decision.ts`, together with the detector wiring `apps/api/src/pipeline.ts`
+  carried to work around them.

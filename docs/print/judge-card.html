@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ceptinela judge card</title>
+    <link rel="stylesheet" href="./print.css" />
+    <style>
+      @page {
+        size: A5 landscape;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body class="a5">
+    <section class="page" aria-label="Ceptinela judge card front">
+      <header class="brand-line">
+        <div class="wordmark">CEPTINELA</div>
+        <span class="tag">Track 3: Real-Time Anomaly and Security Sentinel</span>
+      </header>
+
+      <p class="eyebrow">The payment decision, before an irreversible SPEI</p>
+      <h1 class="thesis">
+        Stop a fiscally toxic, duplicated or misdirected SPEI before it leaves by joining the
+        company's CFDI ledger, the SAT Article 69-B list and the Banxico CEP.
+      </h1>
+
+      <div class="proof-row">
+        <article class="panel panel-accent">
+          <span class="source-label">Company evidence</span>
+          <h2>CFDI ledger</h2>
+          <p class="muted">Invoices, complements, supplier history and prior beneficiary accounts.</p>
+        </article>
+        <article class="panel panel-accent">
+          <span class="source-label">Official public data</span>
+          <h2>SAT Article 69-B</h2>
+          <p class="muted">Current lookup plus a retroactive replay over what was already paid.</p>
+        </article>
+        <article class="panel panel-accent">
+          <span class="source-label">External evidence</span>
+          <h2>CEP</h2>
+          <p class="muted">Signed XML, beneficiary name comparison and a checkable tracking key.</p>
+        </article>
+      </div>
+
+      <div class="front-grid">
+        <div class="todo qr-block">
+          <div class="qr-placeholder">TODO<br />LIVE APP<br />QR</div>
+          <p>
+            <strong>TODO(fabbyyyy)<br />LIVE_APP_URL</strong>
+            Replace only after the deployed URL opens on a judge's phone.
+          </p>
+        </div>
+
+        <div class="todo">
+          <strong>TODO(fabbyyyy): REAL_CEP_CLAVE_RASTREO</strong>
+          <span>Banco de Mexico verification:</span><br />
+          <span class="mono">banxico.org.mx/cep/</span>
+        </div>
+
+        <div class="panel qr-block">
+          <img
+            class="qr qr-large"
+            src="./repo-qr.png"
+            alt="QR code for the CapitalOneHackMTY GitHub repository"
+          />
+          <p>
+            <strong>Inspect the implementation</strong><br />
+            <span class="subtle">Scan for pure detectors, tests, contracts and the event ledger.</span>
+          </p>
+        </div>
+      </div>
+
+      <span class="page-number">Front | Do not print until both TODO(fabbyyyy) values are replaced.</span>
+    </section>
+
+    <section class="page back" aria-label="Ceptinela judge card back">
+      <header class="brand-line">
+        <div class="wordmark">CEPTINELA</div>
+        <span class="tag">Architecture that a judge can inspect</span>
+      </header>
+
+      <p class="eyebrow">The intelligence lane has no network and no database access</p>
+      <h1>Evidence in, a human decision out</h1>
+
+      <div class="architecture" role="img" aria-label="Ceptinela architecture diagram">
+        <section class="lane">
+          <h2>1. Sources</h2>
+          <ul>
+            <li>CFDI 4.0 and payment complements</li>
+            <li>SAT Article 69-B snapshots</li>
+            <li>Banxico CEP XML</li>
+            <li>Payment instructions</li>
+            <li>Nessie bank mirror</li>
+          </ul>
+        </section>
+        <div class="arrow" aria-hidden="true">-&gt;</div>
+        <section class="lane">
+          <h2>2. Normalize</h2>
+          <ul>
+            <li><code>packages/core</code> parsers</li>
+            <li><code>packages/sat</code> loader</li>
+            <li><code>packages/cep</code> verifier</li>
+            <li><code>packages/nessie</code> client</li>
+          </ul>
+        </section>
+        <div class="arrow" aria-hidden="true">-&gt;</div>
+        <section class="lane panel-accent">
+          <h2>3. Pure intelligence</h2>
+          <p><strong><code>packages/core</code></strong></p>
+          <ul>
+            <li>Six deterministic controls</li>
+            <li>Expected-loss decision</li>
+            <li>SAT retroactive replay</li>
+            <li>Adjacent unit tests</li>
+          </ul>
+        </section>
+        <div class="arrow" aria-hidden="true">-&gt;</div>
+        <section class="lane">
+          <h2>4. Surfaces</h2>
+          <ul>
+            <li>Hono REST plus SSE</li>
+            <li>Payment-run web app</li>
+            <li>QR instruction intake</li>
+            <li>CEP and SAT evidence</li>
+            <li>Archived memo, pending</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="spine">
+        Postgres plus Timescale event ledger: append-only evidence, replayable when a new SAT list is published
+      </div>
+
+      <div class="back-notes">
+        <article class="panel panel-release">
+          <h3>A person decides</h3>
+          <p><code>hold</code>, <code>verify</code> or <code>release</code> is confirmed by the clerk. Ceptinela moves no money.</p>
+        </article>
+        <article class="panel panel-verify">
+          <h3>No model in the hot path</h3>
+          <p>Rules are deterministic, auditable and runnable offline. Explanation is downstream.</p>
+        </article>
+        <article class="panel panel-accent">
+          <h3>Real and synthetic stay separate</h3>
+          <p>Real RFCs only enter the lookup. Synthetic company data is visibly watermarked.</p>
+        </article>
+      </div>
+
+      <span class="page-number">Back | Full reasoning: docs/07-architecture.md</span>
+    </section>
+  </body>
+</html>

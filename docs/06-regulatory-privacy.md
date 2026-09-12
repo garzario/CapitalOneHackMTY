@@ -344,6 +344,28 @@ once they exist.
 - **Retention at the provider is not ours to promise.** `TODO(FabriBanda)`: record the provider's
   retention setting and whether zero retention is available on the plan we would actually buy.
 
+### 6.2.1 How the boundary is implemented
+
+`packages/extract` is the only module in the repository that reaches a model, and the rule above is
+its shape rather than its documentation. It sends one instruction string that this repository wrote
+and the bytes of one file a person chose to send us, and that is the entire transfer: no supplier, no
+RFC, no legal name, no CFDI, no known account, no payment history, no SAT list and no CEP ever appear
+in a request, which is verifiable by reading the nineteen lines of `buildRequestBody` in
+`src/gemini.ts`. What comes back is JSON against a fixed schema of six fields, `rawText`,
+`transcript`, `clabe`, `amount`, `supplierHint` and `clarity`, so there is nowhere in the response for
+a verdict, a score or a recommendation to be written even if a model wanted to offer one. Those
+characters then become `PaymentInstruction.clabe`, `ocrConfidence` and `text`, and every control that
+follows is a pure function in `packages/core` operating on the digits, which is why a transcription
+error can add friction to a payment and can never remove a check from it. Retention on our side is
+none: the bytes live in the request and in nothing else, no copy is written to the ledger or to the
+database, `imageRef` and `audioRef` hold a reference and not a file, and the product never uses the
+provider's Files API precisely because a file uploaded there is a file the provider keeps. The claim
+is enforced by `packages/extract/src/boundary.test.ts`, which reads the package's own source and fails
+if a shipped module so much as names `decide`, `Finding`, `Decision`, `Severity`, `detect`, `score`,
+`recommend` or `risk`, and by `apps/api/src/routes/instructions.test.ts`, where an intake carrying a
+photograph on a server with no `GEMINI_API_KEY` is answered with 422 and a sentence rather than with a
+CLABE nobody read.
+
 ### 6.3 Cost per verification
 
 **Prices as of 2026-09-12**, read from the Gemini API pricing page (paid tier) and the token counting

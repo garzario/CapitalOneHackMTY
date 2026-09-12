@@ -21,7 +21,9 @@ import type {
   Detector,
   Finding,
   LedgerEvent,
+  LedgerTx,
   Metrics,
+  PaymentComplement,
   PaymentInstruction,
   SatListEntry,
   Supplier,
@@ -78,6 +80,20 @@ export interface Repository {
    * of the spend.
    */
   allCfdis(): Promise<Cfdi[]>;
+  /**
+   * Every payment complement the company holds. The duplicate detector needs
+   * them to know what is already settled, and bank reconciliation builds its
+   * expected payments from them, so both read the whole set rather than one
+   * supplier's.
+   */
+  allComplements(): Promise<PaymentComplement[]>;
+  /**
+   * The company's bank statement, mirrored from Nessie and normalised into
+   * `LedgerTx`. Only `bank_reconciliation` reads it. An empty array means the
+   * mirror was not imported, and the detector reports that rather than calling
+   * every payment missing from a statement we do not hold.
+   */
+  bankMirror(): Promise<LedgerTx[]>;
   satLookup(rfc: string): Promise<SatListEntry[]>;
   satVersions(): Promise<SatVersionSummary[]>;
   beneficiaries(): Promise<VerifiedBeneficiary[]>;
@@ -244,6 +260,14 @@ export class MemoryRepository implements Repository {
 
   async allCfdis(): Promise<Cfdi[]> {
     return copy(this.data.cfdis);
+  }
+
+  async allComplements(): Promise<PaymentComplement[]> {
+    return copy(this.data.complements);
+  }
+
+  async bankMirror(): Promise<LedgerTx[]> {
+    return copy(this.data.bankMirror);
   }
 
   async satLookup(rfc: string): Promise<SatListEntry[]> {

@@ -13,9 +13,10 @@
  * /api/v1/metrics` reports zero cases rather than a score nobody earned. The blind
  * holdout owns that number.
  *
- * The bank mirror does not come across either: the repository has no ledger-row read
- * yet, so `bun run seed` writes it into the `ledger_tx` table instead, where
- * `bank_reconciliation` will find it once the Postgres repository lands (issue #40).
+ * The bank mirror does come across, because `bank_reconciliation` reads it: eight
+ * months of SPEI, one row per transfer, every one of them backed by the complement
+ * that documents it. An outflow with no document behind it is a labelled positive
+ * and lives in the holdout, not here.
  */
 
 import { CEPTINELA_SEED_NAME, loadCeptinela } from "@hackmty/seed";
@@ -66,6 +67,7 @@ export function ceptinelaDataset(seed: number): SyntheticDataset {
     decisions: [],
     satEntries: snapshot.satEntries,
     beneficiaries: [],
+    bankMirror: snapshot.bankMirror,
     ledger: snapshot.ledger,
     labelledCases: [],
   };

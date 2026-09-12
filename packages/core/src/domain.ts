@@ -16,6 +16,20 @@ export interface Supplier {
   /** Accounts we have paid before, most recent first, with the evidence that established them. */
   knownAccounts: KnownAccount[];
   firstInvoiceAt: string;
+  /**
+   * Pesos this company loses for every day a payment to this supplier is late:
+   * late-payment interest, the early-payment discount that expires, the line
+   * that stops. It is the only number the expected-loss engine weighs the pesos
+   * at risk against, so it belongs on the supplier record and not in a caller's
+   * constant.
+   *
+   * Absent means the relationship has not been priced yet, and
+   * `supplierModelOf` reads that as zero. Zero is conservative rather than
+   * neutral: with no delay cost the engine verifies anything that carries a
+   * positive expected loss and releases only what is clean, which is the
+   * reading that never moves money on a guess.
+   */
+  delayCostPerDay?: number;
   synthetic: boolean;
 }
 
@@ -91,7 +105,9 @@ export interface PaymentInstruction {
   text?: string;
   /** Reference to an uploaded image (QR intake). OCR result goes into `clabe`. */
   imageRef?: string;
-  /** Confidence of the OCR when the CLABE came from an image, 0 to 1. */
+  /** Reference to an uploaded voice note. Its transcript goes into `text`. */
+  audioRef?: string;
+  /** Confidence of the transcription when the CLABE came from a file, 0 to 1. */
   ocrConfidence?: number;
   /**
    * When the company marked the SPEI as sent, projected from the `payment_sent`
@@ -185,6 +201,30 @@ export interface Finding {
   createdAt: string;
 }
 
+/**
+ * What a verification call to the supplier proved. `no_answer` is nobody picked
+ * up or a voicemail answered; `unclear` is a person who spoke and did not say
+ * either thing, which is a real and common outcome and is never rounded to one
+ * of the other three.
+ *
+ * None of the four releases a payment. A `confirmed` is evidence a clerk weighs,
+ * exactly like a CEP, and the release stays a `decision_made` a person signs.
+ */
+export type VerificationOutcome =
+  | "confirmed"
+  | "denied"
+  | "no_answer"
+  | "unclear";
+
+/** One turn of a verification call, in the order it was spoken. */
+export interface VerificationTurn {
+  /** `supplier` is whoever answered the phone, `agent` is the voice agent. */
+  role: "agent" | "supplier";
+  text: string;
+  /** Seconds from the start of the call, when the provider reports them. */
+  atSecond?: number;
+}
+
 export type Action = "hold" | "verify" | "release";
 
 export interface Decision {
@@ -221,6 +261,30 @@ export type LedgerEvent =
       entries: SatListEntry[];
     }
   | { type: "cep_verified"; at: string; cep: Cep; supplierRfc: Rfc }
+  | {
+      /**
+       * A verification call was placed to the supplier and it ended. The event
+       * records what was said, never what to do about it: the decision that
+       * follows is a separate `decision_made` signed by a person.
+       */
+      type: "verification_call";
+      at: string;
+      instructionId: string;
+      supplierRfc: Rfc;
+      outcome: VerificationOutcome;
+      /**
+       * Last four digits of the account that was read out loud. The full CLABE
+       * is never spoken on the call and never stored on this event.
+       */
+      clabeLast4: string;
+      /** The sentence the outcome was read from, quoted from the transcript. */
+      evidence?: string;
+      transcript: VerificationTurn[];
+      /** Conversation id at the voice provider, so the audio can be pulled. */
+      conversationId?: string;
+      /** True when a person placed the call by hand and typed the outcome in. */
+      manual: boolean;
+    }
   | { type: "decision_made"; at: string; decision: Decision };
 
 /** Result of the retroactive sweep after a SAT publication. */
