@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ceptinela one-pager</title>
+    <link rel="stylesheet" href="./print.css" />
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body class="a4">
+    <main class="page" aria-label="Ceptinela one-pager">
+      <header class="brand-line">
+        <div class="wordmark">CEPTINELA</div>
+        <span class="tag">CapitalOne HackMTY 2026 | Track 3</span>
+      </header>
+
+      <section class="onepager-title">
+        <div>
+          <p class="eyebrow">Real-time means intervention at the payment decision</p>
+          <h1 class="thesis">
+            Stop a fiscally toxic, duplicated or misdirected SPEI before it leaves by joining the
+            company's CFDI ledger, the SAT Article 69-B list and the Banxico CEP.
+          </h1>
+        </div>
+        <img
+          class="qr qr-large"
+          src="./repo-qr.png"
+          alt="QR code for the CapitalOneHackMTY GitHub repository"
+        />
+      </section>
+
+      <div class="onepager-grid">
+        <div class="stack">
+          <section class="panel">
+            <p class="eyebrow">For one specific person</p>
+            <h2>Lupita runs Thursday payments alone</h2>
+            <p>
+              The composite persona is the sole administrative clerk at a 28-employee
+              metalmecanica in Apodaca. Her tools are email, WhatsApp, a spreadsheet, a CFDI portal
+              and the business bank portal, not an ERP or a treasury team.
+            </p>
+            <div class="stat-row">
+              <div class="stat"><strong>92</strong><span>invoices in the reference run</span></div>
+              <div class="stat"><strong>MXN 673k</strong><span>reference run total</span></div>
+              <div class="stat"><strong>42</strong><span>synthetic suppliers</span></div>
+            </div>
+            <p class="subtle" style="margin: 2mm 0 0">
+              Seed 69, week of 2026-09-07. Demo inputs, not Mexican SMB statistics.
+            </p>
+          </section>
+
+          <section class="panel panel-hold">
+            <p class="eyebrow" style="color: #7f1a15">Why the window matters</p>
+            <h2>Fiscal risk plus irreversible payment</h2>
+            <p style="margin-bottom: 0">
+              A new definitive Article 69-B publication can change the fiscal effect of invoices
+              already paid. Once the wrong SPEI leaves, the product can only explain the loss.
+              Ceptinela joins the evidence while the clerk can still hold, verify or release.
+            </p>
+          </section>
+
+          <section class="panel">
+            <p class="eyebrow">What a judge can verify</p>
+            <ul>
+              <li>Type a real RFC into the read-only SAT lookup. Real RFCs are never paired with fabricated evidence.</li>
+              <li>Open each detector beside its test in <code>packages/core</code> and run the suite offline.</li>
+              <li>Once the real one-cent CEP lands, inspect its signed XML, holder comparison and beneficiary registry.</li>
+              <li>Trace every decision through the append-only <code>LedgerEvent</code> contract.</li>
+            </ul>
+          </section>
+
+          <section class="todo">
+            <strong>TODO(fabbyyyy): LIVE_APP_URL and live-app QR</strong>
+            This one-pager cannot go to print until the deployed URL opens on a phone.
+          </section>
+
+          <section class="todo">
+            <strong>TODO(fabbyyyy): REAL_CEP_CLAVE_RASTREO</strong>
+            <span>Verify at </span><span class="mono">https://www.banxico.org.mx/cep/</span>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section>
+            <p class="eyebrow">Six controls, one human decision</p>
+            <ol class="controls">
+              <li><strong>SAT 69-B plus replay</strong><span>Match current status, then quantify prior exposure when the list changes.</span></li>
+              <li><strong>CLABE forensics</strong><span>Check digit, institution, plaza, account history and OCR-aware edit distance.</span></li>
+              <li><strong>Duplicate invoices</strong><span>Detect UUID, folio and near-duplicate collisions without joining different issuers.</span></li>
+              <li><strong>Supplier behavior</strong><span>Compare cadence, amount and concentration with the supplier's own valid history.</span></li>
+              <li><strong>CEP beneficiary</strong><span>Verify signed evidence and compare the credited holder with the CFDI legal name.</span></li>
+              <li><strong>Expected loss</strong><span>Weigh amount at risk against delay cost, then ask a person to decide.</span></li>
+            </ol>
+          </section>
+
+          <section class="panel panel-accent">
+            <p class="eyebrow">System shape</p>
+            <div
+              class="mini-architecture"
+              role="img"
+              aria-label="Compact Ceptinela architecture diagram"
+            >
+              <div class="box">CFDI<br />SAT<br />CEP<br />Nessie</div>
+              <div class="arrow">-&gt;</div>
+              <div class="box">Normalize<br />and append</div>
+              <div class="arrow">-&gt;</div>
+              <div class="box"><strong>Pure core</strong><br />six controls<br />replay</div>
+              <div class="arrow">-&gt;</div>
+              <div class="box">Hono API<br />SSE<br />web</div>
+            </div>
+            <p class="subtle" style="margin: 2mm 0 0">
+              The ledger is the spine. <code>packages/core</code> receives values and returns values, with no
+              database or network edge.
+            </p>
+          </section>
+
+          <section class="panel">
+            <p class="eyebrow">Truth boundary</p>
+            <dl style="display: grid; grid-template-columns: 22mm 1fr; gap: 1.6mm 3mm; margin: 0">
+              <dt><span class="source-label">Real</span></dt>
+              <dd>SAT lookup and Nessie key-scoped records. The team's real one-cent CEP remains TODO until it lands.</dd>
+              <dt><span class="source-label synthetic">Synthetic</span></dt>
+              <dd>Company, suppliers, RFCs, CLABEs, CFDIs, instructions and holdout cases.</dd>
+              <dt><span class="source-label">Decision</span></dt>
+              <dd><code>comprobable</code> or <code>requiere_verificacion</code>, never an accusation. A person confirms the action.</dd>
+            </dl>
+          </section>
+
+          <section class="panel qr-block">
+            <img class="qr" src="./repo-qr.png" alt="QR code for the repository" />
+            <p>
+              <strong>Repository</strong><br />
+              <span class="mono">github.com/garzario/CapitalOneHackMTY</span><br />
+              <span class="subtle">Architecture, API contract, pure logic and evidence.</span>
+            </p>
+          </section>
+        </div>
+      </div>
+
+      <footer class="footer-line">
+        <span>ceptinela.tech | HackMTY 2026</span>
+        <span>Print status: blocked on live URL and real CEP tracking key.</span>
+      </footer>
+    </main>
+  </body>
+</html>
