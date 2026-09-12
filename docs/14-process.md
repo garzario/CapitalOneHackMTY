@@ -11,8 +11,8 @@ Owner: Patricio (`garzario`). Due M3, linked from the README at M5.
 |---|---|---|---|---|
 | Patricio Garza | `garzario` | Lead, intelligence, architecture | `packages/core`, `packages/db`, the ADRs, CI, `docs/07`, `docs/08`, all merges | How does the algorithm work, and why is that the right model |
 | Fabian | `fabbyyyy` | Data platform, API, deploy | `apps/api`, `packages/nessie`, `packages/seed`, the database, `scripts/`, `docs/09` | Where does the data come from, and what happens at ten times the volume |
-| Adan | `Apanawa` | Frontend, UX, motion | `apps/web`, the design system, `assets/` | Walk me through what the user actually sees |
-| Fabricio | `FabriBanda` | Narrative, docs, market, pitch | `docs/00` to `06`, `10`, `11`, `13`, `14`, the README, Devpost | Who is this for, how big is it, how do you make money |
+| Adan | `Apanawa` | Frontend with Fabricio, evaluation harness | `apps/web` (QR intake, SAT replay, CEP viewer, metrics, motion), `packages/seed/src/holdout`, constancia PDF, `docs/06` | Walk me through what the user sees, and how you measured the detectors |
+| Fabricio | `FabriBanda` | UI/UX design and screens | brand and design system, `apps/web` (payment run, finding panel), `docs/02`, `docs/03`, `docs/10`, `docs/12`, judge card | Why does the screen look like this, and what does the clerk feel at each step |
 
 **Narrative is a full seat, not a leftover.** Roughly half the rubric lives in documents and the
 pitch: impact and feasibility, design and experience, and the market plus differentiation half of

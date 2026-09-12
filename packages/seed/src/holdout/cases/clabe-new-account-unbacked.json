@@ -1,0 +1,61 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-new-account-unbacked",
+  "title": "A WhatsApp message changes the account to a different bank with nothing behind it",
+  "kind": "positive",
+  "notes": "The CLABE is arithmetically perfect, which is the point: a valid check digit proves nothing about who holds the account. What is missing is the document that establishes it, and the channel it arrived through is the one the persona names first.",
+  "input": {
+    "instruction": {
+      "id": "INS-EXAMPLE-002",
+      "supplierRfc": "SYN990202S02",
+      "cfdiUuids": ["c04b9a52-3d77-4a18-8f0c-5b1d9e2a7c33"],
+      "clabe": "127180009876543210",
+      "amount": 48720.0,
+      "source": "whatsapp",
+      "receivedAt": "2026-09-09T17:41:00.000Z",
+      "text": "Buenos dias, le comento que cambiamos de banco. Favor de depositar a la cuenta nueva. Anexo caratula.",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN990202S02",
+      "legalName": "Maquinados Industriales Regios SA de CV",
+      "firstInvoiceAt": "2021-11-02T15:00:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2021-12-01T15:00:00.000Z",
+          "timesPaid": 52
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "c04b9a52-3d77-4a18-8f0c-5b1d9e2a7c33",
+        "serie": "A",
+        "folio": "902",
+        "issuedAt": "2026-08-20T17:05:00.000Z",
+        "issuerRfc": "SYN990202S02",
+        "issuerName": "Maquinados Industriales Regios SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 42000.0,
+        "iva": 6720.0,
+        "total": 48720.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "complements": []
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "severity": "critical",
+      "because": "The account is new, sits at a different bank from every account this supplier has ever been paid on, and no payment complement or CEP establishes it. The check digit is valid, which is why the arithmetic alone cannot decide this."
+    }
+  ],
+  "expectedAction": "verify"
+}

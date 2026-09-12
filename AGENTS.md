@@ -134,19 +134,17 @@ Every change should survive "why?" asked three times. `docs/12-judge-qa.md` is t
 
 ## Team and ownership
 
-| Person | Handle | Owns | The judge question they answer |
-|---|---|---|---|
-| Patricio Garza | `garzario` | Lead, intelligence, architecture: `packages/core`, `packages/db`, ADRs, CI, `docs/07`, `docs/08`, all merges | How does the algorithm work, and why is that the right model? |
-| Fabian | `fabbyyyy` | Data platform, API, deploy: `apps/api`, `packages/nessie`, `packages/seed`, `scripts/`, `docs/09` | Where does the data come from, and what happens at ten times the volume? |
-| Adan | `Apanawa` | Frontend, UX, motion: `apps/web`, the design system, `assets/` | Walk me through what the user actually sees. |
-| Fabricio | `FabriBanda` | Narrative, docs, market, pitch: `docs/00` to `06`, `10`, `11`, `13`, `14`, README, Devpost, video | Who is this for, how big is it, and how do you make money? |
+Five epics on GitHub (#80 to #84) with every issue linked as a sub-issue. Everyone builds; docs are spread by front.
 
-Narrative is a full seat, not a leftover. Roughly half the rubric lives in `docs/` and the pitch:
-impact, design, and the market and differentiation half of originality. Do not reassign that seat
-to code because code feels more urgent at 03:00.
+| Epic | Lead | Scope |
+|---|---|---|
+| #80 Engine | Patricio (garzario) | `packages/core`, `packages/cep`, `packages/sat`, `packages/seed`: CFDI and payment-complement parser, CLABE forensics, duplicates and supplier behaviour, CEP signature verification, expected-loss decision, Nessie reconciliation, SAT list loader and retroactive sweep, synthetic company, Gemini extraction (photo and voice note, extraction only), ElevenLabs verification call, the deployed vertical slice |
+| #81 Data platform and API | Fabian (fabbyyyy) | `packages/db`, `apps/api`: ledger on Tiger Data with continuous aggregates, read and write endpoints per `docs/09-api.md`, SSE, Nessie mirror, scripts (doctor, demo), architecture and data-model docs |
+| #82 UI/UX | Fabricio (FabriBanda) designs, Fabricio and Adan (Apanawa) build | `apps/web`: brand and design system, screen designs and flows, payment run and finding panel (Fabricio), QR intake, SAT replay, CEP viewer, metrics and polish (Adan), persona and journey research, demo script and judge Q&A, printed judge card, blind holdout cases and the metrics harness, constancia PDF (Adan) |
+| #83 Infrastructure and release | Fabian (fabbyyyy) | Vercel, Vultr, Tiger Data, ceptinela.tech, accounts and keys, offline demo mode, the real one-cent CEP, release to main with v1.0.0, security scrub |
+| #84 Narrative and submission | everyone, Patricio closes | market and business model, pitch and Devpost, rubric mapping, process and README, video, rehearsals (Patricio); regulatory and privacy (Adan); architecture and data model (Fabian); persona, journey and demo script (Fabricio) |
 
-`.github/CODEOWNERS` encodes this mapping. The last matching rule wins, so the lead's paths are
-listed last on purpose. Do not reorder that file.
+Scaffold PRs give every front typed stubs and mock data equal to the API's in-memory repository, so nobody waits to start. Reviewers: Patricio reviews Fabian, Fabian reviews Patricio, Fabricio reviews Adan, Adan reviews Fabricio; the lead reviews anything stalled past 90 minutes.
 
 ## Milestones
 

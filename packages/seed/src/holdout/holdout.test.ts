@@ -1,0 +1,252 @@
+/**
+ * The harness has to be right before the number it produces means anything, so the
+ * confusion matrix is tested against hand-counted cases rather than against itself.
+ *
+ * The schema invariants are here too: every RFC invented, every object watermarked, and
+ * a positive case that expects nothing rejected rather than quietly scored as a
+ * negative.
+ */
+
+import { describe, expect, it } from "bun:test";
+import {
+  ALL_DETECTORS,
+  computeMetrics,
+  EXAMPLE_HOLDOUT_CASES,
+  emptyMetrics,
+  type HoldoutCase,
+  parseHoldoutCase,
+  predictNothing,
+} from "./index";
+
+function caseOf(overrides: Partial<HoldoutCase> = {}): HoldoutCase {
+  return parseHoldoutCase({
+    id: "example",
+    title: "An example case for the harness",
+    kind: "positive",
+    input: {
+      instruction: {
+        id: "INS-TEST-001",
+        supplierRfc: "SYN010203AB1",
+        cfdiUuids: [],
+        clabe: "072180100000000007",
+        amount: 1000,
+        source: "email",
+        receivedAt: "2026-09-09T15:00:00.000Z",
+        synthetic: true,
+      },
+    },
+    expectedFindings: [{ detector: "sat_69b" }],
+    expectedAction: "hold",
+    ...overrides,
+  });
+}
+
+describe("parseHoldoutCase", () => {
+  it("accepts a well formed case", () => {
+    expect(caseOf().id).toBe("example");
+  });
+
+  it("refuses a positive case that expects nothing", () => {
+    expect(() => caseOf({ kind: "positive", expectedFindings: [] })).toThrow(
+      /at least one finding/,
+    );
+  });
+
+  it("refuses a negative case that expects something", () => {
+    expect(() =>
+      caseOf({ kind: "negative", expectedFindings: [{ detector: "sat_69b" }] }),
+    ).toThrow(/no findings/);
+  });
+
+  it("refuses two expectations for the same detector", () => {
+    expect(() =>
+      caseOf({
+        expectedFindings: [{ detector: "sat_69b" }, { detector: "sat_69b" }],
+      }),
+    ).toThrow(/at most once/);
+  });
+
+  it("refuses an unknown detector, action or state", () => {
+    expect(() =>
+      caseOf({ expectedFindings: [{ detector: "clabe" as never }] }),
+    ).toThrow(/detector must be one of/);
+    expect(() => caseOf({ expectedAction: "freeze" as never })).toThrow(
+      /expectedAction must be one of/,
+    );
+    expect(() =>
+      caseOf({
+        expectedFindings: [{ detector: "sat_69b", state: "maybe" as never }],
+      }),
+    ).toThrow(/state must be one of/);
+  });
+
+  it("refuses an instruction that is not flagged synthetic", () => {
+    // ADR-0002. This folder is the easiest place for a real RFC to slip in unnoticed.
+    expect(() =>
+      parseHoldoutCase({
+        id: "unflagged",
+        title: "An instruction with no watermark",
+        kind: "negative",
+        input: {
+          instruction: {
+            id: "INS-TEST-002",
+            clabe: "072180100000000007",
+          },
+        },
+        expectedFindings: [],
+        expectedAction: "release",
+      }),
+    ).toThrow(/synthetic must be true/);
+  });
+});
+
+describe("the example cases", () => {
+  it("loads three and validates every one of them", () => {
+    expect(EXAMPLE_HOLDOUT_CASES).toHaveLength(3);
+    for (const holdout of EXAMPLE_HOLDOUT_CASES) {
+      expect(holdout.id).not.toBe("");
+      expect(holdout.input.instruction.synthetic).toBe(true);
+      expect(holdout.input.instruction.supplierRfc).toMatch(
+        /^SYN[0-9]{6}[A-Z0-9]{3}$/,
+      );
+    }
+  });
+
+  it("carries at least one hard negative, which is the half that decides usability", () => {
+    const negatives = EXAMPLE_HOLDOUT_CASES.filter(
+      (holdout) => holdout.kind === "negative",
+    );
+    expect(negatives.length).toBeGreaterThan(0);
+    for (const holdout of negatives) {
+      expect(holdout.expectedFindings).toHaveLength(0);
+      expect(holdout.expectedAction).toBe("release");
+    }
+  });
+
+  it("explains every expectation, because somebody has to defend it", () => {
+    for (const holdout of EXAMPLE_HOLDOUT_CASES) {
+      for (const expectation of holdout.expectedFindings) {
+        expect(expectation.because).toBeDefined();
+        expect((expectation.because ?? "").length).toBeGreaterThan(20);
+      }
+    }
+  });
+});
+
+describe("emptyMetrics", () => {
+  it("zeroes every field and every detector", () => {
+    const metrics = emptyMetrics();
+    expect(metrics.cases).toBe(0);
+    expect(metrics.precision).toBe(0);
+    expect(Object.keys(metrics.perDetector).sort()).toEqual(
+      [...ALL_DETECTORS].sort(),
+    );
+  });
+});
+
+describe("computeMetrics", () => {
+  it("produces a zeroed table for zero cases", () => {
+    const evaluation = computeMetrics([], []);
+    expect(evaluation.metrics).toEqual(emptyMetrics());
+    expect(evaluation.rows).toEqual([]);
+    expect(evaluation.actionAgreement).toBe(0);
+  });
+
+  it("counts a true positive", () => {
+    const cases = [caseOf()];
+    const evaluation = computeMetrics(cases, [
+      {
+        caseId: "example",
+        findings: [{ detector: "sat_69b" }],
+        action: "hold",
+      },
+    ]);
+
+    expect(evaluation.metrics.truePositives).toBe(1);
+    expect(evaluation.metrics.falsePositives).toBe(0);
+    expect(evaluation.metrics.falseNegatives).toBe(0);
+    expect(evaluation.metrics.precision).toBe(1);
+    expect(evaluation.metrics.recall).toBe(1);
+    expect(evaluation.actionAgreement).toBe(1);
+    // Five detectors were not expected and did not fire.
+    expect(evaluation.metrics.falsePositiveRate).toBe(0);
+  });
+
+  it("counts a false negative when the detector stays quiet", () => {
+    const evaluation = computeMetrics(
+      [caseOf()],
+      [{ caseId: "example", findings: [] }],
+    );
+
+    expect(evaluation.metrics.falseNegatives).toBe(1);
+    expect(evaluation.metrics.recall).toBe(0);
+    expect(evaluation.rows[0]?.missed).toEqual(["sat_69b"]);
+  });
+
+  it("counts a false positive on a hard negative", () => {
+    const negative = caseOf({
+      id: "hard-negative",
+      kind: "negative",
+      expectedFindings: [],
+      expectedAction: "release",
+    });
+    const evaluation = computeMetrics(
+      [negative],
+      [
+        {
+          caseId: "hard-negative",
+          findings: [{ detector: "clabe_forensics" }],
+          action: "hold",
+        },
+      ],
+    );
+
+    expect(evaluation.metrics.falsePositives).toBe(1);
+    expect(evaluation.metrics.precision).toBe(0);
+    expect(evaluation.actionAgreement).toBe(0);
+    // Six detectors were unexpected, one fired, so five are true negatives.
+    expect(evaluation.metrics.falsePositiveRate).toBeCloseTo(1 / 6, 10);
+    expect(evaluation.rows[0]?.spurious).toEqual(["clabe_forensics"]);
+  });
+
+  it("treats a narrowed label as a miss when the state differs", () => {
+    const narrowed = caseOf({
+      expectedFindings: [{ detector: "sat_69b", state: "comprobable" }],
+    });
+    const evaluation = computeMetrics(
+      [narrowed],
+      [
+        {
+          caseId: "example",
+          findings: [{ detector: "sat_69b", state: "requiere_verificacion" }],
+        },
+      ],
+    );
+
+    // comprobable and requiere_verificacion are different things to say to a clerk,
+    // so agreeing on the detector alone is not agreement.
+    expect(evaluation.metrics.truePositives).toBe(0);
+    expect(evaluation.metrics.falseNegatives).toBe(1);
+    expect(evaluation.metrics.falsePositives).toBe(1);
+  });
+
+  it("scores a missing prediction as nothing found, not as a skipped case", () => {
+    const evaluation = computeMetrics([caseOf()], []);
+    expect(evaluation.metrics.cases).toBe(1);
+    expect(evaluation.metrics.falseNegatives).toBe(1);
+    expect(evaluation.rows).toHaveLength(1);
+  });
+
+  it("reports recall 0 for the example cases while the detectors are unwired", () => {
+    const evaluation = computeMetrics(
+      EXAMPLE_HOLDOUT_CASES,
+      predictNothing(EXAMPLE_HOLDOUT_CASES),
+    );
+
+    expect(evaluation.metrics.cases).toBe(3);
+    expect(evaluation.metrics.recall).toBe(0);
+    expect(evaluation.metrics.falsePositives).toBe(0);
+    // The two positive cases expect one finding each, so two misses.
+    expect(evaluation.metrics.falseNegatives).toBe(2);
+  });
+});
