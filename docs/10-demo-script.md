@@ -85,17 +85,34 @@ it just drove, so the way to check this table before a rehearsal is to run it an
 | Retroactive exposure | 404,152.59 MXN: 263,577.78 ISR and 140,574.81 IVA over a deducted base of 878,592.59 | `POST /api/v1/sat/publish` with `simulate` |
 | Blind evaluation | 30 labelled cases, 0.85 precision, 0.81 recall, 0.02 false positive rate | `GET /api/v1/metrics` over the holdout nobody on the detector side wrote |
 
+### Where it is deployed
+
+| Surface | URL | What it proves |
+|---|---|---|
+| Web | <https://sentryone-one.vercel.app> | The screens, from Vercel. `?data=api` forces the deployed backend and renders the error state instead of falling back, `?data=mock` runs the same screens with no network |
+| API | <https://api.104.238.147.69.sslip.io/health> | The Hono app on Vultr, HTTPS through Caddy on a sslip.io name |
+| Same origin | <https://sentryone-one.vercel.app/api/v1/run/current> | The browser only ever talks to Vercel: `vercel.json` rewrites `/api` and `/health` to the instance, so there is no CORS story and no base URL in the bundle |
+
+`sentryone.tech` is not registered yet, issue #59. The URLs above are what goes on the printed card
+until it is. Deploy commands and the topology are in `docs/07-architecture.md#deploy-topology-and-commands`.
+
 ### Curls a judge can paste
 
-Against a local instance started with `SEED=sentryone bun run dev` in `apps/api`.
+Against the deployed instance. Swap the host for `localhost:3000` after `SEED=sentryone bun run dev`
+in `apps/api`, and every line answers the same shapes.
 
 ```bash
-curl -s localhost:3000/api/v1/run/current | jq '.totals'
-curl -s localhost:3000/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
-curl -s 'localhost:3000/api/v1/sat/lookup?rfc=AAA080808HL8' | jq
-curl -s -X POST localhost:3000/api/v1/sat/publish -H 'content-type: application/json' \
+curl -s https://api.104.238.147.69.sslip.io/api/v1/run/current | jq '.totals'
+curl -s https://api.104.238.147.69.sslip.io/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
+curl -s 'https://api.104.238.147.69.sslip.io/api/v1/sat/lookup?rfc=AAA080808HL8' | jq
+curl -s -X POST https://api.104.238.147.69.sslip.io/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' | jq '.totalExposure'
+curl -sN https://api.104.238.147.69.sslip.io/api/v1/events | head -3
 ```
+
+The last line is the one worth running in front of an engineer: `event: ready` arrives immediately
+rather than when the connection closes, which is what `flush_interval -1` in `deploy/Caddyfile`
+buys and what a buffering proxy would take away.
 
 ## Pre-demo checklist
 
@@ -103,6 +120,7 @@ Run this before every rehearsal and before every judge walk-up. It takes ninety 
 the difference between looking real and looking like a prototype.
 
 - [ ] `bun run demo` is green on this machine, right now
+- [ ] The deployed pair answers: `bun run deploy:vultr --smoke-only` prints the run id and the total, and <https://sentryone-one.vercel.app/?data=api> shows `Datos: solo API` with the same figures. `bun run demo --base https://api.104.238.147.69.sslip.io` drives the five beats over HTTP instead, and it appends one instruction to the live run, so follow it with `bun run seed` if the printed totals have to match this file exactly
 - [ ] `bun run seed` has run and printed the expected counts and IDs
 - [ ] `curl /health` returns ok, and `bun run doctor` names the live database path
 - [ ] The SSE stream is alive: the intake page posts one instruction and the row appears

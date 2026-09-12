@@ -1,0 +1,28 @@
+# What Vercel never needs to receive.
+#
+# Vercel builds ONE thing in this repo: the static apps/web bundle, through the
+# buildCommand in vercel.json (`bun run --filter '@hackmty/web' build`). The
+# whole worktree is 8.6 MB, and 7.6 MB of that is the SAT snapshot and the
+# judging assets, neither of which the web bundle imports. Trimming the upload
+# is not a nicety: the 8.6 MB upload failed mid-flight on the venue Wi-Fi on
+# 2026-09-12 and the trimmed one does not.
+#
+# Every workspace package.json stays, because `bun install --frozen-lockfile`
+# resolves the whole workspace graph and fails on a missing member. If the build
+# command here ever grows past apps/web, revisit the two package exclusions
+# below first: they are safe only while apps/web and packages/core are the only
+# sources Vite reads.
+
+assets/
+docs/
+.github/
+.githooks/
+CHANGELOG.md
+
+# Imported by packages/sat and packages/cep only, never by the web bundle.
+packages/sat/src/snapshot/
+packages/cep/src/fixtures/
+
+# Brand and audit tooling, run locally and never at build time.
+apps/web/brand/
+apps/web/audit/

@@ -2,8 +2,16 @@
 
 <!-- TODO(garzario) assets/demo.gif here: under 6 MB, looping, 10 to 15 seconds, no cursor jitter. Issue #73 -->
 
-**Demo video:** TODO(garzario), issue #73 | **Live:** TODO(garzario), issues #44 and #59 |
+**Demo video:** TODO(garzario), issue #73 | **Live:** <https://sentryone-one.vercel.app> |
+**API:** <https://api.104.238.147.69.sslip.io/health> |
 HackMTY 2026, Capital One track 3, Real-Time Anomaly & Security Sentinel
+
+The live URL serves the seeded synthetic company out of Tiger Data through the API on Vultr. Add
+`?data=api` to prove the deployed backend is answering rather than the offline fallback, or
+`?data=mock` to see the same screens with no network at all. `sentryone.tech` is not registered yet
+(issue #59, and the MLH .Tech offer is how it will be): the Vercel project already carries both
+`sentryone.tech` and `www.sentryone.tech`, so the domain is a registration and two DNS records away
+from being the URL above.
 
 ## The problem
 

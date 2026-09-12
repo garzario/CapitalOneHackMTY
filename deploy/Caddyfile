@@ -1,0 +1,33 @@
+# HTTPS in front of apps/api, and nothing else.
+#
+# SENTRYONE_API_HOST is api.<public ip>.sslip.io. sslip.io answers any name that
+# embeds an IPv4 address with that address, so the instance has a real DNS name
+# the moment it boots, Let's Encrypt can reach it over HTTP-01 on port 80, and
+# there is no domain to buy, delegate or wait on. When sentryone.tech exists
+# (issue #59) this same file takes the real name and nothing else changes.
+
+{
+	# The admin API listens on 2019 by default. Nothing here uses it and it is
+	# one more open socket on a public box.
+	admin off
+}
+
+{$SENTRYONE_API_HOST} {
+	reverse_proxy api:3000 {
+		# The line that makes GET /api/v1/events work. -1 flushes every write to
+		# the client immediately instead of buffering it, which is the whole of
+		# Server-Sent Events: a buffered stream shows the judge an empty timeline
+		# until the connection closes.
+		flush_interval -1
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# No `encode`: gzip in front of text/event-stream is the classic way to make an
+# SSE stream arrive in one lump at the end. The JSON payloads here are a few
+# kilobytes and the static bundle is compressed by Vercel, so there is nothing
+# to win and a demo to lose.

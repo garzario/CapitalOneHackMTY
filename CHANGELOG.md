@@ -18,6 +18,32 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The deploy, both halves of it, and the URL a judge can open (issue #44). `apps/web` is a static
+  build on Vercel and `apps/api` runs on one Vultr instance behind Caddy, which terminates HTTPS on
+  `api.<ip>.sslip.io`: sslip.io resolves a name that embeds an IPv4 address to that address, so
+  Let's Encrypt answers the HTTP-01 challenge on a box that has just booted and no domain has to be
+  bought or delegated first. `vercel.json` carries the build (`bun install --frozen-lockfile`, then
+  `bun run --filter '@hackmty/web' build`, output `apps/web/dist`) because the bundle imports
+  `@hackmty/core` from the workspace and a build rooted at `apps/web` cannot resolve it, and it
+  rewrites `/api` and `/health` to the instance so the browser only ever talks to one origin and
+  `apps/web/src/lib/api.ts` keeps its relative paths. `.vercelignore` holds the upload to what the
+  build reads: the SAT snapshot and the judging assets are 7.6 of the repository's 8.6 MB and the
+  web bundle imports neither, which is also why the first upload died mid-flight on the venue Wi-Fi
+  and the trimmed one does not. `scripts/deploy-vultr.ts` creates or reuses the instance labelled
+  `sentryone-api`, sends `deploy/cloud-init.sh` as user data, and ends by calling `/health` and
+  `/api/v1/run/current` over HTTPS, because creating a server is not deploying: it exits non-zero
+  unless the deployed API answers the contract in `docs/09-api.md`. Wiping a reused box is opt in
+  behind `--reinstall`, `--dry-run` prints the user data with the secret block redacted, and the
+  Vultr key being refused for this machine's IP prints the console steps and exits 2 instead of a
+  stack trace. `apps/api/Dockerfile` builds on `oven/bun:1.3.11-slim`, the tag `.bun-version` pins,
+  with the repository root as its context because the API imports eight workspace packages, and
+  ADR-0005's no-`bun:*` rule is untouched: Bun there is packaging, not a dependency of the code.
+  `deploy/Caddyfile` sets `flush_interval -1` and no `encode`, which is what keeps
+  `GET /api/v1/events` streaming instead of arriving in one lump when the connection closes.
+  Deployed and verified on 2026-09-12: <https://sentryone-one.vercel.app> over
+  <https://api.104.238.147.69.sslip.io>, serving `run-2026-09-07` with 92 instructions and
+  2,174,210.76 MXN out of Tiger Data, the same figures `docs/10-demo-script.md` documents.
+
 - The company's bank mirror is seeded into Nessie with our own key, and the key is validated with a
   write (issue #45). `bun run nessie:mirror` pushes one customer, one Checking account and one
   merchant per supplier, then the company's bank mirror: one purchase per outflow that has already

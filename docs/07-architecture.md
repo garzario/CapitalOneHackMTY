@@ -268,17 +268,67 @@ and both are deliberate.
 
 ### Deploy topology and commands
 
+Live as of 2026-09-12 15:32 CST: the web at <https://sentryone-one.vercel.app>, the API at
+<https://api.104.238.147.69.sslip.io>, the ledger on Tiger Data. The browser only ever talks to the
+Vercel origin: `vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle
+carries no base URL and there is no CORS configuration anywhere in `apps/api`.
+
 | Unit | Where | How it is deployed | Evidence |
 |---|---|---|---|
-| `apps/web` | Vercel, static build | Production from `main`, previews from `dev` and every PR, driven by the Vercel GitHub App rather than a workflow in this repo | Preview URL on each UI PR |
-| `apps/api` | Vultr instance, HTTPS in front | TODO(fabbyyyy): the exact commands, per issue #44, which is still open | `curl /health` and an SSE trace |
-| Database | Tiger Data managed Timescale, or Timescale on the same instance | `bun run migrate` applies the four plain files always and the two Timescale files only when the extension exists | `bun run doctor` names the live path |
+| `apps/web` | Vercel, static build | Production from `main`, previews from `dev` and every PR, driven by the Vercel GitHub App rather than a workflow in this repo. `vercel.json` holds the build: `bun install --frozen-lockfile`, then `bun run --filter '@hackmty/web' build`, output `apps/web/dist` | Preview URL on each UI PR |
+| `apps/api` | One Vultr instance, Caddy terminating HTTPS in front of the container | `bun run deploy:vultr`, which reuses the instance labelled `sentryone-api` and ends by calling `/health` and `/api/v1/run/current` over HTTPS | The smoke test the script prints, and the SSE trace below |
+| Database | Tiger Data managed Timescale | `bun run migrate` applies the six plain files always and the three Timescale files only when the extension exists. Live there: `timescaledb 2.30.0` on PostgreSQL 18.6, `ledger_events` and `ledger_tx` as hypertables, `ledger_daily`, `ledger_events_daily` and `supplier_weekly_outflow` as continuous aggregates | `bun run doctor` names the live path |
 | Offline fallback | Local Postgres 18 on 5432, second API port | Same SQL, same driver, same migrations | `docs/10-demo-script.md`, offline section |
 | No database at all | Any laptop | `SEED=sentryone bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
 
-TODO(fabbyyyy): fill the `apps/api` row before M3, including how HTTPS is terminated and which
-environment variables the box needs. The production URL goes in the README and in
-`docs/10-demo-script.md` in the same PR.
+**The web.** `apps/web` is a hash-routed static bundle, so there is no rewrite rule to keep and no
+deep link that can 404 on a static host: `#/intake` is an anchor, which is also why the QR code on
+the printed card survives a change of deploy target. What `vercel.json` does carry is the build,
+because the bundle imports `@hackmty/core` from the workspace and a build rooted at `apps/web`
+cannot resolve it. `.vercelignore` keeps the upload to what the build reads: the SAT snapshot and
+the judging assets are 7.6 of the repository's 8.6 MB and the web bundle imports neither.
+
+**The API, in four moving parts.**
+
+1. `apps/api/Dockerfile` builds on `oven/bun:1.3.11-slim`, the tag that matches `.bun-version`. The
+   build context is the repository root because the API imports eight workspace packages. ADR-0005's
+   no-`bun:*` rule is untouched: Bun here is packaging, not a dependency of the code.
+2. `deploy/docker-compose.yml` runs two services, the API on 3000 with no published port and Caddy
+   holding 80 and 443. The API is reachable only through Caddy, so there is no plaintext port
+   answering the same data.
+3. `deploy/Caddyfile` terminates TLS for `api.<ip>.sslip.io`. sslip.io resolves any name embedding
+   an IPv4 address to that address, so the box has a real DNS name the minute it boots and Let's
+   Encrypt can answer the HTTP-01 challenge with no domain bought or delegated. `flush_interval -1`
+   is the line that makes `GET /api/v1/events` work: a buffered proxy turns Server-Sent Events into
+   one lump at the end of the connection. There is no `encode` directive for the same reason.
+4. `deploy/cloud-init.sh` is what the instance runs on first boot: apt Docker, clone the public repo
+   at the branch it was given, write `/srv/sentryone/.env`, `docker compose up -d --build`. It also
+   writes `/srv/sentryone/refresh.sh <branch>`, which repoints a running box at another branch and
+   rebuilds, so a merge does not need a reprovision.
+
+```bash
+bun --env-file=.env run scripts/deploy-vultr.ts --dry-run   # what would be sent, secrets redacted
+bun run deploy:vultr --branch dev                           # create or reuse, then smoke test
+bun run deploy:vultr --smoke-only                           # just prove the live one answers
+ssh -i ~/.ssh/sentryone_vultr root@<ip> /srv/sentryone/refresh.sh dev
+```
+
+The instance holds its configuration in `/srv/sentryone/.env`, written by cloud-init from the deploy
+machine's own `.env`: `DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`,
+`GEMINI_MODEL` and the three `ELEVENLABS_*` values. `ALLOW_SEED` is forced empty there, because
+`POST /api/v1/seed` would rewrite the demo company under the judges' feet. Two consequences worth
+stating rather than discovering: the values travel inside the Vultr user data, which anyone holding
+the Vultr API key can read back, and they are the same keys the laptops hold, so the rotation after
+the ceremony in `SECURITY.md` covers the box as well.
+
+**Tiger Data, wired.** One connection string does everything: `bun run migrate`, `bun run seed` and
+the deployed API all read `DATABASE_URL`, and `packages/db` opens it lazily through `postgres@3.4.9`
+with `sslmode=require`. `.env` also carries `TIGER_DATABASE_URL`, which is the same string kept
+under its own name so a teammate can point `DATABASE_URL` at the local Postgres 18 for offline work
+without losing the managed one. The password is not in this repository and is not in the deployed
+image: it reaches the instance only through the user data described above, and `describeDatabaseUrl`
+in `apps/api/src/deps.ts` prints the host and the database and never the credentials, because that
+boot line is projected on a screen.
 
 ## Deliberately not in this tree
 
