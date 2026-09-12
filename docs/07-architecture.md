@@ -4,11 +4,12 @@ Worth 5 points directly (system design) and it underwrites the algorithmic-logic
 judge cannot believe the algorithm is real until they can see where it lives and what it touches.
 
 Owner: Patricio (`garzario`). Issue #64. Due M3, drafted at M0, rewritten for SentryOne after
-ADR-0002 was accepted.
+ADR-0002 was accepted, and rewritten again against the merged tree.
 
 Product: SentryOne, track 3. The thesis and the six controls are in
 `docs/adr/0002-track-and-thesis.md`. The domain types are in `packages/core/src/domain.ts` and the
-HTTP contract is in `docs/09-api.md`. Nothing below invents a second shape for either.
+HTTP contract is in `docs/09-api.md`. Nothing below invents a second shape for either. Every figure
+on this page names the command or the file it came from.
 
 ## The shape of the system
 
@@ -19,124 +20,233 @@ with the Wi-Fi off.
 
 ```mermaid
 flowchart LR
-  subgraph S[Sources]
-    X[CFDI 4.0 XML and<br/>payment complements 2.0]
-    P[Payment instruction<br/>email, WhatsApp, PDF, photo]
-    L[SAT Article 69-B list<br/>official snapshot plus URL]
-    C[Banxico CEP<br/>signed XML]
-    N[Nessie sandbox<br/>bank mirror of outflows]
-    G[packages/seed<br/>deterministic generator]
-    H[holdout cases<br/>labelled, owner Apanawa]
+  subgraph S[1 Sources]
+    X["CFDI 4.0 de ingreso<br/>XML"]
+    Y["Complemento de pagos 2.0<br/>XML"]
+    P["Payment instruction<br/>email, WhatsApp, PDF, portal"]
+    Q["QR photo and voice note<br/>from the judge's phone"]
+    L["SAT Article 69-B<br/>official snapshot, 14234 rows"]
+    C["Banxico CEP<br/>signed XML"]
+    N["Nessie sandbox<br/>bank mirror of outflows"]
+    G["packages/seed<br/>deterministic generator, seed 69"]
+    H["packages/seed/src/holdout<br/>30 labelled cases"]
   end
-  subgraph I[Ingest and normalize]
-    PA[packages/core parser<br/>CFDI and complement]
-    SA[packages/sat<br/>loader, versions, matcher]
-    CE[packages/cep<br/>parse and signature check]
-    NE[packages/nessie<br/>the only Nessie caller]
-    DB[(Postgres plus Timescale<br/>ledger_events append-only)]
+
+  subgraph I[2 Ingest and normalise]
+    PA["packages/core/src/cfdi.ts<br/>parseCfdi, parseComplement"]
+    EX["packages/extract<br/>Gemini, transcription only"]
+    SA["packages/sat<br/>loader, versions, matchRfc"]
+    CE["packages/cep<br/>parseCep, verifySignature"]
+    NE["packages/nessie<br/>the only Nessie caller"]
+    DB[("packages/db<br/>Postgres 16+, Timescale optional<br/>ledger_events append-only")]
   end
-  subgraph E[Intelligence, no IO]
-    K[packages/core<br/>six detectors, compose, decide, sweep]
-    T[*.test.ts and the<br/>blind metrics harness]
+
+  subgraph E[3 Intelligence, no IO]
+    K["packages/engine runControls<br/>six adapters over one ComposeInput"]
+    KC["packages/core<br/>clabe, duplicates, behaviour,<br/>reconciliation, decide"]
+    KS["packages/sat<br/>matchRfc, sweep, priceSweep"]
+    KP["packages/cep<br/>nameMatch"]
+    T["1341 tests, 77 files<br/>plus bun run eval"]
   end
-  subgraph U[Surfaces]
-    A[apps/api<br/>Hono, REST plus SSE]
-    W[apps/web<br/>run, findings, QR intake,<br/>sweep, CEP, metrics]
-    D[scripts/demo.ts<br/>headless demo path]
-    R[constancia PDF]
-    M[explanation layer<br/>outside the decision]
+
+  subgraph U[4 Surfaces]
+    A["apps/api<br/>Hono, REST per docs/09-api.md"]
+    SSE["GET /api/v1/events<br/>Server-Sent Events"]
+    W["apps/web, six screens<br/>run, instruction, intake,<br/>SAT, CEP, metrics"]
+    V["verification call<br/>VerifyCallScreen plus packages/voice"]
+    R["packages/constancia<br/>two PDFs"]
+    D["scripts/demo.ts<br/>headless demo path"]
   end
+
   X --> PA
+  Y --> PA
   P --> A
+  Q --> EX
   L --> SA
   C --> CE
   N --> NE
   G --> DB
   H --> T
   PA --> DB
+  EX --> A
   SA --> DB
   CE --> DB
   NE --> DB
   DB --> A
   A --> K
+  K --> KC
+  K --> KS
+  K --> KP
   K --> A
   K --- T
+  A --> SSE
   A --> W
-  A --> D
+  SSE --> W
+  A --> V
   A --> R
-  A -. after the decision, on demand .-> M
+  D -. drives and asserts .-> A
+  V -. never releases a payment .-> A
 ```
 
-Three things to say out loud about this diagram.
+Four things to say out loud about this diagram.
 
 1. **`packages/core` has no edge to the database, to Nessie, to the SAT or to Banxico.** Everything
-   it needs arrives as an argument. That is the whole technical-depth argument in one property.
-2. **The explanation layer is a dashed edge and it points away from the decision.** No model call
-   produces a finding, a score or an action. ADR-0004.
-3. **The ledger is the spine.** `LedgerEvent` is append-only, so the retroactive sweep after a SAT
-   publication is a replay over events that already exist, not a recomputation of mutable rows. That
-   is what makes "we can tell you what you already deducted to a supplier listed yesterday"
-   implementable in 36 hours.
+   it needs arrives as an argument. `packages/engine` exists for that dependency direction and
+   nothing else: `packages/sat` and `packages/cep` already depend on core, so core cannot import
+   them back, and the two adapters that need them live one level up. That is the whole
+   technical-depth argument in one property.
+2. **The language model is in lane 2, not lane 3.** `packages/extract/src/gemini.ts` is the only
+   file in the repository that sends anything to a model. It sends one instruction string this repo
+   wrote plus the bytes of one file a human chose to send us, and it asks for JSON against a fixed
+   schema, so what comes back is a transcription and not an opinion.
+   `packages/extract/src/boundary.test.ts` reads the package's own source and asserts four things:
+   that it names nothing from the decision layer, that it imports from core only the check digit and
+   the normaliser, that no schema field could carry a judgment, and that it sends no supplier, no
+   history and no ledger. ADR-0004.
+3. **The ledger is the spine.** `LedgerEvent` is append-only in the database and not only by
+   convention: `0005_sentryone_drift.sql` installs a trigger that raises `restrict_violation` on an
+   update or a delete. So the retroactive sweep after a SAT publication is a replay over events that
+   already exist, not a recomputation of mutable rows.
+4. **The verification call points back at the API and stops there.** A voice agent that phoned the
+   supplier can append a `verification_call` event, and none of its four outcomes releases a
+   payment. The release stays a `decision_made` a person signs.
 
 ## The most important flow, the intake path
 
 A payment instruction arriving mid-run is the path that touches every lane: it comes in from a
-phone, it is parsed, it is scored by pure functions, it is written as events, and it appears on the
-big screen without anybody reloading anything.
+phone, a model reads eighteen digits off the photo, pure functions score it, it is written as
+events, and it appears on the big screen without anybody reloading anything.
 
 ```mermaid
 sequenceDiagram
-  participant J as Phone, QR intake page
+  autonumber
+  participant J as Judge's phone, intake page
   participant W as apps/web on Vercel
-  participant A as apps/api on Vultr, Hono
-  participant O as CLABE extraction
-  participant D as Postgres plus Timescale
-  participant K as packages/core
+  participant A as apps/api, Hono
+  participant X as packages/extract
+  participant M as Gemini generateContent
+  participant D as Repository, Postgres or memory
+  participant K as engine.runControls plus core.decide
   participant B as Payment-run screen
-  J->>W: scans the QR, opens the intake page
-  J->>A: POST /api/v1/instructions with amount, source and an image
-  A->>A: validate the body with zod
-  A->>O: extract the CLABE from the image
-  O-->>A: clabe plus ocrConfidence
-  A->>D: one read, supplier plus knownAccounts plus recent CFDIs plus complements plus SAT status
-  D-->>A: the context object
-  A->>K: composeFindings(context), then decide(findings, amount, delayCost)
-  Note over K: pure, deterministic, no IO.<br/>Six detectors, expected-loss decision.<br/>Same code path the unit tests run
-  K-->>A: Finding[] plus Decision
-  A->>D: append instruction_received and decision_made in one transaction
-  A-->>J: 201 with the instruction, its findings and the decision
-  A-->>B: SSE event ledger
+  J->>W: scans the QR on the run screen
+  Note over W: intakeLink derives the origin from<br/>the page itself and refuses localhost
+  J->>A: POST /api/v1/instructions<br/>amount, source, image base64
+  A->>A: zValidator over createInstructionBodySchema
+  A->>X: extractor.image(base64)
+  X->>X: sniffMediaType, refuse anything not image
+  X->>M: one instruction string plus the file bytes
+  Note over X,M: thinkingBudget 0, 20 s timeout,<br/>fixed response schema, no ledger,<br/>no supplier, no history
+  M-->>X: clabe plus confidence
+  X-->>A: Read.ok with the reading, or a sentence
+  Note over A: a clabe the clerk typed always wins<br/>over one a model read
+  A->>D: findSupplier, supplierDetail, allCfdis,<br/>allComplements, satLookup, bankMirror
+  D-->>A: one ComposeInput
+  A->>K: runControls(input), then decide(...)
+  Note over K: pure, deterministic, no IO.<br/>Every control lands in ran or skipped<br/>with a named reason
+  K-->>A: CompositionReport plus Decision
+  A->>D: saveIntake, then appendEvent twice:<br/>instruction_received and decision_made
+  A-->>J: 201 instruction, findings, decision
+  A->>B: SSE event: ledger, once per appended event
   B->>B: the row appears, sorted by pesos at risk
 ```
 
-Latency budget, to be measured rather than asserted: TODO(garzario) verify end to end at M3 and
-write the measured milliseconds here, split into extraction, read, compute and append. The claim we
-make out loud is only the one we measured. What we can say without measuring: the compute step has
-no IO and no inference in it, so it cannot be the slow part.
+Three properties of this path that are worth checking rather than believing.
 
-TODO(garzario): decide where CLABE extraction runs, on the device or in `apps/api`, and record it in
-an ADR if it is not trivial. Either way it sits in the transport lane and not in `packages/core`,
-because it is IO. Its output, including `ocrConfidence`, is an input to the detectors, so a blurry
-photo weakens a signal rather than silently inventing one.
+**A server with no key refuses rather than invents.** `UNAVAILABLE_EXTRACTOR` in
+`apps/api/src/extraction.ts` answers every image and every voice note with a sentence, the route
+turns it into `422 unprocessable`, and the whole test suite runs that way: `bun test` never opens a
+socket and never needs a key. A voice note goes down the same path through `extractor.audio`, its
+transcript lands in `PaymentInstruction.text` as context, and no detector reads that field.
+
+**Nothing on this path decides anything in a route handler.** The handler in
+`apps/api/src/routes/instructions.ts` validates, delegates to `runIntake`, stores and emits. The
+arithmetic is `runControls` and `decide`, which is the same entry point the blind evaluation calls.
+
+**The stream is a view of the ledger, never a second source.** `deps.emit` in `apps/api/src/deps.ts`
+appends to the repository first and publishes to the broadcaster second, so a subscriber can never
+see an event that was not stored.
+
+**What the compute step costs, measured.** `assessRun` in `apps/api/src/assess.ts` puts all six
+controls plus `decide` over the whole seeded payment run: 92 instructions against 4103 CFDIs, 3801
+complements and 2446 bank-mirror rows. Median of five runs after a warm-up, on an Apple M3 Pro under
+bun 1.3.11, measured 2026-09-12: 1387 ms for the run, 15.1 ms per line. That is the arithmetic only, with no network and
+no database in it, and it is the number that does not move when the load does, because there is no
+inference in it. TODO(fabbyyyy): measure the full request on the deployed box in #44, split into
+extraction, read, compute and append, and put the measured milliseconds here. The extraction call
+is the part that will dominate, and it only exists when a human sent a file.
+
+## The second flow, the SAT publication replay
+
+This is the product's strongest moment and it is a replay, not a recomputation. A list version is
+published on stage and the question it answers is what that publication just did to invoices the
+company already paid and already deducted.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant P as Presenter, SAT screen
+  participant A as apps/api, Hono
+  participant S as packages/sat
+  participant D as Repository
+  participant C as packages/constancia
+  participant B as Every open screen
+  P->>A: POST /api/v1/sat/publish<br/>simulate true, rfcs, status definitivo
+  A->>A: zValidator over satPublishBodySchema
+  A->>D: findSupplier for each rfc, for the legal names
+  D-->>A: names we actually hold, never an invented one
+  A->>S: simulatePublication(rfcs, now, names, status)
+  Note over S: throws SyntheticOnlyError on any RFC<br/>without the SYN prefix. ADR-0002:<br/>a real RFC never meets a fabricated invoice
+  S-->>A: listVersion plus SatListEntry rows
+  A->>D: publishSatList(listVersion, entries)
+  Note over D: stores the version and its rows,<br/>then returns one SweepSubject per<br/>listed supplier we have actually paid
+  D-->>A: SweepSubject[] with the paid CFDIs
+  A->>S: priceSweep(subjects, listVersion)
+  Note over S: deductedBase is the sum of subtotals.<br/>ISR at 30 per cent, an assumption.<br/>IVA is summed off the CFDIs, never<br/>a base times a rate
+  S-->>A: SweepResult
+  A->>D: appendEvent sat_list_published
+  A->>B: SSE event: ledger
+  A-->>P: 200 SweepResult, totalExposure on screen
+  P->>A: GET /api/v1/sat/constancia?listVersion=
+  A->>D: sweepSnapshot, company, ledger
+  A->>C: sweepConstancia with the sweep,<br/>the source and suppliersChecked
+  Note over C: prints a SHA-256 huella of the<br/>ledger range, and says on the page<br/>that it is not an electronic signature
+  C-->>P: application/pdf, no-store
+```
+
+**The same numbers come out of a pure fold, which is how we know the API is not making them up.**
+`sweep` in `packages/sat/src/sweep.ts` takes `LedgerEvent[]` and nothing else: no database, no clock,
+no network. Over the seeded company (`generateSentryOne({ seed: 69, weekOf: "2026-09-07" })`, 7997
+events) it prices the seeded publication `2026-08-14` in 3.6 ms and returns one newly listed
+supplier, `SYN080910HI8`, with 24 paid CFDIs, a deducted base of MXN 878,592.59, ISR exposure MXN
+263,577.78, IVA exposure MXN 140,574.81 and a total exposure of MXN 404,152.59. The `newlyListed`
+diff is real: republishing the same RFC on a later version returns zero, because it was already
+listed and its exposure was priced then.
+
+The repository path and the fold answer the same question from two directions on purpose. The fold
+is the definition, the repository is what the API stores, and `paidCfdisOf` is exported from the
+same file so that `bank_reconciliation` cannot disagree with the sweep about what "paid" means.
 
 ## Why each choice, and what would make us switch
 
 | Decision | Alternative considered | Why this, for this problem | What would make us switch |
 |---|---|---|---|
-| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. Fast enough cold start for a streaming endpoint | A dependency we genuinely need that does not run on Bun |
+| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 1341 tests across 77 files in 5.8 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
 | TypeScript monorepo, Bun workspaces | Separate repos, or one flat app | All four people commit on day one, and the engine is imported by the API, the tests, the metrics harness and the demo script with nothing published | Nothing in this window |
-| `packages/core`, pure functions, zero dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
-| Event-sourced ledger, `LedgerEvent` append-only | Mutable tables updated in place | The retroactive sweep is the product's strongest moment and it is a replay. With mutable rows, "what did we deduct to this supplier before it was listed" is unanswerable | Nothing before M5. It is the spine |
-| Hono | Express, or a framework-free handler | Small, fast, portable across the three deploy targets we considered, and `@hono/zod-validator` gives request validation that doubles as the documented contract in `docs/09-api.md` | A target that does not support it |
-| Postgres, one dialect, two hosts | SQLite for the offline path | Two dialects means two implementations and two sets of bugs. Same SQL everywhere, same driver, and the offline fallback is a local Postgres 18 rather than a second database. ADR-0003 | Nothing. This was an explicit correction |
-| Timescale on Tiger Data, hypertable on `ledger_events` plus one continuous aggregate | Plain Postgres only | The ledger genuinely is a time series: append-only, read as one company over a window, rolled up per supplier per week. The continuous aggregate is the feed for the supplier-behaviour detector (#72), which is a real use and not a sponsor costume | If the managed instance is unreachable, `0002_timescale.sql` is skipped, the behaviour detector reads the plain-SQL equivalent and the demo still runs |
-| Raw SQL through `postgres@3.4.9`, no ORM | Drizzle or Prisma | When a judge asks how the sweep is fed, the answer is the SQL on screen. No migration tool to fight, no generated client to explain | A schema complex enough that hand-written queries drift |
-| **`apps/api` on a Vultr instance** | Serverless functions on the web host | The payment-run screen updates from a Server-Sent Events stream, and SSE needs a long-lived process. A function runtime with a request timeout either drops the stream or forces a polling fallback that makes the product feel like a report. One small box with the API and Postgres or Timescale next to it also removes a network hop from the read path. This amends ADR-0005, see the note below | If the SSE stream were dropped in favour of polling, the box stops earning its keep and the API goes back to the function runtime |
-| **`apps/web` static on Vercel** | Serving the built assets from the same box | Judges walk up repeatedly across 36 hours and open the product on their own phone. A CDN-hosted static build with a preview URL per pull request is the cheapest way to be reachable and the cheapest evidence to attach to a UI PR. It also means a dead API box costs us the data, not the page | Nothing. The two-unit split is deliberate |
+| `packages/core`, pure functions, zero runtime dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
+| `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `SENTRYONE_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |
+| Event-sourced ledger, `ledger_events` append-only | Mutable tables updated in place | The retroactive sweep is a replay. With mutable rows, "what did we deduct to this supplier before it was listed" is unanswerable. Enforced by a trigger that raises, not by convention | Nothing before M5. It is the spine |
+| Hono 4.13.7 | Express, or a framework-free handler | Small, standards-based, portable across the three deploy targets we considered, and `@hono/zod-validator` gives request validation that doubles as the documented contract in `docs/09-api.md` | A target that does not support it |
+| Postgres, one dialect, two hosts | SQLite for the offline path | Two dialects means two implementations and two sets of bugs. Same SQL everywhere, same driver, and the offline fallback is a local Postgres 18 rather than a second database. ADR-0003 | Nothing. This was an explicit correction, and `bun:sqlite` is now forbidden |
+| Timescale on Tiger Data, hypertables on `ledger_tx` and `ledger_events` | Plain Postgres only | The ledger genuinely is a time series: append-only, read as one company over a window, rolled up per day. `0002` and `0004` add the hypertables and the two continuous aggregates, and they are the honest answer to "what happens at ten times the volume": the same SQL, partitioned by time | Nothing, because the fallback already exists. `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips both files on a plain Postgres 18, where the same rollups run as plain `date_trunc` queries. `bun run doctor` names which path is live |
+| Raw SQL through `postgres@3.4.9`, no ORM | Drizzle or Prisma | When a judge asks how the sweep is fed, the answer is the SQL on screen. No migration tool to fight, no generated client to explain. Numerics cross the boundary as strings and are moved as integer cents | A schema complex enough that hand-written queries drift. `packages/db/src/queries.ts` is the one file to watch |
+| **`apps/api` on a Vultr instance** | Serverless functions on the web host | The payment-run screen updates from a Server-Sent Events stream, and SSE needs a long-lived process. A function runtime with a request timeout either drops the stream or forces a polling fallback that makes the product feel like a report. One small box with the API and Postgres next to it also removes a network hop from the read path. This amends ADR-0005, see below | If the SSE stream were dropped in favour of polling, the box stops earning its keep and the API goes back to the function runtime, which the no-`bun:*` rule keeps available |
+| **`apps/web` static on Vercel** | Serving the built assets from the same box | Judges walk up repeatedly across 36 hours and open the product on their own phone. A CDN-hosted static build with a preview URL per pull request is the cheapest way to be reachable and the cheapest evidence to attach to a UI PR. A dead API box then costs us the data, not the page | Nothing. The two-unit split is deliberate |
+| Hash router in `apps/web`, no router dependency | A path router | The app ships as a static build, so a path router needs a rewrite rule on the host for every deep link, and `#/intake` inside a QR code would break the first time a deploy target changed | A server-rendered surface, which we do not have |
+| **Gemini boxed to extraction** (`packages/extract`) | A model call that reads the whole instruction and proposes an action | The model is handed one instruction string and one file, and asked for JSON against a fixed schema with no field that could carry a judgment. Thinking is off: transcription needs none, and on a small output budget thinking tokens can eat the whole allowance and return an empty answer. The Files API is deliberately unused, because a file uploaded there is stored by the provider | A document type the post-processor genuinely cannot read. Any move of the boundary needs its own ADR, and `boundary.test.ts` fails first |
+| **ElevenLabs for the verification call** (`packages/voice`) | A human-only phone call, or a chatbot | When the decision is `verify`, somebody has to ring the supplier. The agent reads a script this repo wrote and the outcome parser is deterministic string work, not a model. The endpoint answers `422` with the exact script when the keys are absent, so the clerk reads it on their own telephone and the demo never depends on a provider | A provider outage, which already degrades to the script. The parser stays deterministic whatever happens to the caller |
 | **No LLM in the decision** | A model call per instruction, or per finding | Cost that scales with volume, hundreds of milliseconds of latency, non-determinism that cannot be unit-tested, and a transfer of financial data to a third party that LFPDPPP constrains. Every one of those is a point lost under this rubric. Deterministic scoring is auditable, reproducible in a test and explainable to a regulator. ADR-0004 | A control that genuinely needs semantic judgment inside the decision, which would need its own ADR with a measured cost per call first |
-| An explanation layer outside the decision, on demand | No natural language at all | Plain-Spanish phrasing of an already-computed finding is genuinely useful to the persona and costs approximately nothing when a human asks for it. It never changes an action, a severity or a state | If it cannot be kept out of the decision path cleanly, it is cut |
-| SSE over polling, and over WebSocket | Poll every N seconds, or a socket layer | The product's live moment is "the instruction a judge just sent from their phone appears on the big screen in under two seconds" (#48). SSE is one HTTP response, reconnects on its own, and needs no protocol upgrade or extra library | Bidirectional traffic from the browser, which we do not have |
-| One web client | A native iOS client | Continuous evaluation means repeated walk-ups. A URL a judge opens on their own phone beats handing them our device, and it keeps signing and provisioning off the critical path. ADR-0001 | The deviation condition in ADR-0001 |
+| SSE over polling, and over WebSocket | Poll every N seconds, or a socket layer | The product's live moment is the instruction a judge just sent from their phone appearing on the big screen. SSE is one HTTP response, the browser reconnects on its own, and it needs no protocol upgrade or extra library. A `ready` event on connect, a comment line every 15 s and `X-Accel-Buffering: no` are the three details that make it survive a proxy | Bidirectional traffic from the browser, which we do not have |
+| One web client | A native iOS client | Continuous evaluation means repeated walk-ups. A URL a judge opens on their own phone beats handing them our device, and it keeps signing and provisioning off the critical path. ADR-0001 | The deviation condition in ADR-0001, which is a differentiator that is inherently on-device |
 
 The full scored stack matrix is in `docs/adr/0001-stack-and-runtime.md`. The datastore reasoning is
 in `docs/adr/0003-datastore-and-timeseries.md`. The LLM boundary and its cost model are in
@@ -144,52 +254,54 @@ in `docs/adr/0003-datastore-and-timeseries.md`. The LLM boundary and its cost mo
 
 ### The ADR-0005 amendment, stated rather than hidden
 
-ADR-0005 is Accepted with `apps/api` on a function runtime and the hard consequence that `apps/api`
-imports no `bun:*` modules. Issue #44 moves `apps/api` to a Vultr instance because the SSE stream
-needs a long-lived process. Two things follow and both are deliberate.
+ADR-0005 was accepted with `apps/api` on a function runtime and the hard consequence that
+`apps/api` imports no `bun:*` modules. The amendment dated 2026-09-12 03:10 in that file moves
+`apps/api` to a Vultr instance because the SSE stream needs a long-lived process. Two things follow
+and both are deliberate.
 
 1. **The no-`bun:*` rule stays.** It costs us nothing on a box we control and it keeps the API
    portable, so the function runtime remains a live fallback if the instance dies at 05:00. A
    constraint that buys a fallback for free is kept.
-2. TODO(garzario): amend ADR-0005 in the same pull request that lands the deploy (#44), with the
-   status line updated and this reasoning copied there. An architecture doc that contradicts an ADR
-   is worse than either one alone.
+2. **The amendment is in the ADR and not only here.** An architecture doc that contradicts an ADR is
+   worse than either one alone, which is why the status line, the reasoning and the tracking issue
+   (#44) are all written into `docs/adr/0005-deploy-target.md` itself.
 
 ### Deploy topology and commands
 
 | Unit | Where | How it is deployed | Evidence |
 |---|---|---|---|
 | `apps/web` | Vercel, static build | Production from `main`, previews from `dev` and every PR, driven by the Vercel GitHub App rather than a workflow in this repo | Preview URL on each UI PR |
-| `apps/api` | Vultr instance, HTTPS in front | TODO(fabbyyyy): the exact commands, per issue #44 | `curl /health` and an SSE trace |
-| Database | Tiger Data managed Timescale, or Timescale on the same instance | `bun run migrate` applies `0001` always and `0002` only when the `timescaledb` extension exists | `bun run doctor` names the live path |
+| `apps/api` | Vultr instance, HTTPS in front | TODO(fabbyyyy): the exact commands, per issue #44, which is still open | `curl /health` and an SSE trace |
+| Database | Tiger Data managed Timescale, or Timescale on the same instance | `bun run migrate` applies the four plain files always and the two Timescale files only when the extension exists | `bun run doctor` names the live path |
 | Offline fallback | Local Postgres 18 on 5432, second API port | Same SQL, same driver, same migrations | `docs/10-demo-script.md`, offline section |
+| No database at all | Any laptop | `SEED=sentryone bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
 
-TODO(fabbyyyy): fill the command rows before M3, including how HTTPS is terminated and which
+TODO(fabbyyyy): fill the `apps/api` row before M3, including how HTTPS is terminated and which
 environment variables the box needs. The production URL goes in the README and in
 `docs/10-demo-script.md` in the same PR.
 
 ## Deliberately not in this tree
 
-Git cannot track an empty directory, so these are recorded here rather than as empty folders.
+Git cannot track an empty directory, so these are recorded here rather than as empty folders. Each
+row carries the condition that would create it, because a decision with no reversal condition is a
+preference.
 
-- **`apps/ios`.** Not created. The condition that would create it is in ADR-0001: a differentiator
-  that is inherently on-device. Ours is not. The camera path we do need is a web intake page a judge
-  opens from a QR code, which needs no signing and no store.
-- **`services/ml`, a Python sidecar.** Not created. Every one of the six controls is arithmetic,
-  string distance, a state machine or a check digit. A testable TypeScript implementation scores
-  higher on algorithmic logic than an opaque artifact, and ADR-0001 already recorded that decision.
-- **A queue or a worker tier.** Not created. The sweep is a replay over events that fits in one
-  request at demo scale, and the SSE fan-out is one process. The condition that creates one is in
-  the scaling section below, stated as a threshold rather than as a feeling.
-- **A second database for the SAT list.** Not created. A list version is rows in Postgres plus an
-  in-memory map keyed by RFC, rebuilt on load.
+| Not built | Why not | What would create it |
+|---|---|---|
+| **`apps/ios`**, a native client | ADR-0001 scored it as the strongest originality and privacy story and the worst fit for continuous evaluation: signing and provisioning on the critical path, no link a judge can open, two people idle on UI work. The camera path we do need is a web intake page opened from a QR code | A differentiator that is inherently on-device: on-device inference so raw transactions never leave the phone, lock-screen alerts, NFC or CoDi. ADR-0001 says B is a superset of A in the same repo, never a rewrite, and the deadline for that call was 2026-09-11 22:00 |
+| **`services/ml`**, a Python sidecar | Every one of the six controls is arithmetic, string distance, a state machine or a check digit. A testable TypeScript implementation scores higher on algorithmic logic than an opaque artifact, and it keeps one runtime, one lockfile and one CI job | A model with no TypeScript equivalent that the product genuinely needs. ADR-0001 states the rule as a threshold: under 150 lines of maths goes in `packages/core` |
+| **MongoDB**, including MongoDB Atlas | It is an MLH prize category (`docs/00-challenge.md`), which is exactly why it is named here rather than quietly skipped. Our two write shapes are an append-only event log and a set of projections with foreign keys and check constraints, and both are Postgres shapes. Adopting a document store for a prize would be the sponsor-costume version of the Timescale decision we made honestly | A workload that is genuinely document-shaped. The nearest candidate is raw Nessie payloads, whose `_id` mixes UUIDs and Mongo ObjectIds and whose `amount` mixes integers and floats, and today those live verbatim in `ledger_tx.raw` as `jsonb`, which costs nothing and needs no second database |
+| **A queue or a worker tier** | The sweep is a replay over events that fits in one request at demo scale: 3.6 ms over 7997 events. The SSE fan-out is one process | A second API instance, which is the SSE row of the scaling table below: the fan-out moves to Postgres `LISTEN`/`NOTIFY` and a sweep that no longer fits one request goes behind the same publisher. Until then a queue would be a component with nothing in it |
+| **A second database for the SAT list** | A list version is rows in `sat_list_versions` and `sat_list_entries` plus an in-memory index keyed by RFC, rebuilt on load. The committed official snapshot is 14234 rows and 28935 situations, parsed once per process | Nothing at this size. Matching is a hash lookup, so growth changes load time and not query time |
+| **An LLM explanation layer** | ADR-0004 allows one, on demand and outside the decision. It is not built: `Finding.explanation` is deterministic Spanish written by the control that produced the finding | A clerk asking for a rephrasing often enough to be worth the cost model in `docs/06-regulatory-privacy.md`. It never changes an action, a severity or a state |
 
 ## How this scales beyond one platform
 
 **The contract is the boundary.** `apps/web` is one consumer of the documented HTTP contract in
 `docs/09-api.md`. A WhatsApp intake bot, an accounting firm's own portal or a bank's SMB portal are
 additional consumers of the same endpoints, not rewrites. The QR intake page already proves the
-shape: a surface we did not build the UI framework for can create an instruction with one POST.
+shape: a surface built with none of the run screen's components creates an instruction with one
+POST.
 
 **The intelligence travels.** `packages/core` has zero runtime dependencies and no IO, so it can be
 imported by a partner's backend, or run inside the client when data residency requires that the
@@ -201,12 +313,29 @@ reassuring.
 
 | Limit | What happens | The fix, and when it is worth doing |
 |---|---|---|
-| SSE fan-out on one process | Open streams cost memory and the box becomes the single point of failure | Shard by company, or put the stream behind a broker. Not before there is more than one customer |
-| Detector work per run | Every detector is O(n) over one company's window with no IO, so a run is bounded by the read | Nothing to do until a single company exceeds a run the read cannot serve. TODO(garzario) verify the real per-run timing at M3 |
-| SAT list size | A list version is loaded once and matched by hash lookup, so matching is O(1) per supplier | Nothing. Growth in the list changes load time, not query time |
-| Ledger growth | Append-only rows accumulate for every company | This is the Timescale case: hypertable partitioning by time plus the continuous aggregate that already feeds the behaviour detector |
-| The retroactive sweep | A replay over the affected supplier's events | Bounded by the events of newly listed suppliers, not by the whole ledger. Only ever replays what the publication touched |
+| SSE fan-out on one process | `createBroadcaster` is a `Set` of callbacks inside one process, so two API instances do not see each other's events and a browser on instance B misses what instance A appended | Publish through Postgres `LISTEN`/`NOTIFY` on the ledger table. The `LedgerBroadcaster` interface stays and only `createBroadcaster` changes, which is the TODO already written in `apps/api/src/events.ts`. Worth doing the day there is a second instance, not before |
+| Detector work per run | Every control is O(n) over one company's window with no IO. Measured: 15.1 ms per line over 4103 CFDIs and 2446 mirror rows, so a 92-line run costs 1.4 s of arithmetic | Narrow the evidence per line. `composeInputFor` hands every control the whole ledger because the concentration signal needs it as a denominator, so the first fix is a precomputed per-supplier rollup, which is exactly what a continuous aggregate is for. Worth doing when one company's history stops fitting a single read |
+| SAT list size | A version is loaded once and matched by hash lookup, so matching is O(1) per supplier. The `sweep` fold indexes the version rather than filtering per RFC, because a filter inside the loop makes publishing quadratic over the 28935 situations the committed snapshot carries | Nothing. Growth in the list changes load time, not query time |
+| Ledger growth | Append-only rows accumulate for every company | This is the Timescale case: `0004` partitions `ledger_events` by `at` and keeps `ledger_events_daily` as a continuous aggregate, so the timeline reads a rollup instead of scanning |
+| The retroactive sweep | A replay over the newly listed suppliers' events | Bounded by what the publication touched and not by the whole ledger: a supplier already listed on a prior version is skipped, so a republication costs nothing |
+| Rate limiting on the public lookup | `GET /api/v1/sat/lookup` is 30 requests per minute per client, counted per process and keyed on the forwarded client address, which is caller-controlled | It stops one machine enumerating 14234 taxpayers and it is not a defence against a distributed client. A shared counter is the fix, and it arrives with the second instance, alongside the broker above |
 
-**Multi-tenancy.** One company is one partition key on the ledger. An accounting firm holding thirty
-companies is thirty partitions behind one screen, which is the distribution path in
-`docs/05-business-model.md` rather than a new architecture.
+**Multi-tenancy, stated as what is built and what is not.** Today the schema is single-tenant by
+construction: `0006_company.sql` declares `id integer primary key default 1 check (id = 1)`, so a
+second company row is refused by the database rather than left silently ambiguous. That is the honest shape for a
+36-hour prototype, and it is the shape that makes every read simple enough to show a judge.
+
+The path to many tenants is one column and one policy, and it is worth saying precisely because the
+business model in `docs/05-business-model.md` sells to accounting firms holding thirty companies:
+
+1. `company_id` becomes a column on `ledger_events`, `instructions`, `cfdis`, `suppliers` and the
+   projections, and the leading column of every index that already starts with a time or an RFC.
+2. On Timescale it becomes the space dimension next to `at`, so one tenant's ledger is one set of
+   chunks and a scan never crosses a customer.
+3. The intelligence lane does not change at all. Every pure function is already called with one
+   company's context already selected, so the tenant key never reaches `packages/core`. That is why
+   `COMPANY` is not in `domain.ts`, and it is what lets a detector be tested with ten lines of
+   fixture.
+4. An accounting firm holding thirty companies is thirty partitions behind one screen and one
+   `Repository`, which is the distribution path in `docs/05-business-model.md` rather than a new
+   architecture. The firm plan is a list view over the same run endpoint, not a second product.
