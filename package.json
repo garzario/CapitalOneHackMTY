@@ -14,7 +14,8 @@
     "migrate": "bun run scripts/migrate.ts",
     "seed": "bun run scripts/seed.ts",
     "reset": "bun run scripts/reset.ts",
-    "demo": "bun run scripts/demo.ts"
+    "demo": "bun run scripts/demo.ts",
+    "voice-setup": "bun run scripts/voice-setup.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",

@@ -32,6 +32,8 @@ import type {
   SatListEntry,
   Supplier,
   SweepResult,
+  VerificationOutcome,
+  VerificationTurn,
 } from "@hackmty/core";
 import { z } from "zod";
 
@@ -229,6 +231,21 @@ export const decisionSchema = z.object({
   decidedBy: z.string().min(1).optional(),
 }) satisfies z.ZodType<Decision>;
 
+/** One turn of a verification call, as the voice provider reported it. */
+export const verificationTurnSchema = z.object({
+  role: z.enum(["agent", "supplier"]),
+  text: z.string().min(1).max(4000),
+  atSecond: z.number().nonnegative().optional(),
+}) satisfies z.ZodType<VerificationTurn>;
+
+/** None of the four releases a payment. A person still signs the decision. */
+export const verificationOutcomeSchema = z.enum([
+  "confirmed",
+  "denied",
+  "no_answer",
+  "unclear",
+]) satisfies z.ZodType<VerificationOutcome>;
+
 export const ledgerEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("cfdi_received"),
@@ -262,6 +279,19 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     at: instantSchema,
     cep: cepSchema,
     supplierRfc: rfcSchema,
+  }),
+  z.object({
+    type: z.literal("verification_call"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    supplierRfc: rfcSchema,
+    outcome: verificationOutcomeSchema,
+    /** Four digits, because the full CLABE is never spoken and never stored here. */
+    clabeLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+    evidence: z.string().min(1).max(4000).optional(),
+    transcript: z.array(verificationTurnSchema).max(200),
+    conversationId: z.string().min(1).max(200).optional(),
+    manual: z.boolean(),
   }),
   z.object({
     type: z.literal("decision_made"),
@@ -394,6 +424,46 @@ export const decideResponseSchema = z.object({
   decision: decisionSchema,
 });
 
+/**
+ * The script the agent reads, or the clerk reads when telephony is not there.
+ * It carries four digits of the account and never the whole of it.
+ */
+export const verificationScriptSchema = z.object({
+  firstMessage: z.string().min(1),
+  question: z.string().min(1),
+  clabeLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+  spoken: z.array(z.string().min(1)),
+});
+
+/**
+ * Three answers, one shape. `calling` means the telephone is ringing and the
+ * transcript is not there yet; `recorded` means an outcome reached the ledger.
+ * `outcome` is never an instruction to release: the decision stays a separate
+ * `POST /api/v1/instructions/:id/decide` that a person signs.
+ */
+export const verifyCallResponseSchema = z.object({
+  status: z.enum(["calling", "recorded"]),
+  script: verificationScriptSchema,
+  conversationId: z.string().min(1).optional(),
+  outcome: verificationOutcomeSchema.optional(),
+  evidence: z.string().min(1).optional(),
+  transcript: z.array(verificationTurnSchema).optional(),
+  /** Always present so the UI never has to infer it from the absence of a call. */
+  releasesPayment: z.literal(false),
+});
+
+/**
+ * `GET` on the same path: the script, with nothing done about it. Side effect
+ * free on purpose, so the page can show the clerk what will be said without a
+ * telephone ringing first.
+ */
+export const verifyCallScriptResponseSchema = z.object({
+  script: verificationScriptSchema,
+  /** Whether the three ElevenLabs variables are set on this deployment. */
+  voiceConfigured: z.boolean(),
+  releasesPayment: z.literal(false),
+});
+
 export const seedResponseSchema = z.object({
   seed: z.number().int(),
   suppliers: z.number().int().nonnegative(),
@@ -481,6 +551,36 @@ export const cepVerifyBodySchema = z.union([
   }),
 ]);
 
+/**
+ * Three ways to run the verification call, and exactly one of them per request.
+ *
+ * `toNumber` rings the supplier through the voice provider. `conversationId`
+ * collects a call that already happened, which is also how the browser fallback
+ * on /verify-call reports itself. `outcome` records a call a person made by
+ * hand, which is what the clerk uses when there is no telephony on site at all.
+ *
+ * The union is ordered so that the hand-recorded variant cannot swallow the
+ * other two: each object names a different required key.
+ */
+export const verifyCallBodySchema = z.union([
+  z.object({
+    /** E.164. The shape is checked again in @hackmty/voice before any call. */
+    toNumber: z
+      .string()
+      .trim()
+      .regex(/^\+[1-9]\d{7,14}$/, "E.164 telephone number"),
+  }),
+  z.object({
+    conversationId: z.string().min(1).max(200),
+  }),
+  z.object({
+    outcome: verificationOutcomeSchema,
+    /** What the person heard, quoted. Optional, because silence is an outcome. */
+    evidence: z.string().min(1).max(4000).optional(),
+    recordedBy: z.string().min(1).max(120),
+  }),
+]);
+
 export const seedBodySchema = z.object({
   seed: z
     .number()
@@ -527,4 +627,9 @@ export type CreateInstructionBody = z.infer<typeof createInstructionBodySchema>;
 export type DecideBody = z.infer<typeof decideBodySchema>;
 export type SatPublishBody = z.infer<typeof satPublishBodySchema>;
 export type CepVerifyBody = z.infer<typeof cepVerifyBodySchema>;
+export type VerifyCallBody = z.infer<typeof verifyCallBodySchema>;
+export type VerifyCallResponse = z.infer<typeof verifyCallResponseSchema>;
+export type VerifyCallScriptResponse = z.infer<
+  typeof verifyCallScriptResponseSchema
+>;
 export type SeedBody = z.infer<typeof seedBodySchema>;

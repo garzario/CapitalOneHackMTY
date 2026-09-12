@@ -18,6 +18,7 @@
         "@hackmty/core": "workspace:*",
         "@hackmty/engine": "workspace:*",
         "@hackmty/extract": "workspace:*",
+        "@hackmty/voice": "workspace:*",
         "@hono/zod-validator": "0.9.1",
         "hono": "4.13.7",
         "zod": "4.5.4",
@@ -135,6 +136,17 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/voice": {
+      "name": "@hackmty/voice",
+      "version": "0.1.0",
+      "dependencies": {
+        "@hackmty/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "5.9.3",
+      },
+    },
   },
   "packages": {
     "@biomejs/biome": ["@biomejs/biome@2.5.12", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.5.12", "@biomejs/cli-darwin-x64": "2.5.12", "@biomejs/cli-linux-arm64": "2.5.12", "@biomejs/cli-linux-arm64-musl": "2.5.12", "@biomejs/cli-linux-x64": "2.5.12", "@biomejs/cli-linux-x64-musl": "2.5.12", "@biomejs/cli-win32-arm64": "2.5.12", "@biomejs/cli-win32-x64": "2.5.12" }, "bin": { "biome": "bin/biome" } }, "sha512-Lw4VHZRebrReBBnlHa12JQjnIBm3JJAA55PDB9LbBVBF0q4RYphm6KfmIjqtPhf61MxZ5Q9KoK8R8x+7per5Aw=="],
@@ -172,6 +184,8 @@
     "@hackmty/sat": ["@hackmty/sat@workspace:packages/sat"],
 
     "@hackmty/seed": ["@hackmty/seed@workspace:packages/seed"],
+
+    "@hackmty/voice": ["@hackmty/voice@workspace:packages/voice"],
 
     "@hackmty/web": ["@hackmty/web@workspace:apps/web"],
 
