@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { LedgerEvent } from "@hackmty/core";
+import type { Detector, LedgerEvent } from "@hackmty/core";
+import { runControlsFor } from "../pipeline";
 import {
   decideResponseSchema,
   instructionDetailSchema,
@@ -216,6 +217,191 @@ describe("POST /api/v1/instructions", () => {
     );
 
     expect(res.status).toBe(400);
+  });
+});
+
+/**
+ * The hero instruction of the demo, and the reason issue #106 exists.
+ *
+ * Before this, three of the six controls were wired and three were not, and the
+ * payment run said nothing about the difference. So these tests assert two
+ * things rather than one: the findings the evidence justifies, and an explicit
+ * outcome for every single control, so a control that stops being called fails a
+ * test instead of quietly returning an empty rail.
+ *
+ * `SYN020202BBB` is on the Article 69-B list as presunto since 2026-08-29, and
+ * this CLABE is two digits away from the account it has been paid on 11 times
+ * with a valid check digit, which is a changed account and not a typo.
+ */
+describe("POST /api/v1/instructions, the six controls", () => {
+  const HERO = {
+    supplierRfc: "SYN020202BBB",
+    amount: 96450.8,
+    clabe: "012580000987654126",
+    cfdiUuids: ["A0000002-0000-4000-8000-000000000002"],
+    source: "whatsapp",
+    text: "Les paso la cuenta nueva para el pago de esta semana.",
+  };
+
+  /** Every control and what it did: a finding, silence, or a named skip. */
+  async function outcomes(): Promise<Record<Detector, string>> {
+    const { app, deps } = createTestApp();
+    const intake = intakeResponseSchema.parse(
+      await (await app.request("/api/v1/instructions", json(HERO))).json(),
+    );
+    const detail = await deps.repo.instructionDetail(intake.instruction.id);
+    if (detail === undefined) {
+      throw new Error("the instruction was not stored");
+    }
+
+    const report = await runControlsFor(
+      deps.repo,
+      detail.instruction,
+      TEST_NOW,
+    );
+    const table = {} as Record<Detector, string>;
+    for (const detector of report.ran) {
+      const found = report.findings.filter(
+        (finding) => finding.detector === detector,
+      ).length;
+      table[detector] = found === 0 ? "ran, nothing found" : `${found} finding`;
+    }
+    for (const row of report.skipped) {
+      table[row.detector] = `skipped: ${row.reason}`;
+    }
+    return table;
+  }
+
+  it("accounts for every one of the six controls, with no silent slot", async () => {
+    expect(await outcomes()).toEqual({
+      // The fiscal hook of ADR-0002 and the changed account, on one payment.
+      sat_69b: "1 finding",
+      clabe_forensics: "1 finding",
+      // Ran and stayed quiet, each for a reason a person can state: this
+      // invoice is settled by nothing else, eleven invoices is not enough
+      // history to test a behaviour change, and the payment has not been sent
+      // so the bank statement cannot contradict it yet.
+      duplicate_invoice: "ran, nothing found",
+      supplier_behaviour: "ran, nothing found",
+      bank_reconciliation: "ran, nothing found",
+      // The one control that is genuinely not armed here, and it says so.
+      beneficiary_cep: "skipped: no_cep",
+    });
+  });
+
+  it("returns both findings and asks for verification before the SPEI leaves", async () => {
+    const { app } = createTestApp();
+    const res = await app.request("/api/v1/instructions", json(HERO));
+
+    expect(res.status).toBe(201);
+    const intake = intakeResponseSchema.parse(await res.json());
+
+    expect(intake.findings.map((finding) => finding.detector).sort()).toEqual([
+      "clabe_forensics",
+      "sat_69b",
+    ]);
+    for (const finding of intake.findings) {
+      expect(finding.severity).toBe("critical");
+      expect(finding.state).toBe("requiere_verificacion");
+    }
+
+    // Nothing is auto-released while a critical finding stands, and nothing is
+    // held either: neither finding is provable from the documents alone.
+    expect(intake.decision.action).toBe("verify");
+    expect(intake.decision.findings).toHaveLength(2);
+  });
+
+  it("names the list version and the account the 69-B and CLABE findings rest on", async () => {
+    const { app } = createTestApp();
+    const intake = intakeResponseSchema.parse(
+      await (await app.request("/api/v1/instructions", json(HERO))).json(),
+    );
+    const evidence = Object.fromEntries(
+      intake.findings.map((finding) => [finding.detector, finding.evidence]),
+    );
+
+    expect(evidence.sat_69b?.status).toBe("presunto");
+    expect(evidence.sat_69b?.listVersion).toBe("2026-08-29");
+    expect(evidence.clabe_forensics?.nearestKnownAccount).toBe(
+      "012580000987654320",
+    );
+    expect(evidence.clabe_forensics?.editOperations).toBe(2);
+    // A changed account with a valid check digit is not a typo, and the finding
+    // says so rather than letting the clerk assume somebody fat-fingered it.
+    expect(evidence.clabe_forensics?.checkDigit).toBe("valid");
+  });
+
+  it("arms the CEP control on an account a one-cent probe already verified", async () => {
+    const { app, deps } = createTestApp();
+    const intake = intakeResponseSchema.parse(
+      await (
+        await app.request(
+          "/api/v1/instructions",
+          json({
+            supplierRfc: "SYN070707GGG",
+            amount: 78000,
+            clabe: "030580000999000119",
+            cfdiUuids: ["A0000007-0000-4000-8000-000000000007"],
+            source: "manual",
+          }),
+        )
+      ).json(),
+    );
+    const detail = await deps.repo.instructionDetail(intake.instruction.id);
+    const report = await runControlsFor(
+      deps.repo,
+      // biome-ignore lint/style/noNonNullAssertion: the intake above stored it.
+      detail!.instruction,
+      TEST_NOW,
+    );
+
+    expect(report.skipped).toEqual([]);
+    expect(report.ran).toHaveLength(6);
+
+    const cep = intake.findings.find(
+      (finding) => finding.detector === "beneficiary_cep",
+    );
+    // Good news, and only info: the holder on the Banxico CEP is the company
+    // that issued the invoice, so this can never move an action by itself.
+    expect(cep?.severity).toBe("info");
+    expect(cep?.amountAtRisk).toBe(0);
+    expect(cep?.evidence.nameMatch).toBe("match");
+    expect(intake.decision.action).toBe("release");
+  });
+
+  it("prices the delay from the supplier record, not from a constant", async () => {
+    const { app } = createTestApp();
+    const priced = intakeResponseSchema.parse(
+      await (
+        await app.request(
+          "/api/v1/instructions",
+          json({
+            supplierRfc: "SYN030303CCC",
+            amount: 208350,
+            clabe: "072580000456123788",
+            source: "portal",
+          }),
+        )
+      ).json(),
+    );
+    const unpriced = intakeResponseSchema.parse(
+      await (
+        await app.request(
+          "/api/v1/instructions",
+          json({
+            supplierRfc: "SYN010101AAA",
+            amount: 67450,
+            clabe: "058580000123456715",
+            source: "portal",
+          }),
+        )
+      ).json(),
+    );
+
+    expect(priced.decision.delayCostPerDay).toBe(1800);
+    // Absent on the record reads as zero, the documented default, and the
+    // engine then releases only what is clean.
+    expect(unpriced.decision.delayCostPerDay).toBe(0);
   });
 });
 

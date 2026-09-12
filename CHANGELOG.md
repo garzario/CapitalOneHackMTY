@@ -12,6 +12,17 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- `packages/engine`: the six controls of ADR-0002 behind one call, `runControls(input)`. It holds
+  the two adapters that `packages/core` cannot hold without a dependency cycle, `sat_69b` over
+  `matchRfc` plus the retroactive `SweepResult` exposure, and `beneficiary_cep` over `nameMatch`
+  and the CEP signature state. `apps/api` depends on it.
+- `matchRfc` in `packages/sat`: the Article 69-B situation in force for one RFC, newest DOF
+  publication first, so a taxpayer who cleared their name is never reported as listed.
+- `Supplier.delayCostPerDay`, optional, with a documented default of zero, and `supplierModelOf`
+  in `packages/core` to read it. The expected-loss engine now weighs the delay against a number on
+  the supplier record instead of a constant in a route handler.
+- `Repository.allComplements` and `Repository.bankMirror` in `apps/api`, so the duplicate and
+  reconciliation controls see every complement and the Nessie bank statement.
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 - `apps/api` scaffold for the contract in `docs/09-api.md`: one file per route group under
@@ -52,4 +63,17 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Fixed
 
+- The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
+  dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
+  landed it called none of them and `composeFindings` returned an empty array for all six slots
+  while the tests stayed green. It is replaced by explicit, typed `DetectorAdapter`s over a single
+  `ComposeInput`, and `composeFindingsReport` now accounts for every control in either `ran` or
+  `skipped` with a named reason, so silence can never be read as a clean payment again.
+- `isFinding` rejected `subject.kind: "ledger_tx"`, which the domain contract allows, so every
+  `unbacked_outflow` from the reconciliation detector was dropped before it reached the clerk.
+
 ### Removed
+
+- The dynamic `DETECTOR_REGISTRY`, `asDetectorModule` and the call-shape guessing in
+  `packages/core/src/decision.ts`, together with the detector wiring `apps/api/src/pipeline.ts`
+  carried to work around them.

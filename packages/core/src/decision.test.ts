@@ -1,19 +1,29 @@
 import { describe, expect, it } from "bun:test";
 import {
-  asDetectorModule,
   assessInstruction,
+  CORE_DETECTORS,
+  type ComposeInput,
   composeFindings,
   composeFindingsReport,
-  type DetectorContext,
-  type DetectorModule,
+  DEFAULT_DELAY_COST_PER_DAY,
+  type DetectorAdapter,
   decide,
   delayCost,
+  detectorRan,
   estimateLoss,
   isFinding,
   type SupplierModel,
   sortFindings,
+  supplierModelOf,
 } from "./decision";
-import type { Cep, Finding, PaymentInstruction, Supplier } from "./domain";
+import type {
+  Cep,
+  Detector,
+  Finding,
+  PaymentInstruction,
+  Supplier,
+} from "./domain";
+import type { LedgerTx } from "./types";
 
 /**
  * The Thursday payment run of the persona: one instruction for 184,300 pesos to
@@ -454,42 +464,59 @@ describe("composeFindings", () => {
     synthetic: true,
   };
 
-  function detectorThatFinds(id: string, amountAtRisk: number): DetectorModule {
+  function anOutflow(overrides: Partial<LedgerTx> = {}): LedgerTx {
     return {
-      detector: "clabe_forensics",
-      run: () => [aFinding({ id, amountAtRisk })],
+      id: "tx-1",
+      accountId: "acc-1",
+      occurredAt: "2026-09-10T00:00:00.000Z",
+      amount: 184300,
+      direction: "debit",
+      source: "seed",
+      raw: {},
+      ...overrides,
     };
   }
 
-  it("merges injected detectors and returns them in rail order", async () => {
-    const findings = await composeFindings(
-      anInstruction(),
+  function anInput(overrides: Partial<ComposeInput> = {}): ComposeInput {
+    return {
+      instruction: anInstruction(),
       supplier,
-      [],
-      [],
-      [],
-      undefined,
-      {
-        detectors: [
-          detectorThatFinds("small", 1000),
-          detectorThatFinds("large", 700000),
-        ],
-      },
-    );
+      cfdis: [],
+      complements: [],
+      satEntries: [],
+      bankMirror: [],
+      now: "2026-09-11T16:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  function adapterThatFinds(
+    detector: Detector,
+    id: string,
+    amountAtRisk: number,
+  ): DetectorAdapter {
+    return {
+      detector,
+      run: () => detectorRan([aFinding({ id, amountAtRisk })]),
+    };
+  }
+
+  it("merges the adapters it is given and returns them in rail order", () => {
+    const findings = composeFindings(anInput(), [
+      adapterThatFinds("clabe_forensics", "small", 1000),
+      adapterThatFinds("sat_69b", "large", 700000),
+    ]);
 
     expect(findings.map((finding) => finding.id)).toEqual(["large", "small"]);
   });
 
-  it("hands every detector the whole context, CEP and SAT list included", async () => {
-    const seen: DetectorContext[] = [];
+  it("hands every adapter the same input, CEP, SAT list and mirror included", () => {
+    const seen: ComposeInput[] = [];
     const cep = { claveRastreo: "ABC123" } as Cep;
-
-    await composeFindings(
-      anInstruction(),
-      supplier,
-      [],
-      [],
-      [
+    const input = anInput({
+      cep,
+      bankMirror: [anOutflow()],
+      satEntries: [
         {
           rfc: "SYN010101AAA",
           name: "Refacciones Sinteticas del Norte SA de CV",
@@ -498,209 +525,228 @@ describe("composeFindings", () => {
           listVersion: "2026-09-01",
         },
       ],
-      cep,
+    });
+
+    composeFindings(input, [
       {
-        detectors: [
-          {
-            detector: "beneficiary_cep",
-            run: (context) => {
-              seen.push(context);
-              return [];
-            },
-          },
-        ],
+        detector: "beneficiary_cep",
+        run: (given) => {
+          seen.push(given);
+          return detectorRan([]);
+        },
       },
-    );
+    ]);
 
     expect(seen).toHaveLength(1);
     expect(seen[0].supplier?.rfc).toBe("SYN010101AAA");
     expect(seen[0].satEntries).toHaveLength(1);
     expect(seen[0].cep).toBe(cep);
+    expect(seen[0].bankMirror).toHaveLength(1);
+    expect(seen[0].now).toBe("2026-09-11T16:00:00.000Z");
   });
 
-  it("awaits a detector that answers with a promise", async () => {
-    const findings = await composeFindings(
-      anInstruction(),
-      supplier,
-      [],
-      [],
-      [],
-      undefined,
+  it("keeps the payment run alive when one control throws, and names it", () => {
+    const report = composeFindingsReport(anInput(), [
       {
-        detectors: [
-          {
-            detector: "sat_69b",
-            run: async () => [aFinding({ id: "async" })],
-          },
-        ],
+        detector: "duplicate_invoice",
+        run: () => {
+          throw new Error("bad fixture");
+        },
       },
-    );
-
-    expect(findings.map((finding) => finding.id)).toEqual(["async"]);
-  });
-
-  it("keeps the payment run alive when one detector throws", async () => {
-    const report = await composeFindingsReport(
-      {
-        instruction: anInstruction(),
-        supplier,
-        cfdis: [],
-        complements: [],
-        satEntries: [],
-      },
-      {
-        detectors: [
-          {
-            detector: "duplicate_invoice",
-            run: () => {
-              throw new Error("bad fixture");
-            },
-          },
-          detectorThatFinds("survivor", 5000),
-        ],
-      },
-    );
+      adapterThatFinds("clabe_forensics", "survivor", 5000),
+    ]);
 
     expect(report.findings.map((finding) => finding.id)).toEqual(["survivor"]);
     expect(report.ran).toEqual(["clabe_forensics"]);
     expect(report.skipped).toEqual([
-      { detector: "duplicate_invoice", reason: "threw" },
+      {
+        detector: "duplicate_invoice",
+        reason: "threw",
+        detail: "bad fixture",
+      },
     ]);
   });
 
-  it("drops a malformed finding rather than showing the clerk half a row", async () => {
-    const findings = await composeFindings(
-      anInstruction(),
-      supplier,
-      [],
-      [],
-      [],
-      undefined,
+  it("drops a malformed finding rather than showing the clerk half a row", () => {
+    const findings = composeFindings(anInput(), [
       {
-        detectors: [
-          {
-            detector: "supplier_behaviour",
-            run: () =>
-              [
-                aFinding({ id: "good" }),
-                { id: "half-built", severity: "warning" },
-              ] as unknown as Finding[],
-          },
-        ],
+        detector: "supplier_behaviour",
+        run: () =>
+          detectorRan([
+            aFinding({ id: "good" }),
+            { id: "half-built", severity: "warning" },
+          ] as unknown as Finding[]),
       },
-    );
+    ]);
 
     expect(findings.map((finding) => finding.id)).toEqual(["good"]);
   });
 
-  it("reports a detector that answers with the wrong shape entirely", async () => {
-    const report = await composeFindingsReport(
+  it("reports a control whose every row is malformed instead of reading as nothing found", () => {
+    const report = composeFindingsReport(anInput(), [
       {
-        instruction: anInstruction(),
-        supplier,
-        cfdis: [],
-        complements: [],
-        satEntries: [],
+        detector: "bank_reconciliation",
+        run: () => detectorRan(["not a finding"] as unknown as Finding[]),
       },
-      {
-        detectors: [
-          {
-            detector: "bank_reconciliation",
-            run: () => "not findings" as unknown as Finding[],
-          },
-        ],
-      },
-    );
+    ]);
 
     expect(report.findings).toEqual([]);
+    expect(report.ran).toEqual([]);
+    expect(report.skipped[0]?.reason).toBe("invalid_findings");
+  });
+
+  it("accounts for every control it was offered, ran plus skipped", () => {
+    const report = composeFindingsReport(
+      anInput({ bankMirror: [anOutflow()] }),
+      CORE_DETECTORS,
+    );
+
+    expect(report.ran.length + report.skipped.length).toBe(
+      CORE_DETECTORS.length,
+    );
+    expect(new Set(report.ran).size).toBe(report.ran.length);
+    expect(report.findings.every(isFinding)).toBe(true);
+  });
+
+  it("runs the four controls that live in this package on one instruction", () => {
+    const report = composeFindingsReport(
+      anInput({ bankMirror: [anOutflow()] }),
+      CORE_DETECTORS,
+    );
+
+    expect(report.ran).toEqual([
+      "clabe_forensics",
+      "duplicate_invoice",
+      "supplier_behaviour",
+      "bank_reconciliation",
+    ]);
+    expect(report.skipped).toEqual([]);
+  });
+
+  it("calls the real detectors, so a changed account actually fires", () => {
+    // One digit away from the account this supplier has been paid on 9 times.
+    const report = composeFindingsReport(
+      anInput({
+        instruction: anInstruction({ clabe: "012180001234567812" }),
+        bankMirror: [anOutflow()],
+      }),
+      CORE_DETECTORS,
+    );
+
+    const clabe = report.findings.find(
+      (finding) => finding.detector === "clabe_forensics",
+    );
+    expect(clabe?.severity).toBe("critical");
+    expect(clabe?.createdAt).toBe("2026-09-11T16:00:00.000Z");
+  });
+
+  it("skips supplier behaviour with a reason when the RFC was never paid", () => {
+    const report = composeFindingsReport(
+      anInput({ supplier: undefined, bankMirror: [anOutflow()] }),
+      CORE_DETECTORS,
+    );
+
+    const skipped = report.skipped.find(
+      (row) => row.detector === "supplier_behaviour",
+    );
+    expect(skipped?.reason).toBe("no_supplier");
+    expect(skipped?.detail).toContain("SYN010101AAA");
+    // The new-supplier case still belongs to the CLABE control, which ran.
+    expect(report.ran).toContain("clabe_forensics");
+  });
+
+  it("skips reconciliation with a reason rather than inventing a statement", () => {
+    const report = composeFindingsReport(anInput(), CORE_DETECTORS);
+
     expect(report.skipped).toEqual([
-      { detector: "bank_reconciliation", reason: "no_result" },
+      {
+        detector: "bank_reconciliation",
+        reason: "no_bank_mirror",
+        detail:
+          "El espejo bancario no esta cargado, asi que no hay estado de cuenta contra el cual conciliar.",
+      },
     ]);
   });
 
-  it("accounts for all six controls when it discovers them on disk", async () => {
-    // No injected detectors, so this walks the registry as apps/api does on a
-    // machine where some detector pull requests have merged and others have
-    // not. The assertion is deliberately about the accounting and not about
-    // which ones exist today, so it stays true as the other PRs land.
-    const report = await composeFindingsReport({
-      instruction: anInstruction(),
-      supplier,
-      cfdis: [],
-      complements: [],
-      satEntries: [],
-    });
+  it("keeps only the reconciliation findings about the instruction under review", () => {
+    // An outflow for an amount no document explains. That is a finding about
+    // the run, not about the payment the clerk has open, so it stays out.
+    const report = composeFindingsReport(
+      anInput({
+        bankMirror: [anOutflow({ id: "tx-unbacked", amount: 9999 })],
+      }),
+      CORE_DETECTORS,
+    );
 
-    expect(report.ran.length + report.skipped.length).toBe(6);
-    expect(report.findings.every(isFinding)).toBe(true);
-    expect(new Set(report.ran).size).toBe(report.ran.length);
+    expect(report.ran).toContain("bank_reconciliation");
+    expect(
+      report.findings.filter(
+        (finding) => finding.detector === "bank_reconciliation",
+      ),
+    ).toEqual([]);
   });
 });
 
-describe("asDetectorModule", () => {
-  const context: DetectorContext = {
-    instruction: anInstruction(),
-    cfdis: [],
-    complements: [],
-    satEntries: [],
-  };
+describe("supplierModelOf", () => {
+  function aSupplier(overrides: Partial<Supplier> = {}): Supplier {
+    return {
+      rfc: "SYN010101AAA",
+      legalName: "Refacciones Sinteticas del Norte SA de CV",
+      knownAccounts: [],
+      firstInvoiceAt: "2025-11-04T00:00:00.000Z",
+      synthetic: true,
+      ...overrides,
+    };
+  }
 
-  it("wraps a function that takes the whole context", async () => {
-    const module = asDetectorModule("clabe_forensics", (given: unknown) => [
-      aFinding({ id: (given as DetectorContext).instruction.id }),
-    ]);
-
-    expect(await module?.run(context)).toHaveLength(1);
-  });
-
-  it("wraps a function written with positional arguments", async () => {
-    const detect = (instruction: PaymentInstruction, supplier?: Supplier) => [
-      aFinding({ id: `${instruction.id}:${supplier === undefined ? 0 : 1}` }),
-    ];
-
-    const module = asDetectorModule("clabe_forensics", detect, (given) => [
-      given.instruction,
-      given.supplier,
-    ]);
-    const findings = await module?.run(context);
-
-    expect(findings?.[0].id).toBe("inst-1:0");
-  });
-
-  it("tries the other call shape when the first one finds nothing", async () => {
-    // Declared with two parameters, so the positional shape is tried first and
-    // returns nothing, and the context shape is what actually answers.
-    const detect = (given: unknown, _second?: unknown) =>
-      Array.isArray((given as DetectorContext).cfdis)
-        ? [aFinding({ id: "by-context" })]
-        : [];
-
-    const module = asDetectorModule("duplicate_invoice", detect, (given) => [
-      given.instruction,
-      given.cfdis,
-    ]);
-
-    expect((await module?.run(context))?.[0].id).toBe("by-context");
-  });
-
-  it("wraps an object that exposes run", async () => {
-    const module = asDetectorModule("sat_69b", {
-      run: () => [aFinding({ id: "from-object" })],
+  it("reads the delay cost off the supplier record", () => {
+    expect(supplierModelOf(aSupplier({ delayCostPerDay: 3000 }))).toEqual({
+      delayCostPerDay: 3000,
+      relationshipWeight: 1,
     });
-
-    expect((await module?.run(context))?.[0].id).toBe("from-object");
   });
 
-  it("refuses an export that is neither a function nor a runnable object", () => {
-    expect(asDetectorModule("sat_69b", 42)).toBeUndefined();
-    expect(asDetectorModule("sat_69b", { notRun: () => [] })).toBeUndefined();
-    expect(asDetectorModule("sat_69b", undefined)).toBeUndefined();
+  it("falls back to the documented default when nobody priced the relationship", () => {
+    expect(supplierModelOf(aSupplier()).delayCostPerDay).toBe(
+      DEFAULT_DELAY_COST_PER_DAY,
+    );
+    expect(supplierModelOf(undefined).delayCostPerDay).toBe(
+      DEFAULT_DELAY_COST_PER_DAY,
+    );
+  });
+
+  it("survives a supplier row with a nonsense cost instead of blanking the run", () => {
+    expect(
+      supplierModelOf(aSupplier({ delayCostPerDay: -1 })).delayCostPerDay,
+    ).toBe(DEFAULT_DELAY_COST_PER_DAY);
+    expect(
+      supplierModelOf(aSupplier({ delayCostPerDay: Number.NaN }))
+        .delayCostPerDay,
+    ).toBe(DEFAULT_DELAY_COST_PER_DAY);
+  });
+
+  it("prices the delay the decision engine weighs against the loss", () => {
+    const model = supplierModelOf(aSupplier({ delayCostPerDay: 2500 }));
+
+    expect(delayCost(model, "hold")).toBe(7500);
+    expect(delayCost(model, "verify")).toBe(2500);
+    expect(delayCost(model, "release")).toBe(0);
   });
 });
 
 describe("isFinding", () => {
   it("accepts a finding built by a detector", () => {
     expect(isFinding(aFinding())).toBe(true);
+  });
+
+  it("accepts a bank mirror row as a subject, which is where an unbacked outflow hangs", () => {
+    expect(
+      isFinding({
+        ...aFinding(),
+        detector: "bank_reconciliation",
+        subject: { kind: "ledger_tx", id: "tx-1" },
+      }),
+    ).toBe(true);
   });
 
   it("rejects rows missing the fields the screen reads", () => {
