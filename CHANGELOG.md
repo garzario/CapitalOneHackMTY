@@ -12,6 +12,15 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- The Article 69-B simulation replays the ledger for real (issue #49). `src/lib/replay.ts` turns
+  a `SweepResult` into one frame per month of the company's own ledger, apportioning each
+  supplier's exposure across the months its already-paid invoices fall in and pinning the last
+  frame to the sweep's own totals, so the counters climb and land exactly on the number the
+  engine reported. Suppliers light up in the month their first exposed invoice appears, quiet
+  months still get a tick, the whole replay is capped at 2.4 seconds however many months the seed
+  has, and reduced motion jumps straight to the answer. The constancia PDF is linked from the
+  result. The placeholder timeline and its hardcoded month list are gone.
+
 - End-to-end vertical slice. `SEED=ceptinela` now runs the six controls over the generated company
   at boot, so `GET /api/v1/run/current` serves the engine's own findings and proposed actions
   instead of an empty alert rail: 7 findings on 92 instructions, 2 held and 5 to verify, and

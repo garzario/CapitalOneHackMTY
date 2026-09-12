@@ -14,7 +14,7 @@
 
 import type { SweepResult } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Amount, SectionHeader, SyntheticMark } from "../components/Primitives";
 import {
   EmptyBlock,
@@ -24,6 +24,7 @@ import {
 } from "../components/States";
 import {
   getCurrentRun,
+  getLedger,
   getSatVersions,
   lookupSatRfc,
   publishSatList,
@@ -33,22 +34,37 @@ import type { SatLookup } from "../lib/contract";
 import { formatCount, formatDate, formatRfc } from "../lib/format";
 import { SAT_STATUS_BADGE, SAT_STATUS_LABEL } from "../lib/labels";
 import { mockSweep, SAT_VERSIONS } from "../lib/mock";
+import {
+  buildReplay,
+  type Replay,
+  type ReplayFrame,
+  stepDurationMs,
+} from "../lib/replay";
 import { useResource } from "../lib/resource";
 
-/** The months the replay walks. The real range comes from the ledger. */
-const REPLAY_MONTHS = [
-  "2026-02",
-  "2026-03",
-  "2026-04",
-  "2026-05",
-  "2026-06",
-  "2026-07",
-  "2026-08",
-  "2026-09",
+/** Short month names, so eight ticks fit across a panel on a laptop. */
+const MONTH_LABEL = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
 ];
 
 /** The synthetic supplier the offline sweep is about. Never sent to the API. */
 const OFFLINE_RFCS = ["SYN010101AAA"];
+
+function monthTick(month: string): string {
+  const index = Number(month.slice(5, 7)) - 1;
+  return MONTH_LABEL[index] ?? month.slice(5);
+}
 
 function versionsFallback() {
   return { versions: SAT_VERSIONS };
@@ -94,30 +110,99 @@ export function SatScreen() {
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [isSweeping, setIsSweeping] = useState(false);
 
+  /* The replay is derived from the sweep and played by an index into its
+     frames. Keeping the frames in state rather than recomputing them per
+     render means the animation cannot restart because something else on the
+     screen changed. */
+  const [replay, setReplay] = useState<Replay | null>(null);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const timer = useRef<number | null>(null);
+
+  const frames = replay?.frames ?? [];
+  const frame: ReplayFrame | null = frames[frameIndex] ?? null;
+  const isReplaying = frames.length > 0 && frameIndex < frames.length - 1;
+
+  /**
+   * Walks one frame at a time until the last one.
+   *
+   * Reduced motion jumps straight to the end: the numbers are the point and the
+   * animation is the decoration, so the person who asked their operating system
+   * for less movement still gets the whole answer, immediately.
+   */
+  useEffect(() => {
+    if (replay === null || replay.frames.length === 0) {
+      return;
+    }
+    if (reduceMotion) {
+      setFrameIndex(replay.frames.length - 1);
+      return;
+    }
+    if (frameIndex >= replay.frames.length - 1) {
+      return;
+    }
+
+    const step = stepDurationMs(replay.frames.length);
+    timer.current = window.setTimeout(() => {
+      setFrameIndex((current) => current + 1);
+    }, step);
+
+    return () => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
+  }, [replay, frameIndex, reduceMotion]);
+
   const [rfc, setRfc] = useState("");
   const [lookup, setLookup] = useState<SatLookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isLooking, setIsLooking] = useState(false);
 
+  /**
+   * The months the ledger itself covers, so the replay walks the whole window
+   * and not only the months that happen to carry an exposed invoice. Read from
+   * the ledger endpoint rather than written down here: a hardcoded range is a
+   * timeline that lies the first time the seed changes.
+   */
+  const readLedgerWindow = useCallback(async () => {
+    const result = await getLedger();
+    if (!result.ok || result.data.events.length === 0) {
+      return undefined;
+    }
+    const instants = result.data.events.map((event) => event.at).sort();
+    return {
+      from: instants[0] as string,
+      to: instants[instants.length - 1] as string,
+    };
+  }, []);
+
   const runSimulation = useCallback(async () => {
     setSweepError(null);
     setIsSweeping(true);
 
-    const result = await publishSatList({
-      simulate: true,
-      rfcs: await rfcsToSimulate(),
-      // The heading above promises a supplier that passes to definitivo, which
-      // is the status that voids the deductions retroactively. The endpoint
-      // publishes presunto when nobody says, and a screen that says one thing
-      // and posts another is a screen a judge catches.
-      status: "definitivo",
-    });
+    const [result, window] = await Promise.all([
+      publishSatList({
+        simulate: true,
+        rfcs: await rfcsToSimulate(),
+        // The heading above promises a supplier that passes to definitivo,
+        // which is the status that voids the deductions retroactively. The
+        // endpoint publishes presunto when nobody says, and a screen that says
+        // one thing and posts another is a screen a judge catches.
+        status: "definitivo",
+      }),
+      readLedgerWindow(),
+    ]);
 
     setIsSweeping(false);
 
     if (result.ok) {
       setSweep(result.data);
       setSweepSource("api");
+      setReplay(
+        buildReplay(result.data, window === undefined ? {} : { window }),
+      );
+      setFrameIndex(0);
 
       return;
     }
@@ -125,12 +210,15 @@ export function SatScreen() {
     /* Offline the sweep is computed from the synthetic CFDIs in the browser, and
        the panel says so. The arithmetic is the same shape as SweepResult, which
        is why the counters below never need to know where it came from. */
-    setSweep(mockSweep());
+    const offline = mockSweep();
+    setSweep(offline);
     setSweepSource("mock");
+    setReplay(buildReplay(offline));
+    setFrameIndex(0);
     setSweepError(
       `Sin API (${result.error.message}). El barrido se calculo sobre la corrida sintetica.`,
     );
-  }, []);
+  }, [readLedgerWindow]);
 
   const runLookup = useCallback(async () => {
     const cleaned = formatRfc(rfc);
@@ -197,43 +285,76 @@ export function SatScreen() {
             {isSweeping ? "Recorriendo el ledger" : "Simular publicacion 69-B"}
           </button>
 
-          {/* The replay itself is a placeholder: the ticks are real months and
-              the bar moves, but the per month detail is the animation the UI
-              owner builds next.
-              TODO(FabriBanda): walk the ledger month by month and light up each
-              newly listed supplier as the bar passes its publication date. */}
+          {/* The replay. Every tick is a month the ledger actually holds and
+              every figure below is the sweep's own arithmetic, apportioned
+              across the months by src/lib/replay.ts. Nothing here is a
+              hardcoded number pretending to count. */}
           <div className="flex flex-col gap-2">
-            <span className="eyebrow">Replay del ledger</span>
-            <div
-              className="panel-sunken relative overflow-hidden"
-              style={{ height: "2.5rem" }}
-            >
-              <motion.div
-                aria-hidden="true"
-                initial={false}
-                animate={{ width: sweep ? "100%" : "0%" }}
-                transition={{
-                  duration: reduceMotion ? 0 : 1.2,
-                  ease: [0.2, 0.8, 0.2, 1],
-                }}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  backgroundColor: "var(--c-accent-soft)",
-                }}
-              />
-              <ol className="relative m-0 flex h-full list-none items-center justify-between p-0 px-2">
-                {REPLAY_MONTHS.map((month) => (
-                  <li key={month} className="subtle t-xs">
-                    {month.slice(5)}
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <p className="subtle t-xs">
-              Placeholder del replay. Los meses son reales, el detalle mes por
-              mes es lo que falta.
-            </p>
+            <span className="eyebrow" id="replay-heading">
+              Replay del ledger
+            </span>
+            {frames.length === 0 ? (
+              <div
+                className="panel-sunken flex items-center px-3 subtle t-xs"
+                style={{ height: "2.5rem" }}
+              >
+                El replay recorre los meses en los que el ledger tiene facturas
+                ya pagadas de los proveedores listados.
+              </div>
+            ) : (
+              <div
+                className="panel-sunken relative overflow-hidden"
+                style={{ height: "2.5rem" }}
+                role="progressbar"
+                aria-labelledby="replay-heading"
+                aria-valuemin={1}
+                aria-valuemax={frames.length}
+                aria-valuenow={frameIndex + 1}
+                aria-valuetext={`Mes ${frame?.month ?? ""}`}
+              >
+                <motion.div
+                  aria-hidden="true"
+                  initial={false}
+                  animate={{
+                    width: `${((frameIndex + 1) / frames.length) * 100}%`,
+                  }}
+                  transition={{
+                    duration: reduceMotion
+                      ? 0
+                      : stepDurationMs(frames.length) / 1000,
+                    ease: "linear",
+                  }}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    right: "auto",
+                    backgroundColor: "var(--c-accent-soft)",
+                  }}
+                />
+                <ol className="relative m-0 flex h-full list-none items-center justify-between p-0 px-2">
+                  {frames.map((entry, index) => (
+                    <li
+                      key={entry.month}
+                      className={index <= frameIndex ? "t-xs" : "subtle t-xs"}
+                    >
+                      {monthTick(entry.month)}
+                      {entry.invoices > 0 ? (
+                        <span className="sr-only">
+                          {` ${formatCount(entry.invoices)} facturas`}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {frame ? (
+              <p className="subtle t-xs" role="status">
+                {isReplaying
+                  ? `Recorriendo ${frame.month}. ${formatCount(frame.litSoFar.length)} proveedores encendidos.`
+                  : `Recorrido completo, ${formatCount(frames.length)} meses del ledger.`}
+              </p>
+            ) : null}
           </div>
 
           {sweepError ? (
@@ -260,15 +381,19 @@ export function SatScreen() {
             />
           ) : (
             <>
+              {/* The counters follow the replay, so they climb with it and
+                  finish on the sweep's own figures. `replay.ts` pins the last
+                  frame to those totals rather than to the sum of the frames,
+                  because landing a cent away from the engine is how a judge
+                  stops believing the screen. */}
               <dl className="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <dt className="eyebrow">Base deducida</dt>
                   <dd className="m-0 mt-1">
                     <Amount
-                      value={sweep.newlyListed.reduce(
-                        (total, entry) => total + entry.deductedBase,
-                        0,
-                      )}
+                      value={
+                        frame?.deductedBase ?? replay?.totals.deductedBase ?? 0
+                      }
                       size="lg"
                     />
                   </dd>
@@ -277,10 +402,9 @@ export function SatScreen() {
                   <dt className="eyebrow">Exposicion de ISR</dt>
                   <dd className="m-0 mt-1">
                     <Amount
-                      value={sweep.newlyListed.reduce(
-                        (total, entry) => total + entry.isrExposure,
-                        0,
-                      )}
+                      value={
+                        frame?.isrExposure ?? replay?.totals.isrExposure ?? 0
+                      }
                       size="lg"
                     />
                   </dd>
@@ -289,10 +413,9 @@ export function SatScreen() {
                   <dt className="eyebrow">Exposicion de IVA</dt>
                   <dd className="m-0 mt-1">
                     <Amount
-                      value={sweep.newlyListed.reduce(
-                        (total, entry) => total + entry.ivaExposure,
-                        0,
-                      )}
+                      value={
+                        frame?.ivaExposure ?? replay?.totals.ivaExposure ?? 0
+                      }
                       size="lg"
                     />
                   </dd>
@@ -301,7 +424,10 @@ export function SatScreen() {
 
               <div className="flex flex-col gap-1">
                 <span className="eyebrow">Exposicion total</span>
-                <Amount value={sweep.totalExposure} size="xl" />
+                <Amount
+                  value={frame?.totalExposure ?? sweep.totalExposure}
+                  size="xl"
+                />
                 <span className="subtle t-xs">
                   Version de la lista {sweep.listVersion}
                   {sweepSource === "mock"
@@ -330,35 +456,42 @@ export function SatScreen() {
                 </a>
               )}
 
+              {/* A supplier lights up in the month its first already-paid
+                  invoice appears, which is the moment the exposure it carries
+                  was actually created. Until then the row is present but
+                  dimmed: hiding it and popping it in would move the layout
+                  under the reader's eye eight times in two seconds. */}
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {sweep.newlyListed.map((entry) => (
-                  <li
-                    key={entry.supplier.rfc}
-                    className="panel-sunken flex flex-col gap-1 p-3"
-                  >
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">
-                        {entry.supplier.legalName}
-                      </span>
-                      <span className={SAT_STATUS_BADGE[entry.status]}>
-                        {SAT_STATUS_LABEL[entry.status]}
-                      </span>
-                    </span>
-                    <span className="code subtle">{entry.supplier.rfc}</span>
-                    <span className="muted t-xs">
-                      {formatCount(entry.paidCfdis.length)} facturas ya pagadas
-                      y deducidas
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                {sweep.newlyListed.map((entry) => {
+                  const lit =
+                    frame === null ||
+                    frame.litSoFar.includes(entry.supplier.rfc);
 
-              {/* TODO(fabbyyyy): the constancia the clerk files is generated
-                  server side from the sweep, so the PDF is the same document the
-                  ledger can prove. */}
-              <p className="subtle t-xs">
-                Constancia en PDF: pendiente, se genera desde el barrido.
-              </p>
+                  return (
+                    <motion.li
+                      key={entry.supplier.rfc}
+                      className="panel-sunken flex flex-col gap-1 p-3"
+                      initial={false}
+                      animate={{ opacity: lit ? 1 : 0.35 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.25 }}
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">
+                          {entry.supplier.legalName}
+                        </span>
+                        <span className={SAT_STATUS_BADGE[entry.status]}>
+                          {SAT_STATUS_LABEL[entry.status]}
+                        </span>
+                      </span>
+                      <span className="code subtle">{entry.supplier.rfc}</span>
+                      <span className="muted t-xs">
+                        {formatCount(entry.paidCfdis.length)} facturas ya
+                        pagadas y deducidas
+                      </span>
+                    </motion.li>
+                  );
+                })}
+              </ul>
             </>
           )}
         </section>
