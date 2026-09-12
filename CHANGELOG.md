@@ -12,6 +12,12 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Ceptinela brand layer and the rationale behind the design system: the name lockup in
+  `apps/web/src/components/Wordmark.tsx`, the favicon, touch icon and social card in
+  `apps/web/public/` with their sources in `apps/web/brand/`, and `docs/design.md`. The token
+  contract is now enforced by `apps/web/src/design/tokens.test.ts`, which fails when a component
+  reads a token that does not exist, when a colour has no dark counterpart, or when any file other
+  than `tokens.css` writes a colour.
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 - `apps/api` scaffold for the contract in `docs/09-api.md`: one file per route group under
