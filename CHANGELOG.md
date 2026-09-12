@@ -18,6 +18,10 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The confirmed booth assumptions are now in `docs/00-challenge.md` (issue #78), including the
+  Nessie write validation and the facts that remain unknown, so the team cannot mistake an absent
+  rate limit or video specification for a promise.
+
 - Real document import path, so the CFDI parser can be validated on a document a PAC actually
   stamped (refs #68). `bun run scripts/import-real-cfdi.ts <file>` reads one real CFDI 4.0, de
   ingreso or complemento de pagos 2.0, and writes a committable fixture: every amount scaled by a
