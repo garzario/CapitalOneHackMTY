@@ -85,6 +85,8 @@ export const supplierSchema = z.object({
   legalName: z.string().min(1),
   knownAccounts: z.array(knownAccountSchema),
   firstInvoiceAt: instantSchema,
+  /** Absent means the relationship has not been priced. See `supplierModelOf`. */
+  delayCostPerDay: z.number().nonnegative().optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Supplier>;
 

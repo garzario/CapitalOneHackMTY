@@ -16,8 +16,8 @@
  *    `rejected` with the line number and the reason. A fiscal blacklist that quietly
  *    loses rows is worse than no blacklist.
  *
- * The detectors are NOT here. `sat_69b` lives in `packages/core` with the other five
- * and consumes what this package returns.
+ * The detectors are NOT here. `sat_69b` is an adapter in `packages/engine`, next to
+ * the other five, and it consumes what this package returns.
  */
 
 import type {
@@ -28,6 +28,9 @@ import type {
   SatListStatus,
   SweepResult,
 } from "@hackmty/core";
+
+import { normalizeRfc } from "./rfc";
+import { isListed } from "./status";
 
 export * from "./rfc";
 export * from "./snapshot/synthetic";
@@ -141,16 +144,50 @@ export interface SatMatch {
 /**
  * Looks one RFC up.
  *
- *   normalise the RFC, filter entries to it, sort by publishedAt descending and
- *   listVersion descending, take the head as `effective`, and set `listed` from
- *   `isListed(effective.status)`.
+ * Normalises the RFC, keeps the rows that are it, orders them newest publication
+ * first, and reads the head as the status in force. A taxpayer who was
+ * `presunto` and is now `desvirtuado` is not listed, so ordering is the whole
+ * algorithm here and getting it backwards would accuse somebody who already
+ * cleared their name.
  *
  * Pure and offline: it takes the entries it should search, so the caller decides
  * whether they came from one snapshot or from every version in Postgres through
- * `lookupSatEntries`.
+ * `lookupSatEntries`. An empty result means this RFC is on no version that was
+ * handed in, which is not the same claim as "no version was loaded"; that one
+ * belongs to whoever holds the snapshots.
  */
 export function matchRfc(entries: readonly SatListEntry[], rfc: Rfc): SatMatch {
-  return todo("matchRfc", entries, rfc);
+  const wanted = normalizeRfc(rfc);
+  const matched = entries
+    .filter((entry) => normalizeRfc(entry.rfc) === wanted)
+    .sort(byNewestPublication);
+  const effective = matched[0];
+
+  if (effective === undefined) {
+    return { rfc: wanted, entries: matched, listed: false };
+  }
+  return {
+    rfc: wanted,
+    entries: matched,
+    effective,
+    listed: isListed(effective.status),
+  };
+}
+
+/**
+ * Newest DOF publication first, then the newest list version, then the status
+ * itself. The last tiebreak is not decoration: one version can carry two
+ * situations for one taxpayer with the same date, and without it the row that
+ * decides would depend on the order the rows were loaded in.
+ */
+function byNewestPublication(left: SatListEntry, right: SatListEntry): number {
+  if (left.publishedAt !== right.publishedAt) {
+    return left.publishedAt < right.publishedAt ? 1 : -1;
+  }
+  if (left.listVersion !== right.listVersion) {
+    return left.listVersion < right.listVersion ? 1 : -1;
+  }
+  return left.status < right.status ? -1 : left.status > right.status ? 1 : 0;
 }
 
 /** As of a date, for answering "what did we know on the day we paid". */
