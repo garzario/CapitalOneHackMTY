@@ -89,6 +89,7 @@ Every workspace `package.json` must define `typecheck` as `tsc --noEmit` and a `
 and CI goes green having checked nothing.
 
 ## Nessie quirks (verified, do not rediscover)
+- Docs: https://prod.nessieisreal.com/docs. API base: https://api.nessieisreal.com (prod.nessieisreal.com only serves the docs app). The team key lives in each local `.env`, never in the repo or the chat; validated with a write on 2026-09-12.
 
 - HTTPS only. `http://` is refused at the connection level.
 - Auth is `?key=<NESSIE_API_KEY>` in the query string. No headers.
