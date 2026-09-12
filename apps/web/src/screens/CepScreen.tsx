@@ -26,14 +26,21 @@ import {
   SourceNotice,
 } from "../components/States";
 import { getBeneficiaries, verifyCep } from "../lib/api";
-import type { CepVerification, NameMatch } from "../lib/contract";
+import {
+  BANXICO_CEP_URL,
+  portalClipboardText,
+  portalFields,
+} from "../lib/cep-portal";
+import { sealVerdict } from "../lib/cep-seal";
+import type {
+  CepVerification,
+  NameMatch,
+  VerifiedBeneficiary,
+} from "../lib/contract";
 import { formatClabe, formatDate, formatDateTime } from "../lib/format";
 import { NAME_MATCH_BADGE, NAME_MATCH_LABEL } from "../lib/labels";
 import { BENEFICIARIES, MOCK_CEP, SUPPLIERS } from "../lib/mock";
 import { useResource } from "../lib/resource";
-
-/** The public portal where a CEP can be verified by hand. */
-const BANXICO_CEP_URL = "https://www.banxico.org.mx/cep/";
 
 function registryFallback() {
   return { items: BENEFICIARIES };
@@ -136,6 +143,7 @@ export function CepScreen() {
   const shownRfc = state.status === "done" ? state.rfc : "SYN070707GGG";
   const isExample = state.status !== "done";
   const legalName = legalNameFor(shownRfc, shown.finding);
+  const seal = sealVerdict(shown.cep.signatureValid, shown.cep.signatureReason);
 
   return (
     <>
@@ -237,17 +245,7 @@ export function CepScreen() {
               </h2>
               <div className="flex flex-wrap items-center gap-2">
                 <SyntheticMark when={shown.cep.synthetic} />
-                <span
-                  className={
-                    shown.cep.signatureValid
-                      ? "badge badge-release"
-                      : "badge badge-verify"
-                  }
-                >
-                  {shown.cep.signatureValid
-                    ? "Firma valida"
-                    : "Firma sin verificar"}
-                </span>
+                <span className={seal.badge}>{seal.label}</span>
               </div>
             </div>
 
@@ -257,6 +255,11 @@ export function CepScreen() {
                 la tuya.
               </p>
             ) : null}
+
+            {/* Three states and not two. "No verificada" and "no valida" are
+                different claims about a Banxico seal, and only one of them is
+                ours to make. src/lib/cep-seal.ts holds the wording. */}
+            <p className="panel-sunken muted m-0 p-3 t-xs">{seal.detail}</p>
 
             <NameComparison
               nameMatch={shown.nameMatch}
@@ -289,22 +292,7 @@ export function CepScreen() {
               </Field>
             </dl>
 
-            <p className="t-sm">
-              <a
-                href={BANXICO_CEP_URL}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                Verificar este CEP en banxico.org.mx
-              </a>
-            </p>
-            {/* TODO(fabbyyyy): confirm the exact query parameters the portal
-                takes so the link can arrive prefilled with the tracking key,
-                the date and the amount. */}
-            <p className="subtle t-xs">
-              El enlace abre el portal. Llenarlo con la clave de rastreo de
-              arriba esta pendiente de confirmar.
-            </p>
+            <PortalHandoff cep={shown.cep} />
           </section>
         </div>
 
@@ -333,20 +321,33 @@ export function CepScreen() {
                   description="Ninguna cuenta se ha verificado con un CEP todavia. La primera verificacion crea el registro."
                 />
               ) : (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {registry.data.items.map((item) => (
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
+                  {groupBySupplier(registry.data.items).map((group) => (
                     <li
-                      key={`${item.supplierRfc}-${item.clabe}`}
-                      className="panel-sunken flex flex-col gap-1 p-3"
+                      key={group.supplierRfc}
+                      className="panel-sunken flex flex-col gap-2 p-3"
                     >
-                      <span className="code">{item.supplierRfc}</span>
-                      <span className="code muted t-xs">
-                        {formatClabe(item.clabe)}
+                      <span className="flex flex-wrap items-baseline gap-2">
+                        <span className="code">{group.supplierRfc}</span>
+                        <span className="subtle t-xs">
+                          {group.accounts.length === 1
+                            ? "1 cuenta verificada"
+                            : `${group.accounts.length} cuentas verificadas`}
+                        </span>
                       </span>
-                      <span className="subtle t-xs">
-                        verificada el {formatDate(item.verifiedAt)}, clave{" "}
-                        {item.cep.claveRastreo}
-                      </span>
+                      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+                        {group.accounts.map((item) => (
+                          <li key={item.clabe} className="flex flex-col">
+                            <span className="code muted t-xs">
+                              {formatClabe(item.clabe)}
+                            </span>
+                            <span className="subtle t-xs">
+                              verificada el {formatDate(item.verifiedAt)}, clave{" "}
+                              {item.cep.claveRastreo}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     </li>
                   ))}
                 </ul>
@@ -382,6 +383,95 @@ function NameComparison({
           {legalName ?? <span className="muted">no disponible</span>}
         </Field>
       </dl>
+    </div>
+  );
+}
+
+/**
+ * The registry, one entry per supplier rather than one per account.
+ *
+ * A supplier with three verified accounts is the interesting row: it is the
+ * history that makes a fourth account a question. A flat list of accounts
+ * hides exactly that, because the same RFC appears three times and reads as
+ * three suppliers at a glance.
+ *
+ * Newest verification first inside each supplier, and suppliers ordered by
+ * their own newest, so the account verified during the demo is at the top.
+ */
+export function groupBySupplier(
+  items: readonly VerifiedBeneficiary[],
+): Array<{ supplierRfc: string; accounts: VerifiedBeneficiary[] }> {
+  const byRfc = new Map<string, VerifiedBeneficiary[]>();
+
+  for (const item of items) {
+    const rows = byRfc.get(item.supplierRfc);
+    if (rows === undefined) {
+      byRfc.set(item.supplierRfc, [item]);
+      continue;
+    }
+    rows.push(item);
+  }
+
+  const groups = [...byRfc.entries()].map(([supplierRfc, accounts]) => ({
+    supplierRfc,
+    accounts: [...accounts].sort((left, right) =>
+      right.verifiedAt.localeCompare(left.verifiedAt),
+    ),
+  }));
+
+  return groups.sort((left, right) => {
+    const leftAt = left.accounts[0]?.verifiedAt ?? "";
+    const rightAt = right.accounts[0]?.verifiedAt ?? "";
+    return rightAt.localeCompare(leftAt);
+  });
+}
+
+/**
+ * The handoff to Banxico.
+ *
+ * The portal takes a POST form and a session, so no link can arrive prefilled.
+ * Rather than a bare link and an apology, the six values it asks for are on
+ * screen in its own order and its own date format, with one button that puts
+ * them on the clipboard. The judge checks the transfer against Banxico instead
+ * of against this page, which is the whole reason a CEP is worth showing.
+ */
+function PortalHandoff({ cep }: { cep: CepVerification["cep"] }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className="panel-sunken flex flex-col gap-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="eyebrow">Revisalo en Banxico</span>
+        <a href={BANXICO_CEP_URL} target="_blank" rel="noreferrer noopener">
+          Abrir el portal
+        </a>
+      </div>
+
+      <p className="subtle m-0 t-xs">
+        El portal pide los datos en un formulario, no en la direccion, asi que
+        no hay enlace que llegue lleno. Estos son los valores, en su orden.
+      </p>
+
+      <dl className="m-0 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {portalFields(cep).map((field) => (
+          <Field key={field.label} label={field.label}>
+            <span className="code">{field.value}</span>
+          </Field>
+        ))}
+      </dl>
+
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(portalClipboardText(cep))
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? "Copiado" : "Copiar los datos"}
+      </button>
     </div>
   );
 }

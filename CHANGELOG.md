@@ -12,6 +12,15 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- The CEP viewer says three things about a Banxico seal instead of two (issue #50). Validated,
+  not verified and not valid are different claims, and while `CEP_SIGNATURE_SCHEME_CONFIRMED` is
+  false every real CEP is the middle one; the badge, the colour and a sentence under it now carry
+  that difference. The Banxico handoff replaces a bare link and an open TODO: the portal takes a
+  POST form, so no link can arrive prefilled, and the screen prints the six values it asks for in
+  its own order and date format with one button to copy them. The verified beneficiary registry
+  is grouped by supplier, newest verification first, because a supplier with three verified
+  accounts is the history that makes a fourth one a question.
+
 - The QR the judge scans is on the payment run screen (issue #48). `IntakeQr` renders the intake
   address as an inline SVG built from the matrix, with the four-module quiet zone the
   specification asks for and a fixed contrast direction that survives dark mode. It refuses to
