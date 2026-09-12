@@ -8,3 +8,4 @@ export * from "./rolling";
 export * from "./types";
 export * from "./domain";
 export * from "./clabe";
+export * from "./cfdi";
