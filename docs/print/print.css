@@ -231,7 +231,8 @@ code {
   background: white;
 }
 
-.qr-large {
+.qr-large,
+.qr-placeholder.qr-large {
   width: 34mm;
   height: 34mm;
 }

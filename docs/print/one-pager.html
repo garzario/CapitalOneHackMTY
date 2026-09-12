@@ -27,11 +27,14 @@
             company's CFDI ledger, the SAT Article 69-B list and the Banxico CEP.
           </h1>
         </div>
-        <img
-          class="qr qr-large"
-          src="./repo-qr.png"
-          alt="QR code for the CapitalOneHackMTY GitHub repository"
-        />
+        <!--
+          The hero slot is the live app, because that is what a judge scans at
+          the table. It stays a placeholder until the URL exists. The repository
+          QR is in the labelled block at the bottom right and is not repeated
+          here: two identical unlabelled codes on one sheet means a judge scans
+          the second one expecting somewhere new and lands on the first.
+        -->
+        <div class="qr-placeholder qr-large">TODO<br />LIVE APP<br />QR</div>
       </section>
 
       <div class="onepager-grid">
@@ -45,9 +48,9 @@
               and the business bank portal, not an ERP or a treasury team.
             </p>
             <div class="stat-row">
-              <div class="stat"><strong>92</strong><span>invoices in the reference run</span></div>
-              <div class="stat"><strong>MXN 673k</strong><span>reference run total</span></div>
-              <div class="stat"><strong>42</strong><span>synthetic suppliers</span></div>
+              <div class="stat"><strong>92</strong><span>payment instructions in the reference run</span></div>
+              <div class="stat"><strong>MXN 2.17M</strong><span>reference run total</span></div>
+              <div class="stat"><strong>44</strong><span>synthetic suppliers</span></div>
             </div>
             <p class="subtle" style="margin: 2mm 0 0">
               Seed 69, week of 2026-09-07. Demo inputs, not Mexican SMB statistics.

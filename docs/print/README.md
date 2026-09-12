@@ -26,7 +26,7 @@ Do not send either artifact to print until both placeholders below are replaced 
 printed test copy:
 
 - `TODO(fabbyyyy): LIVE_APP_URL`, then replace the dashed live-app QR block with a QR made from the
-  final HTTPS URL.
+  final HTTPS URL. There are two of them, one on the card and one in the hero slot of the one-pager.
 - `TODO(fabbyyyy): REAL_CEP_CLAVE_RASTREO`, copied exactly from the team's real one-cent CEP and
   checked at `https://www.banxico.org.mx/cep/`.
 
