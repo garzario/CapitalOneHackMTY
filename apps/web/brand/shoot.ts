@@ -38,12 +38,48 @@ interface Shot {
   name: string;
   width: number;
   height: number;
+  /** Capture both themes. Light only when absent, to keep the repo small. */
+  both?: boolean;
 }
 
+/**
+ * Both themes for the two screens a judge looks at longest, light only for the
+ * rest. Every file here is carried in git, so the set is the smallest one that
+ * covers the README, the Devpost gallery and the responsive claim in #96.
+ */
 const SHOTS: Shot[] = [
-  { path: "/run", name: "run", width: 1600, height: 1100 },
-  { path: "/run", name: "run-narrow", width: 900, height: 1200 },
+  { path: "/run", name: "run", width: 1440, height: 1000, both: true },
+  {
+    path: "/instructions/ins-2026w37-002",
+    name: "finding",
+    width: 1200,
+    height: 1100,
+    both: true,
+  },
+  { path: "/run", name: "run-tablet", width: 768, height: 1100 },
+  { path: "/run", name: "run-phone", width: 390, height: 900 },
+  { path: "/intake", name: "intake-phone", width: 390, height: 900 },
+  { path: "/sat", name: "sat", width: 1440, height: 1000 },
+  { path: "/cep", name: "cep", width: 1440, height: 1000 },
+  { path: "/metrics", name: "metrics", width: 1440, height: 1000 },
 ];
+
+/**
+ * The tour a README GIF shows, one screen per stop. Navigation only, no
+ * clicking: an interaction script is one more thing to go stale, and the point
+ * of the loop is to show what the product looks like, not to prove it works.
+ * That is what `bun run demo` is for.
+ */
+const TOUR = [
+  "/run",
+  "/instructions/ins-2026w37-002",
+  "/sat",
+  "/cep",
+  "/metrics",
+];
+
+/** Frames per stop. Six at 8 fps reads as a deliberate pause, not a stutter. */
+const FRAMES_PER_STOP = 6;
 
 const SCHEMES: Scheme[] = ["light", "dark"];
 
@@ -147,7 +183,11 @@ async function pageSocket(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const base = (process.argv[2] ?? "http://localhost:4173").replace(/\/$/, "");
+  const args = process.argv.slice(2);
+  const frames = args.includes("--frames");
+  const base = (
+    args.find((a) => !a.startsWith("--")) ?? "http://localhost:4173"
+  ).replace(/\/$/, "");
 
   const chrome = spawn(
     CHROME,
@@ -168,8 +208,15 @@ async function main(): Promise<void> {
     await devtools.send("Page.enable");
     await mkdir(OUT_DIR, { recursive: true });
 
+    if (frames) {
+      await captureTour(devtools, base);
+      devtools.close();
+
+      return;
+    }
+
     for (const shot of SHOTS) {
-      for (const scheme of SCHEMES) {
+      for (const scheme of shot.both ? SCHEMES : (["light"] as const)) {
         await devtools.send("Emulation.setDeviceMetricsOverride", {
           width: shot.width,
           height: shot.height,
@@ -191,12 +238,30 @@ async function main(): Promise<void> {
            that fallback is a failed fetch with a timeout behind it. */
         await wait(2500);
 
+        /* Clipped to exactly the declared frame. `captureBeyondViewport` on
+           its own expands horizontally as well as vertically, so a 390 wide
+           phone shot came back 751 wide with the run table's own horizontal
+           scroll unrolled into it, which is the opposite of what a responsive
+           screenshot is meant to show. It also produced 4000px tall files. */
         const { data } = await devtools.send<{ data: string }>(
           "Page.captureScreenshot",
-          { format: "png", captureBeyondViewport: true },
+          {
+            format: "png",
+            captureBeyondViewport: true,
+            clip: {
+              x: 0,
+              y: 0,
+              width: shot.width,
+              height: shot.height,
+              scale: 1,
+            },
+          },
         );
 
-        const file = join(OUT_DIR, `${shot.name}-${scheme}.png`);
+        const file = join(
+          OUT_DIR,
+          shot.both ? `${shot.name}-${scheme}.png` : `${shot.name}.png`,
+        );
         await mkdir(dirname(file), { recursive: true });
         await writeFile(file, Buffer.from(data, "base64"));
 
@@ -208,6 +273,62 @@ async function main(): Promise<void> {
   } finally {
     chrome.kill();
   }
+}
+
+/**
+ * Frames for the README loop, written to a temp directory rather than the
+ * repository: forty PNGs is not something to carry in git, and the GIF is the
+ * artefact worth committing.
+ *
+ * The muxing is left to ffmpeg, which this machine does not have. Rather than
+ * ship an encoder nobody can run tonight, the frames are real and the command
+ * is printed. `brew install ffmpeg`, then paste it.
+ */
+async function captureTour(devtools: Devtools, base: string): Promise<void> {
+  const dir = "/tmp/ceptinela-frames";
+  await mkdir(dir, { recursive: true });
+
+  await devtools.send("Emulation.setDeviceMetricsOverride", {
+    width: 1280,
+    height: 800,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await devtools.send("Emulation.setEmulatedMedia", {
+    features: [
+      { name: "prefers-color-scheme", value: "dark" },
+      { name: "prefers-reduced-motion", value: "reduce" },
+    ],
+  });
+
+  let index = 0;
+
+  for (const path of TOUR) {
+    await devtools.send("Page.navigate", { url: `${base}${path}` });
+    await wait(2500);
+
+    for (let frame = 0; frame < FRAMES_PER_STOP; frame++) {
+      const { data } = await devtools.send<{ data: string }>(
+        "Page.captureScreenshot",
+        { format: "png" },
+      );
+
+      const file = join(dir, `${String(index).padStart(3, "0")}.png`);
+      await writeFile(file, Buffer.from(data, "base64"));
+      index++;
+      await wait(120);
+    }
+
+    console.log(`captured ${path}`);
+  }
+
+  console.log(`\n${index} frames in ${dir}`);
+  console.log("\nTo build the GIF, with ffmpeg installed:\n");
+  console.log(
+    `  ffmpeg -y -framerate 4 -i ${dir}/%03d.png \\\n` +
+      `    -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer" \\\n` +
+      `    -loop 0 ${join(REPO_ROOT, "assets", "screenshots", "tour.gif")}`,
+  );
 }
 
 await main();

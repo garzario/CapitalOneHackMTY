@@ -103,12 +103,20 @@
   /* Text */
   --c-ink: #14171c;
   --c-ink-muted: #575e69;
-  --c-ink-subtle: #7c838f;
+  /* 4.50 on the sunken panel, which is the darkest ground it ever sits on.
+     It was #7c838f, which measured 3.34 there and 3.82 on a panel, so the
+     timestamps and the helper lines under every field were below AA. */
+  --c-ink-subtle: #676d77;
   --c-ink-inverse: #ffffff;
 
   /* Lines */
   --c-border: #e0e3e9;
-  --c-border-strong: #c8cdd6;
+  /* 3.00 on the sunken panel. This is not decoration: it is the border of
+     .btn and .input, and .btn has the same background as the panel behind it,
+     so the border is the only thing that says a button is there. At the old
+     #c8cdd6 it measured 1.60, which fails WCAG 1.4.11 for a control boundary
+     and reads as nothing at all to anyone with low vision. */
+  --c-border-strong: #878b91;
   --c-grid: #eceef2;
 
   /* The one accent. Used for focus, links and the primary action, nothing
@@ -140,7 +148,9 @@
   /* The synthetic-data watermark. Deliberately low contrast: it must be
      legible in a screenshot without competing with the numbers. */
   --c-watermark: rgba(20, 23, 28, 0.07);
-  --c-watermark-ink: #7c838f;
+  /* The mark is low contrast by design, but the text on it still has to be
+     readable: it is the sentence that says the data is not real. */
+  --c-watermark-ink: #676d77;
 
   /* Behind the drawer. Dark in both themes: the scrim's job is to take the run
      out of the reading order, and a light scrim over a light page does not. */
@@ -162,11 +172,11 @@
 
     --c-ink: #edf0f5;
     --c-ink-muted: #9aa3b0;
-    --c-ink-subtle: #79828f;
+    --c-ink-subtle: #7f8794;
     --c-ink-inverse: #0b0d11;
 
     --c-border: #262b34;
-    --c-border-strong: #39404c;
+    --c-border-strong: #646973;
     --c-grid: #1f242d;
 
     --c-accent: #6ea1ff;
@@ -190,7 +200,7 @@
     --c-info-ink: #bcd6e9;
 
     --c-watermark: rgba(237, 240, 245, 0.06);
-    --c-watermark-ink: #79828f;
+    --c-watermark-ink: #7f8794;
 
     --c-scrim: rgba(0, 0, 0, 0.62);
 

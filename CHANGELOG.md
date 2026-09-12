@@ -12,6 +12,20 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Measured accessibility pass over the whole app. `apps/web/audit/audit.ts` checks horizontal
+  overflow at 390, 768, 1440 and 1920, keyboard reach and focus visibility under real Tab presses,
+  reduced motion reaching the duration tokens, and WCAG contrast on every colour pairing in both
+  themes, exiting non-zero on a failure. `bun run audit:web` and `bun run shoot:web`.
+- Screenshots for the six screens at four widths and the README loop, in `assets/screenshots`.
+
+### Fixed
+
+- Four colour tokens that failed WCAG AA. `--c-ink-subtle` measured 3.34 on a sunken panel in light
+  and 4.25 in dark, against a floor of 4.5, which put every timestamp and helper line below AA.
+  `--c-border-strong` measured 1.60 and 1.72 against a floor of 3, and it is the border of `.btn`
+  and `.input` on a background of the same colour, so the only thing marking a control was
+  effectively invisible.
+
 - Every screen is designed and enforced in four states. The QR intake page gained the two it was
   missing, an instruction that passes all six controls now says so instead of returning a bare
   decision badge, and `apps/web/src/screens/states.test.ts` fails the build when a screen ships
