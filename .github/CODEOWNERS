@@ -11,6 +11,7 @@
 /packages/nessie/        @fabbyyyy
 /packages/sat/           @garzario
 /packages/cep/           @garzario
+/packages/voice/         @garzario
 /packages/seed/          @garzario
 /packages/seed/src/holdout/ @Apanawa
 /scripts/                @fabbyyyy

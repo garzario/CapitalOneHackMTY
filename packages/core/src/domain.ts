@@ -185,6 +185,30 @@ export interface Finding {
   createdAt: string;
 }
 
+/**
+ * What a verification call to the supplier proved. `no_answer` is nobody picked
+ * up or a voicemail answered; `unclear` is a person who spoke and did not say
+ * either thing, which is a real and common outcome and is never rounded to one
+ * of the other three.
+ *
+ * None of the four releases a payment. A `confirmed` is evidence a clerk weighs,
+ * exactly like a CEP, and the release stays a `decision_made` a person signs.
+ */
+export type VerificationOutcome =
+  | "confirmed"
+  | "denied"
+  | "no_answer"
+  | "unclear";
+
+/** One turn of a verification call, in the order it was spoken. */
+export interface VerificationTurn {
+  /** `supplier` is whoever answered the phone, `agent` is the voice agent. */
+  role: "agent" | "supplier";
+  text: string;
+  /** Seconds from the start of the call, when the provider reports them. */
+  atSecond?: number;
+}
+
 export type Action = "hold" | "verify" | "release";
 
 export interface Decision {
@@ -221,6 +245,30 @@ export type LedgerEvent =
       entries: SatListEntry[];
     }
   | { type: "cep_verified"; at: string; cep: Cep; supplierRfc: Rfc }
+  | {
+      /**
+       * A verification call was placed to the supplier and it ended. The event
+       * records what was said, never what to do about it: the decision that
+       * follows is a separate `decision_made` signed by a person.
+       */
+      type: "verification_call";
+      at: string;
+      instructionId: string;
+      supplierRfc: Rfc;
+      outcome: VerificationOutcome;
+      /**
+       * Last four digits of the account that was read out loud. The full CLABE
+       * is never spoken on the call and never stored on this event.
+       */
+      clabeLast4: string;
+      /** The sentence the outcome was read from, quoted from the transcript. */
+      evidence?: string;
+      transcript: VerificationTurn[];
+      /** Conversation id at the voice provider, so the audio can be pulled. */
+      conversationId?: string;
+      /** True when a person placed the call by hand and typed the outcome in. */
+      manual: boolean;
+    }
   | { type: "decision_made"; at: string; decision: Decision };
 
 /** Result of the retroactive sweep after a SAT publication. */

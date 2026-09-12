@@ -12,6 +12,17 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
+  says from the payment instruction and never speaks more than the last four digits of the account,
+  promises no payment and accuses nobody; `VoiceClient` creates or updates the agent, places the
+  outbound call through the Twilio integration and reads the transcript back, all behind an
+  injectable fetch; `parseVerificationOutcome` turns a transcript into `confirmed`, `denied`,
+  `no_answer` or `unclear` with the quoted sentence, deterministically and with a bare "si"
+  deliberately not counting as a confirmation. Plus `verification_call` in the domain ledger,
+  `POST` and `GET /api/v1/instructions/:id/verify-call` in `apps/api` (422 with the script when the
+  keys are absent, and no path that releases a payment), the browser fallback at `/verify-call` in
+  `apps/web`, and `bun run voice-setup` which prints the ids for `.env`. Fixture transcripts, no
+  network and no key in the tests.
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 - `apps/api` scaffold for the contract in `docs/09-api.md`: one file per route group under

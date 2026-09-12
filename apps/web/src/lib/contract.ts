@@ -26,6 +26,8 @@ import type {
   SatListEntry,
   Supplier,
   SweepResult,
+  VerificationOutcome,
+  VerificationTurn,
 } from "@hackmty/core";
 
 /** `GET /health`. */
@@ -171,6 +173,53 @@ export interface CepVerification {
   finding: Finding;
 }
 
+/**
+ * `POST /api/v1/instructions/:id/verify-call`, one of three ways.
+ *
+ * `toNumber` rings the supplier through the voice agent, `conversationId`
+ * collects a call that already happened, and `outcome` records one a person
+ * made on their own telephone. None of them releases a payment.
+ */
+export type VerifyCallBody =
+  | { toNumber: string }
+  | { conversationId: string }
+  | { outcome: VerificationOutcome; evidence?: string; recordedBy: string };
+
+/** What the agent says, or what the clerk reads out when there is no telephony. */
+export interface VerificationScriptText {
+  firstMessage: string;
+  question: string;
+  /** Four digits. The full CLABE is never spoken and never sent here. */
+  clabeLast4: string;
+  spoken: string[];
+}
+
+/** Response of `POST /api/v1/instructions/:id/verify-call`. */
+export interface VerifyCallResult {
+  /** `calling` means the telephone is ringing and there is no transcript yet. */
+  status: "calling" | "recorded";
+  script: VerificationScriptText;
+  conversationId?: string;
+  outcome?: VerificationOutcome;
+  evidence?: string;
+  transcript?: VerificationTurn[];
+  /** Always false. The release stays a decision a person signs. */
+  releasesPayment: false;
+}
+
+/** Response of `GET /api/v1/instructions/:id/verify-call`. Side effect free. */
+export interface VerifyCallScript {
+  script: VerificationScriptText;
+  /** Whether this deployment can place the call, or only print the script. */
+  voiceConfigured: boolean;
+  releasesPayment: false;
+}
+
+/** The same 422 body, plus the script, when the voice integration is absent. */
+export interface VerifyCallUnavailable extends ApiErrorBody {
+  script: VerificationScriptText;
+}
+
 /** `POST /api/v1/seed`, development only, guarded by ALLOW_SEED=1. */
 export interface SeedBody {
   seed?: number;
@@ -178,7 +227,7 @@ export interface SeedBody {
 }
 
 /** Re-exported so screens import one module, not two. */
-export type { Metrics, SweepResult };
+export type { Metrics, SweepResult, VerificationOutcome, VerificationTurn };
 
 /** The error envelope every failing route returns, from docs/09-api.md. */
 export interface ApiErrorBody {
