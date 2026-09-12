@@ -277,7 +277,7 @@ carries no base URL and there is no CORS configuration anywhere in `apps/api`.
 |---|---|---|---|
 | `apps/web` | Vercel, static build | Production from `main`, previews from `dev` and every PR, driven by the Vercel GitHub App rather than a workflow in this repo. `vercel.json` holds the build: `bun install --frozen-lockfile`, then `bun run --filter '@hackmty/web' build`, output `apps/web/dist` | Preview URL on each UI PR |
 | `apps/api` | One Vultr instance, Caddy terminating HTTPS in front of the container | `bun run deploy:vultr`, which reuses the instance labelled `sentryone-api` and ends by calling `/health` and `/api/v1/run/current` over HTTPS | The smoke test the script prints, and the SSE trace below |
-| Database | Tiger Data managed Timescale | `bun run migrate` applies the six plain files always and the three Timescale files only when the extension exists. Live there: `timescaledb 2.30.0` on PostgreSQL 18.6, `ledger_events` and `ledger_tx` as hypertables, `ledger_daily`, `ledger_events_daily` and `supplier_weekly_outflow` as continuous aggregates | `bun run doctor` names the live path |
+| Database | Tiger Data managed Timescale | `bun run migrate` applies the five plain files always and the three Timescale files only when the extension exists. Live there: `timescaledb 2.30.0` on PostgreSQL 18.6, `ledger_events` and `ledger_tx` as hypertables, `ledger_daily`, `ledger_events_daily` and `supplier_weekly_outflow` as continuous aggregates | `bun run doctor` names the live path |
 | Offline fallback | Local Postgres 18 on 5432, second API port | Same SQL, same driver, same migrations | `docs/10-demo-script.md`, offline section |
 | No database at all | Any laptop | `SEED=sentryone bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
 
@@ -311,7 +311,21 @@ bun --env-file=.env run scripts/deploy-vultr.ts --dry-run   # what would be sent
 bun run deploy:vultr --branch dev                           # create or reuse, then smoke test
 bun run deploy:vultr --smoke-only                           # just prove the live one answers
 ssh -i ~/.ssh/sentryone_vultr root@<ip> /srv/sentryone/refresh.sh dev
+bun run deploy:vultr --reinstall --branch dev               # when SSH is blocked, see below
 ```
+
+Two operational notes that cost time to learn on the night.
+
+- **SSH out of the venue may not work.** The Arena Borregos network let the TCP connection to port 22
+  open and then never delivered the banner, so `refresh.sh` was unreachable from the floor. The path
+  that needs no SSH is `--reinstall --branch <name>`: it rewrites the user data, reinstalls the same
+  subscription, and keeps the address, which is the one thing that must not change once it is in
+  `README.md` and in the Vercel rewrite.
+- **A reinstall costs a certificate.** It wipes the disk, so the `caddy_data` volume holding the
+  issued certificate goes with it and Caddy asks Let's Encrypt for a new one on the next boot. Let's
+  Encrypt allows five certificates per week for the same exact name, so reinstalling the same box
+  more than five times in seven days leaves it serving plain HTTP with a rate-limit error in the
+  Caddy log. A rebuild through `refresh.sh` keeps the volume and costs nothing.
 
 The instance holds its configuration in `/srv/sentryone/.env`, written by cloud-init from the deploy
 machine's own `.env`: `DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`,

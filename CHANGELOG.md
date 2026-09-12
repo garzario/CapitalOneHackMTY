@@ -18,6 +18,16 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- Two things the deploy of #44 cost to learn, written down next to the commands in
+  `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
+  connection to port 22 and then never delivers the banner, so `refresh.sh` is unreachable from the
+  floor and `bun run deploy:vultr --reinstall --branch <name>` is the path that needs no SSH and
+  keeps the address; and a reinstall discards the `caddy_data` volume, so Caddy asks Let's Encrypt
+  for a new certificate on the next boot, against a limit of five per week for the same name. The
+  script prints the second one before it wipes anything. Also corrects the migration count in the
+  same table: five plain files and three Timescale ones, which is what `packages/db/migrations/`
+  holds.
+
 - The deploy, both halves of it, and the URL a judge can open (issue #44). `apps/web` is a static
   build on Vercel and `apps/api` runs on one Vultr instance behind Caddy, which terminates HTTPS on
   `api.<ip>.sslip.io`: sslip.io resolves a name that embeds an IPv4 address to that address, so
