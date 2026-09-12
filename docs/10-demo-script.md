@@ -15,11 +15,11 @@ language the judge opens with. The Spanish rendering of each line goes on the pr
 
 | Time | Beat | Exact click or command | Expected on screen | The one sentence said over it | Fallback if it breaks |
 |---|---|---|---|---|---|
-| 0:00 to 0:55 | **1. The payment run** | Tab 1, already loaded: the payment-run screen | This week's run, its totals, rows sorted with the alert rail on the right by pesos at risk, three findings visible, the `datos sinteticos` watermark | "This is Thursday for the person who pays the suppliers of a 28-person metalworking shop in Apodaca. Seventy to a hundred and ten transfers in one sitting, and all of this data is synthetic. Ceptinela has already read every invoice, so the run arrives sorted by how much money is at risk instead of alphabetically." | Local instance on the second port, same screen, same data |
+| 0:00 to 0:55 | **1. The payment run** | Tab 1, already loaded: the payment-run screen | This week's run, its totals, rows sorted with the alert rail on the right by pesos at risk, seven findings on 92 instructions, 885,658.73 MXN that is not leaving, the `datos sinteticos` watermark | "This is Thursday for the person who pays the suppliers of a 28-person metalworking shop in Apodaca. Ninety two transfers in one sitting, and all of this data is synthetic. Ceptinela has already read every invoice, so the run arrives sorted by how much money is at risk instead of alphabetically." | Local instance on the second port, same screen, same data |
 | 0:55 to 1:50 | **2. The SAT publication replay, and a real RFC** | Click `Simular publicacion 69-B`. Then hand the judge the lookup box and let them type a real RFC | Eight months of ledger replay in under three seconds, newly listed suppliers lighting up, the exposure counters climbing (deducted base, ISR, IVA), a constancia PDF to download. The lookup box answers from the official list | "Here is the part nobody instruments. When the SAT publishes a new Article 69-B list, everything you already paid and already deducted to a supplier on it is exposed retroactively. We replay the ledger and quantify it. The list is the real one, and this box is separate from the simulation on purpose: real RFCs never touch our synthetic invoices." | The lookup box alone, offline from the committed list snapshot. If the replay stalls, the recorded video cued to this beat |
-| 1:50 to 2:35 | **3. An instruction arriving by QR** | Judge scans the QR on the printed card, photographs the CLABE printed on it, submits | The intake page accepts it, the big screen gains a row within two seconds over SSE, with the finding and the two digits that differ from the account we have paid six times | "Send it yourself. That instruction went from your phone to the engine and back to this screen without a reload, and the reason it is flagged is on the chip: this account differs in two digits from the one we have paid this supplier on six times." | Type the CLABE instead of photographing it. If the judge's phone fails, do it from our second phone. If SSE drops, reload once and say the stream dropped |
-| 2:35 to 3:20 | **4. The real CEP and its signature** | Open the CEP viewer on the verified beneficiary | The CEP fields, the clave de rastreo, the signature status, and the holder name next to the CFDI legal name | "Before we release a payment to a new account, a person sends one cent. Banxico signs a receipt for every SPEI. We fetch it, check the signature, and compare the account holder name with the legal name on the invoice. Here is the clave de rastreo. Re-check it on the Banxico site from your own phone, this one is real." | The stored CEP fixture rendered from disk. Never fabricate a CEP on stage |
-| 3:20 to 4:00 | **5. The metrics page, and the business line** | Open the metrics page. For an engineer judge, open the detector beside its test file instead and run `bun test` | Precision, recall and false-positive rate with the case count next to them, per detector, plus the note naming anything we measured and refused to ship | "The cases were written and labelled by someone who does not write the detectors, and the detector author does not read that folder until the code is merged, so these numbers are blind. Nothing here is a language model: the decision is deterministic and you can read it." | `bun test` output already captured in the terminal, or the metrics JSON from `GET /api/v1/metrics` |
+| 1:50 to 2:35 | **3. An instruction arriving by QR** | Judge scans the QR on the printed card, photographs the CLABE printed on it, submits | The intake page accepts it, the big screen gains a row within two seconds over SSE, with the finding and the two digits that differ from the account we have paid 52 times | "Send it yourself. That instruction went from your phone to the engine and back to this screen without a reload, and the reason it is flagged is on the chip: this account differs in two digits from the one we have paid this supplier on 52 times." | Type the CLABE instead of photographing it. If the judge's phone fails, do it from our second phone. If SSE drops, reload once and say the stream dropped |
+| 2:35 to 3:20 | **4. The CEP and its signature** | Open the CEP viewer | The CEP fields, the clave de rastreo, the holder name next to the CFDI legal name, and the signature status as the parser reports it | "Before we release a payment to a new account, a person sends one cent. Banxico signs a receipt for every SPEI. We fetch it, compare the account holder name with the legal name on the invoice, and keep it as evidence. Say out loud that this one is the synthetic fixture and that the signature is reported as not checked: confirming the Banxico scheme needs the real certificate, which is issue #57." | The stored CEP fixture rendered from disk. Never fabricate a CEP on stage, and never say a signature was validated when it was not |
+| 3:20 to 4:00 | **5. The metrics page, and the business line** | Open the metrics page. For an engineer judge, open the detector beside its test file instead and run `bun test` | Precision, recall and false-positive rate with the case count next to them, per detector, plus the note naming anything we measured and refused to ship. While the blind holdout (#55) is empty the page says so instead of showing a score | "The cases were written and labelled by someone who does not write the detectors, and the detector author does not read that folder until the code is merged, so these numbers are blind. Nothing here is a language model: the decision is deterministic and you can read it." | `bun test` output already captured in the terminal, or the metrics JSON from `GET /api/v1/metrics` |
 
 Beat 1 and beat 3 are stage 3 of `docs/03-user-journey.md`, the moment that is the product. Beat 3
 is the one to protect if time is lost, because a judge who sent the instruction themselves does not
@@ -35,18 +35,46 @@ need to be convinced that the product runs.
 
 ## Seeded IDs used in the demo
 
-Printed by `bun run seed`. These must match `docs/09-api.md` and the printed card exactly.
+Printed by `bun run demo` and by the API boot line under `SEED=ceptinela`. Seed 69, and the seed
+is what makes every id below stable on any laptop. These must match `docs/09-api.md` and the
+printed card exactly.
 
 | Thing | ID | Note |
 |---|---|---|
-| Demo company | TODO(Apanawa) | The metalmecanica from `docs/02-persona.md` |
-| Hero instruction | TODO(Apanawa) | The CLABE two digits off, top of the alert rail |
-| Hero supplier RFC | TODO(Apanawa) | Synthetic, `SYN` prefixed |
-| Supplier for the sweep | TODO(Apanawa) | The one that becomes listed in the simulated publication |
-| Real RFC for the lookup box | TODO(garzario) verify | Taken from the official list at load time. Never attached to a synthetic invoice |
+| Demo company | `SYN090615C01` Metalicos del Norte SA de CV | The metalmecanica from `docs/02-persona.md` |
+| Payment run | `run-2026-09-07`, week of 2026-09-07 | 92 instructions, 2,174,210.76 MXN |
+| Hero instruction | `INS-2026-09-07-047` | The CLABE two digits off (positions 9 and 10), 38,417.48 MXN, verificar |
+| Hero supplier RFC | `SYN990202S02` Maquinados Industriales Regios SA de CV | Synthetic, `SYN` prefixed, paid 52 times on `012180100091764613` |
+| Hero account on the instruction | `012180101391764613` | Valid check digit, so it is a changed account and not a typo. This is the CLABE on the printed card |
+| Largest hold | `INS-2026-09-07-029` | 537,960.97 MXN, CLABE whose check digit cannot exist, arrived as a photo |
+| Supplier for the sweep | `SYN080910HI8` MATERIALES SINTETICOS OCHO SA DE CV | Presunto since 2026-05-22; the simulation turns it definitivo over 24 invoices already paid |
+| Real RFC for the lookup box | `AAA080808HL8` | Presunto 2018-06-25, definitivo 2018-10-23, sentencia favorable 2019-04-16, from the committed official list. Never attached to a synthetic invoice |
 | Clave de rastreo of the real CEP | TODO(Apanawa) | From issue #57. Goes on the printed card so a judge can re-verify it |
-| Seed value | TODO(Apanawa) | Committed, so every ID above is stable |
-| Instruction count in the run | TODO(garzario) verify | Whatever `bun run seed` prints. Do not say a number on stage that the screen does not show |
+| Seed value | 69 | Committed, so every ID above is stable |
+| Instruction count in the run | 92 | What the screen shows. Do not say a number on stage that the screen does not show |
+
+### Numbers the screen shows
+
+Say these only while they are on the screen. `bun run demo` prints every one of them from the API
+it just drove, so the way to check this table before a rehearsal is to run it and read the output.
+
+| Number | Value | Where it comes from |
+|---|---|---|
+| Run total | 2,174,210.76 MXN over 92 instructions | `GET /api/v1/run/current` |
+| Not leaving yet | 885,658.73 MXN, 7 lines, 2 held and 5 to verify | The six controls over the seeded run |
+| Retroactive exposure | 404,152.59 MXN: 263,577.78 ISR and 140,574.81 IVA over a deducted base of 878,592.59 | `POST /api/v1/sat/publish` with `simulate` |
+
+### Curls a judge can paste
+
+Against a local instance started with `SEED=ceptinela bun run dev` in `apps/api`.
+
+```bash
+curl -s localhost:3000/api/v1/run/current | jq '.totals'
+curl -s localhost:3000/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
+curl -s 'localhost:3000/api/v1/sat/lookup?rfc=AAA080808HL8' | jq
+curl -s -X POST localhost:3000/api/v1/sat/publish -H 'content-type: application/json' \
+  -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' | jq '.totalExposure'
+```
 
 ## Pre-demo checklist
 
@@ -58,7 +86,7 @@ the difference between looking real and looking like a prototype.
 - [ ] `curl /health` returns ok, and `bun run doctor` names the live database path
 - [ ] The SSE stream is alive: the intake page posts one instruction and the row appears
 - [ ] The SAT list snapshot is loaded and its version and publication date are visible
-- [ ] The real CEP is present and its signature check passes
+- [ ] The CEP fixture parses and the name comparison answers. TODO(garzario) issue #57: swap in the real CEP and its certificate, and only then say the signature was validated
 - [ ] One browser window, demo tabs in order, every other window closed
 - [ ] The printed card is on the table: QR code, the CLABE to photograph, the clave de rastreo, the real RFC
 - [ ] Notifications off, Do Not Disturb on

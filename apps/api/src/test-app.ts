@@ -9,7 +9,9 @@
 
 import { createApp } from "./app";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
+import { UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { PipelineClock } from "./pipeline";
+import { MemoryRepository } from "./repo";
 import type { VoiceDeps } from "./routes/verify-call";
 
 export const TEST_NOW = "2026-09-12T03:00:00.000Z";
@@ -28,17 +30,29 @@ export interface TestHarness {
 }
 
 /**
- * `voice` defaults to a configuration that is deliberately absent, so a test run
- * on a laptop that has real ElevenLabs keys in its environment behaves exactly
- * like CI. A test that wants the call path passes its own stub.
+ * Every dependency that `createDeps` would otherwise read out of the process
+ * environment is constructed here instead, so the suite gives the same answers
+ * on CI and on a laptop whose `.env` bun has already auto-loaded:
+ *
+ * - `repo` is a fresh `MemoryRepository` over the hand-written fixture, never
+ *   the generated company `SEED=ceptinela` boots the server on.
+ * - `extractor` is the one a server with no `GEMINI_API_KEY` gets. A developer
+ *   with a real key used to make the two "refuses an image or a voice note"
+ *   tests fail, and the voice-note one reached the model over the network,
+ *   which is a test suite that is neither offline nor repeatable.
+ * - `voice` is a configuration that is deliberately absent, for the same reason.
+ *
+ * A test that wants any of the three passes its own.
  */
 export function createTestApp(
   overrides: DepsOverrides = {},
   voice: VoiceDeps = { readConfig: () => undefined },
 ): TestHarness {
   const deps = createDeps({
+    repo: new MemoryRepository(),
     clock: createTestClock(),
     allowSeed: false,
+    extractor: UNAVAILABLE_EXTRACTOR,
     ...overrides,
   });
 

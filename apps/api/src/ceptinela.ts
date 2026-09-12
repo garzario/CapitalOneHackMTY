@@ -7,11 +7,17 @@
  * the same `SEED_NUMBER` serve byte-identical data, which is what makes a rehearsal
  * reproducible and a screenshot still true an hour later.
  *
- * What deliberately does NOT come across: findings, decisions and labelled cases.
- * A finding is the engine's output, so the generator shipping its own would be the
- * generator answering the question the detectors exist to answer, and `GET
- * /api/v1/metrics` reports zero cases rather than a score nobody earned. The blind
- * holdout owns that number.
+ * What deliberately does NOT come across from the generator: findings, decisions and
+ * labelled cases. A finding is the engine's output, so the generator shipping its own
+ * would be the generator answering the question the detectors exist to answer, and
+ * `GET /api/v1/metrics` reports zero cases rather than a score nobody earned. The
+ * blind holdout owns that number.
+ *
+ * The findings and the decisions on the run are therefore produced here instead, by
+ * running the same six controls the intake endpoint runs, over the generated company,
+ * at boot. That is the whole vertical slice in one function: seed, engine, repository,
+ * screen. A payment run that opened on an empty alert rail would be a screen that
+ * proves nothing.
  *
  * The bank mirror does come across, because `bank_reconciliation` reads it: eight
  * months of SPEI, one row per transfer, every one of them backed by the complement
@@ -20,6 +26,7 @@
  */
 
 import { CEPTINELA_SEED_NAME, loadCeptinela } from "@hackmty/seed";
+import { assessRun } from "./assess";
 import type { SyntheticDataset } from "./synthetic";
 
 /** The demo ids `bun run seed` prints and `docs/10-demo-script.md` names. */
@@ -29,6 +36,22 @@ export interface CeptinelaBootNotes {
   runId: string;
   heroInstructionIds: string[];
   demoRfcs: string[];
+  /** What the engine found on the run, so the boot log is not a promise. */
+  findings: number;
+  held: number;
+  toVerify: number;
+}
+
+/**
+ * The instant the controls are given for the seeded run.
+ *
+ * The generator names the day the run is prepared, and the detectors are handed
+ * that day rather than the wall clock, so two laptops that boot the same seed an
+ * hour apart still produce the same findings and a screenshot stays true.
+ * 09:00 in Monterrey, which is UTC-6 all year.
+ */
+function runInstant(runDay: string): string {
+  return `${runDay}T15:00:00.000Z`;
 }
 
 let lastNotes: CeptinelaBootNotes | undefined;
@@ -44,6 +67,15 @@ export function ceptinelaBootNotes(): CeptinelaBootNotes | undefined {
  */
 export function ceptinelaDataset(seed: number): SyntheticDataset {
   const snapshot = loadCeptinela(seed === 0 ? {} : { seed });
+  const assessed = assessRun({
+    suppliers: snapshot.suppliers,
+    cfdis: snapshot.cfdis,
+    complements: snapshot.complements,
+    instructions: snapshot.instructions,
+    satEntries: snapshot.satEntries,
+    bankMirror: snapshot.bankMirror,
+    now: runInstant(snapshot.runDay),
+  });
 
   lastNotes = {
     seed: snapshot.seed,
@@ -51,6 +83,10 @@ export function ceptinelaDataset(seed: number): SyntheticDataset {
     runId: snapshot.runId,
     heroInstructionIds: snapshot.heroInstructionIds,
     demoRfcs: snapshot.demoRfcs,
+    findings: assessed.findings.length,
+    held: assessed.decisions.filter((row) => row.action === "hold").length,
+    toVerify: assessed.decisions.filter((row) => row.action === "verify")
+      .length,
   };
 
   return {
@@ -62,9 +98,9 @@ export function ceptinelaDataset(seed: number): SyntheticDataset {
     cfdis: snapshot.cfdis,
     complements: snapshot.complements,
     instructions: snapshot.instructions,
-    findings: [],
-    findingsByInstruction: {},
-    decisions: [],
+    findings: assessed.findings,
+    findingsByInstruction: assessed.findingsByInstruction,
+    decisions: assessed.decisions,
     satEntries: snapshot.satEntries,
     beneficiaries: [],
     bankMirror: snapshot.bankMirror,

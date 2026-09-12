@@ -21,8 +21,19 @@ import { MemoryRepository } from "./repo";
 import { instructionDetailSchema, paymentRunSchema } from "./schemas";
 import { createTestApp } from "./test-app";
 
+/**
+ * One app for the read-only tests, built once.
+ *
+ * Generating 44 suppliers with eight months of history and then running the six
+ * controls over the whole payment run is real work, and every test below only
+ * reads. The one test that writes builds its own repository, so nothing here
+ * shares state that anything mutates.
+ */
+let shared: ReturnType<typeof createTestApp> | undefined;
+
 function ceptinelaApp() {
-  return createTestApp({ repo: new MemoryRepository(0, ceptinelaDataset) });
+  shared ??= createTestApp({ repo: new MemoryRepository(0, ceptinelaDataset) });
+  return shared;
 }
 
 describe("SEED=ceptinela", () => {
@@ -51,10 +62,50 @@ describe("SEED=ceptinela", () => {
       expect(item.instruction.synthetic).toBe(true);
       expect(item.supplier.synthetic).toBe(true);
       expect(item.supplier.rfc.startsWith("SYN")).toBe(true);
-      // No decision and no finding: those are the engine's answers, and a dataset
-      // that shipped them would be answering the question the detectors exist for.
-      expect(item.decision).toBeNull();
-      expect(item.findings).toHaveLength(0);
+      // The engine proposed an action for every line, and nobody has signed any
+      // of them: `decidedBy` stays absent until a person presses the button.
+      expect(item.decision?.instructionId).toBe(item.instruction.id);
+      expect(item.decision?.decidedBy).toBeUndefined();
+      expect(item.decision?.findings).toEqual(item.findings);
+    }
+
+    // The generator ships no findings, so every one of these came out of the six
+    // controls at boot. A run that opened on an empty alert rail would prove
+    // nothing, which is exactly what issue #62 is about.
+    const rail = run.items.flatMap((item) => item.findings);
+    expect(rail.length).toBeGreaterThan(0);
+    expect(run.totals.held + run.totals.toVerify).toBeGreaterThan(0);
+    expect(run.totals.released).toBe(
+      run.totals.instructions - run.totals.held - run.totals.toVerify,
+    );
+  });
+
+  it("stops the two payments the demo is about, on evidence from the documents", async () => {
+    const { app } = ceptinelaApp();
+    const run = paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+    const byDetector = new Map<string, string[]>();
+    for (const item of run.items) {
+      for (const finding of item.findings) {
+        byDetector.set(finding.detector, [
+          ...(byDetector.get(finding.detector) ?? []),
+          item.instruction.id,
+        ]);
+      }
+    }
+
+    // The supplier on the 69-B list, and the account that changed by two digits.
+    // Both are cases the generator injected and neither is labelled in the data:
+    // the detectors found them.
+    expect(byDetector.get("sat_69b")?.length).toBe(1);
+    expect(byDetector.get("clabe_forensics")?.length).toBeGreaterThan(0);
+
+    for (const [, ids] of byDetector) {
+      for (const id of ids) {
+        const item = run.items.find((row) => row.instruction.id === id);
+        expect(item?.decision?.action).not.toBe("release");
+      }
     }
   });
 

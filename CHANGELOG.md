@@ -12,6 +12,16 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- End-to-end vertical slice. `SEED=ceptinela` now runs the six controls over the generated company
+  at boot, so `GET /api/v1/run/current` serves the engine's own findings and proposed actions
+  instead of an empty alert rail: 7 findings on 92 instructions, 2 held and 5 to verify, and
+  885,658.73 MXN that does not leave. The API boot line prints the seed, the run and the hero ids.
+  `sat_69b` now reads the committed official 69-B snapshot as well as the versions the instance was
+  posted, for that one RFC, so a real listed RFC is caught by the control and not only by the lookup
+  box, while every synthetic supplier still meets no real row. `bun run demo` is a rewrite that
+  drives the five beats of `docs/10-demo-script.md` headless against a freshly seeded in-memory app
+  and exits non-zero on any beat, with `--base <url>` to run the same beats over HTTP against a
+  deployment.
 - Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
@@ -127,8 +137,21 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Changed
 
+- `detectBankReconciliation` buckets the expected payments by the day they are expected on and
+  scans only the days inside the match window, instead of the whole company's documents once per
+  outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from
+  11 seconds to 1.5, which is what makes running the controls at boot possible at all.
+
 ### Fixed
 
+- The 69-B simulation on the `/sat` screen posted an RFC written into the screen, and that RFC
+  belonged to the hand-written fixture rather than to the seeded company, so the sweep listed
+  nobody and the demo's centrepiece showed a confident 0.00. The supplier is read off the payment
+  run now, and a sweep that lists nobody gets its own empty state instead of a row of zeros.
+- The two `apps/api` tests that refuse an image or a voice note read `GEMINI_API_KEY` out of the
+  environment, so they failed on a developer machine that had one, and the voice-note one reached
+  the model over the network. `createTestApp` constructs the repository, the extractor and the voice
+  configuration explicitly, so the suite no longer depends on `process.env` or on a local `.env`.
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
   landed it called none of them and `composeFindings` returned an empty array for all six slots
