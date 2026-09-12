@@ -162,10 +162,37 @@ function hash(value: string | null | undefined): string | undefined {
   return /^[0-9a-f]{64}$/.test(candidate) ? candidate : undefined;
 }
 
-/** Snowflake serialises a DATE as YYYY-MM-DD; anything longer is truncated. */
+/** Days in the epoch-day encoding below, so the arithmetic stays integer. */
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * One calendar day, from either shape the warehouse can hand back.
+ *
+ * The SQL REST API does NOT serialise a DATE as `YYYY-MM-DD`. Its own
+ * documentation, read on 2026-09-12, says the result set is "encoded in JSON
+ * expressed as strings, regardless of the Snowflake data type of the column" and
+ * that a DATE is an "Integer value (in a string) of the number of days since the
+ * epoch (e.g. 18262)". So `min(event_date)` comes back as `"19854"`, and a parser
+ * that only accepted the ISO form rejected every row of a real pull and wrote an
+ * empty snapshot with `source = 'snowflake'`, which is the worst failure this
+ * signal has: the screen would say the network was consulted and has never seen
+ * any of these accounts.
+ *
+ * `networkSelect` in `ddl.ts` now formats both dates in SQL so the ISO form is
+ * what actually arrives. The epoch-day branch stays because it costs three lines
+ * and it is the difference between a hand-written query returning nothing usable
+ * and returning the truth.
+ */
 function day(value: string | null | undefined): string | undefined {
-  const candidate = (value ?? "").trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : undefined;
+  const candidate = (value ?? "").trim();
+  if (/^-?\d{1,7}$/.test(candidate)) {
+    const at = new Date(Number(candidate) * MS_PER_DAY);
+    return Number.isNaN(at.getTime())
+      ? undefined
+      : at.toISOString().slice(0, 10);
+  }
+  const iso = candidate.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : undefined;
 }
 
 /**

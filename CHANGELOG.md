@@ -126,11 +126,24 @@ then the screens, then the narrative, then the plumbing.
   **The network is synthetic and every artifact says so.** SentryOne has one tenant, so the other
   tenants are generated from seed 69 with `synthetic = TRUE` on every warehouse row, and
   `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse a rehearsal
-  with a warehouse. Verified end to end against a local PostgreSQL 18 on 2026-09-12: 46 hashed pairs
-  pulled with `--offline`, a corroborated account released with "pagada por 34 empresas" on the
-  finding, and the same supplier on an account the network has never paid verified at 35,769.75 MXN
-  of expected loss. The live Snowflake path is untried because `SNOWFLAKE_ACCOUNT` and
-  `SNOWFLAKE_USER` are still empty.
+  with a warehouse.
+  **Verified against the real warehouse on 2026-09-12, and the verification found one bug.**
+  `consortium:seed` created `SENTRYONE.CONSORTIUM` and loaded 2,040 synthetic events, `consortium:push`
+  added 2,446 of this tenant's own hashed outcomes, and `consortium:pull` landed 46 hashed pairs, 45
+  corroborated and 1 with a fraud report, into the managed Postgres. The first live pull skipped all 46
+  rows: the SQL REST API returns a DATE as the number of days since the epoch in a string, not as
+  `YYYY-MM-DD`, so the pull wrote an EMPTY snapshot with `source = 'snowflake'`, which a screen would
+  have read as a network that has never seen any of these accounts. `networkSelect` now formats both
+  dates with `to_varchar(..., 'YYYY-MM-DD')` and `readNetworkRows` also decodes the epoch-day form, each
+  with a test. `bun run doctor` prints the `snowflake` line green with the pair count and the
+  `pulled_at` it wrote.
+  **`bun run demo` has a sixth beat for it.** It fills a local snapshot from the generator with no
+  Snowflake account, then posts two lines of the seeded run through intake: one the network corroborates
+  is released carrying `pagada por 34 empresas desde sep 2025` in its evidence, one the network has no
+  row for is held at 537,960.97 MXN carrying `sin registro de esta cuenta, 1 otra cuenta del proveedor`,
+  and the same two lines against an instance with the flag off, and against one with the flag on and an
+  empty snapshot, come back with the identical action and the identical expected loss, which is claim 2
+  of `packages/core/src/network.ts` asserted rather than argued.
 
 - Two things the deploy of #44 cost to learn, written down next to the commands in
   `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
