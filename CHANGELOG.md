@@ -36,6 +36,12 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   demo RFCs, and `SEED=ceptinela` serves the same company from the API.
 - Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
   back, and explicit blockers for the live URL and real CEP tracking key.
+- Finding panel reads all three evidence vocabularies in the repository through
+  `apps/web/src/lib/evidence.ts`, and gives the four facts that decide a payment their own
+  rendering: the account comparison with the differing digits painted, the change of bank named
+  rather than shown as codes, the Article 69-B row badged by status, and the invoice a duplicate
+  copies. Chips are labelled in Spanish, and a test fails the build when a producer grows a key
+  nobody translated.
 - `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
   says from the payment instruction and never speaks more than the last four digits of the account,
   promises no payment and accuses nobody; `VoiceClient` creates or updates the agent, places the

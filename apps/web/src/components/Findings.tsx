@@ -9,6 +9,7 @@
 
 import type { Finding } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
+import { readEvidence } from "../lib/evidence";
 import { formatDateTime } from "../lib/format";
 import {
   DETECTOR_LABEL,
@@ -16,7 +17,13 @@ import {
   FINDING_STATE_LABEL,
 } from "../lib/labels";
 import { instructionPath, Link } from "../lib/router";
-import { ClabeDiff, clabePair, EvidenceChips } from "./Evidence";
+import {
+  BankChangeBlock,
+  ClabeDiff,
+  DuplicateOriginBlock,
+  EvidenceChips,
+  SatStatusBlock,
+} from "./Evidence";
 import { Amount, SeverityBadge } from "./Primitives";
 
 export type RailEntry = {
@@ -107,10 +114,22 @@ type PanelProps = {
   finding: Finding;
   /** Shown when the panel stands alone, outside an instruction detail. */
   showSubject?: boolean;
+  /**
+   * The account on the payment instruction. The detectors keep only the known
+   * account in the evidence record, because the proposed one is already on the
+   * instruction, so a caller that has one hands it over and the comparison can
+   * be drawn. A caller that does not gets no comparison rather than a wrong
+   * one: see `readEvidence` in lib/evidence.ts.
+   */
+  proposedClabe?: string;
 };
 
-export function FindingPanel({ finding, showSubject = false }: PanelProps) {
-  const pair = clabePair(finding);
+export function FindingPanel({
+  finding,
+  showSubject = false,
+  proposedClabe,
+}: PanelProps) {
+  const evidence = readEvidence(finding, proposedClabe);
 
   return (
     <article className="panel flex flex-col gap-4 p-5">
@@ -143,9 +162,19 @@ export function FindingPanel({ finding, showSubject = false }: PanelProps) {
         </p>
       </div>
 
-      {pair ? <ClabeDiff proposed={pair.proposed} known={pair.known} /> : null}
+      {evidence.satStatus ? <SatStatusBlock sat={evidence.satStatus} /> : null}
 
-      <EvidenceChips finding={finding} />
+      {evidence.duplicateOf ? (
+        <DuplicateOriginBlock origin={evidence.duplicateOf} />
+      ) : null}
+
+      {evidence.bankChange ? (
+        <BankChangeBlock change={evidence.bankChange} />
+      ) : null}
+
+      {evidence.clabe ? <ClabeDiff comparison={evidence.clabe} /> : null}
+
+      <EvidenceChips chips={evidence.chips} />
 
       <footer className="subtle t-xs">
         Detectado el {formatDateTime(finding.createdAt)}
