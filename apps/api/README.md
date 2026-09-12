@@ -22,12 +22,16 @@ src/
   assess.ts                the six controls over a whole run, at boot and at load
   synthetic.ts             the seeded payment run the UI is built against
   pipeline.ts              intake, the retroactive sweep, calls into core
+  extraction.ts            the seam to @hackmty/extract, refuses without a key
+  cep.ts                   the seam to @hackmty/cep: accept, retrieve, check the seal
   events.ts                the SSE broadcaster (fan-out, not the route)
   middleware/request-id.ts correlation id on every response
+  middleware/rate-limit.ts per-client budget, only on GET /sat/lookup
   routes/
     health.ts              GET /health
     run.ts                 GET /api/v1/run/current
     instructions.ts        GET :id, POST /, POST :id/decide
+    verify-call.ts         GET and POST :id/verify-call, the voice agent
     suppliers.ts           GET /api/v1/suppliers/:rfc
     sat.ts                 GET lookup, GET versions, POST publish
     cep.ts                 POST /api/v1/cep/verify
@@ -35,6 +39,7 @@ src/
     metrics.ts             GET /api/v1/metrics
     ledger.ts              GET /api/v1/ledger
     events.ts              GET /api/v1/events, Server-Sent Events
+    constancia.ts          GET sat/constancia and run/:id/constancia, both PDF
     seed.ts                POST /api/v1/seed, guarded by ALLOW_SEED=1
   test-app.ts              test wiring, imported only by *.test.ts
 ```
@@ -97,16 +102,24 @@ implementation.
 
 ## What is deliberately not here
 
+Everything this table used to list as missing has landed: the six detectors and the
+expected-loss model (#34, #36, #38, #39), the SAT list loader and sweep (#35), CEP
+retrieval, parsing and the seal check (#37), the CLABE read off a photo (#97), the
+holdout harness behind `GET /api/v1/metrics` (#55) and the generator behind
+`POST /api/v1/seed` (#43). What is genuinely still open is short, and the two
+unnumbered rows are deployment concerns rather than product ones.
+
 | Gap | Issue | Owner | Where |
 |---|---|---|---|
-| The detectors and the expected-loss model | #34 #36 #38 #39 | `TODO(garzario)` | `packages/core`, feature-detected in `pipeline.ts` |
-| Fetching and parsing the published SAT list | #35 | `TODO(garzario)` | `packages/sat` |
-| CEP retrieval and XMLDSig validation | #37 | `TODO(garzario)` | `packages/cep` |
-| Reading a CLABE out of an image | #97 | `TODO(garzario)` | `pipeline.ts`, boxed to OCR only |
-| The labelled holdout cases and the harness | #55 | `TODO(Apanawa)` | `repo.ts` tally, `synthetic.ts` labels |
-| Driving `POST /seed` from the generator | #43 | `TODO(garzario)` | `packages/seed` |
+| The Banxico certificate the CEP seal is checked against, and the signature scheme itself | #57 | `TODO(fabbyyyy)` | `BANXICO_CEP_CERT_PEM`, `CEP_SIGNATURE_SCHEME_CONFIRMED` in `packages/cep` |
 | Blob storage for an intake image | | `TODO(fabbyyyy)` | `pipeline.ts` |
 | Cross-instance SSE fan-out | | `TODO(fabbyyyy)` | Postgres `LISTEN`/`NOTIFY` in `events.ts` |
+
+The certificate row is the one to read before quoting this API in the pitch. With no
+certificate, `POST /api/v1/cep/verify` answers `signatureReason: "not_checked"`, and
+even with one `verifySignature` reports `unconfirmed_scheme`, because Banxico
+publishes no specification of the scheme. Both render as "firma no verificada" and
+neither is ever rendered as "firma invalida".
 
 Swapping the repository is one line in `bootRepository()`. If a detector or a
 Postgres query forces a change inside `src/routes`, the `Repository` interface is
@@ -117,7 +130,7 @@ wrong and it is cheaper to fix it than to work around it.
 ```
 bun install --frozen-lockfile
 bun run --filter '@hackmty/api' dev      # http://localhost:3000
-bun test                                 # 150 tests, no socket, no database
+bun test                                 # 163 tests, no socket, no database
 bun run typecheck
 
 TEST_DATABASE_URL=postgres://localhost:5432/sentryone_test bun test   # and the Postgres suite

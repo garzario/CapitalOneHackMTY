@@ -11,6 +11,7 @@
 import type { LedgerEvent } from "@hackmty/core";
 import { getSql } from "@hackmty/db";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
+import { type CepSource, createCepSource } from "./cep";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
@@ -40,6 +41,12 @@ export interface ApiDeps {
    */
   extractor: IntakeExtractor;
   /**
+   * Retrieves and checks a Banxico CEP. Pasted XML is always accepted; reaching
+   * the portal needs `ALLOW_CEP_FETCH=1` and checking the seal needs
+   * `BANXICO_CEP_CERT_PEM`. See `src/cep.ts` for why both are opt-in.
+   */
+  cep: CepSource;
+  /**
    * Append to the ledger and push to every open SSE connection, in that order.
    * The ledger is the record; the stream is a view of it, so a subscriber can
    * never see an event that was not stored.
@@ -54,6 +61,7 @@ export interface DepsOverrides {
   allowSeed?: boolean;
   satList?: () => Promise<SatIndex>;
   extractor?: IntakeExtractor;
+  cep?: CepSource;
 }
 
 function readEnv(name: string): string | undefined {
@@ -126,6 +134,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   const allowSeed = overrides.allowSeed ?? readEnv("ALLOW_SEED") === "1";
   const satList = overrides.satList ?? (() => officialSatIndex());
   const extractor = overrides.extractor ?? createExtractor();
+  const cep = overrides.cep ?? createCepSource();
 
   return {
     repo,
@@ -134,6 +143,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
     satList,
     allowSeed,
     extractor,
+    cep,
     async emit(event) {
       await repo.appendEvent(event);
       events.publish(event);

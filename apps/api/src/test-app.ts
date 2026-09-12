@@ -8,6 +8,7 @@
  */
 
 import { createApp } from "./app";
+import { acceptOnlyCepSource } from "./cep";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
 import { UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { PipelineClock } from "./pipeline";
@@ -39,6 +40,11 @@ export interface TestHarness {
  *
  * A test that wants one of those passes it explicitly. Ambient environment is
  * never allowed to decide what a test is testing.
+ *
+ * The CEP source is pinned for the same reason and with no certificate: a
+ * teammate who sets `ALLOW_CEP_FETCH=1` must not turn the suite into something
+ * that POSTs to the Banxico portal, and one who holds a certificate must not get
+ * a different `signatureReason` from CI.
  */
 export function createTestApp(
   overrides: DepsOverrides = {},
@@ -49,6 +55,7 @@ export function createTestApp(
     allowSeed: false,
     repo: new MemoryRepository(),
     extractor: UNAVAILABLE_EXTRACTOR,
+    cep: acceptOnlyCepSource(),
     ...overrides,
   });
 

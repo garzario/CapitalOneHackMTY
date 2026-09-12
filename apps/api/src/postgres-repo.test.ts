@@ -19,6 +19,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { syntheticCepXml } from "@hackmty/cep";
 import type { Cep, LedgerEvent } from "@hackmty/core";
 import { createSql, type Sql } from "@hackmty/db";
 import { RUN_SIZE_MAX, RUN_SIZE_MIN } from "@hackmty/seed";
@@ -460,6 +461,96 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
             account.establishedBy === "cep",
         ),
       ).toBe(true);
+    });
+
+    /**
+     * The pasted-XML half of the endpoint, which needs no registry row and no
+     * network: `parseCep` reads the document and the row it produces has to land
+     * in Postgres the same way the `claveRastreo` form's does.
+     */
+    it("POST /api/v1/cep/verify parses a pasted CEP and stores it", async () => {
+      const { app } = harness();
+      const res = await app.request(
+        "/api/v1/cep/verify",
+        json({ xml: syntheticCepXml(), supplierRfc: LISTED_RFC }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = cepVerifyResponseSchema.parse(await res.json());
+      expect(body.cep.claveRastreo).toBe("SYN20260912000000001");
+      // Nobody checked the seal, and the product says that rather than guessing.
+      expect(body.cep.signatureValid).toBe(false);
+      expect(body.cep.signatureReason).toBe("not_checked");
+      expect(body.nameMatch).toBe("mismatch");
+
+      const registry = beneficiariesResponseSchema.parse(
+        await (await app.request("/api/v1/beneficiaries")).json(),
+      );
+      expect(
+        registry.items.some((row) => row.clabe === body.cep.beneficiaryAccount),
+      ).toBe(true);
+    });
+
+    /**
+     * The verification call on the Postgres path.
+     *
+     * The hand-recorded form is the one that needs no telephony, which is what
+     * makes it the right one to assert the storage with: the event has to reach
+     * `ledger_event` and it must not drag a `decision_made` along with it. The
+     * clerk's release stays a separate call that a person signs.
+     */
+    it("POST /api/v1/instructions/:id/verify-call appends the call and no decision", async () => {
+      /* Its own instant, so the ledger window below holds what this test wrote
+         and nothing another test in this file wrote at TEST_NOW. `ledger` reads
+         oldest first under a limit, so slicing the tail would read the seeded
+         company's first page rather than the newest events. */
+      const CALLED_AT = "2026-09-12T04:30:00.000Z";
+      const SINCE = "2026-09-12T04:29:59.999Z";
+      const { app } = harness(CALLED_AT);
+      const run = paymentRunSchema.parse(
+        await (await app.request("/api/v1/run/current")).json(),
+      );
+      const line = run.items[0];
+      if (line === undefined) {
+        throw new Error("the seeded run carried no instructions");
+      }
+      const id = line.instruction.id;
+
+      const res = await app.request(
+        `/api/v1/instructions/${id}/verify-call`,
+        json({
+          outcome: "denied",
+          evidence: "Esa cuenta no es nuestra.",
+          recordedBy: "tesoreria@example.mx",
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        releasesPayment: boolean;
+        outcome: string;
+      };
+      expect(body.status).toBe("recorded");
+      expect(body.releasesPayment).toBe(false);
+      expect(body.outcome).toBe("denied");
+
+      const appended = await pg.ledger({ since: SINCE, limit: 1000 });
+      expect(appended.map((event) => event.type)).toEqual([
+        "verification_call",
+      ]);
+
+      const call = appended[0];
+      if (call?.type !== "verification_call") {
+        throw new Error("the appended event was not a verification_call");
+      }
+      expect(call.at).toBe(CALLED_AT);
+      expect(call.instructionId).toBe(id);
+      expect(call.outcome).toBe("denied");
+      expect(call.manual).toBe(true);
+      // Four digits on the event, never the CLABE.
+      expect(call.clabeLast4).toBe(line.instruction.clabe.slice(-4));
+      expect(JSON.stringify(call)).not.toContain(line.instruction.clabe);
     });
 
     it("GET /api/v1/metrics recomputes the blind evaluation", async () => {

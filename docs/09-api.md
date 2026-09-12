@@ -42,9 +42,48 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/instructions` | `{ supplierRfc?, cfdiUuids?, clabe?, amount, source, text?, image? (base64), audio? (base64) }` | intake from the QR page. Runs all detectors, stores the instruction, findings and decision, returns them. If `image` or `audio` is present the CLABE is extracted first and `ocrConfidence` set, and a voice-note transcript lands in `text`; a typed `clabe` always wins over one a model read. Extraction is transcription only (`packages/extract`, docs/06 section 6.2.1). A server with no `GEMINI_API_KEY` answers 422 `unprocessable` and says so. |
 | POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy }` | a person confirms. Appends `decision_made`. |
 | POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only) and runs the retroactive sweep over everything the ledger says is already paid. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult`. |
-| POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | fetches (or accepts) the CEP, validates the Banxico signature, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`. |
+| POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | retrieves or accepts the CEP, checks the Banxico seal, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`, where `finding` is the `beneficiary_cep` finding `packages/engine` authors, or `null` when no pending payment goes to that account. See "The CEP, and what verify can prove" below. |
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand. Never releases a payment: the response always carries `releasesPayment: false` and no `decision_made` is ever appended. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
-| POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company. Dev only, guarded by `ALLOW_SEED=1`. |
+| POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
+
+### The CEP, and what verify can prove
+
+`POST /api/v1/cep/verify` is the endpoint most able to make a claim it has not earned, so the three
+ways into it and the one thing it refuses to say are written out here rather than left to the table.
+All four steps live in `packages/cep` and the finding comes from `packages/engine`; `apps/api` only
+decides which way applies. `src/cep.ts` holds that wiring.
+
+- **A pasted CEP is always accepted.** `{ xml, supplierRfc }` is parsed by `parseCep` and needs no
+  key, no certificate and no network, so it works on a laptop with an empty `.env`. This is the
+  primary path and the one the demo uses: a clerk downloads the XML their own bank or
+  banxico.org.mx/cep handed them and pastes it. The registry is not consulted, because a person
+  pasting a document is handing us evidence rather than asking what we already hold.
+- **The `claveRastreo` form reads the registry first and the portal second.** An account a one-cent
+  probe already verified is answered from what we hold, so the demo does not depend on a public
+  government service being up. Only a miss reaches Banxico.
+- **Retrieval from Banxico is opt-in, with `ALLOW_CEP_FETCH=1`.** The portal is an undocumented
+  two-step form behind a CAPTCHA and a per-address rate limit (`packages/cep/src/fetch.ts` says so
+  at the top), so an API that POSTed to it on every click would be worse for the demo and worse for
+  the service. With the flag off, a miss answers `422` naming the flag and telling the clerk to paste
+  the XML. With it on, the portal's four known failure sentences come back as `422` with a sentence a
+  clerk can act on, and never as a `500`.
+- **It is not a lookup over other people's payments**, which is the product rule in
+  `docs/06-regulatory-privacy.md` section 6.4. The body the portal needs is the date, the clave de
+  rastreo, both participants, the beneficiary account and the exact amount to the centavo, and that
+  is confidential information only a party to the transfer holds. The endpoint takes no broader
+  query, so there is no shape of request that turns it into a general search.
+- **The seal is checked when, and only when, `BANXICO_CEP_CERT_PEM` is configured.** The CEP carries
+  the serial of the Banxico certificate and not the certificate itself, so `verifySignature` has to
+  be handed one out of band. With none, the document keeps the `signatureValid: false` and
+  `signatureReason: "not_checked"` that `parseCep` wrote. What never happens is a
+  `signatureValid: true` nobody earned.
+- **`not checked` is not `invalid`.** `not_checked`, `unconfirmed_scheme` and `invalid_certificate`
+  all mean the seal could not be proven, and the UI renders them as "firma no verificada"; only a
+  defect in the document itself (no `sello`, a `sello` that is not base64 or not RSA-2048, no
+  `cadenaCDA`) or a `signature_mismatch` reads as invalid. `UNPROVEN_SEAL_REASONS` in
+  `packages/engine/src/beneficiary.ts` is where that line is drawn, and the severity of the finding
+  follows it: accusing a supplier's document because this server holds no certificate would be our
+  mistake printed as their fault.
 
 ### The constancias
 
@@ -76,6 +115,11 @@ curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application
   -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' | jq '.totalExposure'
+# A CEP the clerk pasted. jq -Rs turns the file into one JSON string, newlines and all,
+# because the signature is over bytes and a re-serialised document is a different document.
+jq -Rs '{xml: ., supplierRfc: "SYN201123S23"}' packages/cep/src/fixtures/synthetic-cep.xml \
+  | curl -s -X POST https://<host>/api/v1/cep/verify -H 'content-type: application/json' \
+    --data-binary @- | jq '{nameMatch, seal: .cep.signatureReason, finding: .finding.severity}'
 ```
 
 ## Where the 69-B rows a control sees come from
