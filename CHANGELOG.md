@@ -99,6 +99,12 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- The demo script's seeded ids and amounts were correct and unprotected. Every figure in
+  `docs/10-demo-script.md` that comes from the generator is now asserted against it by
+  `packages/seed/src/ceptinela/documented-figures.test.ts`, verified by hand against a seeded API
+  first. The engine-derived figures in the same tables, the seven findings, the 885,658.73 that is
+  not leaving and the 404,152.59 of retroactive exposure, are still unprotected and want a test in
+  `apps/api` beside `ceptinela.test.ts`.
 - The persona, the journey and the printed one-pager quoted a reference run of 92 invoices at
   MXN 673,460.27 over 42 suppliers. `generateCeptinela` produces 92 payment instructions at
   MXN 2,174,210.76 over 44. Nobody wrote a wrong number: they were right when they were written
