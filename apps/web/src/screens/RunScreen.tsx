@@ -11,6 +11,7 @@ import type { Action, Rfc } from "@hackmty/core";
 import { useCallback, useMemo, useState } from "react";
 import { ActionBar } from "../components/Decision";
 import { AlertRail, type RailEntry } from "../components/Findings";
+import { IntakeQr } from "../components/IntakeQr";
 import {
   Amount,
   anySynthetic,
@@ -359,6 +360,8 @@ export function RunScreen() {
                 </h2>
                 <AlertRail entries={railEntries} />
               </section>
+
+              <IntakeQr />
 
               <StatusCard />
             </aside>

@@ -539,3 +539,42 @@
     text-decoration: underline;
   }
 }
+
+@layer components {
+  /*
+   * The action bar of a form a person fills in with one thumb.
+   *
+   * The intake page is the one screen the judge drives on their own phone, and
+   * its submit button used to sit under five fields: reachable only by
+   * scrolling the whole form, with the other hand holding the invoice they are
+   * reading from. Sticking it to the bottom of the viewport puts it in the
+   * thumb arc the entire time.
+   *
+   * `env(safe-area-inset-bottom)` keeps it clear of the home indicator on an
+   * iPhone, where a button flush with the bottom edge is a button that swipes
+   * the app away instead of pressing.
+   *
+   * It is sticky only where it helps: above the small breakpoint the form fits
+   * on screen and a bar pinned to the bottom is a bar in the way.
+   */
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 0 calc(var(--space-5) * -1) calc(var(--space-5) * -1);
+    padding: var(--space-4) var(--space-5);
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    background-color: var(--c-surface);
+    border-top: var(--border-width) solid var(--c-border);
+  }
+
+  @media (min-width: 40rem) {
+    .form-actions {
+      position: static;
+      margin: 0;
+      padding: 0;
+      background-color: transparent;
+      border-top: 0;
+    }
+  }
+}

@@ -12,6 +12,15 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- The QR the judge scans is on the payment run screen (issue #48). `IntakeQr` renders the intake
+  address as an inline SVG built from the matrix, with the four-module quiet zone the
+  specification asks for and a fixed contrast direction that survives dark mode. It refuses to
+  draw a code on `localhost`, where the address means the judge's own phone, and prints the URL
+  and the reason instead. The intake form's submit button is now pinned to the bottom of the
+  viewport on a phone, which is the one screen a person drives with one thumb while holding an
+  invoice in the other hand. New dependency: `uqr` 0.1.3, zero dependencies, published
+  2026-04-03, added to the vetted pin table.
+
 - The Article 69-B simulation replays the ledger for real (issue #49). `src/lib/replay.ts` turns
   a `SweepResult` into one frame per month of the company's own ledger, apportioning each
   supplier's exposure across the months its already-paid invoices fall in and pinning the last

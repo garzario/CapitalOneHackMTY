@@ -118,6 +118,15 @@
   --c-accent-ink: #ffffff;
   --c-accent-soft: #e6eefc;
 
+  /* The QR code, and the one pair in this file that is deliberately identical
+     in both schemes. A scanner needs contrast in a fixed direction, dark
+     modules on a light quiet zone, so inverting these in dark mode would hand
+     the judge a code their phone refuses to read. They are tokens rather than
+     literals in the component so that the exception is visible here, next to
+     the rule it breaks, instead of hidden in a TSX file. */
+  --c-qr-module: #000000;
+  --c-qr-quiet: #ffffff;
+
   /* Semantic decision colours. These map one to one onto the Action union in
      packages/core/src/domain.ts: hold, verify, release. */
   --c-hold: #b3261e;
@@ -172,6 +181,10 @@
     --c-accent: #6ea1ff;
     --c-accent-ink: #0b0d11;
     --c-accent-soft: #16243c;
+
+    /* Not inverted, on purpose. See the note in the light block. */
+    --c-qr-module: #000000;
+    --c-qr-quiet: #ffffff;
 
     --c-hold: #ff8279;
     --c-hold-soft: #2c1614;

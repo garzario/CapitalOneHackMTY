@@ -255,14 +255,21 @@ export function IntakeScreen() {
           </p>
         </div>
 
-        <button
-          type="submit"
-          className="btn btn-accent btn-lg"
-          aria-busy={submission.status === "sending"}
-          disabled={submission.status === "sending"}
-        >
-          {submission.status === "sending" ? "Revisando" : "Revisar el pago"}
-        </button>
+        {/* Pinned to the bottom of the viewport on a phone, where this page is
+            actually used: the judge is holding the invoice in the other hand
+            and the button used to be five fields below the fold. Static again
+            above the small breakpoint, where the form fits and a fixed bar is
+            just a bar in the way. */}
+        <div className="form-actions">
+          <button
+            type="submit"
+            className="btn btn-accent btn-lg w-full"
+            aria-busy={submission.status === "sending"}
+            disabled={submission.status === "sending"}
+          >
+            {submission.status === "sending" ? "Revisando" : "Revisar el pago"}
+          </button>
+        </div>
       </form>
 
       {submission.status === "sending" ? (
