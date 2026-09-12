@@ -7,6 +7,7 @@ export * from "./money";
 export * from "./rolling";
 export * from "./types";
 export * from "./domain";
+export * from "./reconciliation";
 export * from "./decision";
 export * from "./duplicates";
 export * from "./behaviour";
