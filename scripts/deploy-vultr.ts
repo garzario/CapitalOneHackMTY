@@ -597,6 +597,12 @@ async function main(): Promise<number> {
      */
     console.log(`updating user data and reinstalling ${instance.id}`);
     console.log("this WIPES the instance. Ctrl-C now if that is not the plan.");
+    console.log(
+      "it also discards the caddy_data volume, so Caddy asks Let's Encrypt for a new",
+    );
+    console.log(
+      "certificate on the next boot. That limit is five per week for the same name.",
+    );
     await Bun.sleep(5000);
 
     await vultr(key, `/instances/${instance.id}`, {
