@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Source for apps/web/public/og.png. Kept outside public/ so it is never
+  deployed. Regenerate with the command in apps/web/brand/README.md after any
+  change to the wordmark or the one-line thesis.
+-->
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        width: 1200px;
+        height: 630px;
+        display: flex;
+        background: #ffffff;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        color: #14171c;
+        -webkit-font-smoothing: antialiased;
+      }
+      .edge { width: 14px; background: #1c5fd6; flex: none; }
+      .body { flex: 1; padding: 72px 80px; display: flex; flex-direction: column; justify-content: space-between; }
+      .lockup { display: flex; align-items: center; gap: 20px; }
+      .mark { width: 64px; height: 64px; flex: none; }
+      .name { font-size: 46px; font-weight: 600; letter-spacing: -0.015em; }
+      .thesis { font-size: 42px; line-height: 1.25; font-weight: 500; max-width: 940px; letter-spacing: -0.01em; }
+      .thesis b { font-weight: 600; color: #1c5fd6; }
+      .controls { display: flex; gap: 12px; }
+      .chip {
+        font-size: 21px;
+        font-weight: 500;
+        padding: 11px 20px;
+        border-radius: 999px;
+        border: 1px solid #e0e3e9;
+        background: #f4f5f7;
+        color: #575e69;
+      }
+      .chip.accent { background: #e6eefc; border-color: #cfe0fa; color: #1c5fd6; }
+    </style>
+  </head>
+  <body>
+    <div class="edge"></div>
+    <div class="body">
+      <div class="lockup">
+        <svg class="mark" aria-hidden="true" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="7" fill="#1c5fd6" />
+          <path d="M21.21 10.61 A 7.5 7.5 0 1 0 21.21 21.39" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="butt" />
+        </svg>
+        <span class="name">Ceptinela</span>
+      </div>
+
+      <p class="thesis">
+        Revisa la corrida de pagos a proveedores <b>antes de que el SPEI salga</b>,
+        porque un SPEI no regresa y una factura de un proveedor en la lista 69-B
+        no se deduce.
+      </p>
+
+      <div class="controls">
+        <span class="chip accent">Lista 69-B del SAT</span>
+        <span class="chip">Forense de CLABE</span>
+        <span class="chip">Facturas duplicadas</span>
+        <span class="chip">CEP de Banxico</span>
+      </div>
+    </div>
+  </body>
+</html>

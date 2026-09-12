@@ -1,0 +1,22 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"transcript\": \"Buenas tardes, le paso los datos para el pago de la factura A-1187. La cuenta es 0585 8000 0723 4567 75, a nombre de Aceros y Perfiles del Norte. Son 184,300 pesos. Gracias.\",\n  \"clabe\": \"058580000723456775\",\n  \"amount\": 184300,\n  \"clarity\": 0.78\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1748,
+    "candidatesTokenCount": 80,
+    "totalTokenCount": 1828
+  },
+  "modelVersion": "gemini-2.5-flash"
+}
