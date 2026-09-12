@@ -71,7 +71,12 @@ export interface PaymentComplement {
 }
 
 /** How a payment instruction reached the company: this is where a NEW account always arrives. */
-export type InstructionSource = "email" | "whatsapp" | "pdf" | "portal" | "manual";
+export type InstructionSource =
+  | "email"
+  | "whatsapp"
+  | "pdf"
+  | "portal"
+  | "manual";
 
 export interface PaymentInstruction {
   id: string;
@@ -97,7 +102,11 @@ export interface PaymentInstruction {
   synthetic: boolean;
 }
 
-export type SatListStatus = "presunto" | "desvirtuado" | "definitivo" | "sentencia_favorable";
+export type SatListStatus =
+  | "presunto"
+  | "desvirtuado"
+  | "definitivo"
+  | "sentencia_favorable";
 
 /** One row of the official SAT Article 69-B list. */
 export interface SatListEntry {
@@ -194,9 +203,23 @@ export interface Decision {
 export type LedgerEvent =
   | { type: "cfdi_received"; at: string; cfdi: Cfdi }
   | { type: "complement_received"; at: string; complement: PaymentComplement }
-  | { type: "instruction_received"; at: string; instruction: PaymentInstruction }
-  | { type: "payment_sent"; at: string; instructionId: string; claveRastreo?: string }
-  | { type: "sat_list_published"; at: string; listVersion: string; entries: SatListEntry[] }
+  | {
+      type: "instruction_received";
+      at: string;
+      instruction: PaymentInstruction;
+    }
+  | {
+      type: "payment_sent";
+      at: string;
+      instructionId: string;
+      claveRastreo?: string;
+    }
+  | {
+      type: "sat_list_published";
+      at: string;
+      listVersion: string;
+      entries: SatListEntry[];
+    }
   | { type: "cep_verified"; at: string; cep: Cep; supplierRfc: Rfc }
   | { type: "decision_made"; at: string; decision: Decision };
 
