@@ -416,7 +416,7 @@
     position: fixed;
     inset: 0;
     z-index: var(--z-scrim);
-    background-color: rgba(10, 12, 16, 0.45);
+    background-color: var(--c-scrim);
   }
 
   .drawer {
