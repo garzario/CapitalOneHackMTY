@@ -3,7 +3,8 @@
  *
  * Four decisions, each with a reason:
  *
- * 1. **0001 always, 0002 only when the extension exists.** A continuous aggregate
+ * 1. **Plain files always, Timescale files only when the extension exists.** The
+ *    order and the condition live in the MIGRATIONS table below. A continuous aggregate
  *    cannot be created without timescaledb, and `create_hypertable` does not exist on
  *    a plain Postgres, so the Timescale DDL is a separate file that is skipped rather
  *    than guarded inline. That is what keeps the local PostgreSQL 18 fallback alive.
@@ -24,9 +25,32 @@ import type { Sql } from "./index";
 
 export const INIT_MIGRATION = "0001_init.sql";
 export const TIMESCALE_MIGRATION = "0002_timescale.sql";
+export const CEPTINELA_MIGRATION = "0003_ceptinela.sql";
+export const CEPTINELA_TIMESCALE_MIGRATION = "0004_timescale_ceptinela.sql";
 
 /** Resolved from this file, so the runner works from any working directory. */
 export const MIGRATIONS_DIR = `${import.meta.dir}/../migrations`;
+
+export interface MigrationSpec {
+  file: string;
+  /** Skipped on a server without timescaledb, which is the offline fallback. */
+  requiresTimescale: boolean;
+}
+
+/**
+ * The migrations, in the order they are applied. Listed rather than discovered by
+ * reading the directory, so adding a file is a deliberate one-line change that shows
+ * up in a diff and cannot be triggered by a stray .sql left in the folder.
+ *
+ * The plain files run first and the Timescale ones after, so a fresh database is
+ * fully usable even when the extension is missing halfway through.
+ */
+export const MIGRATIONS: readonly MigrationSpec[] = [
+  { file: INIT_MIGRATION, requiresTimescale: false },
+  { file: CEPTINELA_MIGRATION, requiresTimescale: false },
+  { file: TIMESCALE_MIGRATION, requiresTimescale: true },
+  { file: CEPTINELA_TIMESCALE_MIGRATION, requiresTimescale: true },
+];
 
 export interface MigrationResult {
   file: string;
@@ -141,19 +165,20 @@ export async function migrate(
   const directory = options.migrationsDir ?? MIGRATIONS_DIR;
   await ensureMigrationsTable(sql);
   const applied = await appliedFiles(sql);
+  const hasTimescale = await timescaleAvailable(sql);
   const results: MigrationResult[] = [];
 
-  results.push(await applyFile(sql, directory, INIT_MIGRATION, applied));
-
-  if (await timescaleAvailable(sql)) {
-    results.push(await applyFile(sql, directory, TIMESCALE_MIGRATION, applied));
-  } else {
-    results.push({
-      file: TIMESCALE_MIGRATION,
-      status: "skipped",
-      reason:
-        "timescaledb is not available on this server, so the plain Postgres path is live. Same SQL, no hypertable and no continuous aggregate.",
-    });
+  for (const spec of MIGRATIONS) {
+    if (spec.requiresTimescale && !hasTimescale) {
+      results.push({
+        file: spec.file,
+        status: "skipped",
+        reason:
+          "timescaledb is not available on this server, so the plain Postgres path is live. Same SQL, no hypertable and no continuous aggregate.",
+      });
+      continue;
+    }
+    results.push(await applyFile(sql, directory, spec.file, applied));
   }
 
   return results;

@@ -52,6 +52,17 @@ export interface PaymentComplement {
   relatedCfdiUuid: string;
   paidAt: string;
   paidAmount: number;
+  /**
+   * Monto of the Pago node: what left the bank in one transfer. One transfer can
+   * settle several invoices, and then `paidAmount` is this row's share of it. The
+   * CEP is matched against the transfer, never against the share.
+   */
+  paymentTotal?: number;
+  /**
+   * NumOperacion in the complement. For a SPEI this is the clave de rastreo,
+   * which is how the CEP for this payment is located at Banxico.
+   */
+  operationNumber?: string;
   /** CtaBeneficiario in the complement, the account the supplier says it received money on. */
   beneficiaryAccount?: Clabe;
   /** RfcEmisorCtaBen, the bank that holds that account. */
@@ -77,6 +88,12 @@ export interface PaymentInstruction {
   imageRef?: string;
   /** Confidence of the OCR when the CLABE came from an image, 0 to 1. */
   ocrConfidence?: number;
+  /**
+   * When the company marked the SPEI as sent, projected from the `payment_sent`
+   * ledger event. Absent while the instruction is still pending, which is what
+   * separates "not paid yet" from "paid and missing from the bank mirror".
+   */
+  sentAt?: string;
   synthetic: boolean;
 }
 
@@ -100,11 +117,25 @@ export interface Cep {
   amount: number;
   senderName: string;
   senderBank: string;
+  /** Ordenante account the SPEI was charged to, when the CEP states one. */
+  senderAccount?: Clabe;
   beneficiaryName: string;
   beneficiaryAccount: Clabe;
   beneficiaryBank: string;
+  /** Beneficiary RFC as the CEP reports it. "NA" when the bank sent none. */
+  beneficiaryRfc?: Rfc;
+  /** Free text the sender typed. Context for the clerk, never used to decide. */
+  concepto?: string;
+  /** Serial of the Banxico certificate the sello claims. Signature evidence. */
+  numeroCertificado?: string;
   /** True only when the XML signature validated against the Banxico certificate. */
   signatureValid: boolean;
+  /**
+   * Why `signatureValid` is what it is, from `verifySignature` in packages/cep.
+   * A false with `unconfirmed_scheme` reads as "not verified" in the UI, never as
+   * "invalid": the two are different claims and only one of them is ours to make.
+   */
+  signatureReason?: string;
   /** The raw signed XML, kept byte-exact because XMLDSig demands it. */
   xml: string;
   synthetic: boolean;
@@ -128,8 +159,14 @@ export interface Finding {
   detector: Detector;
   severity: Severity;
   state: FindingState;
-  /** What the finding is attached to. */
-  subject: { kind: "instruction" | "cfdi" | "supplier"; id: string };
+  /**
+   * What the finding is attached to. `ledger_tx` is a row of the bank mirror and
+   * is used when money left the account with no document to hang the finding on.
+   */
+  subject: {
+    kind: "instruction" | "cfdi" | "supplier" | "ledger_tx";
+    id: string;
+  };
   /** Pesos at risk in this payment run, the sort key of the alert rail. */
   amountAtRisk: number;
   /** Plain Spanish explanation shown to the clerk. */

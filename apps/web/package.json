@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun test"
   },
   "dependencies": {
+    "@hackmty/core": "workspace:*",
     "motion": "13.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

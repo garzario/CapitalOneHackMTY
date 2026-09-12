@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ceptinela.tech/schemas/holdout-case.json",
+  "title": "Ceptinela labelled holdout case",
+  "description": "One payment instruction, everything the detectors may read about it, and the label. Field names and enumerations are the ones in packages/core/src/domain.ts; this file never introduces a second shape. The runtime half of this contract is parseHoldoutCase in ./types.ts, and the two have to be edited together.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "kind",
+    "input",
+    "expectedFindings",
+    "expectedAction"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Relative path back to this file, so an editor validates the case as it is typed."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Stable slug. Named after the case, not numbered, so inserting one does not renumber the set."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 8,
+      "description": "One line a judge could read off the metrics page."
+    },
+    "kind": {
+      "enum": ["positive", "negative"],
+      "description": "positive: at least one detector should fire. negative: the case looks like fraud and is not. Stated rather than derived, so an empty expectedFindings cannot be mistaken for an unfinished case."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Author's note. Ignored by the harness."
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instruction"],
+      "description": "Everything the engine may read. Nothing outside this object exists for this case.",
+      "properties": {
+        "instruction": { "$ref": "#/$defs/paymentInstruction" },
+        "supplier": { "$ref": "#/$defs/supplier" },
+        "cfdis": { "type": "array", "items": { "$ref": "#/$defs/cfdi" } },
+        "complements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/paymentComplement" }
+        },
+        "satEntries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/satListEntry" },
+          "description": "The list rows in force for this case, as if a version had just been published."
+        },
+        "cep": { "$ref": "#/$defs/cep" }
+      }
+    },
+    "expectedFindings": {
+      "type": "array",
+      "description": "One entry per detector at most. Matching is by detector, narrowed by state and severity when they are given. The explanation text is never compared.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["detector"],
+        "properties": {
+          "detector": { "$ref": "#/$defs/detector" },
+          "state": { "$ref": "#/$defs/findingState" },
+          "severity": { "$ref": "#/$defs/severity" },
+          "because": {
+            "type": "string",
+            "description": "Why this is the right label, in one sentence. Read out loud during review."
+          }
+        }
+      }
+    },
+    "expectedAction": { "$ref": "#/$defs/action" }
+  },
+  "$defs": {
+    "rfc": {
+      "type": "string",
+      "pattern": "^SYN[0-9]{6}[A-Z0-9]{3}$",
+      "description": "Synthetic RFCs only. ADR-0002 keeps real RFCs to the read-only SAT lookup box, and a holdout case is the easiest place for one to slip in unnoticed."
+    },
+    "clabe": { "type": "string", "pattern": "^[0-9]{18}$" },
+    "instant": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601. Our ledger carries a real timestamp; Nessie carries dates with no time."
+    },
+    "day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "money": {
+      "type": "number",
+      "description": "MXN in major units, at most two decimal places."
+    },
+    "synthetic": {
+      "const": true,
+      "description": "Always true. The UI renders the watermark from this flag, never from a name."
+    },
+    "detector": {
+      "enum": [
+        "sat_69b",
+        "clabe_forensics",
+        "duplicate_invoice",
+        "supplier_behaviour",
+        "beneficiary_cep",
+        "bank_reconciliation"
+      ]
+    },
+    "severity": { "enum": ["info", "warning", "critical"] },
+    "findingState": {
+      "enum": ["comprobable", "requiere_verificacion"],
+      "description": "Provable from documents, or needs a human check. Never an accusation."
+    },
+    "action": { "enum": ["hold", "verify", "release"] },
+    "paymentInstruction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "supplierRfc",
+        "cfdiUuids",
+        "clabe",
+        "amount",
+        "source",
+        "receivedAt",
+        "synthetic"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "supplierRfc": { "$ref": "#/$defs/rfc" },
+        "cfdiUuids": { "type": "array", "items": { "type": "string" } },
+        "clabe": { "$ref": "#/$defs/clabe" },
+        "amount": { "$ref": "#/$defs/money" },
+        "source": { "enum": ["email", "whatsapp", "pdf", "portal", "manual"] },
+        "receivedAt": { "$ref": "#/$defs/instant" },
+        "text": { "type": "string" },
+        "imageRef": { "type": "string" },
+        "ocrConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "synthetic": { "$ref": "#/$defs/synthetic" }
+      }
+    },
+    "knownAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clabe", "establishedBy", "establishedAt", "timesPaid"],
+      "properties": {
+        "clabe": { "$ref": "#/$defs/clabe" },
+        "establishedBy": {
+          "enum": ["payment_complement", "instruction", "cep"],
+          "description": "The evidence that established this account. A new account is never trusted without one of these."
+        },
+        "establishedAt": { "$ref": "#/$defs/instant" },
+        "timesPaid": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "supplier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rfc",
+        "legalName",
+        "knownAccounts",
+        "firstInvoiceAt",
+        "synthetic"
+      ],
+      "properties": {
+        "rfc": { "$ref": "#/$defs/rfc" },
+        "legalName": { "type": "string" },
+        "knownAccounts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/knownAccount" }
+        },
+        "firstInvoiceAt": { "$ref": "#/$defs/instant" },
+        "synthetic": { "$ref": "#/$defs/synthetic" }
+      }
+    },
+    "cfdi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "issuedAt",
+        "issuerRfc",
+        "issuerName",
+        "receiverRfc",
+        "subtotal",
+        "iva",
+        "total",
+        "paymentMethod",
+        "synthetic"
+      ],
+      "properties": {
+        "uuid": { "type": "string" },
+        "serie": { "type": "string" },
+        "folio": { "type": "string" },
+        "issuedAt": { "$ref": "#/$defs/instant" },
+        "issuerRfc": { "$ref": "#/$defs/rfc" },
+        "issuerName": { "type": "string" },
+        "receiverRfc": { "$ref": "#/$defs/rfc" },
+        "subtotal": { "$ref": "#/$defs/money" },
+        "iva": { "$ref": "#/$defs/money" },
+        "total": { "$ref": "#/$defs/money" },
+        "paymentMethod": {
+          "enum": ["PUE", "PPD"],
+          "description": "PUE paid in one exhibition, PPD in instalments, which is when a complement follows."
+        },
+        "paymentForm": {
+          "type": "string",
+          "description": "SAT c_FormaPago, for example 03 transferencia."
+        },
+        "synthetic": { "$ref": "#/$defs/synthetic" }
+      }
+    },
+    "paymentComplement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "relatedCfdiUuid",
+        "paidAt",
+        "paidAmount",
+        "synthetic"
+      ],
+      "properties": {
+        "uuid": { "type": "string" },
+        "relatedCfdiUuid": { "type": "string" },
+        "paidAt": { "$ref": "#/$defs/instant" },
+        "paidAmount": { "$ref": "#/$defs/money" },
+        "beneficiaryAccount": { "$ref": "#/$defs/clabe" },
+        "beneficiaryBankRfc": { "type": "string" },
+        "synthetic": { "$ref": "#/$defs/synthetic" }
+      }
+    },
+    "satListEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rfc", "name", "status", "publishedAt", "listVersion"],
+      "properties": {
+        "rfc": { "$ref": "#/$defs/rfc" },
+        "name": { "type": "string" },
+        "status": {
+          "enum": [
+            "presunto",
+            "desvirtuado",
+            "definitivo",
+            "sentencia_favorable"
+          ]
+        },
+        "publishedAt": { "$ref": "#/$defs/day" },
+        "listVersion": { "type": "string" }
+      }
+    },
+    "cep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claveRastreo",
+        "transferredAt",
+        "amount",
+        "senderName",
+        "senderBank",
+        "beneficiaryName",
+        "beneficiaryAccount",
+        "beneficiaryBank",
+        "signatureValid",
+        "xml",
+        "synthetic"
+      ],
+      "properties": {
+        "claveRastreo": { "type": "string" },
+        "transferredAt": { "$ref": "#/$defs/instant" },
+        "amount": { "$ref": "#/$defs/money" },
+        "senderName": { "type": "string" },
+        "senderBank": { "type": "string" },
+        "beneficiaryName": { "type": "string" },
+        "beneficiaryAccount": { "$ref": "#/$defs/clabe" },
+        "beneficiaryBank": { "type": "string" },
+        "signatureValid": {
+          "type": "boolean",
+          "description": "True only when the XML signature validated against the Banxico certificate."
+        },
+        "xml": {
+          "type": "string",
+          "description": "The raw signed XML, byte exact, because XMLDSig validates over the bytes."
+        },
+        "synthetic": { "$ref": "#/$defs/synthetic" }
+      }
+    }
+  }
+}
