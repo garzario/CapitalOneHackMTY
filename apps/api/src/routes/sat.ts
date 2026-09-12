@@ -1,4 +1,5 @@
 import type { SatListEntry } from "@hackmty/core";
+import { matchRfc, simulatePublication } from "@hackmty/sat";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
@@ -15,16 +16,21 @@ import {
  *
  * `GET /lookup` is the endpoint a judge uses: they type a real RFC from the
  * official list and we answer from the list, with no scoring and no invention.
- * It is read-only on purpose.
+ * It is read-only on purpose. The rows come from the committed download of the
+ * real SAT list in `@hackmty/sat` together with whatever versions this instance
+ * has been posted, merged and ordered newest publication first by `matchRfc`.
  *
  * `POST /publish` loads a list version and replays the ledger against it, which
  * is the retroactive sweep. The `simulate` form exists so the demo can publish a
  * list on stage, and it accepts synthetic RFCs only: ADR-0002 forbids a real RFC
- * standing next to fabricated evidence, and `satPublishBodySchema` enforces it
- * rather than trusting whoever is driving the laptop.
+ * standing next to fabricated evidence, and both `satPublishBodySchema` here and
+ * `simulatePublication` in the package enforce it, rather than trusting whoever
+ * is driving the laptop.
  *
- * TODO(garzario): issue #35, `packages/sat` fetches and parses the list, so a
- * real version can be loaded instead of posted by hand.
+ * That is also the line between the two endpoints, and it is the ADR: the
+ * official list is read here and joined to nothing, and the only publication
+ * that ever meets an invoice is one built from the company's own synthetic
+ * suppliers.
  */
 export function satRoutes(deps: ApiDeps) {
   return new Hono()
@@ -33,7 +39,11 @@ export function satRoutes(deps: ApiDeps) {
       zValidator("query", satLookupQuerySchema, rejectInvalid),
       async (c) => {
         const { rfc } = c.req.valid("query");
-        const entries = await deps.repo.satLookup(rfc);
+        const official = await deps.satList();
+        const { entries } = matchRfc(
+          [...(await deps.repo.satLookup(rfc)), ...official.lookup(rfc)],
+          rfc,
+        );
 
         // An RFC that is not on the list is the normal answer, not a 404: the
         // clerk asked a question and "it is not listed" is the answer.
@@ -68,8 +78,10 @@ export function satRoutes(deps: ApiDeps) {
 
 /**
  * Turns either accepted body into the rows the repository stores. The simulated
- * form takes the supplier's own legal name when we hold one and otherwise keeps
- * the RFC as the name, because a name we do not have is not a name we make up.
+ * form is built by `simulatePublication` in `@hackmty/sat`, handed the supplier
+ * legal names we already hold: an RFC we hold no name for keeps the RFC as its
+ * name, because a name we do not have is not a name we make up on a row that
+ * reads as an accusation.
  */
 async function materialise(
   deps: ApiDeps,
@@ -80,22 +92,19 @@ async function materialise(
     return { listVersion: body.listVersion, entries: body.entries };
   }
 
-  const listVersion = `sim-${now}`;
-  const publishedAt = now.slice(0, 10);
-  const status = body.status ?? "presunto";
+  const names: Record<string, string> = {};
+  for (const rfc of body.rfcs) {
+    const supplier = await deps.repo.findSupplier(rfc);
+    if (supplier !== undefined) {
+      names[rfc] = supplier.legalName;
+    }
+  }
 
-  const entries = await Promise.all(
-    body.rfcs.map(async (rfc) => {
-      const supplier = await deps.repo.findSupplier(rfc);
-      return {
-        rfc,
-        name: supplier?.legalName ?? rfc,
-        status,
-        publishedAt,
-        listVersion,
-      } satisfies SatListEntry;
-    }),
-  );
+  const simulated = simulatePublication(body.rfcs, {
+    now,
+    names,
+    ...(body.status === undefined ? {} : { status: body.status }),
+  });
 
-  return { listVersion, entries };
+  return { listVersion: simulated.listVersion, entries: simulated.entries };
 }

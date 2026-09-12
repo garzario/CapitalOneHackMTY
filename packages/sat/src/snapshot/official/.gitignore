@@ -1,6 +1,0 @@
-# A real download of the Article 69-B list lands here and is never committed.
-# Public data, but a few hundred thousand real RFCs in a hackathon repository serve
-# no purpose, and ADR-0002 keeps real RFCs to the read-only lookup box.
-# See ../README.md for how to fetch it and what to name it.
-*
-!.gitignore

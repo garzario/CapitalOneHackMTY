@@ -20,7 +20,6 @@
  * What is still feature-detected is only what core has not exported yet:
  *
  * TODO(garzario): implement and export from @hackmty/core
- *   - sweepExposure(subjects): per-supplier ISR and IVA     issue #35
  *   - compareLegalNames(a, b): match, partial or mismatch    issue #37
  */
 
@@ -39,8 +38,8 @@ import {
   detectClabe,
   detectDuplicateInvoice,
   detectSupplierBehaviour,
-  sumAmounts,
 } from "@hackmty/core";
+import { priceSweep } from "@hackmty/sat";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
 import type { CreateInstructionBody, NameMatch } from "./schemas";
 
@@ -97,10 +96,16 @@ function listOf(finding: Finding | null): Finding[] {
  *   sent. The API holds no bank mirror yet and an instruction that just arrived
  *   has not been sent, so running it at intake would report every new payment as
  *   missing from a statement that does not exist.
- * - `sat_69b` lives in `packages/sat` and `beneficiary_cep` in `packages/cep`.
- *   `apps/api` does not depend on either workspace yet, and @hackmty/core is
- *   forbidden from depending on them, so they reach the engine from here the day
- *   those dependencies are added.
+ * - `sat_69b` lives in `packages/sat`, which this workspace now depends on for
+ *   the lookup and the sweep. The detector is still fed `repo.satLookup`, which
+ *   is the list versions this instance was posted, and NOT the committed
+ *   download of the real SAT list. That is ADR-0002 and not an omission: every
+ *   instruction in this product carries a synthetic RFC, so joining the real
+ *   list to one would be exactly the thing the ADR forbids, and the real rows
+ *   stay in the read-only lookup a judge types into.
+ * - `beneficiary_cep` lives in `packages/cep`. `apps/api` does not depend on
+ *   that workspace yet, and @hackmty/core is forbidden from depending on it, so
+ *   it reaches the engine from here the day the dependency is added.
  */
 function detectorModules(
   now: string,
@@ -313,40 +318,24 @@ async function detectFindings(
 /**
  * Prices a 69-B publication against everything already paid and deducted.
  *
- * `deductedBase` and `ivaExposure` are sums of fields that are already on the
- * documents, so they are computed here with core's cent-safe helpers. The ISR
- * exposure is a model, not a sum, and it stays at zero with a TODO rather than
- * showing a rate this file invented.
+ * A pass through to `priceSweep` in @hackmty/sat, which owns the arithmetic and
+ * the two rates: ISR at 30 percent applied to the base already deducted, and IVA
+ * summed from what the CFDIs actually carry rather than multiplied out of a
+ * rate. Both are documented as assumptions at the top of `packages/sat/src/
+ * sweep.ts`, which is where they belong: a rate a route handler owns is a rate
+ * nobody reviews.
  *
- * TODO(garzario): issue #35, export `sweepExposure` from @hackmty/core with the rate
- * and the treatment of partially paid PPD, and this function becomes a pass
- * through.
+ * The subjects come from the repository rather than from a ledger replay,
+ * because the repository is what this API stores. `sweep` in the same package is
+ * the fold over `LedgerEvent[]` and gives the same numbers for the same
+ * invoices, which is what keeps the Postgres implementation honest when it
+ * lands.
  */
 export async function runRetroactiveSweep(
   listVersion: string,
   subjects: SweepSubject[],
 ): Promise<SweepResult> {
-  const priced = subjects.map((subject) => {
-    const deductedBase = sumAmounts(subject.paidCfdis.map((c) => c.subtotal));
-    const ivaExposure = sumAmounts(subject.paidCfdis.map((c) => c.iva));
-
-    return {
-      supplier: subject.supplier,
-      status: subject.status,
-      paidCfdis: subject.paidCfdis,
-      deductedBase,
-      isrExposure: 0,
-      ivaExposure,
-    };
-  });
-
-  return {
-    listVersion,
-    newlyListed: priced,
-    totalExposure: sumAmounts(
-      priced.flatMap((row) => [row.isrExposure, row.ivaExposure]),
-    ),
-  };
+  return priceSweep(subjects, { listVersion });
 }
 
 /* -------------------------------------------------------------------------- */

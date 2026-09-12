@@ -9,6 +9,7 @@
  */
 
 import type { LedgerEvent } from "@hackmty/core";
+import { officialSatIndex, type SatIndex } from "@hackmty/sat";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createClock, type PipelineClock } from "./pipeline";
 import { MemoryRepository, type Repository } from "./repo";
@@ -17,6 +18,15 @@ export interface ApiDeps {
   repo: Repository;
   events: LedgerBroadcaster;
   clock: PipelineClock;
+  /**
+   * The official Article 69-B list, read-only, for `GET /api/v1/sat/lookup`.
+   *
+   * It is a function and not an index because the committed snapshot is 14234
+   * taxpayers: an API that never receives a lookup never parses it, and one that
+   * does parses it once. A failure is not swallowed into an empty index, because
+   * "not listed" is the one answer this endpoint must never invent.
+   */
+  satList(): Promise<SatIndex>;
   /** `POST /api/v1/seed` only answers when this is true. Dev and demo only. */
   allowSeed: boolean;
   /**
@@ -32,6 +42,7 @@ export interface DepsOverrides {
   events?: LedgerBroadcaster;
   clock?: PipelineClock;
   allowSeed?: boolean;
+  satList?: () => Promise<SatIndex>;
 }
 
 function readEnv(name: string): string | undefined {
@@ -46,11 +57,13 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   const events = overrides.events ?? createBroadcaster();
   const clock = overrides.clock ?? createClock();
   const allowSeed = overrides.allowSeed ?? readEnv("ALLOW_SEED") === "1";
+  const satList = overrides.satList ?? (() => officialSatIndex());
 
   return {
     repo,
     events,
     clock,
+    satList,
     allowSeed,
     async emit(event) {
       await repo.appendEvent(event);

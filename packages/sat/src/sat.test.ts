@@ -7,20 +7,18 @@
  * assertions rather than a convention someone remembers. ADR-0002 is the rule they
  * enforce.
  *
- * loadSnapshot, matchRfc and sweep are stubs (issue #35). They are asserted to throw
- * with their own name, so a half-wired call path fails loudly instead of returning an
- * empty list that reads as a clean supplier.
+ * The loader, the matcher and the sweep are tested in loader.test.ts,
+ * match.test.ts, sweep.test.ts and official.test.ts.
  */
 
 import { describe, expect, it } from "bun:test";
 import {
+  DEFAULT_ISR_RATE,
   DEFAULT_IVA_RATE,
   isListed,
   isMoralRfc,
   isRfcShaped,
   isSyntheticRfc,
-  loadSnapshot,
-  matchRfc,
   normalizeRfc,
   parseSatStatus,
   SAT_STATUS_LABELS,
@@ -29,7 +27,6 @@ import {
   SYNTHETIC_SNAPSHOT_COLUMNS,
   SYNTHETIC_SNAPSHOT_CSV,
   SYNTHETIC_SNAPSHOT_ENTRIES,
-  sweep,
   toOfficialCsv,
 } from "./index";
 
@@ -167,24 +164,12 @@ describe("toOfficialCsv", () => {
   });
 });
 
-describe("the unimplemented surface", () => {
-  it("throws with its own name and its issue number", async () => {
-    expect(() => matchRfc(SYNTHETIC_SNAPSHOT_ENTRIES, "SYN010203AB1")).toThrow(
-      /matchRfc.*#35/,
-    );
-    expect(() => sweep([], { listVersion: SYNTHETIC_LIST_VERSION })).toThrow(
-      /sweep.*#35/,
-    );
-    await expect(
-      loadSnapshot({
-        kind: "text",
-        csv: SYNTHETIC_SNAPSHOT_CSV,
-        listVersion: SYNTHETIC_LIST_VERSION,
-      }),
-    ).rejects.toThrow(/loadSnapshot.*#35/);
-  });
-
-  it("states the rates it will apply rather than implying them", () => {
+describe("the rates the sweep applies", () => {
+  it("states them rather than implying them", () => {
+    // Both are assumptions about the company being protected, not computations,
+    // so they are constants a reader can find and a screen can name. sweep.ts
+    // carries the article citation and the reason IVA is summed and not applied.
+    expect(DEFAULT_ISR_RATE).toBe(0.3);
     expect(DEFAULT_IVA_RATE).toBe(0.16);
   });
 });
