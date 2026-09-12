@@ -3,6 +3,13 @@
  * runtime dependencies at all. See README.md in this folder for the rule.
  */
 
+export * from "./behaviour";
+export * from "./cfdi";
+export * from "./clabe";
+export * from "./decision";
+export * from "./domain";
+export * from "./duplicates";
 export * from "./money";
+export * from "./reconciliation";
 export * from "./rolling";
 export * from "./types";

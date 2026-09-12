@@ -1,6 +1,6 @@
 # ADR-0005: Static web on Vercel, API on the Node runtime
 
-- **Status:** Proposed
+- **Status:** Accepted, 2026-09-12 02:30 CST. Option 2: apps/web static on Vercel, apps/api on the Vercel Node runtime, no bun:* imports in apps/api
 - **Date:** 2026-09-11
 - **Deciders:** `garzario`, with `fabbyyyy`
 - **Affects:** `apps/api`, `apps/web`, `CONTRIBUTING.md`, milestone M1
@@ -53,3 +53,12 @@ simplicity gain we do not need.
 The Node runtime blocks something the product genuinely needs, such as a streaming primitive that does
 not work there. That reopens option 1, and the first step would be verifying the Bun runtime against
 our actual imports rather than assuming.
+
+
+## Amendment, 2026-09-12 03:10
+
+The SSE stream (`GET /api/v1/events`) needs a long-lived process, which serverless functions do not
+offer. Decision: `apps/web` stays static on Vercel; `apps/api` runs on a Vultr instance (docker compose
+with the API and PostgreSQL with TimescaleDB, or Tiger Data managed as the database), behind HTTPS. The
+"no `bun:*` imports in `apps/api`" rule is kept as a free fallback so the API can still be deployed to a
+Node runtime if Vultr fails on demo day. Tracked in #44.

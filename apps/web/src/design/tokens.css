@@ -1,0 +1,204 @@
+/*
+ * Ceptinela design tokens.
+ *
+ * One place for colour, type, spacing, radius, elevation and motion. Nothing
+ * else in the app is allowed to write a hex value, a pixel radius or a
+ * transition duration. A component that needs a new colour adds a token here
+ * with a name that says what it means, never what it looks like.
+ *
+ * The visual language is sober and financial: one accent, three semantic
+ * decision colours (hold, verify, release), large tabular numbers so columns
+ * of pesos line up digit over digit, and no decorative colour anywhere.
+ *
+ * Light is the default and dark follows the operating system. Only the colour
+ * tokens are redefined for dark; type, spacing, radius and motion never change
+ * with the theme.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type families. The numeric family exists so money can be set in tabular
+     figures without changing the text font. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* Applied as font-variant-numeric. Tabular so digits share one advance
+     width, lining so they sit on the baseline like the rest of the row. */
+  --numeric-tabular: tabular-nums lining-nums;
+
+  /* Type scale, 1rem base, ratio close to 1.2 with two display sizes on top
+     for the totals a judge reads from two metres away. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.375rem;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --tracking-wide: 0.06em;
+  --tracking-caps: 0.08em;
+
+  /* Spacing scale, 4px steps. Layout gaps come from here, never from a
+     hand-typed rem value. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --border-width: 1px;
+
+  /* Layout */
+  --layout-max: 1240px;
+  --layout-gutter: var(--space-5);
+  --rail-width: 19rem;
+  --drawer-width: 30rem;
+
+  /* Elevation */
+  --z-header: 20;
+  --z-scrim: 40;
+  --z-drawer: 50;
+  --z-toast: 60;
+
+  /* Motion. Every transition in the app reads one of these three durations,
+     so reduced motion can switch them all off in one place. */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Surfaces, from the page backdrop up to the drawer. */
+  --c-canvas: #f4f5f7;
+  --c-surface: #ffffff;
+  --c-surface-raised: #ffffff;
+  --c-surface-sunken: #eef0f3;
+
+  /* Text */
+  --c-ink: #14171c;
+  --c-ink-muted: #575e69;
+  --c-ink-subtle: #7c838f;
+  --c-ink-inverse: #ffffff;
+
+  /* Lines */
+  --c-border: #e0e3e9;
+  --c-border-strong: #c8cdd6;
+  --c-grid: #eceef2;
+
+  /* The one accent. Used for focus, links and the primary action, nothing
+     else. Anything that needs to stand out for a business reason uses a
+     semantic colour below instead of a second accent. */
+  --c-accent: #1c5fd6;
+  --c-accent-ink: #ffffff;
+  --c-accent-soft: #e6eefc;
+
+  /* Semantic decision colours. These map one to one onto the Action union in
+     packages/core/src/domain.ts: hold, verify, release. */
+  --c-hold: #b3261e;
+  --c-hold-soft: #fceceb;
+  --c-hold-ink: #7f1a15;
+
+  --c-verify: #9a6300;
+  --c-verify-soft: #fdf2dd;
+  --c-verify-ink: #6d4600;
+
+  --c-release: #146c2e;
+  --c-release-soft: #e6f4ea;
+  --c-release-ink: #0d4a1f;
+
+  /* Neutral informational tone, for findings that carry no decision weight. */
+  --c-info: #2f5d80;
+  --c-info-soft: #e8f0f6;
+  --c-info-ink: #1f4257;
+
+  /* The synthetic-data watermark. Deliberately low contrast: it must be
+     legible in a screenshot without competing with the numbers. */
+  --c-watermark: rgba(20, 23, 28, 0.07);
+  --c-watermark-ink: #7c838f;
+
+  --shadow-1: 0 1px 2px rgba(17, 19, 24, 0.06);
+  --shadow-2:
+    0 1px 2px rgba(17, 19, 24, 0.05), 0 10px 28px rgba(17, 19, 24, 0.07);
+  --shadow-3:
+    0 2px 6px rgba(17, 19, 24, 0.08), 0 24px 60px rgba(17, 19, 24, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-canvas: #0b0d11;
+    --c-surface: #14171d;
+    --c-surface-raised: #191d24;
+    --c-surface-sunken: #1b1f27;
+
+    --c-ink: #edf0f5;
+    --c-ink-muted: #9aa3b0;
+    --c-ink-subtle: #79828f;
+    --c-ink-inverse: #0b0d11;
+
+    --c-border: #262b34;
+    --c-border-strong: #39404c;
+    --c-grid: #1f242d;
+
+    --c-accent: #6ea1ff;
+    --c-accent-ink: #0b0d11;
+    --c-accent-soft: #16243c;
+
+    --c-hold: #ff8279;
+    --c-hold-soft: #2c1614;
+    --c-hold-ink: #ffb3ad;
+
+    --c-verify: #e3b45a;
+    --c-verify-soft: #2a2213;
+    --c-verify-ink: #f0d19a;
+
+    --c-release: #5fc87b;
+    --c-release-soft: #12251a;
+    --c-release-ink: #9ce0b0;
+
+    --c-info: #8fb8d8;
+    --c-info-soft: #14222c;
+    --c-info-ink: #bcd6e9;
+
+    --c-watermark: rgba(237, 240, 245, 0.06);
+    --c-watermark-ink: #79828f;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.4);
+    --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* Someone who asked the operating system for less movement gets no movement.
+   The tokens are the switch, so a component never has to check the media
+   query itself for CSS transitions. Components that animate in JavaScript read
+   the same preference through useReducedMotion from motion/react. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion-base: 1ms;
+    --motion-slow: 1ms;
+  }
+}

@@ -54,7 +54,7 @@ All event keys are rotated or revoked after 2026-09-13 regardless of whether any
   loudly instead of resolving something new on a runner.
 - Never `bun pm trust --all`. Postinstall scripts are trusted per package, deliberately, never in
   bulk.
-- npm, npx, yarn and pnpm are denied in `.claude/settings.json` and must not be reintroduced.
+- npm, npx, yarn and pnpm are denied in the local assistant permission template (`docs/playbooks/assistant-permissions.json`) and must not be reintroduced.
 
 ## Repository hygiene
 

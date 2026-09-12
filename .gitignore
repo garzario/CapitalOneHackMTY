@@ -7,3 +7,9 @@ dist/
 *.log
 .DS_Store
 .vercel
+# assistant configs stay local, any vendor
+.claude/
+CLAUDE.md
+.cursor/
+.codex/
+.github/copilot-instructions.md
