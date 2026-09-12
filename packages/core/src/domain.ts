@@ -117,11 +117,25 @@ export interface Cep {
   amount: number;
   senderName: string;
   senderBank: string;
+  /** Ordenante account the SPEI was charged to, when the CEP states one. */
+  senderAccount?: Clabe;
   beneficiaryName: string;
   beneficiaryAccount: Clabe;
   beneficiaryBank: string;
+  /** Beneficiary RFC as the CEP reports it. "NA" when the bank sent none. */
+  beneficiaryRfc?: Rfc;
+  /** Free text the sender typed. Context for the clerk, never used to decide. */
+  concepto?: string;
+  /** Serial of the Banxico certificate the sello claims. Signature evidence. */
+  numeroCertificado?: string;
   /** True only when the XML signature validated against the Banxico certificate. */
   signatureValid: boolean;
+  /**
+   * Why `signatureValid` is what it is, from `verifySignature` in packages/cep.
+   * A false with `unconfirmed_scheme` reads as "not verified" in the UI, never as
+   * "invalid": the two are different claims and only one of them is ours to make.
+   */
+  signatureReason?: string;
   /** The raw signed XML, kept byte-exact because XMLDSig demands it. */
   xml: string;
   synthetic: boolean;
