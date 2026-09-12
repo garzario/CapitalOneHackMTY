@@ -316,6 +316,80 @@ then the screens, then the narrative, then the plumbing.
   states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
   where the line between "no verificada" and "invalida" is drawn.
 
+### Changed
+
+- The three questions three Capital One judges asked at the table on 2026-09-12 in the afternoon are
+  answered with sources, and one claim we had been making is withdrawn (issue #173). They asked, one
+  each: how many people have this problem in Mexico and is there demand, who is already doing it here
+  and what problems do they face, and who exactly is the target user. `docs/04-market.md` had a firm
+  count and a publication frequency, which answers how many could buy and not how many are hit; it had
+  two Mexican competitors, both list checkers; and the user lived in `docs/02-persona.md` as a
+  synthetic persona with no population behind her. Thirty-one sources were added, every one opened on
+  2026-09-12 and every number carrying its own, and the file now opens with "Demand: how many have the
+  problem and how we know" before the sizing, because that is the order the questions arrived in.
+  **The demand answer is two answers**, because there are two losses in one payment. On the fraud side
+  INEGI's victimisation survey of businesses makes medium-sized firms the most victimised size band in
+  the country, 49.0 percent of them victims of a crime in 2023 against 47.3 percent of large firms and
+  a 27.2 percent national average, fraud is 8.5 percent of 2.9 million crimes against economic units
+  at 522 per 10,000 units, KPMG measured supplier or staff email impersonation at 24 percent of the
+  cyberattacks its Mexican respondents reported, and Condusef's own register shows banks refunding
+  MXN 1,265 million of the MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3
+  percent. That last ratio is the thesis in one official number: prevention before the SPEI, not
+  recovery after it. On the fiscal side the head of the SAT said on 2026-09-09 that it has run about
+  2,000 audits of the buyers of false invoices since October 2024, article 49 Bis of the Codigo Fiscal
+  has given those buyers thirty natural days from the DOF publication or a restricted digital seal
+  since 1 January 2026, and article 113 Bis now carries two to nine years of prison for giving
+  `efectos fiscales` to a false invoice. The volume behind the door is SPEI's 7,300 million transfers
+  in 2025, up 36.8 percent, of which 94 percent were at or below about MXN 13,200, so this product
+  addresses the residual six percent and says so. Eight things are stated as not published rather than
+  estimated, including any Mexican peso figure for supplier impersonation, any split of Condusef's
+  claims between companies and consumers, and any business-to-business share of SPEI: Banxico's SIE
+  table CF891 renders through JavaScript and its exports return the page shell, so the transfer count
+  rests on the Governor's Senate remarks as reported and is labelled as a secondary source.
+  **The competitor map lost a claim and gained twelve companies.** It used to say nothing sits in the
+  window between approving a payment run and sending it. That was wrong and it is gone: ValidX sells
+  "antes de pagar, si no cumple se retiene y se notifica a Compras" over a daily sweep of the 69, 69-B,
+  69-B Bis and 49-Bis lists, Portal de Proveedores in Monterrey holds a payment when a document expires
+  and sweeps 69-B daily across 20,000 registered suppliers, CONTPAQi added the 49 Bis situation to its
+  fiscal dashboard in version 19.2.0 on 2026-07-14 while the mass-payment window and the Banorte
+  connection sit in the same product, and Verificamex sells the one-cent probe with a CEP read-back for
+  MXN 8.93 to 17.85 plus IVA a call. Banco de Mexico performs that same probe itself under Regla 51a
+  Bis of the SPEI rules. So "we invented checking 69-B before paying" and "we invented the penny test"
+  are now on the do-not-say list, and the gap is restated as the join with four named edges: both
+  halves in one decision, the account's own history, a decision instead of a warning, and no supplier
+  onboarding and no ERP. Each of the twelve rows carries what the company sells in its own words, its
+  winning feature, the problems it faces from its own dated material, and what it cannot do that we
+  can. The strongest single row is Bind ERP's help centre saying its EFOS check "no restringira" the
+  transaction and only alerts, which is the industry default our hold, verify or release replaces. Two
+  Mexican banks are documented too: HSBCnet does sell beneficiary-name validation, for "unicamente
+  cuentas HSBC", in batches of up to 5,000 accounts inside a 07:00 to 22:00 window, and BBVA Net Cash
+  has the company type the holder's name itself with a token challenge on the last six digits of the
+  account, which authenticates the employee and not the account holder. That retires the
+  TODO(garzario) the row used to carry.
+  **The user has a population behind her now.** `docs/02-persona.md` gained "Target user, buyer,
+  channel and anti-user": 403,000 people in the occupation nationally in 2026-T1 and 25,900 in Nuevo
+  Leon, 67.1 percent women, paid about MXN 11,900 a month here; 60.4 percent of firms with six or more
+  employees bank through the institution's web page against 35.0 percent on a mobile app, which is the
+  surface the product has to sit in front of and the one Banxico's December 2026 guidelines do not
+  reach, since their scope is mobile apps used by personas fisicas; the buyer is the single decision
+  maker of 61.2 percent of firms this size; the channel has a denominator, 16,356 accounting and audit
+  units nationally with 12,130 of them at five people or fewer, so the 120 firms in the plan are 0.7
+  percent of it; and Nuevo Leon holds about 18,500 firms in the band against 89,523 establishments
+  across the four sectors with the longest supplier lists nationally. Four anti-users replace one, each
+  with a published reason. Nothing in that section claims to validate Lupita and the two interview
+  boxes are still unchecked. `docs/12-judge-qa.md` now opens with the three questions, a thirty-second
+  spoken answer each, the numbers allowed to be said with their source and, for each one, what not to
+  say. `docs/14-process.md` records the visit and the diff it caused.
+  **Two findings were retracted in the same pass and both are written down**, because a retraction that
+  leaves no trace gets rediscovered. A first count of job-board vacancies in Nuevo Leon was wrong by an
+  order of magnitude, 146 against an actual 2,145, which moves a ratio from 22 to 1 to about 204 to 1
+  and is corrected in source 44. And a claim that the FBI's annual report makes business email
+  compromise its largest loss category is false, investment fraud is nearly three times larger in the
+  same table, so the line it supported was cut instead of repaired. One scope question is recorded
+  rather than answered: 69-B is no longer the only SAT list published against suppliers, article 49 Bis
+  creates its own and two incumbents already monitor it, so TODO(garzario) before M4 is to add 49 Bis
+  and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
+
 ### Fixed
 
 - The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline

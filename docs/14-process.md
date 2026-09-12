@@ -199,6 +199,58 @@ because the table there prices two models this product does not configure. Issue
 The key is in each local `.env` and in no file here: `.env` and `.env.*` are ignored and
 `.env.example` carries the names with empty values.
 
+## Judge visits, and what each one changed
+
+Judging here is continuous rather than a slot: engineers and a product person walk up to the table
+during the 36 hours. Each visit is logged with a date and with the diff it caused, because a visit
+that changes nothing was either a perfect answer or a wasted one, and afterwards those two look
+identical.
+
+### 2026-09-12, afternoon. Three Capital One judges, one question each
+
+Three judges came to the table separately and each asked a different question. None of the three was
+on the answer sheet, and two were answered from memory rather than from a source, which is precisely
+the failure the "research is not evidence" rule in `AGENTS.md` exists to prevent.
+
+| What they asked | What we had | What it exposed |
+|---|---|---|
+| How many people have this problem in Mexico, and is there demand | A firm count, about 246,000 at 11 to 250 people, and a SAT publication frequency | The sizing answered "how many could buy" and nothing answered "how many are hit". No fraud count, no pesos, no SPEI volume |
+| Who is already doing it in Mexico, what are their winning features and what problems do they face | Two Mexican competitors, both list checkers, plus three international payee-verification vendors | The map had no Mexican company that already holds a payment, and the gap paragraph claimed the window between approval and send was empty. Both were wrong |
+| Who exactly is the target user | One synthetic persona with a synthetic workload | Nothing external at all. No population, no geography, no buyer, no channel, and an anti-persona of one instead of four |
+
+What changed as a result, all of it in the pull request that closes
+[#173](https://github.com/garzario/CapitalOneHackMTY/issues/173):
+
+- `docs/04-market.md` gained "Demand: how many have the problem and how we know", split into the fraud
+  side, the fiscal side, the SPEI volume and an explicit list of eight things that are not published
+  anywhere, plus 31 new numbered sources with access dates. Its competitor map now carries twelve
+  companies that sell into Mexico and two Mexican banks, one row each for the winning feature, the
+  problems they face from their own dated material, and what they cannot do that we do.
+- **The claim that the gap was empty is gone**, and that is the most important line in this entry.
+  ValidX sells a pre-payment hold on four SAT lists, Portal de Proveedores in Monterrey holds a
+  payment and sweeps 69-B daily across 20,000 suppliers, and Verificamex sells the one-cent probe with
+  a CEP read-back for MXN 8.93 to 17.85 a call, a mechanism Banco de México's own SPEI rules have the
+  central bank performing. "We invented checking 69-B before paying" is now on the do-not-say list in
+  `docs/12-judge-qa.md`, and the gap is restated as the join, with four named edges.
+- `docs/02-persona.md` gained "Target user, buyer, channel and anti-user": the population Lupita is
+  drawn from rather than a new claim about her, four anti-users instead of one, and the two unchecked
+  interview boxes left exactly as they were.
+- `docs/12-judge-qa.md` now opens with the three questions, a thirty-second spoken answer each, the
+  numbers allowed to be said with their source, and for each one a list of what not to say.
+- One scope question arrived with the research and is recorded rather than answered: 69-B is no longer
+  the only SAT list published against suppliers. Article 49 Bis creates its own from 1 January 2026,
+  and two incumbents already monitor it, one of them having shipped support in July 2026.
+  TODO(garzario) before M4: add 49 Bis and 69-B Bis to `packages/sat`, or state plainly in the docs
+  that the sweep covers 69-B only.
+
+Two findings from the same pass were retracted, and they are kept here because the retraction is the
+process working rather than a blemish on it. A first count of job-board vacancies in Nuevo León was
+wrong by an order of magnitude, 146 against an actual 2,145, so the ratio built on it went from 22 to
+1 to about 204 to 1; the correction is written into source 44 of `docs/04-market.md` so nobody
+rediscovers the wrong number. And a claim that the FBI's annual fraud report makes business email
+compromise its largest loss category was simply false, investment fraud is nearly three times larger
+in the same table, so the international-analogy line it supported was cut rather than repaired.
+
 ## What we cut, and why
 
 An issue closed with a written reason is evidence of scope judgment, which is exactly what an

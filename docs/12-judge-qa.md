@@ -18,6 +18,116 @@ SAT loader and the CEP evidence (#43, #55, #35, #57) to `Apanawa`. The per-perso
 follow the board, because that is what a judge will see in the commits. TODO(garzario): reconcile
 `AGENTS.md` or the assignments before M4, so that both say the same thing.
 
+## The three questions the judges actually asked
+
+On 2026-09-12 in the afternoon three Capital One judges came to the table and asked one of these
+each. They are now the first thing on this sheet because they were the first thing asked, and because
+two of the three were answered badly the first time. Every number below is derived in
+`docs/04-market.md` and the bracketed sources are that file's numbered list. Anyone on the team can
+give these three. Nothing outside the "allowed to say" rows goes out loud.
+
+### 1. How many people have this problem in Mexico, and is there demand?
+
+**Thirty seconds.** "Two problems and two sets of official numbers. On the fraud side, INEGI's
+victimisation survey of businesses makes medium-sized firms the most victimised size band in the
+country, 49 percent of them hit by a crime in 2023, more than large firms, and Condusef's own register
+shows the banks gave back 24 percent of the pesos claimed for fraud in the first quarter of this year.
+That is the whole thesis: once it leaves, one peso in four comes back. On the fiscal side the head of
+the SAT said three days ago that it has audited about two thousand buyers of false invoices in the
+last twenty-two months, and since January the buyer risks two to nine years of prison and loses the
+ability to invoice at all if it misses a thirty-day window. The band is about 246,000 firms. The
+number nobody publishes is the intersection of the two, and I will tell you that before you ask."
+
+| Allowed to say | Source |
+|---|---|
+| 49.0 percent of medium-sized and 40.7 percent of small economic units were crime victims in 2023, against a 27.2 percent national average | [14] |
+| 1.3 million establishments victimised, MXN 124.3 thousand million of cost, 0.51 percent of GDP | [14] |
+| Fraud is 8.5 percent of 2.9 million crimes, 522 per 10,000 units, MXN 18,370 each | [15] |
+| 90.3 percent of crimes against economic units produced no complaint or file, and only 12.2 percent were reported | [14] |
+| 24 percent of cyberattacks on surveyed Mexican companies were supplier or staff email impersonation; 45 percent reported a fraud; only 43 percent run supplier due diligence | [16] |
+| 5,213,358 possible-fraud bank claims in 2025, 72 percent of all claims, MXN 22,341 million | [17] |
+| Banks refunded MXN 1,265 million of MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3 percent | [18] |
+| SPEI moved more than 7,300 million transfers in 2025, up 36.8 percent, and 94 percent were at or below about MXN 13,200 | [19] |
+| About 2,000 buyer-side audits, more than 3,000 factureras published and more than 38,000 companies blocked, October 2024 to August 2026 | [20] |
+| 903 EFOS published in 2026 to 12 June, and 7,300 digital seals restricted beyond them | [21] |
+| Thirty natural days to reverse or lose the digital seal, 45 business days for the SAT to publish, two to nine years of prison for the buyer | [4] |
+| 86.3 percent of the 11-to-250 band already runs accounting software or pays an external accountant | [24] |
+| About 246,000 Mexican firms at 11 to 250 people, TAM MXN 2,655 million a year | [1] |
+
+**Do not say.** Any peso figure for supplier impersonation or business email compromise in Mexico,
+because none is published. Any share of those 5.2 million claims belonging to companies, because
+Condusef does not separate personas morales from consumers. Any business-to-business share of SPEI.
+Any standing count of buyers currently exposed, because the SAT publishes issuers and never buyers.
+The answer when pushed is "that number is not published and I am not going to invent it at this
+table, here is the one that is", which is also the answer that buys the most credibility.
+
+### 2. Who is already doing it in Mexico, what are their winning features, and what problems do they face?
+
+**Thirty seconds.** "Two camps, and we are neither. The fiscal camp already holds payments on the SAT
+list: ValidX sells exactly 'antes de pagar, si no cumple se retiene y se notifica a Compras', a
+Monterrey company called Portal de Proveedores sweeps 69-B daily across twenty thousand suppliers and
+holds the payment, and CONTPAQi has the list and the mass-payment button inside the same product. The
+money camp moves the pesos and never looks at who receives them: Clara disperses hundreds of SPEI
+from a spreadsheet the payer uploads, and Xepelin's own page describes the whole flow in three steps,
+none of which is a counterparty check. Even the one-cent probe is a commodity, Verificamex sells it
+for nine to eighteen pesos a call. So no, we did not invent checking 69-B before paying. What nobody
+sells is the join of both halves in one decision, and what nobody sells at all is the account's own
+history."
+
+| Company | Winning feature | The problem, from its own dated material | Source |
+|---|---|---|---|
+| ValidX | Pre-payment hold plus a daily sweep of four SAT lists, by API | Only the SAT is marked available; IMSS, Buró and every sanctions list are roadmap and "no se pueden consultar hoy". Phased rollout to a reduced client group, no published price, no ERP connector | [31] |
+| Portal de Proveedores, Monterrey | Holds payment on an expired document, sweeps 69 and 69-B daily, 125,000 CFDI a month self-reported | A buyer-imposed portal that 14,000 suppliers log into, which a 28-person firm cannot impose. No bank layer at all | [32] |
+| CONTPAQi Contabilidad-Bancos | The list and the payment run in one product; added 49 Bis in July 2026 | Its own changelog from 14.2.4 to 19.3.1 has no pre-payment check of the beneficiary against any list. The signal is a retrospective dashboard | [33] |
+| Bind ERP | Free EFOS verifier, zero friction | Its help centre says the system "no restringirá" the transaction and only alerts. This is our best single argument for deciding instead of warning | [34] |
+| Verificamex | The penny test as a metered API, MXN 8.93 to 17.85 plus IVA, 90+ banks | No 69-B, no CFDI, no duplicates, no decision. One account verified in isolation with no history to compare against | [35] [36] |
+| Clara | 40,000 companies, SAT invoice validation, custom approval flows | Batch dispersal from an uploaded .xlsx: invoice-valid plus approver-valid plus beneficiary-unknown | [37] |
+| Xepelin | Confirming plus the payment, USD 10 thousand million financed | Three steps, no counterparty verification, and suppliers need not be registered at all | [38] |
+| albo empresa | CNBV-authorised IFPE, MXN 71 thousand million a month, 3,000 payments at once | Its published protection is authentication and monitoring of the sender, never the counterparty | [39] |
+| Yaydoo inside Paystand | Grew more than 100 percent year on year | Its own chief executive said in March 2026 it is moving from pyme to medianas and grandes. The category leader is leaving our segment | [40] |
+| Mendel | USD 35 million Series B, Mercado Libre and FEMSA as customers | Built for "las grandes empresas de Latinoamérica" against SAP Concur. The tier above us is taken, which answers "why not just add this" | [41] |
+| HSBC México, HSBCnet | It really does sell beneficiary-name validation | "Únicamente cuentas HSBC", a batch file of up to 5,000 accounts, 07:00 to 22:00, report in up to 20 minutes. A hygiene sweep, never a gate | [42] |
+| BBVA México, Net Cash | The largest bank's own corporate flow | The company types the holder's name itself. The only control is a token challenge on the last six digits, which authenticates the employee and not the account holder | [43] |
+
+**Do not say.** "Nobody in Mexico checks 69-B before paying", "we invented the penny test", or "the
+window is empty". All three are breakable in one search, and the last two are contradicted by Banco
+de México's own rules, which have the central bank sending a one-centavo transfer and reading the CEP
+[29]. Do not say anything about Belvo either: its site refuses automated fetching and we know nothing
+about what it sells here. And do not claim a customer complaint about any competitor, because the
+review sites blocked us and every problem in that table is the vendor's own admission or a named
+outlet.
+
+### 3. Who exactly is the target user?
+
+**Thirty seconds.** "The one administrative clerk who runs the supplier payment run at a formal firm
+of 11 to 250 employees. Not a treasurer, because there is no treasurer: Nuevo León had eleven
+treasury vacancies of any kind on the day we looked, against a hundred for accounting clerks. There
+are 403,000 people in that occupation nationally and 25,900 in this state, two thirds of them women,
+paid about twelve thousand pesos a month here, and 60 percent of firms her size do their banking in a
+browser, which is where we sit. The buyer is the owner, who is the single decision maker in six out
+of ten firms this size and who is also the person a hold escalates to. The channel is the despacho
+contable, and there are 16,356 of them, three quarters with five people or fewer. Who it is not: the
+micro firm with no weekly run, the company above 250 that already has an ERP and a treasury team, and
+anyone informal, because every control we run reads a CFDI, a CLABE or a CEP."
+
+| Allowed to say | Source |
+|---|---|
+| 403,000 in the occupation nationally in 2026-T1, 25,900 in Nuevo León, MXN 8,640 a month nationally and MXN 11,900 in Nuevo León, 67.1 percent women, average age 38 | [27] |
+| 60.4 percent of firms with six or more employees bank through the institution's web page, against 35.0 percent on a mobile app | [28] |
+| The principal decision maker is a director or manager in 61.2 percent of firms, a partner or founder in 19.9 percent | [28] |
+| 16,356 accounting and audit units nationally, 737 in Nuevo León, 12,130 of them with five people or fewer | [26] |
+| About 18,500 firms at 11 to 250 people in Nuevo León, 10.2 percent of the state's 181,791 units, employing about 685,000 people | [25] |
+| 89,523 establishments at 11 to 250 in manufacturing, wholesale, transport and construction, 54,555 of them at 11 to 30 people | [26] |
+| Micro units are 89.3 percent of Nuevo León's units and 21.7 percent of its employment; firms above 250 are 0.6 percent of units and 42.7 percent of employment | [25] |
+| Eleven treasury vacancies in Nuevo León on 2026-09-12 against 101 for `auxiliar contable`, from a job board and labelled as one | [44] |
+
+**Do not say.** That 403,000 are all accounting clerks, because the occupation code bundles in
+economists, finance staff and stockbrokers and the figure is an upper bound. That the 61.2 percent
+plus 19.9 percent plus 10.8 percent are "the owner side", because a director or manager may be an
+employee and the survey measures decisions in general and not the payment decision. That a job board
+is a statistic. And that any of this validates Lupita: it sizes the population she is drawn from, and
+`docs/02-persona.md#pending-human-validation` is still two unchecked boxes.
+
 ## Per person
 
 ### Patricio (`garzario`), lead, intelligence and architecture
@@ -60,7 +170,7 @@ follow the board, because that is what a judge will see in the commits. TODO(gar
 | What do you own | The web surface (#46 to #51), `docs/00` to `06`, `docs/13`, `docs/14`, the README and the Devpost submission |
 | The one screen to show | The payment-run screen with the alert rail, then the finding panel with its evidence chips. That pair is stage 3 of `docs/03-user-journey.md` |
 | The experience in three sentences | The run arrives sorted by pesos at risk instead of alphabetically, so attention goes where the money is. Every finding says what produced it in plain Spanish and shows the evidence, including which digits of the account differ from the one we have paid before. Nothing accuses anyone: a finding is either provable from documents or it needs a human check, and a person makes every decision |
-| The market in three sentences | TODO(FabriBanda) |
+| The market in three sentences | TODO(FabriBanda), in your own words. The long version, with the numbers allowed and the three things not to claim, is in [The three questions the judges actually asked](#the-three-questions-the-judges-actually-asked) |
 | The current honest gap | TODO(FabriBanda), refresh at every milestone |
 | What is next | TODO(FabriBanda) |
 
