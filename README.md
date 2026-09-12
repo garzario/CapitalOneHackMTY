@@ -107,6 +107,22 @@ eval` scores the six controls against 30 labelled holdout cases and prints preci
 the false positive rate per control. `bun run demo` drives the demo path headless and must be green
 before any rehearsal or judge visit.
 
+The consortium network is opt-in, because it is the only part of the product that talks to a second
+vendor. It stays behind `ALLOW_CONSORTIUM=1`, and with the flag unset every control still runs and the
+beneficiary finding says the network was not consulted.
+
+```bash
+bun run consortium:seed   # Snowflake database, schema, table and view, then the synthetic network of other tenants
+bun run consortium:push   # this company's registry outcomes, as salted hashes and nothing else
+bun run consortium:pull   # fills the local snapshot the engine reads
+```
+
+[`docs/adr/0006-consortium-snowflake.md`](docs/adr/0006-consortium-snowflake.md) is why the decision
+reads a snapshot and never the warehouse, and
+[`docs/06-regulatory-privacy.md`](docs/06-regulatory-privacy.md) section 8 lists what leaves a company
+and what never does. There is one real tenant: the other tenants are generated from the committed seed
+and every row carries `synthetic: true`.
+
 ## Screenshots
 
 The payment run, captured reproducibly by `apps/web/brand/shoot.ts`:
@@ -135,6 +151,7 @@ Fit for purpose is graded, so each row ties a tool to this problem rather than t
 | zod plus `@hono/zod-validator` | 4.5.4 / 0.9.1 | One schema per endpoint, validated at the edge, typed on both sides of the wire. |
 | Postgres via `postgres` | 3.4.9 | Raw SQL, no ORM. When a judge asks how the forecast works, the answer is the query. |
 | Timescale hypertables, conditional | n/a | A transaction ledger genuinely is a time series, so hypertables and continuous aggregates are the honest fit. `0002_timescale.sql` applies only where the extension exists, so a plain local Postgres 18 is the offline fallback on the same dialect. |
+| Snowflake, in `packages/consortium` only | no dependency, key-pair JWT and `fetch` | The cross-tenant beneficiary network, and the MLH Best Use of Snowflake API category. A supplier's first payment from this company has no history here and months of history in every other company that already pays it, which is the one signal our own ledger cannot hold. What leaves a company is a salted hash of the supplier and the account, a bank code and one of four outcomes: no name, no amount, no account number. The engine reads a local snapshot and never the warehouse, so the decision stays deterministic and works offline. The network of other tenants is synthetic and labelled as such. ADR-0006. |
 | Vite, React, Tailwind | 8.2.2 / 19.2.8 / 4.3.3 | The judge-facing surface is a URL they open on their own phone, which is the cleanest rebuttal to a staged prototype. |
 | motion | 13.2.0 | Motion is first-class here, not a polish task, because the experience criteria are 20 points. |
 | recharts | 3.10.1 | Charts over our own ledger, not over screenshots. |
@@ -180,7 +197,7 @@ build night mode cost us, the ADR index, and the list of work we consciously cut
 | 12 | [judge Q and A](docs/12-judge-qa.md) | The walk-up answer sheet, per person and shared |
 | 13 | [Devpost](docs/13-devpost.md) | The exact submission copy |
 | 14 | [process](docs/14-process.md) | How we worked: board, PRs, reviews, ADR index, what we cut |
-| adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target |
+| adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target, consortium |
 
 Plus [`AGENTS.md`](AGENTS.md), the contract every person and every assistant in this repository
 works under, and [`docs/design.md`](docs/design.md) for the reasoning behind the design system.
