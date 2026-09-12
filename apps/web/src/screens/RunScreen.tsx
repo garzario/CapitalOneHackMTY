@@ -4,21 +4,37 @@
  * week's run, how much of it is not leaving yet, and which payment costs the
  * most to get wrong.
  *
- * Everything else on this screen is subordinate to those three.
+ * Everything else on this screen is subordinate to those three, and this file
+ * is mostly a record of what was removed to make that true.
+ *
+ * The three decision buttons are gone from the table. Every row carried
+ * Retener, Verificar and Liberar in three different colours; thirteen rows made
+ * fifty-two coloured objects, and past the third row the eye stops reading them
+ * as controls. Worse, they invited the decision to be made from the one place
+ * on the screen that shows no evidence for it. Deciding now happens on the
+ * instruction, next to the finding that explains it, which is the product's own
+ * argument applied to its own interface.
+ *
+ * The decision chip is gone too. A row's state is a 3 px mark on its left edge
+ * and a word in its own column, so the table can be scanned down the margin and
+ * colour is never the only signal.
+ *
+ * The alert rail is gone. It listed the same findings the table was already
+ * sorted by. In its place the six controls say what they found, including the
+ * ones that found nothing, which is the claim nothing on this screen was making
+ * before.
+ *
+ * Two links, two destinations, on purpose: the supplier's name opens the
+ * payment, the RFC under it opens the supplier's history.
  */
 
-import type { Action, Rfc } from "@hackmty/core";
+import type { Rfc } from "@hackmty/core";
+import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useMemo, useState } from "react";
-import { ActionBar } from "../components/Decision";
-import { AlertRail, type RailEntry } from "../components/Findings";
+import { ControlsPanel } from "../components/Controls";
 import { IntakeQr } from "../components/IntakeQr";
-import {
-  Amount,
-  anySynthetic,
-  DecisionBadge,
-  SectionHeader,
-  SyntheticMark,
-} from "../components/Primitives";
+import { Amount } from "../components/Primitives";
+import { RunFilterControl } from "../components/RunFilter";
 import { RunVerdict } from "../components/RunVerdict";
 import {
   EmptyBlock,
@@ -28,61 +44,47 @@ import {
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
+import { getCurrentRun, runConstanciaHref, useEvents } from "../lib/api";
 import {
-  decideInstruction,
-  getCurrentRun,
-  runConstanciaHref,
-  useEvents,
-} from "../lib/api";
-import type { PaymentRun } from "../lib/contract";
-import { formatClabe, formatCount, formatDate } from "../lib/format";
-import { SOURCE_LABEL } from "../lib/labels";
+  formatClabe,
+  formatCount,
+  formatDate,
+  formatPlural,
+} from "../lib/format";
+import { ACTION_LABEL, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
-import { orderItems, runVerdict } from "../lib/run-view";
-
-/** The border colour that marks a row's decision, from the semantic tokens. */
-const ROW_ACCENT: Record<Action, string> = {
-  hold: "var(--c-hold)",
-  verify: "var(--c-verify)",
-  release: "var(--c-release)",
-};
-
-/** Applies a decision to a run without mutating it, for the offline path. */
-function withDecision(
-  run: PaymentRun,
-  instructionId: string,
-  action: Action,
-): PaymentRun {
-  const items = run.items.map((item) =>
-    item.instruction.id === instructionId
-      ? {
-          ...item,
-          decision: {
-            ...item.decision,
-            action,
-            decidedAt: new Date().toISOString(),
-            decidedBy: "clerk@demo",
-          },
-        }
-      : item,
-  );
-
-  return { ...run, items };
-}
+import {
+  countsFor,
+  matchesFilter,
+  orderItems,
+  type RunFilter,
+  runVerdict,
+} from "../lib/run-view";
 
 export function RunScreen() {
   const load = useCallback(
     (signal: AbortSignal) => getCurrentRun({ signal }),
     [],
   );
-  const { resource, reload, replace } = useResource(load, {
-    fallback: mockRun,
-  });
-  const [pending, setPending] = useState<string | null>(null);
-  const [writeError, setWriteError] = useState<string | null>(null);
+  const { resource, reload } = useResource(load, { fallback: mockRun });
   const [drawerRfc, setDrawerRfc] = useState<Rfc | null>(null);
+  /* The exceptions are the default view. See the note on RunFilter in
+     lib/run-view.ts for why a run of 92 opens on 7 rows and not on 92. */
+  const [filter, setFilter] = useState<RunFilter>("stopped");
+  /* The row animation is a response to an action, so it does not play on the
+     first paint: a table that starts empty and fills in over 400 ms is a table
+     that is blank in the first frame a judge sees, and blank in any screenshot
+     `brand/shoot.ts` happens to take during it. It arms on the first filter
+     change and stays armed. */
+  const [filterTouched, setFilterTouched] = useState(false);
+
+  const changeFilter = useCallback((next: RunFilter) => {
+    setFilterTouched(true);
+    setFilter(next);
+  }, []);
+  const reduceMotion = useReducedMotion();
 
   /* Every appended ledger event is a reason to re-read the run. The stream
      carries the event; the run stays the single source of truth for the table,
@@ -95,115 +97,57 @@ export function RunScreen() {
   const run = resource.status === "ready" ? resource.data : null;
   const source = resource.status === "ready" ? resource.source : null;
 
-  const railEntries = useMemo<RailEntry[]>(() => {
-    if (!run) {
-      return [];
-    }
-
-    return run.items.flatMap((item) =>
-      item.findings.map((finding) => ({
-        finding,
-        instructionId: item.instruction.id,
-      })),
-    );
-  }, [run]);
-
   /* Both read the items rather than `run.totals`, so the headline and the
      table stay consistent with each other after a decision applied with no
      API behind the page. See lib/run-view.test.ts. */
   const verdict = useMemo(() => (run ? runVerdict(run) : null), [run]);
-  const rows = useMemo(() => (run ? orderItems(run.items) : []), [run]);
-
-  const onDecide = useCallback(
-    async (instructionId: string, action: Action) => {
-      setWriteError(null);
-      setPending(instructionId);
-
-      /* Offline the write cannot happen, so the interaction is applied to the
-         synthetic run and labelled as such. The real path is the POST below.
-         TODO(FabriBanda): surface the confirmed decision in a toast once the
-         API answers, and keep the optimistic update for the offline demo. */
-      if (source === "mock" && run) {
-        replace(withDecision(run, instructionId, action));
-        setWriteError(
-          "Sin API: la decision se aplico solo en la corrida sintetica de este navegador.",
-        );
-        setPending(null);
-
-        return;
-      }
-
-      const result = await decideInstruction(instructionId, {
-        action,
-        decidedBy: "clerk@demo",
-      });
-
-      setPending(null);
-
-      if (!result.ok) {
-        setWriteError(result.error.message);
-
-        return;
-      }
-
-      reload();
-    },
-    [source, run, replace, reload],
+  const counts = useMemo(() => countsFor(run ? run.items : []), [run]);
+  const rows = useMemo(
+    () =>
+      run
+        ? orderItems(run.items).filter((item) => matchesFilter(item, filter))
+        : [],
+    [run, filter],
   );
 
   return (
     <>
-      <SectionHeader
-        title="Corrida de pagos"
-        description={
-          run
-            ? `Semana del ${formatDate(run.weekOf)}. ${formatCount(verdict?.totalCount ?? 0)} instrucciones.`
-            : "Semana en curso."
-        }
-        aside={
-          <div className="flex flex-col items-start gap-2 sm:items-end">
-            <SyntheticMark
-              when={
-                run !== null &&
-                anySynthetic(run.items.map((i) => i.instruction))
-              }
-            />
-            {/* The retention artifact for this run: what was checked, what was
-                decided, and a digest of the ledger range behind it. Offered
-                only against the engine, because a constancia of a run the
-                browser made up would be a document about nothing. */}
-            {run && source !== "mock" ? (
-              <a
-                className="btn"
-                href={runConstanciaHref(run.id)}
-                target="_blank"
-                rel="noreferrer"
+      {/* The week, the count and the one artifact this screen produces. The
+          screen's name is in the top bar and is not repeated here. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="subtle m-0 t-sm">
+          {run
+            ? `Semana del ${formatDate(run.weekOf)} · ${formatCount(verdict?.totalCount ?? 0)} instrucciones`
+            : "Semana en curso"}
+          {stream.status === "closed" ? (
+            <>
+              {" · Sin flujo de eventos. "}
+              <button
+                type="button"
+                className="underline"
+                onClick={stream.reconnect}
               >
-                Constancia de la corrida (PDF)
-              </a>
-            ) : null}
-            <span className="subtle t-xs">
-              {stream.status === "open"
-                ? "Flujo de eventos conectado"
-                : stream.status === "connecting"
-                  ? "Conectando al flujo de eventos"
-                  : "Flujo de eventos cerrado"}
-              {stream.status === "closed" ? (
-                <>
-                  {". "}
-                  <button
-                    type="button"
-                    className="underline"
-                    onClick={stream.reconnect}
-                  >
-                    Reconectar
-                  </button>
-                </>
-              ) : null}
-            </span>
-          </div>
-        }
-      />
+                Reconectar
+              </button>
+            </>
+          ) : null}
+        </p>
+
+        {/* The retention artifact for this run: what was checked, what was
+            decided, and a digest of the ledger range behind it. Offered only
+            against the engine, because a constancia of a run the browser made
+            up would be a document about nothing. */}
+        {run && source !== "mock" ? (
+          <a
+            className="btn"
+            href={runConstanciaHref(run.id)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Constancia (PDF)
+          </a>
+        ) : null}
+      </div>
 
       {resource.status === "loading" ? (
         <div className="panel">
@@ -225,24 +169,23 @@ export function RunScreen() {
 
           <RunVerdict verdict={verdict} />
 
-          {writeError ? (
-            <p role="status" className="panel-sunken muted px-4 py-2 t-sm">
-              {writeError}
-            </p>
-          ) : null}
-
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <section
               aria-labelledby="run-table-heading"
               className="panel min-w-0"
             >
-              <div className="flex flex-col gap-1 p-5 pb-0">
+              <div className="card-head">
                 <h2 id="run-table-heading" className="eyebrow">
-                  Instrucciones de pago
+                  Instrucciones
                 </h2>
-                <p className="subtle m-0 t-xs">
-                  Primero lo que no sale, despues por importe.
-                </p>
+                {/* The filter replaced the line that used to sit here saying
+                    "first what is not leaving, then by amount". The control
+                    says the same thing and does it as well. */}
+                <RunFilterControl
+                  value={filter}
+                  counts={counts}
+                  onChange={changeFilter}
+                />
               </div>
 
               {run.items.length === 0 ? (
@@ -256,11 +199,11 @@ export function RunScreen() {
                   }
                 />
               ) : (
-                <div className="table-scroll p-2">
+                <div className="table-scroll">
                   <table className="data-table">
                     <caption className="sr-only">
-                      Instrucciones de pago de la semana, con su cuenta, su
-                      decision y sus acciones.
+                      Instrucciones de pago de la semana, con su cuenta y su
+                      decision.
                     </caption>
                     <thead>
                       <tr>
@@ -268,101 +211,152 @@ export function RunScreen() {
                         <th scope="col" className="align-end">
                           Importe
                         </th>
-                        <th scope="col">Cuenta</th>
+                        <th scope="col">Cuenta destino</th>
                         <th scope="col">Decision</th>
-                        <th scope="col">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((item) => (
-                        <tr key={item.instruction.id}>
-                          <td
-                            className="cell-supplier"
-                            style={{
-                              borderLeft: `3px solid ${ROW_ACCENT[item.decision.action]}`,
+                      {/*
+                       * The filter change is animated per row: the new set fades
+                       * and lifts into place with a stagger capped so that even
+                       * ninety-two rows have settled inside a fifth of a second.
+                       *
+                       * The key carries the filter, which is the whole trick.
+                       * React then treats a filter change as a new set of rows
+                       * rather than an edit to the old one, so every visible row
+                       * mounts fresh and animates. The first attempt used
+                       * `AnimatePresence` with an `exit` so leaving rows could
+                       * fade out too, and it did not work: exiting `<tr>`s were
+                       * never unmounted, so switching back to "No salen" left
+                       * all ninety-two rows on screen with the filter claiming
+                       * seven. Animating only the entrance costs nothing you can
+                       * see -- the outgoing rows are replaced under an incoming
+                       * animation -- and it cannot strand a row.
+                       *
+                       * Only opacity and transform move, never height or layout,
+                       * so the column widths hold still and the table does not
+                       * shiver while it changes.
+                       */}
+                      {rows.map((item, index) => {
+                        const { action } = item.decision;
+
+                        return (
+                          <motion.tr
+                            key={`${filter}-${item.instruction.id}`}
+                            initial={
+                              filterTouched ? { opacity: 0, y: -4 } : false
+                            }
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: reduceMotion ? 0 : 0.22,
+                              delay: reduceMotion
+                                ? 0
+                                : Math.min(index * 0.012, 0.18),
+                              ease: [0.2, 0.8, 0.2, 1],
                             }}
                           >
-                            <div className="flex flex-col gap-1">
-                              <button
-                                type="button"
-                                className="link-quiet text-left font-medium"
-                                onClick={() => setDrawerRfc(item.supplier.rfc)}
-                              >
-                                {item.supplier.legalName}
-                              </button>
-                              <span className="code subtle">
-                                {item.supplier.rfc}
+                            <td
+                              className={`cell-supplier row-mark row-mark-${action}`}
+                            >
+                              <div className="flex flex-col">
+                                <Link
+                                  to={instructionPath(item.instruction.id)}
+                                  className="link-quiet t-base font-medium"
+                                >
+                                  {item.supplier.legalName}
+                                </Link>
+                                <span className="t-xs">
+                                  <button
+                                    type="button"
+                                    className="code link-quiet subtle"
+                                    onClick={() =>
+                                      setDrawerRfc(item.supplier.rfc)
+                                    }
+                                  >
+                                    {item.supplier.rfc}
+                                  </button>
+                                  <span className="subtle">
+                                    {" · "}
+                                    {SOURCE_LABEL[item.instruction.source]}
+                                    {" · "}
+                                    {formatDate(item.instruction.receivedAt)}
+                                  </span>
+                                </span>
+                              </div>
+                            </td>
+                            <td className="align-end">
+                              <Amount value={item.instruction.amount} />
+                            </td>
+                            <td>
+                              <span className="code code-nowrap">
+                                {formatClabe(item.instruction.clabe)}
                               </span>
-                              <span className="subtle t-xs">
-                                {SOURCE_LABEL[item.instruction.source]},{" "}
-                                {formatDate(item.instruction.receivedAt)},{" "}
-                                {item.instruction.cfdiUuids.length === 0
-                                  ? "sin factura"
-                                  : `${formatCount(item.instruction.cfdiUuids.length)} factura(s)`}
+                              <span className="subtle block t-xs">
+                                {bankName(item.instruction.clabe)}
                               </span>
-                            </div>
-                          </td>
-                          <td className="align-end">
-                            <Amount value={item.instruction.amount} size="lg" />
-                          </td>
-                          <td>
-                            <span className="code code-nowrap">
-                              {formatClabe(item.instruction.clabe)}
-                            </span>
-                            <span className="subtle block t-xs">
-                              {bankName(item.instruction.clabe)}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex flex-col items-start gap-1">
-                              <DecisionBadge action={item.decision.action} />
+                            </td>
+                            <td>
+                              {/* No dot here. The row already carries its
+                                  decision twice -- as the 3 px mark on its left
+                                  edge and as this word -- and a third copy in
+                                  the same cell as the second is punctuation,
+                                  not information. Colour is still not the only
+                                  signal: the word is. */}
+                              <span className={`decision decision-${action}`}>
+                                {ACTION_LABEL[action]}
+                              </span>
                               {item.findings.length > 0 ? (
                                 <Link
                                   to={instructionPath(item.instruction.id)}
-                                  className="t-xs underline"
+                                  className="subtle block t-xs underline"
                                 >
-                                  {formatCount(item.findings.length)}{" "}
-                                  hallazgo(s)
+                                  {formatPlural(
+                                    item.findings.length,
+                                    "hallazgo",
+                                  )}
                                 </Link>
                               ) : null}
-                            </div>
-                          </td>
-                          <td className="cell-actions">
-                            <ActionBar
-                              compact
-                              current={item.decision.action}
-                              pending={
-                                pending === item.instruction.id
-                                  ? item.decision.action
-                                  : null
-                              }
-                              context={item.supplier.legalName}
-                              onDecide={(action) => {
-                                void onDecide(item.instruction.id, action);
-                              }}
-                            />
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
                     </tbody>
                   </table>
+
+                  {/* A filter that matches nothing has to say so. The common
+                      case is the good one: a week where nothing was stopped
+                      opens on an empty "No salen", and that is a result worth
+                      a sentence rather than a blank panel. */}
+                  {rows.length === 0 ? (
+                    <EmptyBlock
+                      title={
+                        filter === "stopped"
+                          ? "Nada detenido esta semana"
+                          : "Nada liberado todavia"
+                      }
+                      description={
+                        filter === "stopped"
+                          ? `Las ${formatPlural(counts.all, "instruccion")} de la corrida pasaron los seis controles.`
+                          : "Cada instruccion de la corrida sigue detenida o pendiente de verificar."
+                      }
+                      action={
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => changeFilter("all")}
+                        >
+                          Ver las {formatCount(counts.all)}
+                        </button>
+                      }
+                    />
+                  ) : null}
                 </div>
               )}
             </section>
 
-            <aside className="flex min-w-0 flex-col gap-4">
-              <section
-                aria-labelledby="rail-heading"
-                className="flex flex-col gap-3"
-              >
-                <h2 id="rail-heading" className="eyebrow">
-                  En riesgo, de mayor a menor
-                </h2>
-                <AlertRail entries={railEntries} />
-              </section>
-
+            <aside className="flex min-w-0 flex-col gap-5">
+              <ControlsPanel items={run.items} />
               <IntakeQr />
-
               <StatusCard />
             </aside>
           </div>

@@ -13,12 +13,7 @@
 
 import type { Finding } from "@hackmty/core";
 import { useCallback, useState } from "react";
-import {
-  Amount,
-  Field,
-  SectionHeader,
-  SyntheticMark,
-} from "../components/Primitives";
+import { Amount, Field, SyntheticMark } from "../components/Primitives";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -147,10 +142,10 @@ export function CepScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Comprobante Electronico de Pago"
-        description="Se manda un SPEI de un centavo desde el banco de la empresa, se trae el CEP que firma Banxico y se compara el titular de la cuenta con la razon social del CFDI. La cuenta queda en el registro de beneficiarios verificados."
-      />
+      <p className="muted max-w-prose t-sm">
+        Un SPEI de un centavo trae el CEP que firma Banxico, y el titular de la
+        cuenta se compara con la razon social del CFDI.
+      </p>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] [&>*]:min-w-0">
         <div className="flex flex-col gap-5">

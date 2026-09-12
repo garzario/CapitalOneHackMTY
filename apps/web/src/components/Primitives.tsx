@@ -15,9 +15,15 @@ import {
   SYNTHETIC_LABEL,
 } from "../lib/labels";
 
-type AmountSize = "sm" | "base" | "lg" | "xl";
+type AmountSize = "inherit" | "sm" | "base" | "lg" | "xl";
 
 const AMOUNT_CLASS: Record<AmountSize, string> = {
+  /* Tabular figures and nothing else, for an amount whose size belongs to the
+     block around it. Without this the only way to render money was to pick a
+     step off the scale, so the run's headline figure sat inside a 48px
+     `.figure-value` and printed itself at 15px, because the span the component
+     renders set its own size and won. */
+  inherit: "num",
   sm: "num t-sm",
   base: "num t-base",
   lg: "num-lg",
@@ -124,13 +130,13 @@ export function SectionHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex flex-col gap-1">
-        {/* h1, once per screen. Every screen renders exactly one of these and
-            the app had no h1 at all, so a screen reader's document outline
-            started at level two with nothing above it and "jump to the main
-            heading" landed nowhere. The visual size is a token, not the tag. */}
-        <h1 id={id} className="t-lg">
+        {/* h2, because the shell's top bar carries the page's h1: it names the
+            section you are in, on every screen, which is exactly what an h1 is
+            for. Two h1s would leave "jump to the main heading" ambiguous. The
+            visual size is a token, not the tag. */}
+        <h2 id={id} className="t-lg">
           {title}
-        </h1>
+        </h2>
         {description ? (
           <p className="muted max-w-prose t-sm">{description}</p>
         ) : null}

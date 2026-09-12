@@ -19,8 +19,8 @@ const TITLES: Record<Route["name"], string> = {
   run: "Corrida de pagos",
   instruction: "Instruccion de pago",
   intake: "Alta de una instruccion",
-  sat: "Lista 69-B",
-  cep: "CEP",
+  sat: "Lista del articulo 69-B",
+  cep: "Comprobante Electronico de Pago",
   verifyCall: "Llamada de verificacion",
   metrics: "Evaluacion ciega",
   notFound: "Pagina no encontrada",
@@ -76,5 +76,9 @@ export default function App() {
     }
   }, []);
 
-  return <AppShell route={route}>{screenFor(route)}</AppShell>;
+  return (
+    <AppShell route={route} title={TITLES[route.name]}>
+      {screenFor(route)}
+    </AppShell>
+  );
 }

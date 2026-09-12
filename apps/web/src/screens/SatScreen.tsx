@@ -15,7 +15,7 @@
 import type { SweepResult } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Amount, SectionHeader, SyntheticMark } from "../components/Primitives";
+import { Amount, SyntheticMark } from "../components/Primitives";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -251,10 +251,10 @@ export function SatScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Lista del articulo 69-B"
-        description="Un proveedor que pasa a definitivo vuelve no deducible todo lo que ya le pagamos. El barrido retroactivo cuantifica esa exposicion; la consulta oficial es otra cosa y esta separada a proposito."
-      />
+      <p className="muted max-w-prose t-sm">
+        Un proveedor que pasa a definitivo vuelve no deducible todo lo que ya le
+        pagamos. El barrido retroactivo cuantifica esa exposicion.
+      </p>
 
       <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         <section

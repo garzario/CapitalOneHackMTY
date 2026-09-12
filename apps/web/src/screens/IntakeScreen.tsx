@@ -14,12 +14,7 @@ import type { InstructionSource } from "@hackmty/core";
 import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { FindingPanel } from "../components/Findings";
-import {
-  Amount,
-  DecisionBadge,
-  SectionHeader,
-  SyntheticMark,
-} from "../components/Primitives";
+import { Amount, DecisionBadge, SyntheticMark } from "../components/Primitives";
 import { EmptyBlock, ErrorBlock } from "../components/States";
 import { createInstruction } from "../lib/api";
 import type { InstructionDetail } from "../lib/contract";
@@ -139,10 +134,10 @@ export function IntakeScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
-      <SectionHeader
-        title="Alta de una instruccion"
-        description="Pega el mensaje que llego o toma una foto de la CLABE. Se corren los seis detectores y la decision aparece aqui y en la pantalla de la corrida."
-      />
+      <p className="muted max-w-prose t-sm">
+        Pega el mensaje que llego o toma la foto de la CLABE. Los seis controles
+        corren y la decision aparece en la corrida.
+      </p>
 
       <form className="panel flex flex-col gap-4 p-5" onSubmit={onSubmit}>
         <div>

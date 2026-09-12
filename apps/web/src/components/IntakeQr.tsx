@@ -35,16 +35,16 @@ export function IntakeQr({ origin }: IntakeQrProps) {
   return (
     <section
       aria-labelledby="intake-qr-heading"
-      className="panel flex flex-col items-center gap-3 p-5 text-center"
+      className="panel flex flex-col items-center gap-3 p-4 text-center"
     >
       <h2 id="intake-qr-heading" className="eyebrow">
-        Da de alta un pago desde tu telefono
+        Alta desde tu telefono
       </h2>
 
       {link.reachable ? (
         <QrCode
           value={link.url}
-          size={168}
+          size={144}
           label="Codigo QR con la direccion de la pagina de alta de instrucciones"
         />
       ) : (
@@ -55,8 +55,7 @@ export function IntakeQr({ origin }: IntakeQrProps) {
         {link.url}
       </p>
       <p className="muted m-0 t-xs">
-        Escanea, pega el mensaje o toma la foto de la CLABE. La instruccion
-        aparece en esta pantalla en cuanto se registra.
+        Escanea el codigo. La instruccion aparece aqui.
       </p>
     </section>
   );

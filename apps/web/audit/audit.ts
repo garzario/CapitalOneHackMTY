@@ -351,7 +351,20 @@ const CONTRAST_PROBE = `(() => {
     ["--c-verify-ink", "--c-surface", 4.5, "verify figure as text"],
     ["--c-release-ink", "--c-surface", 4.5, "release figure as text"],
     ["--c-watermark-ink", "--c-surface", 4.5, "the synthetic watermark"],
+    // The tinted card under the run's headline figure is a third ground, and
+    // every pair above measures against white. A surface that only one screen
+    // uses is exactly the one that ships unchecked.
+    ["--c-ink", "--c-accent-tint", 4.5, "the run figure on its tinted card"],
+    ["--c-ink-muted", "--c-accent-tint", 4.5, "supporting text on the tint"],
+    ["--c-ink-subtle", "--c-accent-tint", 4.5, "the totals' labels on the tint"],
     ["--c-border-strong", "--c-surface", 3, "a strong border"],
+    // The rail is a navy brand panel with its own small palette. None of the
+    // pairs above touch it, and it is the one surface on every screen.
+    ["--c-rail-ink", "--c-rail", 4.5, "a rail item"],
+    ["--c-rail-ink-muted", "--c-rail", 4.5, "a rail item at rest"],
+    ["--c-rail-active-ink", "--c-rail-active", 4.5, "the current rail item"],
+    ["--c-rail-ink", "--c-rail-active", 4.5, "a rail item on hover"],
+    ["--c-rail-ink-muted", "--c-rail-active", 4.5, "muted ink on the active row"],
   ];
 
   const results = PAIRS.map(([fgToken, bgToken, need, what]) => {

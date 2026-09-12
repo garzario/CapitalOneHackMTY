@@ -142,4 +142,4 @@ export const ESTABLISHED_BY_LABEL: Record<string, string> = {
 };
 
 /** The watermark text ADR-0002 requires on anything generated. */
-export const SYNTHETIC_LABEL = "datos sinteticos";
+export const SYNTHETIC_LABEL = "Datos sinteticos";

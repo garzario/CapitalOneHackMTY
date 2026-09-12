@@ -54,29 +54,41 @@
   .t-lg {
     font-size: var(--text-lg);
     line-height: var(--leading-snug);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   .t-xl {
     font-size: var(--text-xl);
     line-height: var(--leading-snug);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   .t-2xl {
     font-size: var(--text-2xl);
     line-height: var(--leading-tight);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   .t-3xl {
     font-size: var(--text-3xl);
     line-height: var(--leading-tight);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
+  /* A section label. It used to be uppercase with wide tracking, which is the
+     fastest way to make six unrelated headings look like one generated
+     template. Sentence case, one step down the scale, same job. */
   .eyebrow {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    color: var(--c-ink-subtle);
+    letter-spacing: var(--tracking-tight);
+    color: var(--c-ink);
+    /* Set explicitly: it is usually an h2, and h2 is light now. */
+    line-height: var(--leading-snug);
   }
 
   .muted {
@@ -99,16 +111,17 @@
   .num-lg {
     font-variant-numeric: var(--numeric-tabular);
     font-size: var(--text-xl);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-light);
     line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
   }
 
   .num-xl {
     font-variant-numeric: var(--numeric-tabular);
     font-size: var(--text-3xl);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-light);
     line-height: var(--leading-tight);
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-display);
   }
 
   .code {
@@ -196,27 +209,48 @@
   /* The three decision buttons. Colour carries meaning here, so it is never
      the only signal: each button also says what it does in words. */
   .btn-hold {
-    border-color: var(--c-hold);
+    border-color: var(--c-border-strong);
     color: var(--c-hold-ink);
+  }
+
+  .btn-hold:hover:not(:disabled) {
+    border-color: var(--c-hold);
     background-color: var(--c-hold-soft);
   }
 
   .btn-verify {
-    border-color: var(--c-verify);
+    border-color: var(--c-border-strong);
     color: var(--c-verify-ink);
+  }
+
+  .btn-verify:hover:not(:disabled) {
+    border-color: var(--c-verify);
     background-color: var(--c-verify-soft);
   }
 
   .btn-release {
-    border-color: var(--c-release);
+    border-color: var(--c-border-strong);
     color: var(--c-release-ink);
+  }
+
+  .btn-release:hover:not(:disabled) {
+    border-color: var(--c-release);
     background-color: var(--c-release-soft);
   }
 
-  .btn-hold[aria-pressed="true"],
-  .btn-verify[aria-pressed="true"],
+  .btn-hold[aria-pressed="true"] {
+    border-color: var(--c-hold);
+    background-color: var(--c-hold-soft);
+  }
+
+  .btn-verify[aria-pressed="true"] {
+    border-color: var(--c-verify);
+    background-color: var(--c-verify-soft);
+  }
+
   .btn-release[aria-pressed="true"] {
-    box-shadow: inset 0 0 0 1px currentcolor;
+    border-color: var(--c-release);
+    background-color: var(--c-release-soft);
   }
 
   /* ------------------------------------------------------------------ chips */
@@ -227,9 +261,9 @@
     align-items: baseline;
     gap: var(--space-2);
     max-width: 100%;
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-1) var(--space-2);
     border: var(--border-width) solid var(--c-border);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-sm);
     background-color: var(--c-surface-sunken);
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
@@ -268,37 +302,30 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border: var(--border-width) solid transparent;
-    border-radius: var(--radius-pill);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
     font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
+    font-weight: var(--weight-medium);
     white-space: nowrap;
   }
 
   .badge-hold {
     background-color: var(--c-hold-soft);
-    border-color: var(--c-hold);
     color: var(--c-hold-ink);
   }
 
   .badge-verify {
     background-color: var(--c-verify-soft);
-    border-color: var(--c-verify);
     color: var(--c-verify-ink);
   }
 
   .badge-release {
     background-color: var(--c-release-soft);
-    border-color: var(--c-release);
     color: var(--c-release-ink);
   }
 
   .badge-neutral {
     background-color: var(--c-surface-sunken);
-    border-color: var(--c-border);
     color: var(--c-ink-muted);
   }
 
@@ -331,18 +358,16 @@
     background-color: var(--c-surface);
     text-align: left;
     font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
+    font-weight: var(--weight-medium);
     color: var(--c-ink-subtle);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-3);
     border-bottom: var(--border-width) solid var(--c-border);
     white-space: nowrap;
   }
 
   .data-table td {
     padding: var(--space-3);
-    border-bottom: var(--border-width) solid var(--c-border);
+    border-bottom: var(--border-width) solid var(--c-grid);
     vertical-align: middle;
   }
 
@@ -448,14 +473,18 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border: var(--border-width) dashed var(--c-border-strong);
-    border-radius: var(--radius-pill);
     color: var(--c-watermark-ink);
     font-size: var(--text-xs);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
     white-space: nowrap;
+  }
+
+  .watermark::before {
+    content: "";
+    flex: none;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-verify);
   }
 
   .watermark-tile {
@@ -575,6 +604,702 @@
       padding: 0;
       background-color: transparent;
       border-top: 0;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * The shell: a collapsible rail on the left, the screen on the right.
+   *
+   * Why a rail and not the row of tabs this app had. The six sections are not
+   * peers of equal weight -- the payment run is the product and the other five
+   * are evidence you open from it -- and a horizontal tab row says the
+   * opposite. A rail also survives a seventh section, which a tab row does not,
+   * and it keeps the run's own header free for the run's own numbers.
+   *
+   * It collapses to icons because the run is a wide financial table and on a
+   * 13-inch laptop the last column is the one that decides whether money
+   * leaves. The collapsed state is a preference, not a breakpoint: someone who
+   * wants the labels back gets them at any width.
+   */
+
+  .shell {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 100svh;
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-rail);
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    width: var(--rail-width);
+    height: 100svh;
+    padding: var(--space-3) var(--space-2);
+    gap: var(--space-2);
+    background-color: var(--c-rail);
+    border-right: var(--border-width) solid var(--c-rail);
+    color: var(--c-rail-ink);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  .rail[data-collapsed="true"] {
+    width: var(--rail-width-collapsed);
+  }
+
+  /* The lockup and the collapse control share the rail's first row. When the
+     rail is collapsed the mark stays and the word goes, which is the whole
+     point of a mark. */
+  .rail-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2) var(--space-3);
+  }
+
+  .rail[data-collapsed="true"] .rail-top {
+    flex-direction: column;
+    padding-inline: 0;
+  }
+
+  .rail-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--c-rail-ink-muted);
+    cursor: pointer;
+  }
+
+  .rail-toggle:hover {
+    background-color: var(--c-rail-active);
+    color: var(--c-rail-ink);
+  }
+
+  .rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Measured off capitalone.com's own navigation and matched exactly: Optimist
+     14px, weight 400, no tracking, 21px line box. The rail is the part of this
+     app that stands where their nav stands, so it is the part that has to agree
+     with it letter for letter. */
+  .rail-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 2.25rem;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-md);
+    color: var(--c-rail-ink-muted);
+    font-size: var(--text-nav);
+    font-weight: var(--weight-regular);
+    letter-spacing: normal;
+    line-height: var(--leading-normal);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .rail-item:hover {
+    background-color: var(--c-rail-active);
+    color: var(--c-rail-ink);
+  }
+
+  /* The current section is marked by colour and ground, not by weight. Capital
+     One's own active nav item is not bolder than its neighbours -- it carries a
+     rule under it -- and a rail where one of six labels is semibold makes the
+     other five look switched off. */
+  .rail-item[aria-current="page"] {
+    background-color: var(--c-rail-active);
+    color: var(--c-rail-active-ink);
+  }
+
+  .rail-item svg {
+    flex: none;
+  }
+
+  .rail[data-collapsed="true"] .rail-item {
+    justify-content: center;
+    padding: 0;
+  }
+
+  /* Kept in the DOM when collapsed so the accessible name never disappears;
+     only the pixels go. */
+  .rail-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rail[data-collapsed="true"] .rail-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .rail-spacer {
+    flex: 1;
+  }
+
+  /*
+   * The Capital One lockup, as attribution and nothing else.
+   *
+   * It is in the rail's foot, under a rule, beside the words that say what the
+   * relationship is: this is an entry in their track, built on their palette and
+   * their type. It is deliberately not next to the SentryOne mark at the top of
+   * the rail, because two marks side by side in a product's header is the visual
+   * grammar of "a Capital One product", which this is not.
+   *
+   * Their navy wordmark disappears on a near-black page, so dark mode swaps in
+   * the reverse lockup. The swoosh red is the same file in both: it holds on
+   * either ground, and it is the only place that red appears in the app.
+   */
+  .co-mark {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .co-mark img {
+    width: 4.25rem;
+    height: auto;
+    flex: none;
+  }
+
+  .rail[data-collapsed="true"] .co-mark {
+    display: none;
+  }
+
+  .rail-foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-2) var(--space-2);
+    border-top: var(--border-width) solid var(--c-rail-line);
+  }
+
+  /* `.subtle` and `.muted` are page ink and every one of them is dark on dark
+     in here. The rail overrides them once, at its root, rather than asking each
+     element inside it to remember. */
+  .rail .subtle,
+  .rail .muted {
+    color: var(--c-rail-ink-muted);
+  }
+
+  /* The app's focus ring is the brand navy, which is this panel's ground. On
+     the rail it inverts, or keyboard focus disappears exactly where a keyboard
+     user starts. */
+  .rail :focus-visible {
+    outline-color: var(--c-rail-ink);
+  }
+
+  .rail-foot-detail {
+    line-height: var(--leading-snug);
+  }
+
+  .rail[data-collapsed="true"] .rail-foot {
+    align-items: center;
+    padding-inline: 0;
+  }
+
+  .rail[data-collapsed="true"] .rail-foot-detail {
+    display: none;
+  }
+
+  /* Under 60rem the rail stops being furniture and becomes an overlay, because
+     a 15rem column on a phone leaves nothing for the table it exists to
+     navigate. */
+  @media (max-width: 60rem) {
+    .rail {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: var(--z-drawer);
+      width: var(--rail-width);
+      /* The extra pixel is not cosmetic. At exactly -100% the rail's right edge
+         lands on x = 0, and an element whose box touches the viewport's left
+         edge is indistinguishable from one that overflows into it -- which is
+         how `bun run audit:web` reported it, intermittently, as content pushing
+         the page sideways. One pixel further puts it unambiguously off-canvas. */
+      transform: translateX(calc(-100% - 1px));
+      /* Not just moved off-canvas: taken out of the page. A rail parked at
+         translateX(-100%) is still focusable, so Tab from the top bar walked a
+         keyboard user through six invisible links before reaching the screen,
+         and the audit reported it as content sitting outside the viewport.
+         `visibility` is transitionable, so it waits for the slide instead of
+         cutting it off. */
+      visibility: hidden;
+      transition:
+        transform var(--motion-base) var(--ease-standard),
+        visibility var(--motion-base) var(--ease-standard);
+      box-shadow: var(--shadow-3);
+    }
+
+    .rail[data-open="true"] {
+      transform: translateX(0);
+      visibility: visible;
+    }
+
+    .rail[data-collapsed="true"] {
+      width: var(--rail-width);
+    }
+
+    .rail[data-collapsed="true"] .rail-label {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      clip-path: none;
+    }
+
+    .rail[data-collapsed="true"] .rail-item {
+      justify-content: flex-start;
+      padding: 0 var(--space-2);
+    }
+
+    .rail[data-collapsed="true"] .rail-top {
+      flex-direction: row;
+      padding-inline: var(--space-2);
+    }
+
+    .rail[data-collapsed="true"] .rail-foot {
+      align-items: stretch;
+      padding-inline: var(--space-2);
+    }
+
+    .rail[data-collapsed="true"] .rail-foot-detail {
+      display: block;
+    }
+  }
+
+  /* ------------------------------------------------------------- top bar */
+
+  /* The screen's own header. One line: where you are, and the one action that
+     belongs to the whole screen. Everything else lives in the screen. */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 3.25rem;
+    padding: var(--space-2) var(--layout-gutter);
+    background-color: var(--c-canvas);
+    border-bottom: var(--border-width) solid var(--c-border);
+  }
+
+  .topbar-title {
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  /* Pushed to the far end of the bar, away from the title it is not part of. */
+  .topbar-mark {
+    margin-inline-start: auto;
+  }
+
+  .rail-open {
+    display: none;
+  }
+
+  @media (max-width: 60rem) {
+    .rail-open {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 2rem;
+      height: 2rem;
+      border: var(--border-width) solid var(--c-border);
+      border-radius: var(--radius-md);
+      background-color: var(--c-surface);
+      color: var(--c-ink);
+      cursor: pointer;
+    }
+  }
+
+  .screen {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: var(--layout-max);
+    padding: var(--space-6) var(--layout-gutter) var(--space-8);
+  }
+
+  .shell-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-top: auto;
+    padding-top: var(--space-6);
+    border-top: var(--border-width) solid var(--c-border);
+  }
+
+  .shell-foot p {
+    max-width: 68ch;
+  }
+
+  /* --------------------------------------------------------------- cards */
+
+  /* A card's header. The title carries the weight and the link is quiet: on a
+     screen with five cards, five loud "View all" links is five invitations to
+     leave the screen you just arrived at. */
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+
+  .card-link,
+  .card-note {
+    color: var(--c-ink-subtle);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  /* The note is a hint about the card, not information the card is missing
+     without it. On a phone it is the widest thing in the header and it pushed
+     past the card's own edge, so below this width it goes. A link in the same
+     slot stays: that one is somewhere to go. */
+  @media (max-width: 48rem) {
+    .card-note {
+      display: none;
+    }
+  }
+
+  .card-link:hover {
+    color: var(--c-accent);
+    text-decoration: underline;
+  }
+
+  /* ------------------------------------------------------- the one figure */
+
+  /* The headline of the run. There is exactly one, because there is exactly
+     one number that decides whether the clerk can go home: the money that is
+     not leaving yet. Everything else is a line of text under it. */
+  .figure-block {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding: var(--space-6);
+    border-radius: var(--radius-xl);
+    /* The one tinted surface on the screen, and it is under the one number the
+       screen exists for. A dashboard of white cards on a white page has no
+       centre; tinting the figure gives the eye somewhere to land before it
+       starts reading rows. The tint is the pale end of Capital One's own blue
+       ramp, so it reads as brand rather than as a status colour -- the status
+       colours are three centimetres below it, in the table. */
+    background-color: var(--c-accent-tint);
+    border: var(--border-width) solid var(--c-accent-tint-line);
+  }
+
+  .figure-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .figure-side {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6) var(--space-10);
+    margin: 0;
+    padding-top: var(--space-1);
+  }
+
+  /* Two peso totals at 24px with a 40px gutter is 340px of unbreakable line,
+     which is wider than the card holding them on a 375px phone: the second
+     total was clipped at the card's right edge. Here they step down a size and
+     the row is allowed to wrap, so on a phone they stack under each other and
+     on anything wider they stay the pair they read as. */
+  @media (max-width: 30rem) {
+    .figure-side {
+      gap: var(--space-4) var(--space-6);
+    }
+
+    .figure-side-value {
+      font-size: var(--text-md);
+    }
+  }
+
+  .figure-side div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .figure-side-value {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
+    line-height: var(--leading-tight);
+    font-variant-numeric: var(--numeric-tabular);
+  }
+
+  .figure-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--c-ink-muted);
+  }
+
+  .figure-value {
+    font-size: var(--text-4xl);
+    /* Light, not thin. Capital One sets display copy at 100, but these are
+       digits a person is about to act on: at 100 the strokes of a 5 and a 6
+       start agreeing with each other, and this is the amount of money that is
+       not leaving the company's account. 300 keeps the airy Capital One
+       register without asking anyone to squint at pesos. */
+    font-weight: var(--weight-light);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
+    font-variant-numeric: var(--numeric-tabular);
+  }
+
+  /* --------------------------------------------------------- decision ink */
+
+  /* What replaced the pill and the three coloured buttons in every row. The
+     dot is the colour, the word is the meaning, and colour is never the only
+     signal because the word is always there. */
+  .decision {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+  }
+
+  .decision-dot {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: var(--radius-pill);
+    flex: none;
+  }
+
+  .decision-hold {
+    color: var(--c-hold-ink);
+  }
+  .decision-hold .decision-dot {
+    background-color: var(--c-hold);
+  }
+
+  .decision-verify {
+    color: var(--c-verify-ink);
+  }
+  .decision-verify .decision-dot {
+    background-color: var(--c-verify);
+  }
+
+  .decision-release {
+    color: var(--c-release-ink);
+  }
+  .decision-release .decision-dot {
+    background-color: var(--c-release);
+  }
+
+  /* On the tinted card the label's own colour is dropped and only its dot keeps
+     it. Red type on a blue ground is two brand colours arguing over one line,
+     and the dot already says the same thing in the channel that survives being
+     glanced at. Declared after the three rules above, not before: a more
+     specific selector that reads first still wins, but only until somebody
+     reorders the file. */
+  .figure-block .decision {
+    color: var(--c-ink-muted);
+    font-weight: var(--weight-medium);
+  }
+
+  /* The row's left edge carries the same decision, so the table can be read
+     down the margin without reading a single word. */
+  .row-mark {
+    border-left: 3px solid transparent;
+  }
+  .row-mark-hold {
+    border-left-color: var(--c-hold);
+  }
+  .row-mark-verify {
+    border-left-color: var(--c-verify);
+  }
+  .row-mark-release {
+    border-left-color: var(--c-release);
+  }
+
+  /* ------------------------------------------------------------- controls */
+
+  /* One row per control, and every control appears whether it ran or not. A
+     control that could not run says why, which is the difference between an
+     empty panel and an honest one. */
+  .control-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-width) solid var(--c-grid);
+  }
+
+  .control-row:last-child {
+    border-bottom: 0;
+  }
+
+  .control-dot {
+    flex: none;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    margin-top: 0.4375rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-release);
+  }
+
+  .control-dot-hit {
+    background-color: var(--c-hold);
+  }
+
+  .control-dot-skipped {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--c-border-strong);
+  }
+}
+
+@layer components {
+  /*
+   * The segmented filter above the payment run.
+   *
+   * Real radio inputs, visually replaced. The input keeps the keyboard
+   * behaviour and the accessible role; `.segment-face` is the pill you see.
+   * `input:checked + .segment-face` is the whole state machine, so there is no
+   * class to keep in sync with the React state and no way for the two to
+   * disagree.
+   */
+
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-md);
+    background-color: var(--c-surface-sunken);
+  }
+
+  .segment {
+    display: inline-flex;
+    cursor: pointer;
+  }
+
+  /* Off-screen rather than display:none, because a hidden input is an input a
+     keyboard cannot reach and a screen reader does not announce. */
+  .segment input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .segment-face {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--c-ink-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
+  }
+
+  .segment:hover .segment-face {
+    color: var(--c-ink);
+  }
+
+  .segment input:checked + .segment-face {
+    background-color: var(--c-surface);
+    color: var(--c-ink);
+    box-shadow: var(--shadow-2);
+  }
+
+  /* The input is off-screen, so the ring has to be drawn on what you can see. */
+  .segment input:focus-visible + .segment-face {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
+
+  /* The bucket's size, so "what am I not looking at" is answered before it is
+     asked. Tabular, because the three counts sit in a row and a shifting digit
+     width makes the control twitch as the run changes under it. */
+  .segment-count {
+    font-variant-numeric: var(--numeric-tabular);
+    font-size: var(--text-xs);
+    color: var(--c-ink-subtle);
+  }
+
+  .segment input:checked + .segment-face .segment-count {
+    color: var(--c-ink-muted);
+  }
+
+  /* A row mid-transition must not drag the column widths around with it, or
+     every other row shifts sideways while one is fading. */
+  .data-table tbody tr {
+    will-change: opacity;
+  }
+}
+
+@layer components {
+  @media (max-width: 48rem) {
+    .segmented {
+      width: 100%;
+    }
+
+    .segment {
+      flex: 1;
+    }
+
+    .segment-face {
+      width: 100%;
+      justify-content: center;
     }
   }
 }
