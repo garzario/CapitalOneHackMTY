@@ -34,6 +34,32 @@ this folder never runs by accident.
 5. **`if not exists` on everything that supports it.** `bun run migrate` is run
    twice before most rehearsals.
 
+## Renamed files
+
+Three files were renamed when the product became SentryOne, content untouched
+apart from the name in the comments:
+
+| Recorded as | Now |
+|---|---|
+| `0003_ceptinela.sql` | `0003_sentryone.sql` |
+| `0004_timescale_ceptinela.sql` | `0004_timescale_sentryone.sql` |
+| `0005_ceptinela_drift.sql` | `0005_sentryone_drift.sql` |
+
+**A rename is recorded, never re-run.** A host that applied the old name has the
+old name in `schema_migrations`, so the runner would see the new name as never
+applied and send the whole file again. That is not harmless: 0003 recreates the
+append-only rules on `ledger_events`, 0004 has since made that table a
+hypertable, and Timescale refuses rules on a hypertable, so the second run fails
+on the managed service. `RENAMED_MIGRATIONS` in `packages/db/src/migrate.ts`
+carries the pairs and `migrate()` reconciles them before it applies anything: the
+recorded row is moved to the new filename and given the new file's checksum, so
+the "changed since it was applied" warning stays meaningful. A host that already
+re-ran the file under both names has its stale old row dropped instead.
+
+Rule 6 for a new migration, then: **when a migration file is renamed, add the
+pair here and in `RENAMED_MIGRATIONS` in the same commit.** Renaming a file
+without the pair breaks `bun run migrate` on every host that already ran it.
+
 ## Why `ledger_events` is shaped the way it is
 
 `LedgerEvent` in `packages/core/src/domain.ts` is a discriminated union, so the

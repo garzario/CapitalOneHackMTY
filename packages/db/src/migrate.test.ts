@@ -11,6 +11,7 @@ import {
   INIT_MIGRATION,
   MIGRATIONS,
   MIGRATIONS_DIR,
+  RENAMED_MIGRATIONS,
   SENTRYONE_DRIFT_MIGRATION,
   SENTRYONE_MIGRATION,
   SENTRYONE_TIMESCALE_MIGRATION,
@@ -325,6 +326,40 @@ describe("MIGRATIONS", () => {
       const file = Bun.file(`${MIGRATIONS_DIR}/${spec.file}`);
       expect(await file.exists()).toBe(true);
     }
+  });
+});
+
+describe("RENAMED_MIGRATIONS", () => {
+  it("maps every old name onto a file the runner actually runs", () => {
+    const files = new Set(MIGRATIONS.map((spec) => spec.file));
+
+    for (const pair of RENAMED_MIGRATIONS) {
+      expect(files.has(pair.to)).toBe(true);
+      // The old name must be gone from MIGRATIONS, otherwise the runner would
+      // try to apply a file that no longer exists on disk.
+      expect(files.has(pair.from)).toBe(false);
+      expect(pair.from).not.toBe(pair.to);
+    }
+  });
+
+  it("points at a file that exists and away from one that does not", async () => {
+    for (const pair of RENAMED_MIGRATIONS) {
+      expect(await Bun.file(`${MIGRATIONS_DIR}/${pair.to}`).exists()).toBe(
+        true,
+      );
+      // If the old file came back, the rename was undone and the pair is a lie.
+      expect(await Bun.file(`${MIGRATIONS_DIR}/${pair.from}`).exists()).toBe(
+        false,
+      );
+    }
+  });
+
+  it("carries the three files the SentryOne rename moved", () => {
+    expect(RENAMED_MIGRATIONS.map((pair) => pair.to)).toEqual([
+      SENTRYONE_MIGRATION,
+      SENTRYONE_TIMESCALE_MIGRATION,
+      SENTRYONE_DRIFT_MIGRATION,
+    ]);
   });
 });
 
