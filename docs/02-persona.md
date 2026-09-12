@@ -11,24 +11,31 @@ The portrait is an illustration of a fictional composite. It does not depict a r
 
 ## Primary persona: Lupita Elizondo
 
-Lupita is the sole administrative clerk at a 28-employee metalmecanica in Apodaca, Nuevo Leon.
+Lupita is the sole administrative clerk at Metalicos del Norte SA de CV, the synthetic
+28-employee metalmecanica in Apodaca, Nuevo Leon, defined in
+`packages/seed/src/ceptinela/company.ts`.
 She runs the supplier payment run every Thursday. She is not a fraud analyst or a corporate
 treasurer. She is the one person who has to turn invoices and payment instructions into correct
 transfers while the owner is working elsewhere in the business.
 
 | Dimension | Product definition | Evidence status |
 |---|---|---|
-| Company | 28 employees, metalworking, Apodaca | Synthetic scenario fixed in `packages/seed/src/ceptinela/company.ts` |
-| Workload | 92 invoices in the reference Thursday run | Seed 69 output for week `2026-09-07` |
-| Pesos per run | MXN 673,460.27 in that same reference run | Sum of `PaymentInstruction.amount` in `generateCeptinela`, not a real-company statistic |
-| Supplier base | 42 active synthetic suppliers | `packages/seed/src/ceptinela/suppliers.ts` |
+| Company | Metalicos del Norte SA de CV, 28 employees, metalworking, Apodaca | Synthetic scenario fixed in `packages/seed/src/ceptinela/company.ts` |
+| Workload | 92 payment instructions in the reference Thursday run, settling 129 CFDIs | Seed 69 output for week `2026-09-07` |
+| Pesos per run | MXN 2,174,210.76 in that same reference run | Sum of `PaymentInstruction.amount` in `generateCeptinela`, not a real-company statistic |
+| Supplier base | 44 active synthetic suppliers | `packages/seed/src/ceptinela/suppliers.ts` |
 | Tools today | Email inbox, WhatsApp, spreadsheet, CFDI portal, business bank portal and bank token | Workflow hypothesis to validate at the venue |
 | Decision rhythm | Review the run on Thursday, spend attention on exceptions, then send or escalate | Product hypothesis to validate at the venue |
 
-The generator produces 439 invoices per month across the synthetic supplier base. The exact
-reference run has 92 invoices because one payment instruction is generated for each invoice due
-inside its seven-day window. These numbers keep the demo and this persona consistent. They do not
-claim that a typical Mexican SMB has the same volume.
+The generator produces 4,103 CFDIs across nine months, about 456 a month, over the synthetic
+supplier base. The reference run holds 92 payment instructions rather than 4,103, because an
+instruction is created only for the invoices falling due inside that seven-day window, and one
+instruction can settle several of them. These numbers keep the demo and this persona consistent.
+They do not claim that a typical Mexican SMB has the same volume.
+
+Every figure in this section is asserted against the generator by
+`packages/seed/src/ceptinela/documented-figures.test.ts`, so a change to the seed fails the build
+instead of quietly making this page false.
 
 ## What her job is measured on
 

@@ -99,6 +99,14 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- The persona, the journey and the printed one-pager quoted a reference run of 92 invoices at
+  MXN 673,460.27 over 42 suppliers. `generateCeptinela` produces 92 payment instructions at
+  MXN 2,174,210.76 over 44. Nobody wrote a wrong number: they were right when they were written
+  and the seed moved underneath them, so `packages/seed/src/ceptinela/documented-figures.test.ts`
+  now asserts every quoted figure against the generator and fails the build when they drift.
+- The one-pager printed the repository QR twice, once unlabelled in the hero slot where a judge
+  expects the live app. That slot is the same dashed live-app placeholder the judge card already
+  used, so the sheet cannot go to print looking finished.
 - The capture script navigated to `/metrics` on a hash-routed app, so the app redirected itself
   to the payment run and the shutter opened there. Four of the eight stills were byte-identical
   copies of the run screen under four different names, and two more were duplicates at phone
