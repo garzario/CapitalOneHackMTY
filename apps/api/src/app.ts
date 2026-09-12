@@ -7,6 +7,7 @@ import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
 import { requestId } from "./middleware/request-id";
 import { beneficiaryRoutes } from "./routes/beneficiaries";
 import { cepRoutes } from "./routes/cep";
+import { constanciaRoutes } from "./routes/constancia";
 import { eventRoutes } from "./routes/events";
 import { health } from "./routes/health";
 import { instructionRoutes } from "./routes/instructions";
@@ -77,6 +78,12 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   v1.route("/ledger", ledgerRoutes(deps));
   v1.route("/events", eventRoutes(deps));
   v1.route("/seed", seedRoutes(deps));
+  /* The constancias sit on two different base paths, `/sat/constancia` and
+     `/run/:id/constancia`, so they mount at the root of v1 rather than under
+     either group. Keeping them in one file is what makes the two documents
+     read the same way; splitting them across the SAT and run routers is how
+     they drift apart. */
+  v1.route("/", constanciaRoutes(deps));
 
   app.route("/api/v1", v1);
 

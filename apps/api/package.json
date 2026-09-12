@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@hackmty/cep": "workspace:*",
+    "@hackmty/constancia": "workspace:*",
     "@hackmty/core": "workspace:*",
     "@hackmty/engine": "workspace:*",
     "@hackmty/extract": "workspace:*",
