@@ -7,5 +7,7 @@ export * from "./money";
 export * from "./rolling";
 export * from "./types";
 export * from "./domain";
+export * from "./duplicates";
+export * from "./behaviour";
 export * from "./clabe";
 export * from "./cfdi";
