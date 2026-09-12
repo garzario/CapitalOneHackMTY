@@ -32,7 +32,6 @@ import {
   IconRun,
   IconSeal,
 } from "./Icons";
-import { Wordmark, WordmarkGlyph } from "./Wordmark";
 
 type NavItem = {
   to: string;
@@ -143,10 +142,24 @@ export function AppShell({
         <div className="rail-top">
           <a
             href={href(PATHS.run)}
-            className="no-underline"
+            className="no-underline rail-brand"
             aria-label="SentryOne, ir a la corrida"
           >
-            {collapsed ? <WordmarkGlyph size={22} /> : <Wordmark size="md" />}
+            {collapsed ? (
+              <img
+                src="/sentryone-icon-dark.svg"
+                alt=""
+                width={26}
+                height={26}
+                style={{ display: "block", flex: "none" }}
+              />
+            ) : (
+              <img
+                src="/sentryone-lockup-dark.svg"
+                alt=""
+                style={{ display: "block", width: "100%", height: "auto" }}
+              />
+            )}
           </a>
           <button
             type="button"
