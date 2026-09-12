@@ -11,8 +11,15 @@ import { seedBodySchema } from "../schemas";
  * a 403 rather than a 404: hiding a dangerous endpoint behind a lie makes it
  * harder to notice when it is accidentally enabled in a deployment.
  *
- * TODO(garzario): issue #43, drive this from @hackmty/seed with the seed, so two
- * laptops can ask for the same data and a rehearsal is reproducible.
+ * `seed` is honoured by both stores: `MemoryRepository` rebuilds from the factory
+ * it was constructed with and `PostgresRepository` reloads the generated company
+ * through `@hackmty/seed`, so two laptops that ask for the same seed get the same
+ * rehearsal. That was issue #43 and it is done.
+ *
+ * There is deliberately no way to add to the company without replacing it, which
+ * is why `reset: false` is refused rather than ignored. Silently wiping a store
+ * for a caller who asked us not to is the one failure mode this endpoint can
+ * cause that nobody could undo.
  */
 export function seedRoutes(deps: ApiDeps) {
   return new Hono().post(
@@ -28,7 +35,16 @@ export function seedRoutes(deps: ApiDeps) {
         );
       }
 
-      const { seed } = c.req.valid("json");
+      const { seed, reset } = c.req.valid("json");
+      if (reset === false) {
+        return fail(
+          c,
+          422,
+          "unprocessable",
+          "This endpoint always rebuilds the company from the seed, so `reset: false` cannot be honoured. Omit it, or send `reset: true`.",
+        );
+      }
+
       return c.json(await deps.repo.reset(seed ?? 0));
     },
   );

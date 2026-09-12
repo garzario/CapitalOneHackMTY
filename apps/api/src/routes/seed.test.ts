@@ -71,4 +71,34 @@ describe("POST /api/v1/seed", () => {
       (await app.request("/api/v1/seed", json({ seed: 1.5 }))).status,
     ).toBe(400);
   });
+
+  /**
+   * There is no "add without replacing" on the repository, so a caller asking for
+   * one has to be told. Wiping the company anyway would be the one thing this
+   * endpoint can do that nobody could undo.
+   */
+  it("refuses reset: false instead of wiping the company anyway", async () => {
+    const { app } = createTestApp({ allowSeed: true });
+
+    await app.request(
+      "/api/v1/instructions",
+      json({
+        supplierRfc: "SYN010101AAA",
+        amount: 1000,
+        clabe: "058580000123456715",
+        source: "manual",
+      }),
+    );
+
+    const res = await app.request("/api/v1/seed", json({ reset: false }));
+    const body = (await res.json()) as ErrorBody;
+
+    expect(res.status).toBe(422);
+    expect(body.error.code).toBe("unprocessable");
+
+    const after = paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+    expect(after.items).toHaveLength(13);
+  });
 });

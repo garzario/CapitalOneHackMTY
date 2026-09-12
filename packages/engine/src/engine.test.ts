@@ -406,4 +406,62 @@ describe("beneficiaryCepAdapter", () => {
     expect(finding?.severity).toBe("critical");
     expect(finding?.evidence.signatureState).toBe("invalid");
   });
+
+  /**
+   * `not_checked` is what `parseCep` puts on a CEP a clerk has just pasted, so
+   * it is the state every freshly accepted document arrives in. Reading it as a
+   * failed seal would make POST /api/v1/cep/verify answer "el sello no valido"
+   * about a document nobody has checked yet.
+   */
+  it("reads a seal nobody checked as not verified, never as invalid", () => {
+    const finding = cepFinding(
+      anInput({
+        cep: {
+          ...CEP,
+          beneficiaryName: SUPPLIER.legalName,
+          signatureValid: false,
+          signatureReason: "not_checked",
+        },
+      }),
+    );
+
+    expect(finding?.evidence.signatureState).toBe("unconfirmed");
+    expect(finding?.severity).toBe("info");
+    expect(finding?.state).toBe("requiere_verificacion");
+    expect(finding?.explanation).toContain("no se ha podido verificar");
+  });
+
+  /** Our own missing certificate is not a defect in the supplier's document. */
+  it("does not blame the document when this server holds no certificate", () => {
+    const finding = cepFinding(
+      anInput({
+        cep: {
+          ...CEP,
+          beneficiaryName: SUPPLIER.legalName,
+          signatureValid: false,
+          signatureReason: "invalid_certificate",
+        },
+      }),
+    );
+
+    expect(finding?.evidence.signatureState).toBe("unconfirmed");
+    expect(finding?.severity).toBe("info");
+  });
+
+  /** A document with no sello is not a signed document, and that is on it. */
+  it("is critical when the document carries no sello at all", () => {
+    const finding = cepFinding(
+      anInput({
+        cep: {
+          ...CEP,
+          beneficiaryName: SUPPLIER.legalName,
+          signatureValid: false,
+          signatureReason: "missing_sello",
+        },
+      }),
+    );
+
+    expect(finding?.evidence.signatureState).toBe("invalid");
+    expect(finding?.severity).toBe("critical");
+  });
 });
