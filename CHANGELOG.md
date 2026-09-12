@@ -12,6 +12,18 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Blind evaluation of the six controls (issue #55). Thirty labelled holdout cases in
+  `packages/seed/src/holdout/cases`: a true positive for every control, and the hard negatives
+  that decide whether a clerk keeps the product switched on, including a bank change backed by
+  the supplier's own payment complement, a new supplier ramping, a round-number retainer, a
+  quarterly invoice that repeats an amount, a thin history with no baseline to test, a status
+  that moved to desvirtuado before the payment, and a photographed CLABE that transcribes badly
+  onto the right account. `runEngine` scores them through `runControls`, the same entry point
+  intake uses, `bun run eval` prints the table and `GET /api/v1/metrics` serves the same
+  `Metrics`. An `info` row is scored as context and never as a false positive. Four labels
+  disagree with the engine today and all four are left in the table with the argument written
+  down, because a set edited until it agrees measures nothing.
+
 - Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that

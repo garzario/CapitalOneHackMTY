@@ -1,0 +1,73 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "duplicate-invoice-folio-reused-different-total",
+  "title": "The issuer reused folio 1204 with a different total",
+  "kind": "positive",
+  "notes": "The folio sequence belongs to the issuer and does not repeat, so the collision is provable. The differing totals are what make this a question rather than a verdict: it is the shape of an invoice that was cancelled and reissued.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-110",
+      "supplierRfc": "SYN101212S12",
+      "cfdiUuids": ["00000000-000a-4d00-8a00-00000000000a"],
+      "clabe": "062180300022233345",
+      "amount": 54520,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN101212S12",
+      "legalName": "Limpieza Industrial San Nicolas SA de CV",
+      "firstInvoiceAt": "2024-01-04T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "062180300022233345",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2024-01-11T15:30:00.000Z",
+          "timesPaid": 46
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0009-4d00-8a00-000000000009",
+        "serie": "A",
+        "folio": "1204",
+        "issuedAt": "2026-08-13T15:30:00.000Z",
+        "issuerRfc": "SYN101212S12",
+        "issuerName": "Limpieza Industrial San Nicolas SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 41000,
+        "iva": 6560,
+        "total": 47560,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "00000000-000a-4d00-8a00-00000000000a",
+        "serie": "A",
+        "folio": "1204",
+        "issuedAt": "2026-09-03T15:30:00.000Z",
+        "issuerRfc": "SYN101212S12",
+        "issuerName": "Limpieza Industrial San Nicolas SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 47000,
+        "iva": 7520,
+        "total": 54520,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "duplicate_invoice",
+      "state": "requiere_verificacion",
+      "because": "Two CFDI of the same issuer carry the same serie and folio, and because the totals differ a person has to confirm which one is still current."
+    }
+  ],
+  "expectedAction": "verify"
+}

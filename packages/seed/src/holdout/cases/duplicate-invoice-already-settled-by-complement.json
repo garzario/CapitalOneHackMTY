@@ -1,0 +1,71 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "duplicate-invoice-already-settled-by-complement",
+  "title": "The invoice this instruction wants to pay already has a payment complement for its full amount",
+  "kind": "positive",
+  "notes": "The supplier issued the complemento de pago itself, so the company has the supplier's own document saying the invoice was collected. This is the cheapest overpayment to catch and the one an accounts payable team finds two months late.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-112",
+      "supplierRfc": "SYN121414S14",
+      "cfdiUuids": ["00000000-000d-4d00-8a00-00000000000d"],
+      "clabe": "021180900030303035",
+      "amount": 111940,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN121414S14",
+      "legalName": "Logistica Refrigerada del Noreste SA de CV",
+      "firstInvoiceAt": "2024-03-14T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "021180900030303035",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2024-03-28T15:30:00.000Z",
+          "timesPaid": 51
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-000d-4d00-8a00-00000000000d",
+        "serie": "A",
+        "folio": "612",
+        "issuedAt": "2026-08-06T15:30:00.000Z",
+        "issuerRfc": "SYN121414S14",
+        "issuerName": "Logistica Refrigerada del Noreste SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 96500,
+        "iva": 15440,
+        "total": 111940,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "complements": [
+      {
+        "uuid": "00000000-000e-4d00-8a00-00000000000e",
+        "relatedCfdiUuid": "00000000-000d-4d00-8a00-00000000000d",
+        "paidAt": "2026-08-20T15:30:00.000Z",
+        "paidAmount": 111940,
+        "paymentTotal": 111940,
+        "operationNumber": "SYN2026081100000001",
+        "beneficiaryAccount": "021180900030303035",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "duplicate_invoice",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "The supplier's own complemento de recepcion de pagos covers the full total of this CFDI, so a second payment is provably a second payment."
+    }
+  ],
+  "expectedAction": "hold"
+}

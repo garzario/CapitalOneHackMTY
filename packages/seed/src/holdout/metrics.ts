@@ -21,6 +21,15 @@
  * that names a `state` and gets the other one counts as a miss, because "comprobable"
  * and "requiere_verificacion" are different things to say to a clerk. The explanation
  * text is never compared.
+ *
+ * One rule about `info` is worth stating on its own, because it changes the numbers.
+ * An `info` finding is context and not an alert: "this beneficiary is already verified"
+ * and "this supplier was on the list in March and desvirtuo it" carry no pesos at risk,
+ * the severity table weighs them at almost nothing and `decide` cannot move an action
+ * on them. So an `info` row is scored as "the control did not alert": it is never a
+ * false positive on a clean case, and it never satisfies an expectation either, unless
+ * the label asks for `severity: "info"` explicitly. Counting good news as a false
+ * positive would report a false positive rate the product does not have.
  */
 
 import type { Detector, Finding, Metrics } from "@hackmty/core";
@@ -103,10 +112,15 @@ export function emptyMetrics(): Metrics {
   };
 }
 
+/** An `info` row is context for the clerk. Everything else is an alert. */
+function isAlert(finding: CasePrediction["findings"][number]): boolean {
+  return finding.severity !== "info";
+}
+
 /**
  * True when a prediction satisfies an expectation. The expectation narrows: a label
- * that names only a detector is met by any finding from that detector, and a label that
- * names a state or a severity requires it.
+ * that names only a detector is met by any alerting finding from that detector, and a
+ * label that names a state or a severity requires it.
  */
 function satisfies(
   expected: ExpectedFinding,
@@ -155,6 +169,9 @@ export function computeMetrics(
       const index = predicted.findIndex(
         (candidate, position) =>
           !matchedPredictions.has(position) &&
+          // An expectation that does not ask for `info` is asking for an alert,
+          // and a context row does not answer it.
+          (isAlert(candidate) || expectation.severity === "info") &&
           satisfies(expectation, candidate),
       );
       if (index >= 0) {
@@ -168,7 +185,7 @@ export function computeMetrics(
 
     const spurious: Detector[] = [];
     predicted.forEach((candidate, position) => {
-      if (matchedPredictions.has(position)) {
+      if (matchedPredictions.has(position) || !isAlert(candidate)) {
         return;
       }
       spurious.push(candidate.detector);
@@ -181,7 +198,7 @@ export function computeMetrics(
       holdout.expectedFindings.map((finding) => finding.detector),
     );
     const firedDetectors = new Set(
-      predicted.map((finding) => finding.detector),
+      predicted.filter(isAlert).map((finding) => finding.detector),
     );
     for (const detector of ALL_DETECTORS) {
       if (!expectedDetectors.has(detector) && !firedDetectors.has(detector)) {
@@ -248,13 +265,12 @@ export function computeMetrics(
 }
 
 /**
- * The engine under evaluation.
+ * The null model: an engine that finds nothing on every case.
  *
- * TODO(garzario): this is where `composeFindings` and `decide` from @hackmty/core get
- * wired in, once they exist. Until then it returns nothing for every case, which is why
- * `bun run scripts/eval.ts` prints recall 0 and says out loud that the detectors are
- * not connected. An eval harness that invents predictions to make the table look
- * finished is worse than an empty table.
+ * The real engine lives in ./engine.ts and `bun run eval` uses that. This one stays
+ * because it is the baseline the table is worth reading against: it scores precision 0
+ * and recall 0 by construction, and any detector that cannot beat it is not earning
+ * its place in the payment run.
  */
 export function predictNothing(
   cases: readonly HoldoutCase[],

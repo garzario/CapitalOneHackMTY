@@ -1,0 +1,67 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "same-amount-one-quarter-apart-is-not-a-duplicate",
+  "title": "Two invoices for the same amount, thirteen weeks apart, for the same recurring service",
+  "kind": "negative",
+  "notes": "The same-amount rule is bounded by one payment run for exactly this reason. A quarterly service bills the same figure every quarter, and a rule with no window turns every recurring supplier into an alert.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-124",
+      "supplierRfc": "SYN262828S28",
+      "cfdiUuids": ["00000000-0096-4d00-8a00-000000000096"],
+      "clabe": "021180900030303035",
+      "amount": 44080,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN262828S28",
+      "legalName": "Rotulos y Senaletica Regia SA de CV",
+      "firstInvoiceAt": "2023-10-26T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "021180900030303035",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-11-09T15:30:00.000Z",
+          "timesPaid": 12
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0095-4d00-8a00-000000000095",
+        "serie": "A",
+        "folio": "51",
+        "issuedAt": "2026-06-11T15:30:00.000Z",
+        "issuerRfc": "SYN262828S28",
+        "issuerName": "Rotulos y Senaletica Regia SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 38000,
+        "iva": 6080,
+        "total": 44080,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "00000000-0096-4d00-8a00-000000000096",
+        "serie": "A",
+        "folio": "77",
+        "issuedAt": "2026-09-06T15:30:00.000Z",
+        "issuerRfc": "SYN262828S28",
+        "issuerName": "Rotulos y Senaletica Regia SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 38000,
+        "iva": 6080,
+        "total": 44080,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}

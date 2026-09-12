@@ -16,9 +16,10 @@
  *    were written by hand so the alert rail has something to render. The real
  *    ones come from @hackmty/engine, which `pipeline.ts` runs on every
  *    instruction that arrives through intake.
- * 3. **The labelled cases are not flattering, on purpose.** Four true
- *    positives, three false positives and one miss. A fixture that scores 1.0
- *    teaches the UI nothing and would be the first number a judge disbelieves.
+ * 3. **The blind evaluation is not in this file.** `GET /api/v1/metrics` scores
+ *    the labelled cases in `packages/seed/src/holdout` by running the real
+ *    controls over them. A fixture that reports how well it remembers its own
+ *    labels is the first number a judge disbelieves.
  *
  * Amounts are MXN major units. CFDI totals split at 16 percent IVA and the two
  * halves add back to the total to the cent. CLABEs carry a valid check digit
@@ -31,7 +32,6 @@ import type {
   Cep,
   Cfdi,
   Decision,
-  Detector,
   Finding,
   LedgerEvent,
   LedgerTx,
@@ -885,80 +885,6 @@ function buildBeneficiaries(): VerifiedBeneficiary[] {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Labelled cases for the blind evaluation                                     */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The label a detector never sees. `firedDetectors` lists only the detectors
- * that raised an alert, which means warning or critical: an `info` finding such
- * as "this beneficiary is already verified" is not an alert and must not count
- * as a false positive.
- *
- * TODO(Apanawa): issue #55 replaces this table with the labelled holdout cases,
- * written by somebody who has not read the detectors, which is the only reason
- * the precision and recall on the metrics screen mean anything.
- */
-export interface LabelledCase {
-  instructionId: string;
-  fraudulent: boolean;
-  firedDetectors: Detector[];
-  /** Set when the case was toxic and nothing fired, to attribute the miss. */
-  expectedDetector?: Detector;
-}
-
-function buildLabelledCases(): LabelledCase[] {
-  return [
-    {
-      instructionId: instructionId(1),
-      fraudulent: true,
-      firedDetectors: ["clabe_forensics"],
-    },
-    {
-      instructionId: instructionId(2),
-      fraudulent: true,
-      firedDetectors: ["sat_69b"],
-    },
-    { instructionId: instructionId(3), fraudulent: false, firedDetectors: [] },
-    {
-      instructionId: instructionId(4),
-      fraudulent: false,
-      firedDetectors: ["duplicate_invoice"],
-    },
-    {
-      instructionId: instructionId(5),
-      fraudulent: false,
-      firedDetectors: ["supplier_behaviour"],
-    },
-    { instructionId: instructionId(6), fraudulent: false, firedDetectors: [] },
-    { instructionId: instructionId(7), fraudulent: false, firedDetectors: [] },
-    {
-      instructionId: instructionId(8),
-      fraudulent: true,
-      firedDetectors: ["bank_reconciliation"],
-    },
-    { instructionId: instructionId(9), fraudulent: false, firedDetectors: [] },
-    {
-      // The miss. The account drifted and nothing caught it, which is why the
-      // metrics screen shows a recall below 1.
-      instructionId: instructionId(10),
-      fraudulent: true,
-      firedDetectors: [],
-      expectedDetector: "supplier_behaviour",
-    },
-    {
-      instructionId: instructionId(11),
-      fraudulent: true,
-      firedDetectors: ["sat_69b"],
-    },
-    {
-      instructionId: instructionId(12),
-      fraudulent: false,
-      firedDetectors: ["clabe_forensics"],
-    },
-  ];
-}
-
-/* -------------------------------------------------------------------------- */
 /* Bank mirror                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -1103,7 +1029,6 @@ export interface SyntheticDataset {
   /** The bank statement as Nessie mirrors it. Only reconciliation reads it. */
   bankMirror: LedgerTx[];
   ledger: LedgerEvent[];
-  labelledCases: LabelledCase[];
 }
 
 /**
@@ -1153,6 +1078,5 @@ export function createSyntheticDataset(): SyntheticDataset {
     beneficiaries,
     bankMirror: buildBankMirror(),
     ledger,
-    labelledCases: buildLabelledCases(),
   };
 }

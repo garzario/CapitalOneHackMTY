@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@hackmty/core": "workspace:*",
+    "@hackmty/engine": "workspace:*",
     "@hackmty/nessie": "workspace:*",
     "@hackmty/sat": "workspace:*"
   },

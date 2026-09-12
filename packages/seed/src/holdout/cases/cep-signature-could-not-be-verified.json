@@ -1,0 +1,73 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "cep-signature-could-not-be-verified",
+  "title": "The CEP holder name matches but the Banxico seal could not be validated",
+  "kind": "positive",
+  "notes": "Not verified and invalid are different claims and only one of them is ours to make. The finding has to say we could not check the seal, never that the document is forged, and the clerk decides with that distinction in front of them.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-117",
+      "supplierRfc": "SYN182020S20",
+      "cfdiUuids": ["00000000-0053-4d00-8a00-000000000053"],
+      "clabe": "044180200011122239",
+      "amount": 100920,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN182020S20",
+      "legalName": "Ingenieria Civil Valle Alto SA de CV",
+      "firstInvoiceAt": "2025-07-17T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "044180200011122239",
+          "establishedBy": "instruction",
+          "establishedAt": "2026-08-27T15:30:00.000Z",
+          "timesPaid": 0
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0053-4d00-8a00-000000000053",
+        "serie": "A",
+        "folio": "266",
+        "issuedAt": "2026-08-27T15:30:00.000Z",
+        "issuerRfc": "SYN182020S20",
+        "issuerName": "Ingenieria Civil Valle Alto SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 87000,
+        "iva": 13920,
+        "total": 100920,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "cep": {
+      "claveRastreo": "SYN2026090900000043",
+      "transferredAt": "2026-09-08T15:30:00.000Z",
+      "amount": 0.01,
+      "senderName": "Distribuidora Sintetica del Norte SA de CV",
+      "senderBank": "BANORTE",
+      "beneficiaryName": "INGENIERIA CIVIL VALLE ALTO SA DE CV",
+      "beneficiaryAccount": "044180200011122239",
+      "beneficiaryBank": "SCOTIABANK",
+      "signatureValid": false,
+      "xml": "<SPEI_Tercero synthetic=\"true\"/>",
+      "synthetic": true,
+      "signatureReason": "unconfirmed_scheme"
+    }
+  },
+  "expectedFindings": [
+    {
+      "detector": "beneficiary_cep",
+      "state": "requiere_verificacion",
+      "severity": "warning",
+      "because": "The account holder agrees with the CFDI, so nothing is provably wrong, but the seal did not validate under any candidate scheme and the evidence is therefore incomplete."
+    }
+  ],
+  "expectedAction": "verify"
+}
