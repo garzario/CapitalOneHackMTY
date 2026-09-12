@@ -30,6 +30,31 @@ full amount, because there is nothing to reverse.
 We measure that instead of asserting it, which is why `docs/05-business-model.md` carries a stop
 condition tied to the observed hit rate.
 
+### Two SAT files, and the one the product ships
+
+The SAT publishes the 69-B listing through two endpoints, and on any given day they are not the same
+file. This repository reads both, for two different purposes, and a judge who downloads one of them
+will count a number that is not in the other. So both are stated here with their date.
+
+| | The committed snapshot | The open-data export |
+|---|---|---|
+| File | `packages/sat/src/snapshot/official-2026-09-12.csv`, 4,566,277 bytes, committed unmodified | Source [3] below |
+| Endpoint | `omawww.sat.gob.mx/cifras_sat`, which answers over HTTP and not over HTTPS | `wu1agsprosta001.blob.core.windows.net`, linked from the SAT open-data page |
+| Current to | **2025-12-31**, stated by the file in its own first line | **2026-07-31**, stated by its own header |
+| Retrieved | 2026-09-12 03:48 local, `Last-Modified` on the server 2026-01-22 | 2026-09-12 |
+| Rows | **14,234** data rows on 14,247 physical lines, which the loader turns into 28,935 dated situations | **14,761** rows, 14,439 distinct RFCs |
+| What it is used for | Everything the product answers: `GET /api/v1/sat/lookup`, the `sat_69b` control and the retroactive sweep, with no network | The frequency counts in this file: 973 moved to `definitivo`, 1,226 new `presuntos`, 33 publication dates |
+
+**The product ships the committed snapshot.** It is the file the lookup box answers from when a judge
+types an RFC, because a control that only works while the SAT portal is reachable is a control that
+does not work, and that endpoint is plain HTTP over a conference network. The 527-row and seven-month
+gap between the two is vintage and nothing else: same listing, same columns, different cut-off dates,
+so neither count is evidence against the other. The provenance of the committed file, down to the
+encoding and the two rows that span physical lines, is in `packages/sat/src/snapshot/README.md`, and
+refreshing it is four steps at the end of that file, one of which is that the counts asserted in
+`official.test.ts` must be updated by hand so a change in the list cannot pass as a change in the
+parser.
+
 ## Competitor map
 
 | Band | Who | What they do | What they structurally cannot do |
@@ -108,7 +133,10 @@ Every link was opened on **2026-09-12**. Source 3 is reproducible: download the 
    1,666 `sentencia favorable`, 838 `presunto`, 340 `desvirtuado`. The 973, 1,226 and 33 figures are
    counted from the publication-date columns of the same file:
    <https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Listado_completo_69-B.csv>,
-   linked from <https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html>
+   linked from <https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html>.
+   This is not the file the product answers from. The committed snapshot, its 14,234 rows and its
+   2025-12-31 cut-off are in [Two SAT files, and the one the product
+   ships](#two-sat-files-and-the-one-the-product-ships)
 4. *Código Fiscal de la Federación*, article 69-B, last reform DOF 9 April 2026:
    <https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf>
 5. *Ley del Impuesto sobre la Renta*, article 9, rate of 30 percent, last reform DOF 1 April 2024:

@@ -227,6 +227,23 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   screenshots, and stack rows for `packages/engine`, `packages/sat`, `packages/cep`, Gemini and
   ElevenLabs. The GIF, the demo video and the live URL stay `TODO(garzario)` with their issue
   numbers until they exist.
+- Docs consistency pass, with the live-integration evidence written down (epic #84).
+  `docs/14-process.md` gains a "Live integrations verified" section for what was run against the
+  real providers on 2026-09-12: two outbound verification calls through the imported Twilio number
+  to a teammate's own mobile, with their conversation ids, the agent id, the 18-second first call
+  ended by the remote party and the cost the provider reported; one handwritten-style image through
+  `gemini-3.6-flash` that returned supplier, amount and CLABE in one call; and the Nessie key
+  validated by a `POST /customers` that answered 201. The gate table in `docs/11-pitch.md` ticks the
+  live call against that section, and the gates still open keep the sentence to say instead.
+  `docs/04-market.md` reconciles the two SAT files this repository reads: the committed 14,234-row
+  snapshot current to 2025-12-31 that the product answers from, and the 14,761-row open-data export
+  current to 2026-07-31 that the publication-frequency counts are taken from.
+  `docs/01-rubric-mapping.md` refreshes the evidence cells touched by #129, #131 and #133 with no
+  status letter moved, and the counts that had drifted are corrected wherever they are quoted: 45
+  merged PRs, 1,116 tests across 65 files. The cut list entry saying the `sat_69b` detector is not
+  fed the real committed list now records that #133 reversed that cut, and why the reversal is
+  still inside ADR-0002. The three inconsistencies in files owned by other people were filed as
+  issue comments rather than edited, on #54, #52 and #50.
 
 ### Fixed
 
