@@ -17,7 +17,11 @@
  *    bodies, so a plpgsql function is one statement and not two halves.
  * 3. **Applied files are tracked with a checksum**, so an edited migration is reported
  *    instead of silently diverging between four laptops.
- * 4. **This file is bun-only on purpose.** It reads from disk through Bun.file and is
+ * 4. **A renamed file is followed, not re-run.** RENAMED_MIGRATIONS below maps the
+ *    old filename to the new one and migrate() rewrites the schema_migrations row
+ *    before anything is applied. See the comment on that table for why re-running
+ *    is not an option.
+ * 5. **This file is bun-only on purpose.** It reads from disk through Bun.file and is
  *    reached through `bun run migrate`. index.ts and queries.ts stay runtime-neutral
  *    so apps/api can import them on whatever ADR-0005 picks.
  */
@@ -62,10 +66,32 @@ export const MIGRATIONS: readonly MigrationSpec[] = [
   { file: SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION, requiresTimescale: true },
 ];
 
+/**
+ * Files that were renamed after they had already been applied somewhere.
+ *
+ * A rename is not a change in effect: the SQL in `to` does exactly what the SQL in
+ * `from` did, only the product name in the filename and the comments moved. But a
+ * host that applied `from` records `from` in schema_migrations, so the runner sees
+ * `to` as never applied and sends the whole file again. That is not safe. 0003
+ * recreates the append-only rules on `ledger_events`, and 0004 turns that table into
+ * a hypertable: Timescale refuses rules on a hypertable, so the second run fails on
+ * the managed service and `bun run migrate` stops working there. On a plain Postgres
+ * the re-run is silent but still wrong, because the same schema then sits under two
+ * filenames in schema_migrations and doctor counts it twice.
+ *
+ * So a rename is reconciled, never re-run: the recorded row is moved to the new name
+ * and given the new file's checksum. Add a pair here whenever a migration is renamed.
+ */
+export const RENAMED_MIGRATIONS: readonly { from: string; to: string }[] = [
+  { from: "0003_ceptinela.sql", to: SENTRYONE_MIGRATION },
+  { from: "0004_timescale_ceptinela.sql", to: SENTRYONE_TIMESCALE_MIGRATION },
+  { from: "0005_ceptinela_drift.sql", to: SENTRYONE_DRIFT_MIGRATION },
+];
+
 export interface MigrationResult {
   file: string;
-  status: "applied" | "already-applied" | "skipped";
-  /** Why it was skipped, or what looks wrong about an already-applied file. */
+  status: "applied" | "already-applied" | "renamed" | "skipped";
+  /** Why it was skipped or renamed, or what looks wrong about an applied file. */
   reason?: string;
   statements?: number;
 }
@@ -230,6 +256,61 @@ async function applyFile(
 }
 
 /**
+ * Moves the schema_migrations rows of renamed files onto their new names, before a
+ * single statement is applied, and reports one result per pair it touched.
+ *
+ * Three cases, and only the first two do anything. Old name recorded and new one
+ * not: the row is rewritten to the new filename with the new file's checksum, so the
+ * "file changed since it was applied" warning stays meaningful afterwards. Both
+ * recorded: this host already re-ran the file under its new name before this fix
+ * existed, so the stale old row is dropped and the file is reported as applied.
+ * Neither recorded: nothing to reconcile, and a fresh database falls straight
+ * through to the normal runner.
+ *
+ * `applied` is mutated to match, so the caller's view of the database stays true.
+ */
+async function reconcileRenames(
+  sql: Sql,
+  directory: string,
+  applied: Map<string, string>,
+): Promise<Map<string, MigrationResult>> {
+  const results = new Map<string, MigrationResult>();
+
+  for (const { from, to } of RENAMED_MIGRATIONS) {
+    if (!applied.has(from)) {
+      continue;
+    }
+
+    if (applied.has(to)) {
+      await sql`delete from schema_migrations where filename = ${from}`;
+      applied.delete(from);
+      results.set(to, {
+        file: to,
+        status: "already-applied",
+        reason: `also recorded as ${from} before the product rename, and that stale row was dropped`,
+      });
+      continue;
+    }
+
+    const checksum = fingerprint(await Bun.file(`${directory}/${to}`).text());
+    await sql`
+      update schema_migrations
+      set filename = ${to}, checksum = ${checksum}
+      where filename = ${from}
+    `;
+    applied.delete(from);
+    applied.set(to, checksum);
+    results.set(to, {
+      file: to,
+      status: "renamed",
+      reason: `recorded as ${from} before the product rename`,
+    });
+  }
+
+  return results;
+}
+
+/**
  * Applies the migrations in order and reports what happened to each one. Safe to run
  * repeatedly, which is what `bun run migrate` relies on.
  */
@@ -240,10 +321,19 @@ export async function migrate(
   const directory = options.migrationsDir ?? MIGRATIONS_DIR;
   await ensureMigrationsTable(sql);
   const applied = await appliedFiles(sql);
+  const renamed = await reconcileRenames(sql, directory, applied);
   const hasTimescale = await timescaleAvailable(sql);
   const results: MigrationResult[] = [];
 
   for (const spec of MIGRATIONS) {
+    const reconciled = renamed.get(spec.file);
+    if (reconciled !== undefined) {
+      // Reported before the Timescale check: the row exists, so this file did run
+      // here once, and calling it skipped would be a lie on a host that lost the
+      // extension since.
+      results.push(reconciled);
+      continue;
+    }
     if (spec.requiresTimescale && !hasTimescale) {
       results.push({
         file: spec.file,

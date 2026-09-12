@@ -179,6 +179,15 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- `bun run migrate` works again on the Tiger Data service, which it had not since the SentryOne
+  rename (issue #157). Renaming `0003`, `0004` and `0005` left every host that had already applied
+  them recording the old filenames, so the runner treated the new names as never applied and sent
+  0003 a second time, where its append-only rules on `ledger_events` are refused by the hypertable
+  0004 made of that table. `RENAMED_MIGRATIONS` in `packages/db/src/migrate.ts` now maps old name
+  to new, and `migrate()` reconciles the `schema_migrations` rows before it applies anything: a
+  renamed file is reported as `renamed` and re-recorded under the new name with the new file's
+  checksum, and a host that already re-ran the file under both names has the stale row dropped.
+  Covered by `packages/db/src/migrate-rename.test.ts` against a real Postgres.
 - The demo script's seeded ids and amounts were correct and unprotected. Every figure in
   `docs/10-demo-script.md` that comes from the generator is now asserted against it by
   `packages/seed/src/sentryone/documented-figures.test.ts`, verified by hand against a seeded API
