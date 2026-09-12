@@ -85,7 +85,7 @@ through intake, which is beat 3, and the same numbers are readable through
 `GET /api/v1/consortium/signal?rfc=&clabe=`. It is not on the lines of the run the screen opens with:
 that run is assessed once at boot, before anything is pulled, so its stored findings carry no network
 and `apps/api/src/assess.ts` is deliberately unchanged. Post the instruction and the chip appears.
-Three shapes exist and beat 6 of `bun run demo` prints one of each, which is how this paragraph gets
+Three shapes exist and beat 7 of `bun run demo` prints one of each, which is how this paragraph gets
 checked before a rehearsal.
 
 | What the network says | Which line it is on | What the chip reads |
@@ -118,7 +118,7 @@ same way against a second real tenant, and the table has nowhere to put a name.
 warehouse that Snowflake bills with a 60-second minimum, and it moves `pulled_at` under the judges'
 feet. Pull before the rehearsal, demo off the snapshot. On a laptop with no account, or with no
 uplink, `bun run consortium:pull --offline` fills the same table from the deterministic generator and
-records `source = 'synthetic'`, which is the path beat 6 of `bun run demo` exercises.
+records `source = 'synthetic'`, which is the path beat 7 of `bun run demo` exercises.
 
 ### Numbers the screen shows
 
@@ -131,7 +131,7 @@ it just drove, so the way to check this table before a rehearsal is to run it an
 | Not leaving yet | 885,658.73 MXN, 7 lines, 2 held and 5 to verify | The six controls over the seeded run |
 | Retroactive exposure | 404,152.59 MXN: 263,577.78 ISR and 140,574.81 IVA over a deducted base of 878,592.59 | `POST /api/v1/sat/publish` with `simulate` |
 | Blind evaluation | 30 labelled cases, 0.85 precision, 0.81 recall, 0.02 false positive rate | `GET /api/v1/metrics` over the holdout nobody on the detector side wrote |
-| The network, offline | 46 hashed pairs, 45 corroborated, 1 with a fraud report | Beat 6 of `bun run demo`, from the generator at seed 69, `source = 'synthetic'` |
+| The network, offline | 46 hashed pairs, 45 corroborated, 1 with a fraud report | Beat 7 of `bun run demo`, from the generator at seed 69, `source = 'synthetic'` |
 | The network, pulled from Snowflake | The same 46 pairs, and one more tenant per pair this company itself pays | `bun run consortium:pull` after `consortium:push`, because the view counts every tenant that wrote a row and we are one of them |
 
 ### Where it is deployed
@@ -169,7 +169,7 @@ Run this before every rehearsal and before every judge walk-up. It takes ninety 
 the difference between looking real and looking like a prototype.
 
 - [ ] `bun run demo` is green on this machine, right now
-- [ ] The deployed pair answers: `bun run deploy:vultr --smoke-only` prints the run id and the total, and <https://sentryone-one.vercel.app/?data=api> shows `Datos: solo API` with the same figures. `bun run demo --base https://api.104.238.147.69.sslip.io` drives the beat sheet over HTTP instead, with beat 6 still in memory because a consortium snapshot is local to a store, and it appends one instruction to the live run, so follow it with `bun run seed` if the printed totals have to match this file exactly
+- [ ] The deployed pair answers: `bun run deploy:vultr --smoke-only` prints the run id and the total, and <https://sentryone-one.vercel.app/?data=api> shows `Datos: solo API` with the same figures. `bun run demo --base https://api.104.238.147.69.sslip.io` drives the beat sheet over HTTP instead, with beat 7 still in memory because a consortium snapshot is local to a store, and it appends one instruction to the live run, so follow it with `bun run seed` if the printed totals have to match this file exactly
 - [ ] `bun run seed` has run and printed the expected counts and IDs
 - [ ] `curl /health` returns ok, and `bun run doctor` names the live database path
 - [ ] The SSE stream is alive: the intake page posts one instruction and the row appears

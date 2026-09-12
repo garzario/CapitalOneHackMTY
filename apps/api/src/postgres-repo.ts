@@ -42,7 +42,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runMoney, sumAmounts } from "@hackmty/core";
 import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
@@ -82,6 +82,7 @@ import {
   lookupSatEntries,
   markInstructionSent,
   readLedger,
+  readVerificationEvents,
   recordKnownAccount,
   replaceConsortiumSnapshot,
   selectSuppliers,
@@ -237,6 +238,7 @@ export class PostgresRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        ...runMoney(items),
       },
       items,
     };
@@ -414,6 +416,13 @@ export class PostgresRepository implements Repository {
     return readLedger(this.sql, options);
   }
 
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return readVerificationEvents(this.sql, instructionId, beneficiaryAccount);
+  }
+
   /* --------------------------------------------------------------- writes */
 
   /**
@@ -454,6 +463,7 @@ export class PostgresRepository implements Repository {
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = await latestDecision(this.sql, instructionId);
     if (current === undefined) {
@@ -469,9 +479,28 @@ export class PostgresRepository implements Repository {
       decidedAt,
       decidedBy,
     };
+    if (reason !== undefined) {
+      decision.reason = reason;
+    }
     await insertDecision(this.sql, decision);
 
     return decision;
+  }
+
+  /**
+   * The engine's own decision on new evidence, findings first.
+   *
+   * One transaction, and the findings go in before the decision for the same
+   * reason `saveIntake` does it in that order: `decision_findings` has a foreign
+   * key on them, so a decision citing evidence the database does not hold is
+   * refused rather than stored. `insertFindings` is `on conflict do nothing`, so a
+   * finding the run already carried is not duplicated and not overwritten.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    await transact(this.sql, async (tx) => {
+      await insertFindings(tx, decision.findings);
+      await insertDecision(tx, decision);
+    });
   }
 
   async publishSatList(

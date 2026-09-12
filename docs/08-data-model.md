@@ -22,7 +22,7 @@ number.
 Transcribed from `packages/core/src/domain.ts`, including the fields the domain grew after the first
 schema landed: `Supplier.delayCostPerDay`, `PaymentComplement.paymentTotal` and `operationNumber`,
 `PaymentInstruction.audioRef` and `sentAt`, the CEP evidence fields, `ledger_tx` as a finding
-subject and `verification_call` as a ledger event.
+subject, and `verification_call`, `cent_sent` and `cep_awaited` as ledger events.
 
 ```mermaid
 erDiagram
@@ -124,6 +124,7 @@ erDiagram
     numeric delay_cost_per_day
     timestamptz decided_at
     text decided_by "null until a person decides"
+    text reason "what that person wrote, null on the engine proposal"
   }
   DECISION_FINDING {
     bigint decision_id PK "references decisions"
@@ -168,7 +169,7 @@ erDiagram
     uuid event_id PK
     timestamptz at PK "the partitioning column"
     bigint seq "total order inside one instant"
-    text type "eight variants, including verification_call"
+    text type "ten variants, including cent_sent and cep_awaited"
     jsonb payload
     timestamptz recorded_at
   }
@@ -227,6 +228,8 @@ laptops.
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table |
 | `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events |
 | `0009_consortium_snapshot.sql` | any Postgres 16+ | `consortium_snapshot` and the one-row `consortium_pull`: the local projection of the cross-tenant network |
+| `0010_rail_events.sql` | any Postgres 16+ | `cent_sent` and `cep_awaited` as ledger event types, the two the one-cent verification appends |
+| `0011_decision_reason.sql` | any Postgres 16+ | `decisions.reason`, the argument a person wrote when they overrode the engine, next to the name in `decided_by` |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
@@ -283,6 +286,23 @@ worth a reviewer's time.
 A check constraint has no `if not exists` form, so the two widened constraints are dropped by the
 name Postgres gave them and recreated. `0003` is never edited: the checksum in `schema_migrations`
 would report it and the next laptop would diverge.
+
+**`0010_rail_events.sql`** widens the same check constraint again, for the two event kinds the
+one-cent verification appends (issue #166). `cent_sent` is the 0.01 MXN probe leaving the company's
+account through a payment rail, with the clave de rastreo the rail filed it under, four digits of the
+account probed and a `simulated` flag that is true only for the in-process rail the suite and
+`bun run demo` use. `cep_awaited` is the cent being out with no CEP published for that clave yet,
+with how long the pipeline waited and how many times it asked. A CEP is published once the transfer
+settles, so that second one is an ordinary state for minutes rather than an error, and the event is
+what lets the screen say "ya salio, esperando el CEP" instead of showing nothing.
+
+Neither kind adds a column. The discriminant is `type` and the rest of the variant is `payload`, so
+an event kind is a check-constraint change and nothing else, which is the property that made the
+ledger the right system of record in the first place. The read that folds them is
+`readVerificationEvents` in `packages/db/src/queries.ts`: three kinds carry `instructionId` at the
+top of the payload, `decision_made` carries it one level down inside the decision, and `cep_verified`
+carries no instruction at all and is matched on the beneficiary account, because a CEP proves who
+holds an account and says nothing about which invoice we were about to pay.
 
 **`0006_company.sql`** adds the one-row `company` table, and it exists because three reads needed
 something that described us rather than our suppliers: the constancia header, the bank account the
@@ -607,8 +627,9 @@ demo path, not evidence. `clabe_two_digits_off` puts `SYN990202S02` on an accoun
 the one with a hundred payments behind it with a valid check digit, MXN 38,417.48 at risk;
 `invalid_check_digit` arrives as a photographed PDF at OCR confidence 0.82; `duplicate_invoice`
 puts an invoice a complement already settled back on the run; `listed_supplier_69b` puts a supplier
-of two years on the simulated publication with MXN 878,592.59 of base already deducted across 31
-invoices.
+of two years on the simulated publication with MXN 878,592.59 of base already deducted, across 24 of
+their 31 invoices: the base counts the settled ones only, because an invoice nobody has paid yet was
+not deducted yet and carries no retroactive exposure.
 
 **In the holdout set**, 10 of the 30 labelled cases are negatives, and they are where the
 false-positive rate is actually computed. The overlap with the list above is deliberate and the two

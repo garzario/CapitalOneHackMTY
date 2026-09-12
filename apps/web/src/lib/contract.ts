@@ -16,15 +16,19 @@ import type {
   Cfdi,
   Clabe,
   Decision,
+  VerificationState as DomainVerificationState,
+  VerificationStateName as DomainVerificationStateName,
   Finding,
   InstructionSource,
   LedgerEvent,
   Metrics,
   PaymentComplement,
   PaymentInstruction,
+  RailId,
   Rfc,
   SatListEntry,
   SatListStatus,
+  SealState,
   Supplier,
   SweepResult,
   VerificationOutcome,
@@ -207,7 +211,7 @@ export interface CepVerification {
  * the mirror is ours and the CEP is Banxico's, and a judge is owed the
  * difference.
  */
-export type VerificationRail = "nessie" | "stp";
+export type VerificationRail = RailId;
 
 /**
  * How far the one-cent verification of one instruction has got.
@@ -217,13 +221,7 @@ export type VerificationRail = "nessie" | "stp";
  * Banxico has not published the CEP yet, the CEP is in and signed, the large
  * payment was released, the large payment was blocked.
  */
-export type VerificationStateName =
-  | "not_started"
-  | "cent_sent"
-  | "awaiting_cep"
-  | "cep_signed"
-  | "released"
-  | "blocked";
+export type VerificationStateName = DomainVerificationStateName;
 
 /**
  * What the server is able to say about the Banxico seal on the CEP it holds.
@@ -234,37 +232,19 @@ export type VerificationStateName =
  * nothing. It reads as "no verificado" and never as "valido", which is the one
  * claim this screen is not allowed to make on its own.
  */
-export type CepSealState = "valid" | "not_checked" | "invalid";
+export type CepSealState = SealState;
 
 /**
  * `GET /api/v1/instructions/:id/verification`, and the 202 body of
  * `POST /api/v1/instructions/:id/verify-account`.
  *
- * TODO(garzario): issue 166 puts this same shape in
- * `packages/core/src/domain.ts` as `VerificationState`. When it lands, this
- * declaration becomes a re-export, which is what the note at the top of this
- * file describes for every other route.
+ * Issue 166 landed the shape in `packages/core/src/domain.ts`, so this is the
+ * domain type and not a second declaration of it: the clave the bank answered
+ * with, the holder Banxico reports, the legal name it is compared against, the
+ * verdict, the seal state, and the decision the engine signed. Three of the four
+ * aliases above are the same promotion.
  */
-export interface VerificationState {
-  instructionId: string;
-  state: VerificationStateName;
-  /** Absent until a rail was chosen, which happens when the cent is sent. */
-  rail: VerificationRail | null;
-  /** The key the bank answered with. Never typed by a person. */
-  claveRastreo: string | null;
-  centSentAt: string | null;
-  /** When the signed CEP was resolved, not when the transfer settled. */
-  cepAt: string | null;
-  sealState: CepSealState | null;
-  /** Account holder as Banxico reports it on the CEP. */
-  holderName: string | null;
-  /** Legal name on the supplier's CFDI, which the holder is compared against. */
-  legalName: string | null;
-  nameMatch: NameMatch | null;
-  /** What the engine decided once the CEP was in. Never a person's decision. */
-  decision: Decision | null;
-  updatedAt: string;
-}
+export type VerificationState = DomainVerificationState;
 
 /**
  * `POST /api/v1/instructions/:id/verify-call`, one of three ways.

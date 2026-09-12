@@ -391,7 +391,7 @@ describe("beneficiaryCepAdapter", () => {
       }),
     );
 
-    expect(finding?.evidence.signatureState).toBe("unconfirmed");
+    expect(finding?.evidence.signatureState).toBe("not_checked");
     expect(finding?.severity).toBe("info");
     // Not provable, because nobody validated the seal.
     expect(finding?.state).toBe("requiere_verificacion");
@@ -432,7 +432,7 @@ describe("beneficiaryCepAdapter", () => {
       }),
     );
 
-    expect(finding?.evidence.signatureState).toBe("unconfirmed");
+    expect(finding?.evidence.signatureState).toBe("not_checked");
     expect(finding?.severity).toBe("info");
     expect(finding?.state).toBe("requiere_verificacion");
     expect(finding?.explanation).toContain("no se ha podido verificar");
@@ -451,7 +451,7 @@ describe("beneficiaryCepAdapter", () => {
       }),
     );
 
-    expect(finding?.evidence.signatureState).toBe("unconfirmed");
+    expect(finding?.evidence.signatureState).toBe("not_checked");
     expect(finding?.severity).toBe("info");
   });
 

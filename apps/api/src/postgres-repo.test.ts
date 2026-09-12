@@ -19,11 +19,13 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { syntheticCepXml } from "@hackmty/cep";
+import { syntheticCepFor, syntheticCepXml } from "@hackmty/cep";
 import type { Cep, LedgerEvent } from "@hackmty/core";
 import { createSql, type Sql } from "@hackmty/db";
+import { FakeRail } from "@hackmty/rail";
 import { RUN_SIZE_MAX, RUN_SIZE_MIN } from "@hackmty/seed";
 import { migrate } from "../../../packages/db/src/migrate";
+import { staticCepInbox } from "./cep";
 import { PostgresRepository } from "./postgres-repo";
 import { MemoryRepository } from "./repo";
 import {
@@ -39,6 +41,7 @@ import {
   seedResponseSchema,
   supplierDetailSchema,
   sweepResultSchema,
+  verificationStateSchema,
 } from "./schemas";
 import { sentryoneDataset } from "./sentryone";
 import { createTestApp, flush, TEST_NOW } from "./test-app";
@@ -599,6 +602,260 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
       const stored = await pg.instructionDetail(instructionId);
       expect(stored?.instruction.sentAt).toBe("2026-09-11T17:05:00.000Z");
     });
+  });
+
+  /**
+   * The one-cent verification over Postgres, which is where the two stores could
+   * most easily stop agreeing: `readVerificationEvents` reads `instructionId` out
+   * of the payload with jsonb operators, and the memory store reads it off the
+   * object. A typo in either path would show up as a state machine stuck on
+   * `cent_sent` while the ledger holds the CEP, and only on the store the demo
+   * runs on.
+   */
+  describe("the one-cent verification, served from Postgres", () => {
+    /**
+     * The line a CEP can actually clear: stopped by the CLABE control, and stopped
+     * on a signal a person has to check rather than one provable from the documents.
+     * A CLABE whose check digit cannot exist stays critical whoever holds the
+     * account, so a CEP does not release that one and the test would be asserting
+     * the wrong thing about the engine.
+     */
+    async function clearableLine() {
+      const run = await pg.currentRun();
+      const line = run.items.find(
+        (item) =>
+          item.decision?.action !== "release" &&
+          item.findings.some(
+            (finding) =>
+              finding.detector === "clabe_forensics" &&
+              finding.state === "requiere_verificacion",
+          ),
+      );
+      if (line === undefined) {
+        throw new Error(
+          "the seeded run holds no line the CLABE control stopped on a checkable signal",
+        );
+      }
+      return line;
+    }
+
+    /**
+     * A line nothing has touched yet, one per test that asks.
+     *
+     * Every test in this describe writes to the same Postgres, and the endpoint
+     * answers `409` on a line that is already resolved, so two tests sharing an
+     * instruction would make the second one assert against a refusal. Findings-free
+     * lines are the ones the other tests have no reason to want.
+     */
+    const usedLines = new Set<string>();
+    async function freshLine() {
+      const run = await pg.currentRun();
+      const line = run.items.find(
+        (item) =>
+          item.findings.length === 0 && !usedLines.has(item.instruction.id),
+      );
+      if (line === undefined) {
+        throw new Error("the seeded run holds no untouched line left");
+      }
+      usedLines.add(line.instruction.id);
+      return line;
+    }
+
+    it(
+      "appends and folds the whole machine, from the cent to the release",
+      async () => {
+        const line = await clearableLine();
+        const clave = `SYNVERPG${String(++mintedIds).padStart(6, "0")}`;
+        const cep = syntheticCepFor({
+          claveRastreo: clave,
+          transferredAt: "2026-09-12T09:15:42.000-06:00",
+          amount: 0.01,
+          senderName: "Metalicos del Norte SA de CV",
+          senderBank: "SinteticoDos",
+          senderAccount: "012180000123456782",
+          senderRfc: "SYN090615C01",
+          beneficiaryName: line.supplier.legalName.toUpperCase(),
+          beneficiaryBank: "SinteticoUno",
+          beneficiaryAccount: line.instruction.clabe,
+          beneficiaryRfc: line.instruction.supplierRfc,
+          concepto: "Verificacion de cuenta",
+        });
+        const { app } = createTestApp({
+          repo: pg,
+          clock: {
+            now: () => TEST_NOW,
+            newId: (prefix) =>
+              `${prefix}-pg-${String(++mintedIds).padStart(4, "0")}`,
+          },
+          rail: async () => ({
+            ok: true,
+            rail: new FakeRail({ now: () => TEST_NOW, mint: () => clave }),
+          }),
+          cepInbox: staticCepInbox([cep], "test CEP index"),
+        });
+
+        const response = await app.request(
+          `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verify-account`,
+          { method: "POST" },
+        );
+        expect(response.status).toBe(202);
+        const state = verificationStateSchema.parse(await response.json());
+
+        expect(state.state).toBe("released");
+        expect(state.claveRastreo).toBe(clave);
+        expect(state.nameMatch).toBe("match");
+        // Never valid without a certificate, on either store.
+        expect(state.sealState).toBe("not_checked");
+        expect(state.decision?.decidedBy).toBe("system");
+
+        // The read endpoint answers the same state out of the ledger.
+        const read = verificationStateSchema.parse(
+          await (
+            await app.request(
+              `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verification`,
+            )
+          ).json(),
+        );
+        expect(read.state).toBe("released");
+        expect(read.cepAt).toBe(TEST_NOW);
+
+        // And the stored decision is the engine's own, not the one the run opened
+        // with, so the screen and the constancia agree with the ledger.
+        const stored = await pg.instructionDetail(line.instruction.id);
+        expect(stored?.decision?.action).toBe("release");
+        expect(stored?.decision?.decidedBy).toBe("system");
+        expect(
+          (stored?.findings ?? []).some(
+            (finding) => finding.detector === "beneficiary_cep",
+          ),
+        ).toBe(true);
+      },
+      REMOTE_TIMEOUT_MS,
+    );
+
+    it(
+      "reads the two new event kinds back out of the ledger",
+      async () => {
+        const line = await freshLine();
+        const clave = `SYNVERPG${String(++mintedIds).padStart(6, "0")}`;
+        const { app } = createTestApp({
+          repo: pg,
+          clock: {
+            now: () => TEST_NOW,
+            newId: (prefix) =>
+              `${prefix}-pg-${String(++mintedIds).padStart(4, "0")}`,
+          },
+          rail: async () => ({
+            ok: true,
+            rail: new FakeRail({ now: () => TEST_NOW, mint: () => clave }),
+          }),
+          // Nothing filed under that clave, so the machine stops on awaiting_cep and
+          // both new event kinds have to survive the round trip through jsonb.
+          cepInbox: staticCepInbox([], "empty CEP index"),
+        });
+
+        await app.request(
+          `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verify-account`,
+          { method: "POST" },
+        );
+
+        const events = await pg.verificationEvents(
+          line.instruction.id,
+          line.instruction.clabe,
+        );
+        const sent = events.find(
+          (event) => event.type === "cent_sent" && event.claveRastreo === clave,
+        );
+        const awaited = events.find(
+          (event) =>
+            event.type === "cep_awaited" && event.claveRastreo === clave,
+        );
+
+        expect(sent?.type).toBe("cent_sent");
+        if (sent?.type === "cent_sent") {
+          expect(sent.claveRastreo).toBe(clave);
+          expect(sent.rail).toBe("nessie");
+          expect(sent.amount).toBe(0.01);
+          expect(sent.simulated).toBe(true);
+        }
+        expect(awaited?.type).toBe("cep_awaited");
+        if (awaited?.type === "cep_awaited") {
+          expect(awaited.attempts).toBe(1);
+        }
+      },
+      REMOTE_TIMEOUT_MS,
+    );
+
+    /**
+     * The parity assertion that matters here: the same ledger, folded by the same
+     * projection, read through two repositories. It runs the memory store over the
+     * events Postgres answered rather than re-sending the cent, because the point
+     * is the read and not the write.
+     */
+    it(
+      "answers the same events as the memory store for the same writes",
+      async () => {
+        const line = await freshLine();
+        const clave = `SYNVERPG${String(++mintedIds).padStart(6, "0")}`;
+        const event: LedgerEvent = {
+          type: "cent_sent",
+          at: "2026-09-12T05:00:00.000Z",
+          instructionId: line.instruction.id,
+          rail: "nessie",
+          claveRastreo: clave,
+          amount: 0.01,
+          clabeLast4: line.instruction.clabe.slice(-4),
+          simulated: true,
+        };
+
+        await pg.appendEvent(event);
+        await memory.appendEvent(event);
+
+        const fromPostgres = await pg.verificationEvents(
+          line.instruction.id,
+          line.instruction.clabe,
+        );
+        const fromMemory = await memory.verificationEvents(
+          line.instruction.id,
+          line.instruction.clabe,
+        );
+
+        /* Compared on the event this test wrote rather than on every cent the line
+         carries: the two stores hold different histories here, because Postgres is
+         shared across this file and the memory store is not. What has to agree is
+         the row, field for field, after a round trip through jsonb. */
+        const mine = (rows: readonly LedgerEvent[]) =>
+          rows.filter(
+            (row) => row.type === "cent_sent" && row.claveRastreo === clave,
+          );
+
+        expect(mine(fromPostgres)).toEqual([event]);
+        expect(mine(fromMemory)).toEqual(mine(fromPostgres));
+        // And a different instruction's cent is not in either answer.
+        expect(
+          (
+            await pg.verificationEvents("ins-nothing", line.instruction.clabe)
+          ).some((row) => row.type === "cent_sent"),
+        ).toBe(false);
+      },
+      REMOTE_TIMEOUT_MS,
+    );
+
+    it(
+      "answers 503 when the server has no rail, on this store too",
+      async () => {
+        const line = await freshLine();
+        const { app } = harness();
+
+        const response = await app.request(
+          `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verify-account`,
+          { method: "POST" },
+        );
+
+        expect(response.status).toBe(503);
+      },
+      REMOTE_TIMEOUT_MS,
+    );
   });
 
   describe("reseeding", () => {

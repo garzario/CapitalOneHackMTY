@@ -1,12 +1,12 @@
 /**
  * bun run demo
  *
- * Drives the five beats of `docs/10-demo-script.md` headless, plus a sixth that
- * is a gate rather than a stage beat: the consortium network reaching a decision
- * offline, which is what beat 3 says the second chip on the screen is. It asserts
- * the invariants each one rests on. This is the command that runs before every
- * rehearsal and before every judge visit: if it is red, the demo is broken,
- * whatever the screen says.
+ * Drives the five beats of `docs/10-demo-script.md` headless, plus two that are
+ * gates rather than stage beats: the one-cent verification travelling through a
+ * rail, and the consortium network reaching a decision offline, which is what beat
+ * 3 says the second chip on the screen is. It asserts the invariants each one
+ * rests on. This is the command that runs before every rehearsal and before every
+ * judge visit: if it is red, the demo is broken, whatever the screen says.
  *
  * By default it builds a freshly seeded API in memory, with no socket, no
  * database, no browser and no network, so it is the same check on a laptop, in
@@ -35,6 +35,7 @@ import {
   type PaymentRunItem,
   paymentRunSchema,
   sweepResultSchema,
+  verificationStateSchema,
 } from "../apps/api/src/schemas.ts";
 import {
   sentryoneBootNotes,
@@ -43,6 +44,7 @@ import {
 import {
   nameMatch,
   parseCep,
+  syntheticCepFor,
   syntheticCepXml,
 } from "../packages/cep/src/index.ts";
 import {
@@ -50,6 +52,7 @@ import {
   syntheticNetwork,
 } from "../packages/consortium/src/index.ts";
 import type {
+  Cep,
   EvidenceValue,
   NetworkSignal,
   NetworkVerdict,
@@ -59,6 +62,7 @@ import {
   formatAmount,
   networkLabel,
 } from "../packages/core/src/index.ts";
+import { FakeRail } from "../packages/rail/src/index.ts";
 import { loadSentryOne } from "../packages/seed/src/index.ts";
 
 const HTTP_TIMEOUT_MS = 10_000;
@@ -76,6 +80,56 @@ interface Api {
   request(path: string, init?: RequestInit): Promise<Response>;
 }
 
+/**
+ * The clave de rastreo the demo's rail mints for one instruction.
+ *
+ * Deterministic, and that is the whole trick of beat 6: the CEP for the probe has
+ * to be findable by the clave the rail just answered, so the rail and the document
+ * are built from the same string. `SYN` says out loud that nothing about it was
+ * filed at Banxico.
+ */
+function demoClave(instructionId: string): string {
+  return `SYNVER${instructionId.replace(/\W/g, "").toUpperCase()}`.slice(0, 30);
+}
+
+/**
+ * The two CEPs the demo needs, built from the seeded company rather than committed.
+ *
+ * No committed file can carry them: the accounts and the legal names come out of
+ * the generator and move with the seed. They are synthetic documents in the exact
+ * sense `packages/cep` means it, participant key 99999 and a sello that is 256
+ * deterministic bytes, so the seal can never come back validated and beat 6 says
+ * so on the line it prints.
+ */
+function demoCeps(
+  lines: readonly {
+    instructionId: string;
+    clabe: string;
+    holder: string;
+    rfc: string;
+  }[],
+) {
+  return lines.map((line) =>
+    syntheticCepFor({
+      claveRastreo: demoClave(line.instructionId),
+      transferredAt: "2026-09-12T09:15:42.000-06:00",
+      amount: 0.01,
+      senderName: "Metalicos del Norte SA de CV",
+      senderBank: "SinteticoDos",
+      senderAccount: "012180000123456782",
+      senderRfc: "SYN090615C01",
+      beneficiaryName: line.holder,
+      beneficiaryBank: "SinteticoUno",
+      beneficiaryAccount: line.clabe,
+      beneficiaryRfc: line.rfc,
+      concepto: "Verificacion de cuenta",
+    }),
+  );
+}
+
+/** Built by beat 1 and handed to the in-memory API, so beat 6 needs no network. */
+let demoInbox: Cep[] = [];
+
 function inMemoryApi(): Api {
   const app = createApp(
     createDeps({
@@ -85,6 +139,31 @@ function inMemoryApi(): Api {
       // the environment cannot change what this script reports.
       allowSeed: false,
       extractor: UNAVAILABLE_EXTRACTOR,
+      /* The rail is the in-process one: no key, no network, and every `cent_sent`
+         it produces carries `simulated: true`, which beat 6 prints. The Nessie
+         rail is the one that writes to the sandbox and it is proven in the pull
+         request of issue #166, not here, because a demo that depends on a third
+         party answering is a demo that fails on venue Wi-Fi. */
+      rail: async () => ({
+        ok: true,
+        rail: new FakeRail({
+          mint: (request) => demoClave(request.instructionId),
+        }),
+      }),
+      cepInbox: {
+        describe: "synthetic CEPs built for the seeded company",
+        byClave: async (clave) =>
+          demoInbox.find(
+            (cep) => cep.claveRastreo.toUpperCase() === clave.toUpperCase(),
+          ),
+      },
+      /* No background poll: the demo asserts what one call does, and a beat that
+         waited on a timer would be a beat that hangs on a laptop. */
+      verification: {
+        pollIntervalMs: 0,
+        pollDeadlineMs: 0,
+        sleep: async () => {},
+      },
     }),
   );
 
@@ -165,6 +244,16 @@ function need(condition: boolean, message: string): asserts condition {
   }
 }
 
+/** One line the one-cent verification runs on, as beat 6 needs it. */
+interface VerifyLine {
+  instructionId: string;
+  clabe: string;
+  amount: number;
+  /** Legal name on the CFDI, the side of the comparison that comes from us. */
+  legalName: string;
+  rfc: string;
+}
+
 /** What beat 1 learns and the later beats reuse, so no id is hard coded. */
 interface Hero {
   clabeInstructionId: string;
@@ -172,6 +261,26 @@ interface Hero {
   clabeAccount: string;
   clabeAmount: number;
   listedSupplierRfc: string;
+  /** Held by the CLABE control, and releasable by a CEP that names the supplier. */
+  verifyRelease: VerifyLine;
+  /** Nothing is stopping it, so the CEP is the only thing that can. */
+  verifyBlock: VerifyLine;
+}
+
+/**
+ * The holder a blocked probe comes back with: a company that is not the one on the
+ * invoice. Synthetic, like every other name in the seeded company, and the same one
+ * the labelled holdout case for this control uses.
+ */
+const OTHER_HOLDER = "COMERCIALIZADORA VERTICE DEL GOLFO SA DE CV";
+
+/**
+ * A CEP `Nombre` is capped at 40 characters by the schema, and banks print the
+ * holder in capitals. Both are what makes the comparison in `@hackmty/cep` the
+ * interesting part rather than a string equality.
+ */
+function bankHolder(legalName: string): string {
+  return legalName.toUpperCase().slice(0, 40);
 }
 
 let hero: Hero | undefined;
@@ -223,13 +332,78 @@ async function beatPaymentRun(api: Api, say: Say): Promise<void> {
   need(clabe !== undefined, "no line carries a two-digit CLABE change");
   need(listed !== undefined, "no line carries a 69-B finding");
 
+  /* The two lines beat 6 runs the cent on. The first is stopped by the CLABE
+     control on a signal a person has to check, which is the one a CEP can settle:
+     a CLABE whose check digit cannot exist stays critical whoever holds the
+     account. The second is the largest line nothing is stopping, so the CEP is the
+     only thing that can, which is the half of the story that is about the money
+     rather than about the alert rail. */
+  const releasable = run.items.find(
+    (item) =>
+      item.decision?.action !== "release" &&
+      item.findings.some(
+        (finding) =>
+          finding.detector === "clabe_forensics" &&
+          finding.state === "requiere_verificacion",
+      ),
+  );
+  const clean = [...run.items]
+    .filter(
+      (item) =>
+        item.findings.length === 0 && item.decision?.action === "release",
+    )
+    .sort(
+      (left, right) => right.instruction.amount - left.instruction.amount,
+    )[0];
+
+  need(
+    releasable !== undefined,
+    "no line is stopped by the CLABE control on a signal a CEP could settle",
+  );
+  need(clean !== undefined, "every line carries a finding, so none is clean");
+
   hero = {
     clabeInstructionId: clabe.instruction.id,
     clabeSupplierRfc: clabe.instruction.supplierRfc,
     clabeAccount: clabe.instruction.clabe,
     clabeAmount: clabe.instruction.amount,
     listedSupplierRfc: listed.instruction.supplierRfc,
+    verifyRelease: {
+      instructionId: releasable.instruction.id,
+      clabe: releasable.instruction.clabe,
+      amount: releasable.instruction.amount,
+      legalName: releasable.supplier.legalName,
+      rfc: releasable.instruction.supplierRfc,
+    },
+    verifyBlock: {
+      instructionId: clean.instruction.id,
+      clabe: clean.instruction.clabe,
+      amount: clean.instruction.amount,
+      legalName: clean.supplier.legalName,
+      rfc: clean.instruction.supplierRfc,
+    },
   };
+
+  /* The CEPs for those two probes, filed under the clave the rail will mint. One
+     names the supplier on the invoice and one names somebody else, which is the
+     whole difference between a release and a block. */
+  demoInbox = demoCeps([
+    {
+      instructionId: hero.verifyRelease.instructionId,
+      clabe: hero.verifyRelease.clabe,
+      holder: bankHolder(hero.verifyRelease.legalName),
+      rfc: hero.verifyRelease.rfc,
+    },
+    {
+      instructionId: hero.verifyBlock.instructionId,
+      clabe: hero.verifyBlock.clabe,
+      holder: OTHER_HOLDER,
+      /* "ND" is what a participant sends when it discloses no RFC, which is the
+         honest field for a holder that is not the supplier: the CEP names who
+         holds the account and this repository does not invent a taxpayer for it. */
+      rfc: "ND",
+    },
+  ]);
 
   // The headline on the screen: what the run would move, and what of it is not
   // moving yet. The screen reads the items rather than the totals, so this does
@@ -437,6 +611,127 @@ async function beatCep(api: Api, say: Say): Promise<void> {
   say(
     "the endpoint refuses a CEP it cannot prove: 422 with the error envelope",
   );
+}
+
+/**
+ * Beat 6. The cent travels inside the run, and the engine releases or blocks.
+ *
+ * One POST per line and nothing typed afterwards: the clave de rastreo comes back
+ * from the rail, the CEP is resolved by that clave, control 5 compares the account
+ * holder with the legal name on the CFDI, and the expected-loss rule releases the
+ * payment the CLABE control was holding or blocks the one nothing else stopped.
+ *
+ * What this beat is honest about, out loud, on the lines it prints. The rail here is
+ * the in-process one, so nothing left a bank: the Nessie rail writes a real 0.01
+ * outflow on the company's mirror with our own key and is proven in the pull request
+ * of issue #166, and the rail that would produce a Banxico CEP is STP, which refuses
+ * to run unconfigured. The CEPs are synthetic documents built for the seeded company,
+ * so the seal comes back not checked and never valid. What the beat proves is the
+ * pipeline: the events, the comparison, and which way the engine went.
+ *
+ * Against `--base` it reads and does not write. A deployed instance has a real rail
+ * behind it, and this script runs before every rehearsal: spending a centavo on the
+ * company's mirror and leaving a `cent_sent` on the deployed ledger every time
+ * somebody checks the demo path would be a side effect nobody asked for. The read
+ * endpoint answering is what proves the feature is deployed.
+ */
+async function beatVerification(api: Api, say: Say): Promise<void> {
+  need(
+    hero !== undefined,
+    "beat 1 did not run, so there are no lines to verify",
+  );
+  const { verifyRelease, verifyBlock } = hero;
+
+  if (base !== undefined) {
+    const state = verificationStateSchema.parse(
+      await json(
+        api,
+        `/api/v1/instructions/${encodeURIComponent(verifyRelease.instructionId)}/verification`,
+      ),
+    );
+    say(
+      `${state.instructionId}: ${state.state} on that instance, which is the read endpoint answering`,
+    );
+    say(
+      "the cent is not sent against a deployed instance from this script: it is a real write on the company mirror and this beat runs before every rehearsal",
+    );
+    return;
+  }
+
+  const released = await verify(api, verifyRelease);
+  const blocked = await verify(api, verifyBlock);
+
+  need(
+    released.state === "released",
+    `${verifyRelease.instructionId} came back ${released.state}, expected released`,
+  );
+  need(
+    blocked.state === "blocked",
+    `${verifyBlock.instructionId} came back ${blocked.state}, expected blocked`,
+  );
+  need(
+    released.sealState !== "valid" && blocked.sealState !== "valid",
+    "a synthetic CEP reported a validated Banxico seal, which nobody verified",
+  );
+  need(
+    released.nameMatch === "match" && blocked.nameMatch === "mismatch",
+    "the name comparison did not separate the supplier from the other company",
+  );
+  need(
+    released.decision?.decidedBy === "system" &&
+      blocked.decision?.decidedBy === "system",
+    "the decision was not signed by the engine",
+  );
+  need(
+    blocked.decision?.action !== "release",
+    "the blocked line was released anyway",
+  );
+
+  for (const [line, state] of [
+    [verifyRelease, released],
+    [verifyBlock, blocked],
+  ] as const) {
+    say(
+      `${state.instructionId} ${formatAmount(line.amount)} MXN: centavo enviado, clave ${state.claveRastreo ?? "none"}`,
+    );
+    say(
+      `  CEP: titular ${state.holderName ?? "none"} contra ${state.legalName ?? "none"} en la factura, coincidencia ${state.nameMatch ?? "none"}, sello ${state.sealState ?? "none"}`,
+    );
+    say(
+      `  ${state.state}: la decision del motor es ${state.decision?.action ?? "none"}, perdida esperada ${formatAmount(state.decision?.expectedLoss ?? 0)} MXN, firmada por ${state.decision?.decidedBy ?? "nadie"}`,
+    );
+  }
+  say(
+    "the rail here is the in-process one (cent_sent carries simulated: true) and the CEPs are synthetic, so the seal reads not_checked; the Nessie outflow is in the PR of #166 and the Banxico CEP is issue #57",
+  );
+}
+
+/** One call, then the state the ledger folds. Nothing is typed in between. */
+async function verify(api: Api, line: VerifyLine) {
+  const response = await api.request(
+    `/api/v1/instructions/${encodeURIComponent(line.instructionId)}/verify-account`,
+    { method: "POST" },
+  );
+  need(
+    response.status === 202,
+    `verify-account answered ${response.status} for ${line.instructionId}, expected 202`,
+  );
+  const answered = verificationStateSchema.parse(await response.json());
+
+  // And the read endpoint answers the same thing out of the event ledger, which is
+  // what the screen re-reads when the stream names this instruction.
+  const read = verificationStateSchema.parse(
+    await json(
+      api,
+      `/api/v1/instructions/${encodeURIComponent(line.instructionId)}/verification`,
+    ),
+  );
+  need(
+    read.state === answered.state,
+    `${line.instructionId} answered ${answered.state} and the ledger folds to ${read.state}`,
+  );
+
+  return read;
 }
 
 /** Beat 5. The metrics endpoint answers, and says how many cases it holds. */
@@ -804,12 +1099,16 @@ await beat("3. the simulated 69-B publication is priced", (say) =>
 await beat("4. the CEP parses and the name comparison runs", (say) =>
   beatCep(api, say),
 );
-await beat("5. the metrics endpoint answers", (say) => beatMetrics(api, say));
+await beat(
+  "5. the cent travels in the run and the engine releases or blocks",
+  (say) => beatVerification(api, say),
+);
+await beat("6. the metrics endpoint answers", (say) => beatMetrics(api, say));
 /* The network beat drives its own in-memory instances whatever `--base` says,
    because the consortium snapshot is local to a store and the offline pull is the
    path this repository promises works with the warehouse unplugged. */
 await beat(
-  "6. the consortium network reaches the decision, offline",
+  "7. the consortium network reaches the decision, offline",
   beatNetwork,
 );
 

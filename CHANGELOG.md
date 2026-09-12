@@ -18,6 +18,73 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
+  behaviour that makes four of them true rather than asserted (issue #171). A held payment now
+  carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same
+  `EXPECTED_DELAY_DAYS` table `decide` weighed the expected loss against, so the delay the arithmetic
+  charged for and the deadline a clerk is promised are one number and cannot drift, three days for a
+  hold and one for a verification, measured from the decision's own instant. The deadline decides
+  nothing when it passes, which is binding under ADR-0002: `expired` turns true, the payment goes
+  back in front of a person, and what the deadline actually buys is a bound on the retry loop. The
+  window carries ordered `nextSteps`, and the one worth saying out loud is `one_cent_cep`, because it
+  needs nobody to answer a telephone; after a `denied` the only step offered is `keep_held`, since
+  suggesting a release next to the supplier's own denial would be the product arguing against its own
+  finding. `GET /api/v1/instructions/:id` answers it, and so does a recorded
+  `POST /api/v1/instructions/:id/verify-call`, which is how "nadie contesto" and "y ahora que" arrive
+  in the same response. `POST /api/v1/instructions/:id/decide` takes a `reason` next to the required
+  `decidedBy` and answers the `amountAtRisk` it was decided against: an urgent payment can be released
+  under a named person's responsibility with a written argument, and both land on the `decision_made`
+  ledger event and on `decisions.reason` (`packages/db/migrations/0009_decision_reason.sql`), because a
+  hold with no way out is bypassed outside the product where nothing is recorded at all. And the run
+  answers in pesos rather than in line counts: `runMoney` in `packages/core/src/exposure.ts` puts
+  `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount`, `amountAtRisk`,
+  `retroactive69bBase` and `retroactive69bExposure` on the `totals` of `GET /api/v1/run/current`, with
+  the 69-B pair counted once per supplier because the sweep prices it per supplier and one supplier can
+  sit on three payments in one week. `docs/09-api.md` and `docs/08-data-model.md` carry the contract
+  and the column. The same pass corrects a number the pitch said out loud: the listed-supplier
+  scenario summed its deducted base over the settled invoices and then reported the supplier's whole
+  invoice count next to it, so `docs/11-pitch.md` and `docs/08-data-model.md` said 31 invoices while
+  `docs/07-architecture.md` and `bun run demo` said 24 paid ones for the same MXN 878,592.59. The
+  note in `packages/seed/src/sentryone/scenarios.ts` now counts the set the base was summed over, and
+  the two docs say 24 of 31.
+
+- `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
+  problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one
+  line each, the business model in three sentences, and the six objections of 2026-09-12 with the
+  answer to say out loud. It uses `docs/print/print.css` and the visual system of `judge-card.html`,
+  and `docs/print/README.md` states the rule that governs it: no number reaches that card that is not
+  already in `docs/04`, `docs/05` or `docs/11`.
+
+- The one-cent verification travels inside the payment run, with nobody typing (issue #166).
+  `packages/rail` is the new workspace and the only place in the product that sends money: one
+  amount, 0.01 MXN, behind a `PaymentRail` interface with three adapters. `NessieRail` records the
+  cent as a withdrawal on the company's bank mirror with our own key and mints the clave de rastreo
+  from the object id Nessie returns, upper-cased letters and digits behind an `NSS` prefix, cut to
+  the 30 characters a SPEI field holds; a withdrawal and not a purchase, because the mirror's
+  settled history needs a payee and the probe must name nobody. `StpRail` is the documented
+  production path, `registraOrden` with the cadena original in one named field order and an RSA
+  SHA-256 `firma` over exactly those bytes, and its constructor refuses without `STP_BASE_URL`,
+  `STP_EMPRESA`, `STP_CLABE_ORDENANTE` and `STP_PRIVATE_KEY_PATH`, so it has never pretended to be
+  live: nothing in this repository holds an STP contract and `packages/rail/README.md` says so next
+  to what IS verified. `FakeRail` is the in-process one, and every `cent_sent` it produces carries
+  `simulated: true`. `POST /api/v1/instructions/:id/verify-account` is the pipeline: it sends the
+  cent, appends `cent_sent`, resolves the CEP for that clave through the existing seam (the verified
+  beneficiary registry, then the CEPs committed to this repository indexed by clave, then the Banxico
+  portal and only with `ALLOW_CEP_FETCH=1`), appends `cep_awaited` with a bounded poll when Banxico
+  has published nothing yet (`CEP_POLL_INTERVAL_MS`, `CEP_POLL_DEADLINE_MS`), and with the CEP in
+  hand stores the registry row that arms control 5, runs the six controls again and appends
+  `decision_made` signed `system`. `GET /api/v1/instructions/:id/verification` folds
+  `VerificationState` out of the ledger: `not_started`, `cent_sent`, `awaiting_cep`, `cep_signed`,
+  `released`, `blocked`, with the clave, the holder, the CFDI legal name, the comparison and the seal
+  state. `202` because the CEP is published after the transfer settles, `409` once the payment is
+  resolved because a second cent proves nothing new, `503` naming the variables when this server has
+  no rail. The seal is `valid` only when `BANXICO_CEP_CERT_PEM` verified it and `not_checked`
+  otherwise, which is never rendered as valid. Verified live against `api.nessieisreal.com` on
+  2026-09-12: the 0.01 withdrawal lands on the mirror account with no name, no CLABE and no amount
+  other than the cent in its description, no customer or account is created, and Nessie stores the
+  amount as a whole number so it reads back as 0, which is why the centavo lives in our ledger.
+  `bun run demo` gained a beat that takes one seeded line to `released` and another to `blocked` from
+  one call each, on the in-process rail and on synthetic CEPs, and it says so on the line it prints.
 - The cross-company beneficiary network, on Snowflake, and the network signal inside the beneficiary
   control (issue #164). A supplier's first payment from this company has no history here and has
   years of it in every other company that already pays that supplier, which is the signal Trustpair
@@ -328,6 +395,97 @@ then the screens, then the narrative, then the plumbing.
   written up on the pull request. `docs/09-api.md` gained "The CEP, and what verify can prove", which
   states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
   where the line between "no verificada" and "invalida" is drawn.
+
+### Changed
+
+- `docs/12-judge-qa.md` gains "Table feedback of 12 September and the answers": the six objections,
+  a thirty-second answer each, and the file or the endpoint each answer rests on named once. The rule
+  it is written under is the one to keep: an answer that is not true in the repository today is written
+  as "today X, and by the demo Y" with the issue that makes it Y, which is why the screen work is
+  #174 and folding the newest sweep into the run counter is #175.
+
+- `docs/11-pitch.md` drops the minutes framing for the loss framing. "En la vida real esto toma ocho
+  minutos y con nuestro producto toma segundos" is now banned in Delivery rules rather than merely
+  discouraged: it prices the product at the wage of the person doing the work, which anyone can
+  compute while you are still talking, and it invites the objection the second engineer gave us. The
+  new section "The value is the loss, not the minutes" says what replaces it, and "The objection about
+  the father's PyME" answers that engineer: the user is not the owner who knows his suppliers by
+  voice, it is the company whose Thursday run pays dozens of them through one clerk, the supplier's own
+  WhatsApp is the channel the attacker uses so trusting the conversation is the failure mode and not
+  the defence, and the 69-B loss needs no fraud at all. The gated table gains the two rows these
+  changes let us say, and the numbers table gains the hold window.
+
+- The three questions three Capital One judges asked at the table on 2026-09-12 in the afternoon are
+  answered with sources, and one claim we had been making is withdrawn (issue #173). They asked, one
+  each: how many people have this problem in Mexico and is there demand, who is already doing it here
+  and what problems do they face, and who exactly is the target user. `docs/04-market.md` had a firm
+  count and a publication frequency, which answers how many could buy and not how many are hit; it had
+  two Mexican competitors, both list checkers; and the user lived in `docs/02-persona.md` as a
+  synthetic persona with no population behind her. Thirty-one sources were added, every one opened on
+  2026-09-12 and every number carrying its own, and the file now opens with "Demand: how many have the
+  problem and how we know" before the sizing, because that is the order the questions arrived in.
+  **The demand answer is two answers**, because there are two losses in one payment. On the fraud side
+  INEGI's victimisation survey of businesses makes medium-sized firms the most victimised size band in
+  the country, 49.0 percent of them victims of a crime in 2023 against 47.3 percent of large firms and
+  a 27.2 percent national average, fraud is 8.5 percent of 2.9 million crimes against economic units
+  at 522 per 10,000 units, KPMG measured supplier or staff email impersonation at 24 percent of the
+  cyberattacks its Mexican respondents reported, and Condusef's own register shows banks refunding
+  MXN 1,265 million of the MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3
+  percent. That last ratio is the thesis in one official number: prevention before the SPEI, not
+  recovery after it. On the fiscal side the head of the SAT said on 2026-09-09 that it has run about
+  2,000 audits of the buyers of false invoices since October 2024, article 49 Bis of the Codigo Fiscal
+  has given those buyers thirty natural days from the DOF publication or a restricted digital seal
+  since 1 January 2026, and article 113 Bis now carries two to nine years of prison for giving
+  `efectos fiscales` to a false invoice. The volume behind the door is SPEI's 7,300 million transfers
+  in 2025, up 36.8 percent, of which 94 percent were at or below about MXN 13,200, so this product
+  addresses the residual six percent and says so. Eight things are stated as not published rather than
+  estimated, including any Mexican peso figure for supplier impersonation, any split of Condusef's
+  claims between companies and consumers, and any business-to-business share of SPEI: Banxico's SIE
+  table CF891 renders through JavaScript and its exports return the page shell, so the transfer count
+  rests on the Governor's Senate remarks as reported and is labelled as a secondary source.
+  **The competitor map lost a claim and gained twelve companies.** It used to say nothing sits in the
+  window between approving a payment run and sending it. That was wrong and it is gone: ValidX sells
+  "antes de pagar, si no cumple se retiene y se notifica a Compras" over a daily sweep of the 69, 69-B,
+  69-B Bis and 49-Bis lists, Portal de Proveedores in Monterrey holds a payment when a document expires
+  and sweeps 69-B daily across 20,000 registered suppliers, CONTPAQi added the 49 Bis situation to its
+  fiscal dashboard in version 19.2.0 on 2026-07-14 while the mass-payment window and the Banorte
+  connection sit in the same product, and Verificamex sells the one-cent probe with a CEP read-back for
+  MXN 8.93 to 17.85 plus IVA a call. Banco de Mexico performs that same probe itself under Regla 51a
+  Bis of the SPEI rules. So "we invented checking 69-B before paying" and "we invented the penny test"
+  are now on the do-not-say list, and the gap is restated as the join with four named edges: both
+  halves in one decision, the account's own history, a decision instead of a warning, and no supplier
+  onboarding and no ERP. Each of the twelve rows carries what the company sells in its own words, its
+  winning feature, the problems it faces from its own dated material, and what it cannot do that we
+  can. The strongest single row is Bind ERP's help centre saying its EFOS check "no restringira" the
+  transaction and only alerts, which is the industry default our hold, verify or release replaces. Two
+  Mexican banks are documented too: HSBCnet does sell beneficiary-name validation, for "unicamente
+  cuentas HSBC", in batches of up to 5,000 accounts inside a 07:00 to 22:00 window, and BBVA Net Cash
+  has the company type the holder's name itself with a token challenge on the last six digits of the
+  account, which authenticates the employee and not the account holder. That retires the
+  TODO(garzario) the row used to carry.
+  **The user has a population behind her now.** `docs/02-persona.md` gained "Target user, buyer,
+  channel and anti-user": 403,000 people in the occupation nationally in 2026-T1 and 25,900 in Nuevo
+  Leon, 67.1 percent women, paid about MXN 11,900 a month here; 60.4 percent of firms with six or more
+  employees bank through the institution's web page against 35.0 percent on a mobile app, which is the
+  surface the product has to sit in front of and the one Banxico's December 2026 guidelines do not
+  reach, since their scope is mobile apps used by personas fisicas; the buyer is the single decision
+  maker of 61.2 percent of firms this size; the channel has a denominator, 16,356 accounting and audit
+  units nationally with 12,130 of them at five people or fewer, so the 120 firms in the plan are 0.7
+  percent of it; and Nuevo Leon holds about 18,500 firms in the band against 89,523 establishments
+  across the four sectors with the longest supplier lists nationally. Four anti-users replace one, each
+  with a published reason. Nothing in that section claims to validate Lupita and the two interview
+  boxes are still unchecked. `docs/12-judge-qa.md` now opens with the three questions, a thirty-second
+  spoken answer each, the numbers allowed to be said with their source and, for each one, what not to
+  say. `docs/14-process.md` records the visit and the diff it caused.
+  **Two findings were retracted in the same pass and both are written down**, because a retraction that
+  leaves no trace gets rediscovered. A first count of job-board vacancies in Nuevo Leon was wrong by an
+  order of magnitude, 146 against an actual 2,145, which moves a ratio from 22 to 1 to about 204 to 1
+  and is corrected in source 44. And a claim that the FBI's annual report makes business email
+  compromise its largest loss category is false, investment fraud is nearly three times larger in the
+  same table, so the line it supported was cut instead of repaired. One scope question is recorded
+  rather than answered: 69-B is no longer the only SAT list published against suppliers, article 49 Bis
+  creates its own and two incumbents already monitor it, so TODO(garzario) before M4 is to add 49 Bis
+  and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
 
 ### Fixed
 
@@ -755,6 +913,17 @@ then the screens, then the narrative, then the plumbing.
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 
 ### Changed
+
+- One vocabulary for the three-word answers the product switches on, with the one-cent verification
+  (issue #166). `NameMatch` and a new `SealState` live in `packages/core/src/domain.ts`, which is
+  where the words the whole product reads belong, and `packages/cep` re-exports the first rather than
+  declaring a second copy of it. The engine's seal verdict is now `valid`, `not_checked` or
+  `invalid`, so `evidence.signatureState` reads `not_checked` where it used to read `unconfirmed`:
+  the same fact, named the way the domain and the API name it, and `sealStateOf` is exported so
+  `GET /api/v1/instructions/:id/verification` reports the verdict the finding carries instead of
+  computing a second one. Nothing about what is claimed moved: `valid` still needs
+  `BANXICO_CEP_CERT_PEM` to have verified the sello, and the three unproven reasons still read as
+  "no verificada" and never as invalid.
 
 - `docs/07-architecture.md` and `docs/08-data-model.md` are finished against the merged tree
   (issue #64), and every figure on both pages now comes from a run or from a cited file. 07 carries

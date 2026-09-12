@@ -34,13 +34,16 @@ import {
   CepFetchError,
   CepParseError,
   type CepQuery,
+  cepByClave,
   fetchCep,
   type HttpLike,
   parseCep,
   verifySignature,
 } from "@hackmty/cep";
-import type { Cep } from "@hackmty/core";
+import type { Cep, Clabe } from "@hackmty/core";
+import { speiKeyOfClabe } from "@hackmty/rail";
 import type { Read } from "./extraction";
+import type { Repository } from "./repo";
 
 export interface CepSource {
   /** True when this server may reach the Banxico portal at all. */
@@ -51,6 +54,17 @@ export interface CepSource {
   accept(xml: string): Read<Cep>;
   /** A CEP from the Banxico portal, checked the same way. */
   retrieve(query: CepQuery): Promise<Read<Cep>>;
+  /**
+   * A CEP that arrived some other way, put through the same seal check.
+   *
+   * The verification pipeline reads a CEP out of the committed index rather than
+   * out of a paste, and it has to be held to the identical rule: the seal is
+   * checked when, and only when, a certificate is configured, and it keeps the
+   * `not_checked` that `parseCep` wrote when there is none. Without this the
+   * pipeline would need its own copy of the certificate, and a second copy of this
+   * decision is how one of them eventually claims a seal nobody verified.
+   */
+  check(cep: Cep): Cep;
 }
 
 /**
@@ -156,6 +170,7 @@ export function acceptOnlyCepSource(certificatePem?: string): CepSource {
     canCheckSeal: certificatePem !== undefined,
     accept: (xml) => acceptXml(xml, certificatePem),
     retrieve: async () => ({ ok: false, message: NO_RETRIEVAL }),
+    check: (cep) => checkSeal(cep, certificatePem),
   };
 }
 
@@ -190,6 +205,7 @@ export function createCepSource(options: CepSourceOptions = {}): CepSource {
     canRetrieve: true,
     canCheckSeal: certificatePem !== undefined,
     accept: (xml) => acceptXml(xml, certificatePem),
+    check: (cep) => checkSeal(cep, certificatePem),
     retrieve: async (query) => {
       try {
         return {
@@ -216,4 +232,175 @@ export function createCepSource(options: CepSourceOptions = {}): CepSource {
       }
     },
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The inbox: a CEP filed under a clave de rastreo                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where a signed CEP is looked for by clave de rastreo, before Banxico is asked.
+ *
+ * The one-cent pipeline knows one thing after the rail answers: the clave the
+ * transfer was filed under. Everything that can answer "do we already hold the CEP
+ * for that clave" lives behind this interface, and the order the pipeline asks in
+ * is the order in docs/09-api.md: the verified beneficiary registry, then this
+ * index of committed documents, then the portal and only with `ALLOW_CEP_FETCH=1`.
+ *
+ * Two implementations and no third. `committedCepInbox` is what a server boots
+ * with: the CEPs committed to this repository, which today is the synthetic
+ * fixture and, from issue #57, the real one-cent CEP under its own clave.
+ * `staticCepInbox` is what `bun run demo` and the suite hand in, so the whole
+ * pipeline can run on a laptop with no network and no key.
+ */
+export interface CepInbox {
+  /** What this inbox is, for the boot log and the demo output. */
+  readonly describe: string;
+  /** The CEP filed under this clave, if we hold one. Never synthesises one. */
+  byClave(clave: string): Promise<Cep | undefined>;
+}
+
+/** The CEPs committed to this repository, indexed by clave de rastreo. */
+export function committedCepInbox(): CepInbox {
+  return {
+    describe: "committed CEP index (packages/cep/src/fixtures)",
+    byClave: async (clave) => cepByClave(clave),
+  };
+}
+
+/**
+ * An inbox over documents the caller built. The demo files the synthetic CEP of a
+ * seeded SPEI here, which no committed file can be: the accounts and the legal
+ * names come out of the generator and move with the seed.
+ */
+export function staticCepInbox(
+  ceps: readonly Cep[],
+  describe = "in-memory CEP index",
+): CepInbox {
+  const byClave = new Map(
+    ceps.map((cep) => [cep.claveRastreo.toUpperCase(), cep]),
+  );
+
+  return {
+    describe,
+    byClave: async (clave) => byClave.get(clave.trim().toUpperCase()),
+  };
+}
+
+/** Where a CEP the pipeline resolved actually came from. The response says it. */
+export type CepOrigin = "registry" | "committed" | "banxico";
+
+export type CepLookup =
+  | { found: true; cep: Cep; origin: CepOrigin }
+  | { found: false; reason: string };
+
+/** What the pipeline knows about the transfer it is looking for. */
+export interface ClaveQuery {
+  claveRastreo: string;
+  beneficiaryAccount: Clabe;
+  /** MXN major units. The probe is 0.01 and the portal matches to the centavo. */
+  amount: number;
+  /** Day of the transfer, YYYY-MM-DD. */
+  date: string;
+  /** Clave SPEI of the sending participant, when the rail is a participant. */
+  senderSpeiKey?: string;
+}
+
+/** What a clerk is told while Banxico has published nothing for the clave yet. */
+export const NO_CEP_YET =
+  "Banxico has published no CEP for this clave de rastreo yet. A CEP appears once the transfer settles, so this is a wait and not a failure: the clave and the account are kept and asked again.";
+
+/**
+ * Finds the signed CEP for one clave de rastreo, in the documented order.
+ *
+ * Registry first, because an account this company has already probed is answered
+ * from what we hold rather than by consulting a public government service again,
+ * which is the same rule `POST /api/v1/cep/verify` follows and is what keeps the
+ * demo independent of banxico.org.mx being up. A stored row is matched on the
+ * clave when it agrees and on the account otherwise: the control is about the
+ * account, and a second probe to the same account carries a different clave.
+ *
+ * Then the committed index, by clave and only by clave: a document filed under the
+ * clave of the cent that just left is evidence about that transfer, and nothing
+ * here will hand back a CEP for a different one.
+ *
+ * The portal last, and only when it can actually be asked. Its query needs both
+ * participants, and a rail that is not a SPEI participant has no clave SPEI to
+ * give: Nessie is a sandbox and not a bank, so a cent sent on the mirror can never
+ * produce a portal query, and this function says so instead of inventing a
+ * participant key. Nothing is ever synthesised: a miss is a miss with a sentence.
+ */
+export async function resolveCepByClave(
+  deps: {
+    repo: Pick<Repository, "beneficiaries">;
+    cep: CepSource;
+    cepInbox: CepInbox;
+  },
+  query: ClaveQuery,
+): Promise<CepLookup> {
+  const stored = await storedForAccount(deps.repo, query);
+  if (stored !== undefined) {
+    return { found: true, cep: stored, origin: "registry" };
+  }
+
+  const committed = await deps.cepInbox.byClave(query.claveRastreo);
+  if (committed !== undefined) {
+    /* Through the same seal check as a pasted document: a committed CEP with a
+       certificate configured is verified, and with none it keeps `not_checked`. */
+    return { found: true, cep: deps.cep.check(committed), origin: "committed" };
+  }
+
+  if (!deps.cep.canRetrieve) {
+    return { found: false, reason: `${NO_CEP_YET} ${NO_RETRIEVAL}` };
+  }
+  if (query.senderSpeiKey === undefined) {
+    return {
+      found: false,
+      reason: `${NO_CEP_YET} The rail that sent the cent is not a SPEI participant, so there is no ordenante key to put in a Banxico portal query.`,
+    };
+  }
+
+  let receiverKey: string;
+  try {
+    receiverKey = speiKeyOfClabe(query.beneficiaryAccount);
+  } catch (cause) {
+    return {
+      found: false,
+      reason: `${NO_CEP_YET} ${cause instanceof Error ? cause.message : String(cause)}`,
+    };
+  }
+
+  const retrieved = await deps.cep.retrieve({
+    claveRastreo: query.claveRastreo,
+    date: query.date,
+    amount: query.amount,
+    senderBank: query.senderSpeiKey,
+    receiverBank: receiverKey,
+    beneficiaryAccount: query.beneficiaryAccount,
+  });
+
+  return retrieved.ok
+    ? { found: true, cep: retrieved.value, origin: "banxico" }
+    : { found: false, reason: retrieved.message };
+}
+
+/** A CEP already verified for this account, by clave first and account second. */
+async function storedForAccount(
+  repo: Pick<Repository, "beneficiaries">,
+  query: ClaveQuery,
+): Promise<Cep | undefined> {
+  const rows = await repo.beneficiaries();
+  const mine = rows.filter(
+    (row) => digitsOf(row.clabe) === digitsOf(query.beneficiaryAccount),
+  );
+
+  return (
+    mine.find((row) => row.cep.claveRastreo === query.claveRastreo)?.cep ??
+    mine[0]?.cep
+  );
+}
+
+/** Digits only, so a CLABE stored with spaces still compares. */
+function digitsOf(value: string): string {
+  return value.replace(/\D+/g, "");
 }

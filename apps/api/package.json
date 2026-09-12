@@ -17,6 +17,7 @@
     "@hackmty/db": "workspace:*",
     "@hackmty/engine": "workspace:*",
     "@hackmty/extract": "workspace:*",
+    "@hackmty/rail": "workspace:*",
     "@hackmty/sat": "workspace:*",
     "@hackmty/seed": "workspace:*",
     "@hackmty/voice": "workspace:*",

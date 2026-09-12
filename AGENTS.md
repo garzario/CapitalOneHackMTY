@@ -65,6 +65,11 @@ If the ADR is changed, change this section in the same PR.
   import them back. Adapters only: every rule lives in core.
 - `packages/nessie`, the only place that talks to Nessie. Read "Nessie quirks" before touching it.
   Tests run against recorded fixtures in `src/fixtures/`, with no network.
+- `packages/rail`, the only place that sends money, and it sends one amount: the 0.01 MXN
+  verification probe. `NessieRail` writes it to the company's bank mirror (verified live),
+  `StpRail` is the documented production path that refuses to run without `STP_*`, and
+  `FakeRail` is the in-process one the suite and `bun run demo` use. Read `README.md` in that
+  folder before quoting any of it: it says which rail has run live and which has not.
 - `packages/consortium`, the only place that talks to the cross-tenant network on Snowflake: the
   hashing that is the privacy boundary, the key-pair JWT, the SQL REST API with an injectable
   `fetch`, the DDL, the push and the pull, and the deterministic synthetic network the demo reads.

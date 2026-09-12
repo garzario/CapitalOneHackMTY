@@ -18,6 +18,116 @@ SAT loader and the CEP evidence (#43, #55, #35, #57) to `Apanawa`. The per-perso
 follow the board, because that is what a judge will see in the commits. TODO(garzario): reconcile
 `AGENTS.md` or the assignments before M4, so that both say the same thing.
 
+## The three questions the judges actually asked
+
+On 2026-09-12 in the afternoon three Capital One judges came to the table and asked one of these
+each. They are now the first thing on this sheet because they were the first thing asked, and because
+two of the three were answered badly the first time. Every number below is derived in
+`docs/04-market.md` and the bracketed sources are that file's numbered list. Anyone on the team can
+give these three. Nothing outside the "allowed to say" rows goes out loud.
+
+### 1. How many people have this problem in Mexico, and is there demand?
+
+**Thirty seconds.** "Two problems and two sets of official numbers. On the fraud side, INEGI's
+victimisation survey of businesses makes medium-sized firms the most victimised size band in the
+country, 49 percent of them hit by a crime in 2023, more than large firms, and Condusef's own register
+shows the banks gave back 24 percent of the pesos claimed for fraud in the first quarter of this year.
+That is the whole thesis: once it leaves, one peso in four comes back. On the fiscal side the head of
+the SAT said three days ago that it has audited about two thousand buyers of false invoices in the
+last twenty-two months, and since January the buyer risks two to nine years of prison and loses the
+ability to invoice at all if it misses a thirty-day window. The band is about 246,000 firms. The
+number nobody publishes is the intersection of the two, and I will tell you that before you ask."
+
+| Allowed to say | Source |
+|---|---|
+| 49.0 percent of medium-sized and 40.7 percent of small economic units were crime victims in 2023, against a 27.2 percent national average | [14] |
+| 1.3 million establishments victimised, MXN 124.3 thousand million of cost, 0.51 percent of GDP | [14] |
+| Fraud is 8.5 percent of 2.9 million crimes, 522 per 10,000 units, MXN 18,370 each | [15] |
+| 90.3 percent of crimes against economic units produced no complaint or file, and only 12.2 percent were reported | [14] |
+| 24 percent of cyberattacks on surveyed Mexican companies were supplier or staff email impersonation; 45 percent reported a fraud; only 43 percent run supplier due diligence | [16] |
+| 5,213,358 possible-fraud bank claims in 2025, 72 percent of all claims, MXN 22,341 million | [17] |
+| Banks refunded MXN 1,265 million of MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3 percent | [18] |
+| SPEI moved more than 7,300 million transfers in 2025, up 36.8 percent, and 94 percent were at or below about MXN 13,200 | [19] |
+| About 2,000 buyer-side audits, more than 3,000 factureras published and more than 38,000 companies blocked, October 2024 to August 2026 | [20] |
+| 903 EFOS published in 2026 to 12 June, and 7,300 digital seals restricted beyond them | [21] |
+| Thirty natural days to reverse or lose the digital seal, 45 business days for the SAT to publish, two to nine years of prison for the buyer | [4] |
+| 86.3 percent of the 11-to-250 band already runs accounting software or pays an external accountant | [24] |
+| About 246,000 Mexican firms at 11 to 250 people, TAM MXN 2,655 million a year | [1] |
+
+**Do not say.** Any peso figure for supplier impersonation or business email compromise in Mexico,
+because none is published. Any share of those 5.2 million claims belonging to companies, because
+Condusef does not separate personas morales from consumers. Any business-to-business share of SPEI.
+Any standing count of buyers currently exposed, because the SAT publishes issuers and never buyers.
+The answer when pushed is "that number is not published and I am not going to invent it at this
+table, here is the one that is", which is also the answer that buys the most credibility.
+
+### 2. Who is already doing it in Mexico, what are their winning features, and what problems do they face?
+
+**Thirty seconds.** "Two camps, and we are neither. The fiscal camp already holds payments on the SAT
+list: ValidX sells exactly 'antes de pagar, si no cumple se retiene y se notifica a Compras', a
+Monterrey company called Portal de Proveedores sweeps 69-B daily across twenty thousand suppliers and
+holds the payment, and CONTPAQi has the list and the mass-payment button inside the same product. The
+money camp moves the pesos and never looks at who receives them: Clara disperses hundreds of SPEI
+from a spreadsheet the payer uploads, and Xepelin's own page describes the whole flow in three steps,
+none of which is a counterparty check. Even the one-cent probe is a commodity, Verificamex sells it
+for nine to eighteen pesos a call. So no, we did not invent checking 69-B before paying. What nobody
+sells is the join of both halves in one decision, and what nobody sells at all is the account's own
+history."
+
+| Company | Winning feature | The problem, from its own dated material | Source |
+|---|---|---|---|
+| ValidX | Pre-payment hold plus a daily sweep of four SAT lists, by API | Only the SAT is marked available; IMSS, Buró and every sanctions list are roadmap and "no se pueden consultar hoy". Phased rollout to a reduced client group, no published price, no ERP connector | [31] |
+| Portal de Proveedores, Monterrey | Holds payment on an expired document, sweeps 69 and 69-B daily, 125,000 CFDI a month self-reported | A buyer-imposed portal that 14,000 suppliers log into, which a 28-person firm cannot impose. No bank layer at all | [32] |
+| CONTPAQi Contabilidad-Bancos | The list and the payment run in one product; added 49 Bis in July 2026 | Its own changelog from 14.2.4 to 19.3.1 has no pre-payment check of the beneficiary against any list. The signal is a retrospective dashboard | [33] |
+| Bind ERP | Free EFOS verifier, zero friction | Its help centre says the system "no restringirá" the transaction and only alerts. This is our best single argument for deciding instead of warning | [34] |
+| Verificamex | The penny test as a metered API, MXN 8.93 to 17.85 plus IVA, 90+ banks | No 69-B, no CFDI, no duplicates, no decision. One account verified in isolation with no history to compare against | [35] [36] |
+| Clara | 40,000 companies, SAT invoice validation, custom approval flows | Batch dispersal from an uploaded .xlsx: invoice-valid plus approver-valid plus beneficiary-unknown | [37] |
+| Xepelin | Confirming plus the payment, USD 10 thousand million financed | Three steps, no counterparty verification, and suppliers need not be registered at all | [38] |
+| albo empresa | CNBV-authorised IFPE, MXN 71 thousand million a month, 3,000 payments at once | Its published protection is authentication and monitoring of the sender, never the counterparty | [39] |
+| Yaydoo inside Paystand | Grew more than 100 percent year on year | Its own chief executive said in March 2026 it is moving from pyme to medianas and grandes. The category leader is leaving our segment | [40] |
+| Mendel | USD 35 million Series B, Mercado Libre and FEMSA as customers | Built for "las grandes empresas de Latinoamérica" against SAP Concur. The tier above us is taken, which answers "why not just add this" | [41] |
+| HSBC México, HSBCnet | It really does sell beneficiary-name validation | "Únicamente cuentas HSBC", a batch file of up to 5,000 accounts, 07:00 to 22:00, report in up to 20 minutes. A hygiene sweep, never a gate | [42] |
+| BBVA México, Net Cash | The largest bank's own corporate flow | The company types the holder's name itself. The only control is a token challenge on the last six digits, which authenticates the employee and not the account holder | [43] |
+
+**Do not say.** "Nobody in Mexico checks 69-B before paying", "we invented the penny test", or "the
+window is empty". All three are breakable in one search, and the last two are contradicted by Banco
+de México's own rules, which have the central bank sending a one-centavo transfer and reading the CEP
+[29]. Do not say anything about Belvo either: its site refuses automated fetching and we know nothing
+about what it sells here. And do not claim a customer complaint about any competitor, because the
+review sites blocked us and every problem in that table is the vendor's own admission or a named
+outlet.
+
+### 3. Who exactly is the target user?
+
+**Thirty seconds.** "The one administrative clerk who runs the supplier payment run at a formal firm
+of 11 to 250 employees. Not a treasurer, because there is no treasurer: Nuevo León had eleven
+treasury vacancies of any kind on the day we looked, against a hundred for accounting clerks. There
+are 403,000 people in that occupation nationally and 25,900 in this state, two thirds of them women,
+paid about twelve thousand pesos a month here, and 60 percent of firms her size do their banking in a
+browser, which is where we sit. The buyer is the owner, who is the single decision maker in six out
+of ten firms this size and who is also the person a hold escalates to. The channel is the despacho
+contable, and there are 16,356 of them, three quarters with five people or fewer. Who it is not: the
+micro firm with no weekly run, the company above 250 that already has an ERP and a treasury team, and
+anyone informal, because every control we run reads a CFDI, a CLABE or a CEP."
+
+| Allowed to say | Source |
+|---|---|
+| 403,000 in the occupation nationally in 2026-T1, 25,900 in Nuevo León, MXN 8,640 a month nationally and MXN 11,900 in Nuevo León, 67.1 percent women, average age 38 | [27] |
+| 60.4 percent of firms with six or more employees bank through the institution's web page, against 35.0 percent on a mobile app | [28] |
+| The principal decision maker is a director or manager in 61.2 percent of firms, a partner or founder in 19.9 percent | [28] |
+| 16,356 accounting and audit units nationally, 737 in Nuevo León, 12,130 of them with five people or fewer | [26] |
+| About 18,500 firms at 11 to 250 people in Nuevo León, 10.2 percent of the state's 181,791 units, employing about 685,000 people | [25] |
+| 89,523 establishments at 11 to 250 in manufacturing, wholesale, transport and construction, 54,555 of them at 11 to 30 people | [26] |
+| Micro units are 89.3 percent of Nuevo León's units and 21.7 percent of its employment; firms above 250 are 0.6 percent of units and 42.7 percent of employment | [25] |
+| Eleven treasury vacancies in Nuevo León on 2026-09-12 against 101 for `auxiliar contable`, from a job board and labelled as one | [44] |
+
+**Do not say.** That 403,000 are all accounting clerks, because the occupation code bundles in
+economists, finance staff and stockbrokers and the figure is an upper bound. That the 61.2 percent
+plus 19.9 percent plus 10.8 percent are "the owner side", because a director or manager may be an
+employee and the survey measures decisions in general and not the payment decision. That a job board
+is a statistic. And that any of this validates Lupita: it sizes the population she is drawn from, and
+`docs/02-persona.md#pending-human-validation` is still two unchecked boxes.
+
 ## Per person
 
 ### Patricio (`garzario`), lead, intelligence and architecture
@@ -60,7 +170,7 @@ follow the board, because that is what a judge will see in the commits. TODO(gar
 | What do you own | The web surface (#46 to #51), `docs/00` to `06`, `docs/13`, `docs/14`, the README and the Devpost submission |
 | The one screen to show | The payment-run screen with the alert rail, then the finding panel with its evidence chips. That pair is stage 3 of `docs/03-user-journey.md` |
 | The experience in three sentences | The run arrives sorted by pesos at risk instead of alphabetically, so attention goes where the money is. Every finding says what produced it in plain Spanish and shows the evidence, including which digits of the account differ from the one we have paid before. Nothing accuses anyone: a finding is either provable from documents or it needs a human check, and a person makes every decision |
-| The market in three sentences | TODO(FabriBanda) |
+| The market in three sentences | TODO(FabriBanda), in your own words. The long version, with the numbers allowed and the three things not to claim, is in [The three questions the judges actually asked](#the-three-questions-the-judges-actually-asked) |
 | The current honest gap | TODO(FabriBanda), refresh at every milestone |
 | What is next | TODO(FabriBanda) |
 
@@ -168,6 +278,160 @@ analytics store, and we never compute on the shared enterprise pool.
 
 **What did you cut, and why.** The `cut` label on the board, with one line of reasoning per issue,
 listed in `docs/14-process.md`. Name two specific ones out loud, including one you wanted.
+
+## Table feedback of 12 September and the answers
+
+Three Capital One judges, two engineers and one product person, came to the table on the afternoon of
+2026-09-12 and the table went badly. What follows is what they said and the answer to give next time,
+each one in about thirty seconds. Every sentence here is checked against the code, and the file or the
+endpoint it rests on is named once. Issue #171.
+
+The rule that produced this section, and it is the rule for adding to it: **an answer that is not true
+in the repository today is written as "today X, and by the demo Y", with the issue number that makes it
+Y.** A judge who finds the gap costs more than the gap.
+
+### 1. "Do you know who your competition is?" We could not answer
+
+> Si. Dos directos mexicanos, tres plataformas globales, y el statu quo. Los mexicanos corren sobre
+> una lista: 69b.mx monitorea RFCs por ciento noventa y nueve pesos al mes, y Tesio cruza los CFDI que
+> ya descargaste contra la lista actualizada desde cuatrocientos noventa y nueve. Ninguno de los dos ve
+> nunca la cuenta a la que esta por salir el dinero. Las tres globales de verificacion de beneficiario,
+> Trustpair, nsKnox y Eftsure, si ven la cuenta y no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en nada
+> de su material publico que hayamos encontrado. Y el statu quo es el contador con una hoja de calculo
+> y WhatsApp. Nosotros somos el unico que junta las tres cosas en el momento del pago.
+
+Rests on: `docs/04-market.md#competitor-map`, where every company named is named with its own published
+material and its access date. The market, the gap and the sizing are issue #169 and land in `docs/04`,
+`docs/02` and the sections above.
+
+### 2. "My father has a PyME and talks to his suppliers constantly. I am not your user"
+
+> Correcto, usted no es el usuario. El usuario no es el dueno que conoce a cinco proveedores por la
+> voz. Es la empresa cuya corrida del jueves le paga a decenas de proveedores a traves de una sola
+> persona de administracion, que no conoce a ninguno por la voz y que no puede llamarle a cuarenta y
+> cuatro. Y hay algo mas importante: el WhatsApp y el correo del proveedor son precisamente el canal
+> que usa el atacante. Confiar en la conversacion no es la defensa, es el modo de falla. Y la perdida
+> del articulo 69-B no necesita fraude de nadie: nadie le robo nada, el SAT publico una lista, y las
+> deducciones que ya tomo se anularon.
+
+Rests on: `docs/02-persona.md` for the person, and the narrative rule in
+`docs/adr/0002-track-and-thesis.md` that keeps the hook fiscal instead of "me cambiaron la cuenta". The
+demo company is 28 employees with 44 suppliers over eight months of history, printed by `bun run seed`.
+
+### 3. "What is the market, the model, the competition, what are you solving, is it worth anything?"
+
+> Doscientos cuarenta y seis mil empresas mexicanas de once a doscientos cincuenta personas, y el
+> tamano se construye de abajo hacia arriba, entidades por precio, con cada insumo citado. Cobramos
+> ochocientos noventa y nueve pesos al mes a la empresa y tres mil novecientos al despacho contable que
+> trae veinte. Se paga con una sola factura detenida de veintitres mil cuatrocientos cincuenta y dos
+> pesos de subtotal al ano. Y si despues de doscientos barridos gratuitos menos del cinco por ciento
+> destapa un RFC listado o un beneficiario no verificable, el problema es demasiado raro en este
+> segmento y paramos. Esa prueba corre sobre la cuna, cuesta un mes y no un ano.
+
+Rests on: `docs/04-market.md#sizing` and `docs/05-business-model.md`. The stop condition is the last
+row of `docs/05`, and volunteering it is the point: a business model with no falsification test is a
+pitch.
+
+### 4. "In real life this takes 8 minutes and with your product it takes seconds." They did not care
+
+They were right, and the sentence is out of the pitch.
+
+> Tiene razon, los ocho minutos no valen nada. Lo que vale es la perdida que no ocurrio, y por eso la
+> corrida contesta en pesos y no en minutos: cuanto se detuvo, cuanto se libero, y cuanto de lo que ya
+> pagamos y ya dedujimos quedo expuesto. De un subtotal rechazado se revierte el cuarenta y seis por
+> ciento entre ISR e IVA, asi que una factura de cien mil pesos de subtotal detenida paga cincuenta y
+> un meses de suscripcion, y un SPEI mal dirigido del mismo monto paga ciento once, porque ahi no hay
+> nada que revertir. No decimos con que frecuencia pasa. Eso es justo lo que mide el barrido gratuito.
+
+Rests on: `GET /api/v1/run/current`, whose `totals` now carry `heldAmount`, `toVerifyAmount`,
+`releasedAmount`, `stoppedAmount`, `amountAtRisk`, `retroactive69bBase` and `retroactive69bExposure`,
+from `runMoney` in `packages/core/src/exposure.ts`. The two 69-B fields are what the run's own findings
+price, and they read zero until a sweep has priced a supplier this run pays; the whole-ledger figure for
+one publication is `SweepResult.totalExposure` on `POST /api/v1/sat/publish` and on the sweep
+constancia. Today the run screen shows the pesos it stopped and not the retroactive pair, and by the
+demo it shows both (#174); folding the newest sweep into the run counter so it climbs on stage is #175.
+
+### 5a. "What if the person does not answer the call?"
+
+> Nadie contestando es una respuesta, no un hueco. El lector de la llamada la clasifica como no_answer,
+> que incluye el buzon de voz, y eso queda en la bitacora con la frase que se escucho. El pago sigue
+> detenido: la llamada no libera nada, nunca. Y en la misma respuesta viene el plazo y los siguientes
+> pasos: volver a llamar, verificar la cuenta con un centavo, que no necesita que nadie conteste nada,
+> o liberar con nombre y con razon escrita. La retencion trae fecha limite, tres dias, y el reintento se
+> acota con esa fecha y no con un contador.
+
+Rests on: `parseVerificationOutcome` in `packages/voice/src/outcome.ts` for the four outcomes, and
+`POST /api/v1/instructions/:id/verify-call`, whose recorded response carries `hold` with the deadline
+and the ordered `nextSteps` from `holdWindow` in `packages/core/src/hold.ts`. Two properties worth
+volunteering: `releasesPayment: false` is on every response of that endpoint, and after a `denied` the
+only step offered is `keep_held`, because suggesting "libera de todos modos" next to the supplier's own
+denial would be the product arguing against its own finding. Today the deadline and the steps are in
+the API and not yet on the screen, and by the demo they are on the instruction detail (#174).
+
+### 5b. "What if it is urgent and nobody answers?"
+
+> Se libera, y se libera bien. Hay salida y esta dentro del producto, porque una retencion sin salida
+> se brinca por fuera, donde no queda registro de nada. El pago se libera con el nombre de quien lo
+> decide y con la razon escrita, y en la pantalla en ese momento estan los pesos en riesgo, la perdida
+> esperada y lo que cuesta retrasar ese pago un dia. Queda como evento decision_made en una bitacora
+> que solo crece.
+
+Rests on: `POST /api/v1/instructions/:id/decide`, which takes `decidedBy` and `reason` and answers
+`amountAtRisk` next to the decision; the argument is stored on `decisions.reason`
+(`packages/db/migrations/0009_decision_reason.sql`) and travels on the `decision_made` event. The
+expected loss and the delay cost are already on the instruction screen beside the three buttons, in
+`apps/web/src/screens/InstructionScreen.tsx`. Honest gap: that screen still sends a fixed `clerk@demo`
+and does not ask for the reason before an override, so today the reason is recorded when it is sent and
+by the demo the screen asks for it under the person's own name (#174). The API deliberately does not
+refuse a release with no prose, because an API that did would be refused by the clerk instead, outside
+the product.
+
+### 5c. "What if the calculation is wrong? How sure are you about the percentages?"
+
+> Los dos errores no cuestan lo mismo, y el producto esta escrito alrededor de eso. Un falso positivo
+> cuesta un retraso, y el retraso esta acotado por la fecha limite de la retencion y valuado en pesos
+> por dia dentro de la decision misma. Un falso negativo cuesta el monto completo y es irrevocable.
+> Ademas ningun hallazgo es una acusacion: cada uno trae su evidencia en pantalla y decide una persona.
+> Y dos de los seis controles no son estimaciones, son hechos: que un RFC este en la lista del 69-B, y
+> que el titular de la cuenta en un comprobante que firma Banxico sea o no la razon social del CFDI que
+> estamos pagando.
+>
+> De los numeros: treinta casos etiquetados por quien no escribe los detectores, ochenta y cinco por
+> ciento de precision, ochenta y uno de recall, uno punto nueve por ciento de falsos positivos, y el
+> motor eligio la accion etiquetada en veintiocho de treinta. Son casos sinteticos y lo decimos. La
+> calibracion de verdad es despues del hackathon: modo sombra con un socio de diseno, sobre corridas
+> reales, y si despues de doscientos barridos menos del cinco por ciento destapa algo, paramos.
+
+Rests on: the asymmetry is `decide` in `packages/core/src/decision.ts`, whose header says the tie goes
+to paying and why; the deadline is `holdWindow`, built on the same `EXPECTED_DELAY_DAYS` table the
+expected loss was weighed against, so the arithmetic and the promise on screen cannot drift apart. The
+numbers come from `scripts/eval.ts` over the thirty cases in `packages/seed/src/holdout/cases`, served
+by `GET /api/v1/metrics`, and they were re-run on this branch before this section was written. Read them
+off a fresh run, never from memory.
+
+One thing to volunteer rather than defend: **the loss probability per severity is a prior, not a
+measurement.** `LOSS_PROBABILITY_BY_SEVERITY` in `decision.ts` carries three numbers with a `TODO` on
+top saying exactly that, and the UI says so too. What is not a prior is the amount at risk: it is the
+instruction's own pesos plus, for a listed supplier, the ISR and IVA that reverse on the subtotal
+already deducted, at the published rates. The shape of the table is the argument, the values are the
+assumption, and they sit in one place so tuning the engine is a one-line diff a reviewer can see.
+
+### 6. "The judges looked uninterested. It did not seem like a real problem"
+
+That is a hook failure and not a product failure, so the fix is the first sentence and not the build.
+
+> Dos cosas son ciertas cuando le pagas a un proveedor en Mexico. Si ese proveedor aparece en la lista
+> del articulo 69-B del SAT, las deducciones que ya tomaste sobre sus facturas se anulan de forma
+> retroactiva, y tienes treinta dias desde la publicacion para responder. La lista cambio treinta y
+> tres veces en doce meses, una cada once dias. Y una vez que sale el SPEI es firme e irrevocable. La
+> exposicion la crea la publicacion, no el pago, asi que revisar al proveedor cuando lo diste de alta
+> no protege nada. Esto no necesita que nadie te defraude.
+
+Rests on: the hook table at the top of `docs/11-pitch.md`, with both halves cited at their primary
+source, Codigo Fiscal de la Federacion article 69-B and Ley de Sistemas de Pagos article 11. Say it
+first, every time. The honest gap to volunteer in the same breath: we have no frequency figure for how
+often this bites a company of this size, and the free supplier-register sweep in the go-to-market is
+the thing that measures it.
 
 ## Rules for this sheet
 

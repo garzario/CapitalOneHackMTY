@@ -28,7 +28,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
 import type {
   InstructionDetail,
@@ -157,16 +157,54 @@ export interface Repository {
   ): Promise<ConsortiumLookup>;
   metrics(): Promise<Metrics>;
   ledger(query: LedgerQuery): Promise<LedgerEvent[]>;
+  /**
+   * Every event the verification of one instruction is folded out of, in append
+   * order: its `cent_sent`, `cep_awaited` and `decision_made`, plus the
+   * `cep_verified` of the account it pays to.
+   *
+   * A targeted read rather than a slice of `ledger`, because the seeded company's
+   * ledger is thousands of events long and that one answers the oldest 500: the
+   * cent that left a minute ago would never be in the page. `beneficiaryAccount`
+   * is the instruction's CLABE, because a `cep_verified` names an account and no
+   * instruction, which is the honest shape for evidence about who holds an
+   * account.
+   */
+  verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]>;
 
   /* Writes. Each one is append-only from the ledger's point of view. */
   appendEvent(event: LedgerEvent): Promise<void>;
   saveIntake(record: IntakeRecord): Promise<void>;
+  /**
+   * A person confirms an action. `reason` is what they wrote about it, and it
+   * travels with the decision so the `decision_made` event carries the argument
+   * and not only the verdict.
+   */
   recordDecision(
     instructionId: string,
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined>;
+  /**
+   * A decision the engine reached itself on new evidence, with the findings it
+   * weighed.
+   *
+   * Separate from `recordDecision` because that one is a person changing the
+   * action and nothing else, and says so: it carries the pesos and the evidence
+   * over unchanged. Here the evidence is what changed, so the findings are stored
+   * first and the decision is the engine's whole arithmetic. `decidedBy` is the
+   * caller's to set and is `SYSTEM_DECIDER` on the only path that uses this.
+   *
+   * Findings are added and never removed. A finding is evidence about a moment,
+   * and the decision names the ones it weighed, so a control that stopped firing
+   * (a CEP turning a new account into a known one) leaves its earlier finding on
+   * the record instead of rewriting what the clerk was shown yesterday.
+   */
+  recordEngineDecision(decision: Decision): Promise<void>;
   /** Stores a list version and returns what it touches. It does not price it. */
   publishSatList(
     listVersion: string,
@@ -318,6 +356,10 @@ export class MemoryRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        /* The pesos, from the same pure function the Postgres store calls. Two
+           implementations of "how much did this run stop" is how a screen and a
+           constancia end up disagreeing in front of a judge. */
+        ...runMoney(items),
       },
       items,
     };
@@ -490,6 +532,37 @@ export class MemoryRepository implements Repository {
     return copy(events.slice(0, limit));
   }
 
+  /**
+   * The verification events of one instruction, with the same matching rules as
+   * `readVerificationEvents` in `packages/db`: the instruction id on the three
+   * kinds that carry one, and the beneficiary account on `cep_verified`.
+   *
+   * The accounts are compared as the two stores hold them, character for
+   * character, rather than digits-only. Normalising here and not in SQL is how the
+   * two repositories would start answering different things for the same ledger,
+   * and the parity suite would not catch it because it would ask both through this
+   * method.
+   */
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return copy(
+      this.data.ledger.filter((event) => {
+        if (event.type === "cent_sent" || event.type === "cep_awaited") {
+          return event.instructionId === instructionId;
+        }
+        if (event.type === "decision_made") {
+          return event.decision.instructionId === instructionId;
+        }
+        if (event.type === "cep_verified") {
+          return event.cep.beneficiaryAccount === beneficiaryAccount;
+        }
+        return false;
+      }),
+    );
+  }
+
   /* --------------------------------------------------------------- writes */
 
   async appendEvent(event: LedgerEvent): Promise<void> {
@@ -526,6 +599,7 @@ export class MemoryRepository implements Repository {
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = this.decisionRow(instructionId);
     if (current === undefined) {
@@ -535,8 +609,50 @@ export class MemoryRepository implements Repository {
     current.action = action;
     current.decidedBy = decidedBy;
     current.decidedAt = decidedAt;
+    /* Deleted and not left in place when no reason is given: a release with an
+       argument, followed by a hold with none, must not read as if the second one
+       carried the first one's sentence. */
+    if (reason === undefined) {
+      delete current.reason;
+    } else {
+      current.reason = reason;
+    }
 
     return copy(current);
+  }
+
+  /**
+   * The engine's decision, with its findings.
+   *
+   * The stored decision row is replaced in place rather than appended to, because
+   * `decisionRow` answers the first row for an instruction and a second one would
+   * be invisible; the Postgres store inserts and answers the newest, and the two
+   * agree on what a reader sees. The findings are a union, so the evidence the
+   * clerk saw before this ran is still on the line.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    const stored = copy(decision);
+    const known = new Set(this.data.findings.map((finding) => finding.id));
+
+    for (const finding of stored.findings) {
+      if (!known.has(finding.id)) {
+        this.data.findings.push(copy(finding));
+      }
+    }
+    const attached = new Set([
+      ...(this.data.findingsByInstruction[stored.instructionId] ?? []),
+      ...stored.findings.map((finding) => finding.id),
+    ]);
+    this.data.findingsByInstruction[stored.instructionId] = [...attached];
+
+    const index = this.data.decisions.findIndex(
+      (row) => row.instructionId === stored.instructionId,
+    );
+    if (index === -1) {
+      this.data.decisions.push(stored);
+      return;
+    }
+    this.data.decisions[index] = stored;
   }
 
   async publishSatList(
