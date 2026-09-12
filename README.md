@@ -86,8 +86,12 @@ bun run seed                    # idempotent, prints the demo account IDs
 bun run dev                     # web and API together
 ```
 
-Optional preflight before the first run: `bun run doctor` checks the bun version, the environment
-variables and database reachability. Copy `.env.example` to `.env` first.
+Optional preflight before the first run and before every rehearsal: `bun run doctor` checks the bun
+version, every variable in `.env.example` with the files that read it and one clause saying what
+stops working without it, the committed SAT list snapshot, the CEP fixture, which database path is
+live and how much of it is migrated and seeded, and closes on whether this laptop can still demo with
+the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
+warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
 Three commands worth knowing about. `bun test` runs 1023 tests across 59 files with no network, no
 database and no API key, which is the fastest way to check that the intelligence is real. `bun run

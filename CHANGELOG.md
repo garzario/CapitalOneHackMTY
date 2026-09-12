@@ -96,6 +96,24 @@ then the screens, then the narrative, then the plumbing.
   reduced motion reaching the duration tokens, and WCAG contrast on every colour pairing in both
   themes, exiting non-zero on a failure. `bun run audit:web` and `bun run shoot:web`.
 - Screenshots for the six screens at four widths and the README loop, in `assets/screenshots`.
+- `bun run doctor` answers the pre-demo checklist and not only the setup one (issue #63). It names
+  the committed SAT list snapshot with its list version, retrieval date and counts and warns when
+  that download is more than 30 days old, parses the CEP fixture and reports the signature as not
+  checked rather than valid, says whether a real CEP has landed yet, and on the database says which
+  path is live, how many of the five migrations are applied with a Timescale-only file on a plain
+  host named as expected rather than missing, what the Ceptinela tables hold and how many rows the
+  bank mirror has. Every variable in `.env.example` is reported with the files that actually read it,
+  grepped from `apps/`, `packages/` and `scripts/` rather than remembered, and one clause saying what
+  stops working without it, and the last line is whether this laptop can demo with the network
+  unplugged. That last line only counts what stops a demo: a SAT snapshot that is merely old still
+  answers offline, so its age is a clause after the verdict and not a reason against it, and an
+  unmigrated database is sent to `bun run migrate` while an empty one is sent to `bun run seed`,
+  because seeding cannot create tables. A database that refuses the connection prints a reason rather
+  than an empty one, which is what the driver gives on ECONNREFUSED. The checks moved to
+  `scripts/doctor/checks.ts`, pure or dependency-injected, with `scripts/doctor/checks.test.ts`
+  covering the stale snapshot, the edited migration, the plain Postgres path, the readiness rule and
+  those three, plus one database case gated on `TEST_DATABASE_URL`. Only a bun version mismatch still
+  fails a plain run; `--strict` exits 1 on any warning.
 
 ### Fixed
 
