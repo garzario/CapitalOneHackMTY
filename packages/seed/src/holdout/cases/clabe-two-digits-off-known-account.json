@@ -1,0 +1,59 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-two-digits-off-known-account",
+  "title": "The account is two digits away from the one this supplier has been paid on for four years",
+  "kind": "positive",
+  "notes": "Same bank, same plaza, valid check digit, and two digits different from an account paid 74 times. Equality against the account list misses this completely, which is why the detector measures distance instead.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-103",
+      "supplierRfc": "SYN030505S05",
+      "cfdiUuids": ["00000000-0003-4d00-8a00-000000000003"],
+      "clabe": "012180003091764613",
+      "amount": 67512,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN030505S05",
+      "legalName": "Servicios Electricos Monterrey SA de CV",
+      "firstInvoiceAt": "2022-06-23T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2022-07-28T15:30:00.000Z",
+          "timesPaid": 74
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0003-4d00-8a00-000000000003",
+        "serie": "A",
+        "folio": "704",
+        "issuedAt": "2026-08-27T15:30:00.000Z",
+        "issuerRfc": "SYN030505S05",
+        "issuerName": "Servicios Electricos Monterrey SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 58200,
+        "iva": 9312,
+        "total": 67512,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "severity": "critical",
+      "because": "Two edits from an account with a long payment history is the documented shape of both a hand-edited number and an OCR misread, and the arithmetic cannot tell the difference."
+    }
+  ],
+  "expectedAction": "verify"
+}

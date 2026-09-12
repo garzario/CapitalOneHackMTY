@@ -18,7 +18,6 @@
 import type {
   Cfdi,
   Decision,
-  Detector,
   Finding,
   LedgerEvent,
   LedgerTx,
@@ -29,6 +28,7 @@ import type {
   Supplier,
 } from "@hackmty/core";
 import { sumAmounts } from "@hackmty/core";
+import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
 import type {
   InstructionDetail,
   PaymentRun,
@@ -118,15 +118,6 @@ export interface Repository {
   reset(seed: number): Promise<ResetSummary>;
 }
 
-const ALL_DETECTORS: readonly Detector[] = [
-  "sat_69b",
-  "clabe_forensics",
-  "duplicate_invoice",
-  "supplier_behaviour",
-  "beneficiary_cep",
-  "bank_reconciliation",
-];
-
 const DEFAULT_LEDGER_LIMIT = 500;
 
 /**
@@ -138,16 +129,25 @@ function copy<T>(value: T): T {
   return structuredClone(value);
 }
 
-function ratio(numerator: number, denominator: number): number {
-  return denominator === 0 ? 0 : numerator / denominator;
-}
+/** How a repository gets its data. The seed is what `POST /api/v1/seed` passes. */
+export type DatasetFactory = (seed: number) => SyntheticDataset;
 
 export class MemoryRepository implements Repository {
   private data: SyntheticDataset;
   private seed: number;
+  private readonly build: DatasetFactory;
 
-  constructor(seed = 0) {
-    this.data = createSyntheticDataset();
+  /**
+   * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
+   * the seed. `SEED=ceptinela` hands in the generated company from @hackmty/seed
+   * instead, and then the seed number actually changes the data.
+   */
+  constructor(
+    seed = 0,
+    build: DatasetFactory = () => createSyntheticDataset(),
+  ) {
+    this.build = build;
+    this.data = build(seed);
     this.seed = seed;
   }
 
@@ -295,61 +295,21 @@ export class MemoryRepository implements Repository {
   }
 
   /**
-   * Tallies the labelled cases. It is a count and a division, which is what the
-   * SQL version will be too.
+   * The blind evaluation, recomputed on demand.
    *
-   * TODO(Apanawa): issue #55 owns the blind harness. Call it with the
-   * detector output instead of the `firedDetectors` column, so the numbers come
-   * from the real detectors rather than from the fixture's own labels.
+   * The numbers come from `@hackmty/seed`: the labelled cases in
+   * `packages/seed/src/holdout/cases`, put through the same six controls
+   * `pipeline.ts` runs on intake and scored by `computeMetrics`. Nothing here
+   * counts a column the fixture wrote about itself, which is the whole reason
+   * the precision on the metrics screen is worth reading.
+   *
+   * It is recomputed per request rather than cached. Thirty cases through six
+   * controls is a few milliseconds, and a cached evaluation that survives a
+   * change to a control is a number nobody can trust mid-build-night.
    */
   async metrics(): Promise<Metrics> {
-    const perDetector = Object.fromEntries(
-      ALL_DETECTORS.map((detector) => [detector, { tp: 0, fp: 0, fn: 0 }]),
-    ) as Metrics["perDetector"];
-
-    let truePositives = 0;
-    let falsePositives = 0;
-    let falseNegatives = 0;
-    let trueNegatives = 0;
-
-    for (const labelled of this.data.labelledCases) {
-      const fired = labelled.firedDetectors;
-
-      if (fired.length === 0) {
-        if (labelled.fraudulent) {
-          falseNegatives += 1;
-          if (labelled.expectedDetector !== undefined) {
-            perDetector[labelled.expectedDetector].fn += 1;
-          }
-        } else {
-          trueNegatives += 1;
-        }
-        continue;
-      }
-
-      if (labelled.fraudulent) {
-        truePositives += 1;
-        for (const detector of fired) {
-          perDetector[detector].tp += 1;
-        }
-      } else {
-        falsePositives += 1;
-        for (const detector of fired) {
-          perDetector[detector].fp += 1;
-        }
-      }
-    }
-
-    return {
-      cases: this.data.labelledCases.length,
-      truePositives,
-      falsePositives,
-      falseNegatives,
-      precision: ratio(truePositives, truePositives + falsePositives),
-      recall: ratio(truePositives, truePositives + falseNegatives),
-      falsePositiveRate: ratio(falsePositives, falsePositives + trueNegatives),
-      perDetector,
-    };
+    const predictions = runEngine(HOLDOUT_CASES);
+    return computeMetrics(HOLDOUT_CASES, predictions).metrics;
   }
 
   async ledger(query: LedgerQuery): Promise<LedgerEvent[]> {
@@ -483,12 +443,13 @@ export class MemoryRepository implements Repository {
   }
 
   /**
-   * TODO(garzario): issue #43, drive this from @hackmty/seed so the seed number
-   * changes the data. Today it rebuilds the same fixture and only records the
-   * number, which is honest but not yet useful.
+   * Rebuilds the company from the factory this repository was constructed with.
+   * Under `SEED=ceptinela` the seed number really does change the data; under the
+   * hand-written fixture it rebuilds the same rows and only records the number,
+   * which is honest but not useful, and is why the ceptinela path exists.
    */
   async reset(seed: number): Promise<ResetSummary> {
-    this.data = createSyntheticDataset();
+    this.data = this.build(seed);
     this.seed = seed;
 
     return {

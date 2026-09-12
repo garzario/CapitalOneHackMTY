@@ -29,7 +29,8 @@ export const GEMINI_BASE_URL =
   "https://generativelanguage.googleapis.com/v1beta";
 
 /** The model this package is written against. */
-export const GEMINI_MODEL = "gemini-2.5-flash";
+/** Default model. gemini-2.5-flash is no longer offered to new projects; GEMINI_MODEL overrides. */
+export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
 
 /** Per-request timeout. A clerk is standing at the screen; do not hang. */
 export const GEMINI_TIMEOUT_MS = 20_000;

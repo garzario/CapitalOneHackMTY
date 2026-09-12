@@ -48,6 +48,34 @@ describe("GET /api/v1/sat/lookup", () => {
     );
   });
 
+  it("answers a real RFC from the official list the judge types in", async () => {
+    // The one real RFC in the API tests, and it is only ever looked up. ADR-0002
+    // keeps real taxpayers to this read-only path and never next to a synthetic
+    // invoice, which is why the sweep below publishes SYN RFCs instead.
+    const { app } = createTestApp();
+    const res = await app.request("/api/v1/sat/lookup?rfc=AAA121206EV5");
+
+    expect(res.status).toBe(200);
+    const body = satLookupResponseSchema.parse(await res.json());
+
+    expect(body.entries[0]?.status).toBe("definitivo");
+    expect(body.entries[0]?.publishedAt).toBe("2019-11-20");
+    // Newest publication first, and the presunto row that preceded it is still
+    // there: that is what makes the retroactive question answerable.
+    expect(body.entries.map((entry) => entry.status)).toEqual([
+      "definitivo",
+      "presunto",
+    ]);
+  });
+
+  it("does not alert on a real taxpayer who won in court", async () => {
+    const { app } = createTestApp();
+    const res = await app.request("/api/v1/sat/lookup?rfc=AAA080808HL8");
+    const body = satLookupResponseSchema.parse(await res.json());
+
+    expect(body.entries[0]?.status).toBe("sentencia_favorable");
+  });
+
   it("rejects a malformed RFC with the shared envelope", async () => {
     const { app } = createTestApp();
     const res = await app.request("/api/v1/sat/lookup?rfc=123");
@@ -95,10 +123,11 @@ describe("POST /api/v1/sat/publish", () => {
     expect(row?.paidCfdis).toHaveLength(2);
     expect(row?.deductedBase).toBe(104870.69);
     expect(row?.ivaExposure).toBe(16779.31);
-    // TODO(garzario) in pipeline.ts: the ISR rate is a model, not a sum, so it
-    // stays at zero until @hackmty/core owns it.
-    expect(row?.isrExposure).toBe(0);
-    expect(sweep.totalExposure).toBe(16779.31);
+    // 30 percent of the base already deducted, rounded to the cent. The rate is
+    // an assumption about the company and it is documented and overridable in
+    // packages/sat/src/sweep.ts, never invented in a route handler.
+    expect(row?.isrExposure).toBe(31461.21);
+    expect(sweep.totalExposure).toBe(48240.52);
   });
 
   it("publishes a listed RFC we have never paid without inventing exposure", async () => {

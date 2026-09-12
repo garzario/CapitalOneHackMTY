@@ -1,0 +1,65 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "cep-verified-beneficiary-clears-the-new-account",
+  "title": "A new account, and the one-cent probe already came back signed and matching",
+  "kind": "negative",
+  "notes": "The pair of this case is the WhatsApp bank change with nothing behind it. Here the same new account is backed by a Banxico-signed CEP whose holder is the supplier, which is what the verified beneficiary registry is for.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-125",
+      "supplierRfc": "SYN272929S29",
+      "cfdiUuids": ["00000000-0097-4d00-8a00-000000000097"],
+      "clabe": "062180300022233345",
+      "amount": 165880,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN272929S29",
+      "legalName": "Climas y Ventilacion del Norte SA de CV",
+      "firstInvoiceAt": "2024-03-14T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "062180300022233345",
+          "establishedBy": "cep",
+          "establishedAt": "2026-09-03T15:30:00.000Z",
+          "timesPaid": 0
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0097-4d00-8a00-000000000097",
+        "serie": "A",
+        "folio": "409",
+        "issuedAt": "2026-08-27T15:30:00.000Z",
+        "issuerRfc": "SYN272929S29",
+        "issuerName": "Climas y Ventilacion del Norte SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 143000,
+        "iva": 22880,
+        "total": 165880,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "cep": {
+      "claveRastreo": "SYN2026090900000045",
+      "transferredAt": "2026-09-04T15:30:00.000Z",
+      "amount": 0.01,
+      "senderName": "Distribuidora Sintetica del Norte SA de CV",
+      "senderBank": "BANORTE",
+      "beneficiaryName": "CLIMAS Y VENTILACION DEL NORTE SA DE CV",
+      "beneficiaryAccount": "062180300022233345",
+      "beneficiaryBank": "AFIRME",
+      "signatureValid": true,
+      "xml": "<SPEI_Tercero synthetic=\"true\"/>",
+      "synthetic": true
+    }
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}

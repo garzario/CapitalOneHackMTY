@@ -22,8 +22,9 @@ import type {
   PaymentInstruction,
   SweepResult,
 } from "@hackmty/core";
-import { decide, sumAmounts, supplierModelOf } from "@hackmty/core";
+import { decide, supplierModelOf } from "@hackmty/core";
 import { runControls } from "@hackmty/engine";
+import { priceSweep } from "@hackmty/sat";
 import { type IntakeExtractor, UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
 import type { CreateInstructionBody, NameMatch } from "./schemas";
@@ -236,6 +237,11 @@ async function composeInputFor(
     // ledger as its denominator and the duplicate detector narrows itself.
     cfdis: await repo.allCfdis(),
     complements: await repo.allComplements(),
+    // The list versions this instance holds, and deliberately NOT the
+    // committed download of the real SAT list that `GET /sat/lookup` reads.
+    // ADR-0002: every instruction here carries a synthetic RFC, so joining
+    // the real list to one is exactly what the ADR forbids. Real rows answer
+    // the read-only lookup a person typed into, and nothing else.
     satEntries: await repo.satLookup(instruction.supplierRfc),
     bankMirror: await repo.bankMirror(),
     now,
@@ -256,40 +262,24 @@ async function composeInputFor(
 /**
  * Prices a 69-B publication against everything already paid and deducted.
  *
- * `deductedBase` and `ivaExposure` are sums of fields that are already on the
- * documents, so they are computed here with core's cent-safe helpers. The ISR
- * exposure is a model, not a sum, and it stays at zero with a TODO rather than
- * showing a rate this file invented.
+ * A pass through to `priceSweep` in @hackmty/sat, which owns the arithmetic and
+ * the two rates: ISR at 30 percent applied to the base already deducted, and IVA
+ * summed from what the CFDIs actually carry rather than multiplied out of a
+ * rate. Both are documented as assumptions at the top of
+ * `packages/sat/src/sweep.ts`, which is where they belong: a rate a route
+ * handler owns is a rate nobody reviews.
  *
- * TODO(garzario): issue #35, export `sweepExposure` from @hackmty/core with the rate
- * and the treatment of partially paid PPD, and this function becomes a pass
- * through.
+ * The subjects come from the repository rather than from a ledger replay,
+ * because the repository is what this API stores. `sweep` in the same package is
+ * the fold over `LedgerEvent[]` and gives the same numbers for the same
+ * invoices, which is what keeps the Postgres implementation honest when it
+ * lands.
  */
 export async function runRetroactiveSweep(
   listVersion: string,
   subjects: SweepSubject[],
 ): Promise<SweepResult> {
-  const priced = subjects.map((subject) => {
-    const deductedBase = sumAmounts(subject.paidCfdis.map((c) => c.subtotal));
-    const ivaExposure = sumAmounts(subject.paidCfdis.map((c) => c.iva));
-
-    return {
-      supplier: subject.supplier,
-      status: subject.status,
-      paidCfdis: subject.paidCfdis,
-      deductedBase,
-      isrExposure: 0,
-      ivaExposure,
-    };
-  });
-
-  return {
-    listVersion,
-    newlyListed: priced,
-    totalExposure: sumAmounts(
-      priced.flatMap((row) => [row.isrExposure, row.ivaExposure]),
-    ),
-  };
+  return priceSweep(subjects, { listVersion });
 }
 
 /* -------------------------------------------------------------------------- */

@@ -1,0 +1,61 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-from-photo-low-confidence",
+  "title": "A CLABE read off a photographed remittance letter, two digits from the known account",
+  "kind": "positive",
+  "notes": "The transcription confidence is low and the two differing digits are the pairs digit OCR actually confuses. The model only ever read digits: it never saw the supplier, the amount or the history, and it decided nothing.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-107",
+      "supplierRfc": "SYN070909S09",
+      "cfdiUuids": ["00000000-0007-4d00-8a00-000000000007"],
+      "clabe": "072180320000000007",
+      "amount": 21460,
+      "source": "pdf",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true,
+      "imageRef": "intake/INS-HOLDOUT-107",
+      "ocrConfidence": 0.62
+    },
+    "supplier": {
+      "rfc": "SYN070909S09",
+      "legalName": "Consultoria Fiscal Santa Catarina SC",
+      "firstInvoiceAt": "2024-11-14T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "072180100000000007",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2024-12-05T15:30:00.000Z",
+          "timesPaid": 19
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0007-4d00-8a00-000000000007",
+        "serie": "A",
+        "folio": "412",
+        "issuedAt": "2026-09-03T15:30:00.000Z",
+        "issuerRfc": "SYN070909S09",
+        "issuerName": "Consultoria Fiscal Santa Catarina SC",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 18500,
+        "iva": 2960,
+        "total": 21460,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "severity": "critical",
+      "because": "Two edits from a known account, both of them digit pairs OCR confuses, arriving through the one channel where a transcription error is expected."
+    }
+  ],
+  "expectedAction": "verify"
+}

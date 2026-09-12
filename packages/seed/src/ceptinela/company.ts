@@ -25,6 +25,13 @@ export interface CompanyProfile {
   clabe: Clabe;
   bankName: string;
   /**
+   * The account id the bank mirror hangs off. ObjectId-shaped rather than a UUID,
+   * because Nessie mixes the two and nothing downstream may assume either. Fixed
+   * rather than drawn, so a screenshot taken at 02:00 still names the same account
+   * at 08:00.
+   */
+  bankAccountId: string;
+  /**
    * The weekday the payment run happens, matching Date.getUTCDay: 0 is Sunday, so 4
    * is Thursday. Thursday and not Friday because a SPEI sent on Friday afternoon that
    * turns out to be wrong cannot be chased until Monday, which is the sentence the
@@ -37,13 +44,14 @@ export interface CompanyProfile {
 
 export const DEMO_COMPANY: CompanyProfile = {
   rfc: "SYN090615C01",
-  legalName: "Metalmecanica Sintetica de Apodaca SA de CV",
-  tradeName: "Metalmecanica Apodaca",
+  legalName: "Metalicos del Norte SA de CV",
+  tradeName: "Metalicos del Norte",
   city: "Apodaca",
   state: "Nuevo Leon",
   employees: 28,
   clabe: "058180001142789037",
   bankName: "Banregio",
+  bankAccountId: "5e1a0f00c0ffee0000000001",
   paymentRunWeekday: 4,
   synthetic: true,
 };
