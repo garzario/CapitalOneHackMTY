@@ -489,6 +489,29 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
+  things the running product does not do, found by taking each claim to the code and to `curl`
+  (issue #171). The verification-call deadline is one day and not three: `HOLD_WINDOW_DAYS` is
+  `EXPECTED_DELAY_DAYS`, three days for a `hold` and one for a `verify`, and a verification call is
+  placed on a payment in `verify`, so the response says `days: 1`. The reason column is
+  `0011_decision_reason.sql` and not `0009`, which the consortium and the rail took. The cost of
+  delaying a payment reads MXN 0.00 on every instruction of the demo company, because the generator
+  prices no `Supplier.delayCostPerDay` and `supplierModelOf` falls back to zero, so the sheet now
+  says the mechanism is in `decide` and the number is flat in this data (issue #182). The UI does not
+  say the loss probability is a prior, only `decision.ts` does. `releasesPayment: false` is on every
+  response that reports a call and not on a `404`. A `no_answer` with nobody on the line carries no
+  quoted phrase; only a voicemail greeting does. The beneficiary comparison is not a documental fact
+  while `nameMatch` answers `partial` on one shared word and the seal reads `not_checked`. And four
+  numbers were stale: the test count, the 180 case-by-detector pairs that contradict a matrix summing
+  to 183, the claim that no control stayed silent in the blind evaluation, and a `TODO` about a
+  persona figure that had already been refreshed.
+
+- `POST /api/v1/instructions/:id/verify-call` validated `recordedBy` on a hand-recorded call and then
+  dropped it, so the fallback path the demo uses when there is no telephony on site was the only
+  human action in the product landing on an append-only ledger with nobody's name against it (issue
+  #171). It now travels onto the `verification_call` event, and stays absent on a call the agent
+  placed, where the conversation id is the provenance.
+
 - The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
   synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the
   running API the name comparison, which is the entire point of showing a CEP, printed "no
