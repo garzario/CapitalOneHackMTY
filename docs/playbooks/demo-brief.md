@@ -1,7 +1,3 @@
----
-name: demo-brief
-description: Use when the demo path changes, when a route or a screen is added or renamed, before a rehearsal, before a judge visit, at every milestone, and when the user asks for the demo script or the judge answers. Regenerates docs/10-demo-script.md and docs/12-judge-qa.md from the repository as it actually is right now.
----
 
 # demo-brief
 

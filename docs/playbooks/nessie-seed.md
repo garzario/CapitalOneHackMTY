@@ -1,7 +1,3 @@
----
-name: nessie-seed
-description: Use when seeding, reseeding or resetting Nessie or the local ledger, when the demo data looks wrong, stale or empty, when a demo account has no transactions, or when transaction history is needed for the engine or a screen.
----
 
 # nessie-seed
 

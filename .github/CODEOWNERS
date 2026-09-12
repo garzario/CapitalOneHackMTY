@@ -23,7 +23,7 @@
 /docs/08-data-model.md   @garzario
 /docs/adr/               @garzario
 /.github/                @garzario
-/.claude/                @garzario
+/docs/playbooks/         @garzario
 /.githooks/              @garzario
 /package.json            @garzario
 /bunfig.toml             @garzario
