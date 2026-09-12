@@ -1,0 +1,6 @@
+# Only the output of scripts/import-real-cfdi.ts belongs in the repository.
+# A real document read into this folder by mistake cannot be committed from here.
+*
+!.gitignore
+!README.md
+!*.redacted.xml

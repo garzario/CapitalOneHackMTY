@@ -18,6 +18,19 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- Real document import path, so the CFDI parser can be validated on a document a PAC actually
+  stamped (refs #68). `bun run scripts/import-real-cfdi.ts <file>` reads one real CFDI 4.0, de
+  ingreso or complemento de pagos 2.0, and writes a committable fixture: every amount scaled by a
+  secret factor from `REAL_CFDI_SCALE`, every RFC replaced by a `SYN` one carrying a correct SAT
+  check digit, legal names constructed, addresses blanked, UUID, folio, bank accounts, operation
+  numbers, stamps and certificates regenerated, and the structure, namespaces, attribute order and
+  tax breakdown left exactly where they were. Every arithmetic identity the original satisfied is
+  recomputed from the scaled inputs and reverified, and the command refuses to write a file in which
+  any replaced value, or any RFC or CLABE shaped token, survived. The redacted copy goes to
+  `packages/core/src/fixtures/real/`, the change map to the gitignored `.seed/real/`.
+  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
+  while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
+
 - The metrics page says how blind the blind evaluation actually is (issue #51). It used to claim
   the labels were written by a different person from the detectors, which the holdout README
   contradicts; the note now states the real position, names the four labels that disagree with

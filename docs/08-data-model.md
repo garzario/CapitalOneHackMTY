@@ -327,6 +327,100 @@ Nessie sandbox shape and against a public benchmark: mean and median invoice amo
 supplier per month, share of PPD. TODO(garzario) verify after #43 lands, and cite the public series
 by name or leave the column empty. An empty cell is honest; a plausible number is not.
 
+## Real document validation
+
+Every fixture above is invented, and a parser proven only on documents we wrote ourselves is a
+parser proven on our own assumptions. So exactly one thing in this repository is allowed to come
+from outside it: a small number of CFDIs that a PAC actually stamped, redacted before they are
+committed. That is what lets us say on stage that the parser was validated on a real document, and
+the sentence is only worth saying because the file is in the repository and the command that
+produced it is too.
+
+**Status, issue #68.** The importer, the tests and this section are merged.
+`packages/core/src/fixtures/real/` is empty until the real document is in hand, and the test that
+reads it skips with a message that says so rather than passing on nothing. Until a file is in that
+folder, the claim above is not one to make on stage. TODO(garzario) import the document and update
+this line.
+
+**The rule.** The real document never enters the repository. It is read from outside it, or from
+`.seed/real/`, which is gitignored, and only the redacted copy reaches
+`packages/core/src/fixtures/real/`. A nested `.gitignore` in that folder allows nothing but
+`*.redacted.xml`, so a raw file dropped there by mistake cannot be committed from it. This is the
+ADR-0002 rule about real identifiers, applied to the one place where real data is legitimate.
+
+**The command.**
+
+```
+bun run scripts/import-real-cfdi.ts ~/outside/the/repo/factura.xml
+```
+
+Flags: `--name=<slug>` names the output, `--dry-run` prints the plan and writes nothing, `--force`
+replaces an existing fixture, `--allow-unknown-complement` blanks a complement the script does not
+read instead of refusing. It writes two files. The fixture goes to
+`packages/core/src/fixtures/real/<name>.redacted.xml` and is committed. The change map, which lists
+every original value and is the only way back, goes to `.seed/real/<name>.map.json` and is
+gitignored. The command reads `.gitignore` before writing the map and refuses to write anything if
+the rule is missing.
+
+**The secret.** Amounts are scaled by a factor read from `REAL_CFDI_SCALE`. Unset, the script
+generates one, prints it once and never writes it to a committed file. The factor is also the seed
+of every pseudonym, so the invoice and the payment complement that settles it have to be imported
+under the same factor: that is what keeps `IdDocumento` in the complement pointing at the UUID the
+invoice was given, and the supplier RFC the same in both. It is deliberately not in `.env.example`,
+because a secret that is worth keeping does not belong in a file everyone copies.
+
+**What is replaced.**
+
+| In the document | Becomes | Why this way |
+|---|---|---|
+| Every amount | The amount times the factor, at the same number of decimals | A real invoice total is commercially sensitive and is also the one number a supplier would recognise |
+| Every RFC, including the PAC one | `SYN` plus a date plus a homoclave, with the real SAT check digit computed over it | It stays shaped like an RFC, so the fixture still exercises everything downstream, and it meets no real taxpayer |
+| Every legal name | A constructed name carrying the word DEMO, keeping the legal form suffix verbatim | `packages/cep` normalises that suffix away before comparing two names, so keeping it is what leaves the fixture useful to the name comparison |
+| Postal codes, the only address CFDI 4.0 carries | 64000 | Blanking a required attribute would change the shape of the document |
+| UUID, folio, serie, operation number, certificate serials | Derived values that keep the length and the character classes | A folio of four digits stays four digits, so nothing that reads a shape changes its mind |
+| Bank accounts | A synthetic CLABE with a correct control digit, keeping the three digit institution code | The CLABE control reads the bank code, and an invented one would exercise that control against nothing. The eleven digits that identify the company are replaced |
+| Sello, SelloCFD, SelloSAT, Certificado | Obvious placeholders | A CSD certificate carries the taxpayer name and RFC inside it. This is the attribute that leaks a real identity while looking like noise |
+
+**What is kept, and why.** The structure, the namespaces, the attribute order and the whitespace,
+because the output is the input with attribute values rewritten in place rather than a
+reserialisation: a diff of the two is a diff of values and never of shape. The catalogue codes, the
+quantities and the tax rates, because they are not identifying and they are what the parser reads.
+The dates, because a timestamp is what the parser's offset handling is being validated against and a
+date on its own identifies nobody once the names, RFCs, folios and UUIDs are gone.
+
+**Rounding.** Scaling a document by a factor and rounding each amount on its own breaks the
+arithmetic a PAC signed. The importer scales in integer arithmetic and then puts the identities
+back: for every relation the original document satisfied, and only for those, the dependent value is
+recomputed from the scaled inputs. `Importe` from `Cantidad` and `ValorUnitario`, the taxable base
+from the line, the tax from the base and the rate, `SubTotal` from the lines, `Total` from the
+subtotal and the taxes, `Monto` from the settled documents, the `Totales` block of a complement from
+its payments. A document that did not add up before still does not add up afterwards, in the same
+places, because a document silently corrected here would be a document no PAC ever issued.
+
+**Two verifications, both of which fail the command.** First, nothing that was replaced survives
+anywhere in the output, checked on token boundaries so that a folio of 318 inside an amount of
+72613.18 is not a false alarm, plus a scan for the shapes themselves, which is what catches an RFC or
+a CLABE typed into a free text description by whoever issued the invoice. Second, the redacted
+document is parsed again by the same parser, as the same kind of document, and every identity that
+held before still holds. The importer refuses to write a file that fails either one.
+
+**The tests.** `packages/core/src/cfdi-real.test.ts` parses every file in the folder and asserts
+again, over the committed bytes, that every RFC is synthetic and that no stamp or certificate
+survived. With the folder empty it skips with a message that names the script, so the repository is
+green before the first document arrives.
+`scripts/import-real-cfdi.test.ts` runs the importer over the synthetic fixtures, which are
+CFDI 4.0 documents with the same structure, and asserts the properties that matter: the shape is
+unchanged with every value stripped, the amounts moved by the factor, the tax breakdown still adds
+up, an invoice and its complement still point at each other, and the same factor produces the same
+file twice.
+
+**Residual risk, stated rather than hidden.** Free text is kept verbatim: `Descripcion`,
+`NoIdentificacion`, `CondicionesDePago`. A description that names the buyer in prose is not
+something an attribute level rule can catch, so the command prints every free text value it kept and
+the person importing the document reads them before committing. A complement the script does not
+understand, a carta porte or an addenda, is refused rather than guessed at, because rewriting
+attributes it has never seen is exactly how a real name survives into a fixture.
+
 ## What we made messy on purpose
 
 Each row gets one test. This is why the dirty-data question is the easiest question we get.
