@@ -7,10 +7,13 @@
  * much money it stopped, how much it let go, and how much of what was already
  * paid and already deducted a 69-B publication has put back on the table.
  *
- * The run screen already computed the first three from its own rows. This module
- * puts them in the API answer instead, so the constancia, the screen and a judge
- * with `curl` read the same numbers, and adds the fourth, which nothing computed
- * anywhere.
+ * The run screen already computed the first three from its own rows, and it still
+ * does: `run-view.ts` reads the items and never the totals, on purpose, because
+ * the totals go stale the moment a decision is applied locally on the offline
+ * demo path. So this module is not the screen's source. It is the answer a judge
+ * with `curl` gets, and the one place the arithmetic is stated with a test, so
+ * the two computations can be checked against each other instead of only one of
+ * them existing. It also adds the fourth pair, which nothing computed anywhere.
  *
  * Pure and dependency free, like everything in this package. Every total goes
  * through the cent arithmetic in `./money`, because a run of ninety-two

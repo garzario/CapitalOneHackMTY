@@ -7,13 +7,15 @@
  * voice agent, and later records what was said as a `verification_call` ledger
  * event with the sentence it was read from.
  *
- * Three properties this file is written to keep.
+ * Five properties this file is written to keep.
  *
  * **It never releases a payment.** There is no path here that touches
  * `recordDecision` and none that emits `decision_made`. A `confirmed` outcome is
  * evidence, like a CEP, and the release stays the separate `/decide` call that a
- * person signs. `releasesPayment: false` is on every response so the UI states
- * it rather than implying it.
+ * person signs. `releasesPayment: false` is on every response that reports a
+ * call, so the UI states it rather than implying it: the script, the started
+ * call, the recorded outcome and the 422 with no telephony all carry it. A 404 or
+ * a 400 carries only the error envelope, because there is no call to report.
  *
  * **Without keys it degrades to a script, not to a failure.** If
  * `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is
@@ -23,6 +25,11 @@
  *
  * **The account is never spoken in full.** The script carries four digits. The
  * ledger event carries four digits. Neither carries the CLABE.
+ *
+ * **A hand-recorded call carries the name of whoever recorded it.** `recordedBy`
+ * travels from the request onto the `verification_call` event, because the
+ * by-hand path is the one the demo falls back to and an unsigned entry on an
+ * append-only ledger is worse than no entry.
  *
  * **Nobody answering is an answer, and it says what to do next.** A Capital One
  * judge asked what happens when the supplier does not pick up. The response that
@@ -199,6 +206,7 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               evidence: body.evidence,
               transcript: [],
               manual: true,
+              recordedBy: body.recordedBy,
               decision: detail.decision,
             }),
           );
@@ -304,6 +312,15 @@ interface RecordInput {
   transcript: VerificationTurn[];
   conversationId?: string;
   manual: boolean;
+  /**
+   * Who typed the outcome in, on a hand-recorded call.
+   *
+   * Required by the schema for that variant and carried onto the event, so the
+   * by-hand call has a name against it the way `/decide` does. Validating a field
+   * and then dropping it would leave the fallback path as the only human action
+   * in the product that nobody signed.
+   */
+  recordedBy?: string;
   /** The standing decision, so the answer can say how long the hold lasts. */
   decision: Decision | null;
 }
@@ -333,6 +350,7 @@ async function record(
       ? {}
       : { conversationId: input.conversationId }),
     manual: input.manual,
+    ...(input.recordedBy === undefined ? {} : { recordedBy: input.recordedBy }),
   });
 
   const response: VerifyCallResponse = {

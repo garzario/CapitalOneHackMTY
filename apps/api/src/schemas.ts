@@ -406,6 +406,8 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     transcript: z.array(verificationTurnSchema).max(200),
     conversationId: z.string().min(1).max(200).optional(),
     manual: z.boolean(),
+    /** Who typed the outcome in, on a hand-recorded call. */
+    recordedBy: z.string().min(1).max(120).optional(),
   }),
   z.object({
     type: z.literal("decision_made"),

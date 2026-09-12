@@ -526,6 +526,15 @@ export type LedgerEvent =
       conversationId?: string;
       /** True when a person placed the call by hand and typed the outcome in. */
       manual: boolean;
+      /**
+       * Who typed the outcome in, on a call a person placed by hand.
+       *
+       * Absent on a call the agent placed, because there the conversation id is
+       * the provenance. Present on a manual one, because otherwise the only human
+       * action in this product with no name against it would be the fallback path
+       * the demo leans on when there is no telephony on site.
+       */
+      recordedBy?: string;
     }
   | { type: "decision_made"; at: string; decision: Decision };
 
