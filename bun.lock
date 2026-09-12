@@ -27,6 +27,7 @@
       "name": "@hackmty/web",
       "version": "0.1.0",
       "dependencies": {
+        "@hackmty/core": "workspace:*",
         "motion": "13.2.0",
         "react": "19.2.8",
         "react-dom": "19.2.8",
