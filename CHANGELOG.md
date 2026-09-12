@@ -14,6 +14,10 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
+- `apps/web` scaffold: design tokens, a typed client for the contract in `docs/09-api.md` with the
+  Server-Sent Events hook, a dependency-free hash router, the synthetic payment run the app falls
+  back to when the API is absent, and the six screens (payment run, instruction detail, QR intake,
+  Article 69-B simulation and lookup, CEP viewer, blind evaluation).
 - `packages/cep`: Banxico CEP reader. `parseCep` over the `SPEI_Tercero` document, `verifySignature`
   which runs the candidate matrix and reports `unconfirmed_scheme` rather than claiming a seal it
   cannot prove, `fetchCep` against the public portal with an injectable fetch, and `nameMatch` with

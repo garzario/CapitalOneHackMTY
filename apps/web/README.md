@@ -1,0 +1,122 @@
+# apps/web
+
+The judge-facing UI. Vite, React, Tailwind, motion. Six screens, one design system,
+no state manager and no router dependency.
+
+This folder is a scaffold: the structure, the types, the states and the synthetic data are
+real, the visual polish and the detector-driven detail are not. Every place where the real
+work goes is marked `TODO(FabriBanda)`, and anything that belongs to another workspace is
+marked with that owner instead.
+
+## Run it
+
+```
+bun install --frozen-lockfile
+bun run --filter @hackmty/web dev      # http://localhost:5173, proxies /api and /health to :3000
+bun run --filter @hackmty/web build    # static build into dist/
+bun run --filter @hackmty/web typecheck
+bun test                               # from the repo root
+```
+
+The app renders with or without the API. Which one it used is stated on screen, never assumed.
+
+## Data modes
+
+Read from the page query string, before the hash, by `src/lib/resource.ts`:
+
+| URL | Behaviour |
+|---|---|
+| `/` or `?data=auto` | API first, synthetic run as the fallback, with a visible notice. The default. |
+| `?data=api` | API only. A failure renders the error state. This is how a judge proves the deployed backend answers. |
+| `?data=mock` | Synthetic only. No request leaves the browser. |
+
+Two things never fall back, on purpose:
+
+- `GET /sat/lookup`, because the official Article 69-B list does not travel in the bundle
+  and inventing an answer for a real RFC is the exact failure mode the challenge warns about.
+- `POST /cep/verify`, because a Banxico signature cannot be validated by a mock.
+
+## Layout
+
+```
+src/
+  design/
+    tokens.css        colour, type scale, spacing, radius, motion, light and dark, tabular numerals
+    base.css          element rules, in Tailwind's base layer
+    primitives.css    .panel .btn .chip .badge .data-table .watermark, in Tailwind's components layer
+  lib/
+    api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE)
+    contract.ts       the HTTP shapes, composed from packages/core/src/domain.ts
+    mock.ts           the synthetic payment run, with every object flagged synthetic
+    resource.ts       useResource: loading, ready, error, and the API-or-mock decision
+    router.tsx        hash router, ~120 lines, no dependency
+    format.ts         money, dates, CLABE blocks, digit diffs
+    labels.ts         every Spanish word the clerk reads, in one dictionary
+  components/         AppShell, States, Primitives, Evidence, Decision, Findings,
+                      SupplierDrawer, StatusCard
+  screens/            RunScreen, InstructionScreen, IntakeScreen, SatScreen, CepScreen,
+                      MetricsScreen
+```
+
+Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
+change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`.
+
+The intake page reads `rfc`, `amount` and `clabe` out of its own query, so the QR code can
+carry a prefilled instruction: `#/intake?rfc=SYN010101AAA&amount=184300`.
+
+## Design system
+
+`tokens.css` is the only file allowed to hold a colour, a radius, a duration or a font size.
+A component that needs a new one adds a token there, named for what it means.
+
+- One accent (`--c-accent`), used for focus, links and the primary action, nothing else.
+- Three semantic decision colours, mapped one to one onto the `Action` union in the domain:
+  `--c-hold`, `--c-verify`, `--c-release`. Severity reuses the same three, so one colour
+  always means one thing. Colour is never the only signal: every badge and button also says
+  what it is in words.
+- Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`), so a column of
+  pesos lines up digit over digit.
+- Light is the default, dark follows the operating system, and only colour tokens change
+  between them.
+- Reduced motion switches the three duration tokens to 1ms, so CSS transitions stop in one
+  place. Components that animate in JavaScript read the same preference through
+  `useReducedMotion` from `motion/react`.
+
+Primitives live in Tailwind's `components` cascade layer, so a utility class on the same
+element still wins and spacing can be nudged without fighting specificity.
+
+## Rules this folder follows
+
+From ADR-0002, and they are not negotiable:
+
+- The `datos sinteticos` watermark is rendered from the `synthetic` flag on the payload, by
+  `SyntheticMark`, and never from a hardcoded name. `src/lib/mock.test.ts` fails if any
+  object in the synthetic run loses the flag.
+- A real RFC appears only in the SAT lookup box. Every synthetic RFC has the shape
+  `SYN<6 digits><3 letters>` and the test asserts it.
+- No finding accuses anyone. States are `comprobable` and `requiere_verificacion`, and a
+  person confirms every decision.
+- The raw message text of an instruction is shown as context and never feeds a decision.
+
+## What is deliberately not here
+
+- **The detectors.** They belong in `packages/core` and land in their own pull request. The
+  UI reads `Finding` and `Decision` and renders them; it never computes one.
+- **Screenshots.** `TODO(FabriBanda)`: the three stills and the GIF for the README and
+  Devpost, once the screens have their real polish. Issue #51.
+- **The replay animation** on the SAT screen. The months are real and the bar moves; walking
+  the ledger month by month and lighting up each newly listed supplier is the next step.
+- **A QR image.** Generating one needs a dependency, and the rule is zero new dependencies.
+  The intake URL is a plain hash link that any QR generator can take.
+- **`recharts`** is declared and currently unused. It is a vetted pin and the per-detector
+  table is the obvious first chart. If it is still unused at the feature freeze, drop it.
+
+## Accessibility
+
+Every route is reachable by keyboard: navigation is real anchors, the supplier drawer is a
+`role="dialog"` that takes focus, closes on Escape and gives focus back, and the scrim is a
+button rather than a div with a click handler. Tables have scoped headers and a caption. The
+focus ring is defined once in `base.css`.
+
+`TODO(FabriBanda)`: a full focus trap inside the drawer, and a pass with a screen reader on
+the intake page.
