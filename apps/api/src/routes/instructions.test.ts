@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { Detector, LedgerEvent } from "@hackmty/core";
 import { readAudioPayload, readImagePayload } from "@hackmty/extract";
+import { createSatIndex, type SatIndex } from "@hackmty/sat";
 import type { IntakeExtractor } from "../extraction";
 import { runControlsFor } from "../pipeline";
 import {
@@ -553,6 +554,65 @@ describe("POST /api/v1/instructions, the six controls", () => {
     // Absent on the record reads as zero, the documented default, and the
     // engine then releases only what is clean.
     expect(unpriced.decision.delayCostPerDay).toBe(0);
+  });
+});
+
+/**
+ * The 69-B control reads two lists: the versions this instance was posted, and
+ * the committed download of the official SAT list that `GET /api/v1/sat/lookup`
+ * answers from. Without the second one the control knows strictly less than the
+ * lookup box on the next screen.
+ *
+ * The stub here carries a synthetic RFC on purpose. ADR-0002 forbids a real RFC
+ * standing next to fabricated evidence, and a fixture is fabricated evidence.
+ * The real snapshot is exercised in `packages/sat`, where nothing is joined to
+ * an invoice.
+ */
+describe("POST /api/v1/instructions and the official 69-B list", () => {
+  const CLEAN = {
+    supplierRfc: "SYN010101AAA",
+    amount: 67450,
+    clabe: "058580000123456715",
+    source: "portal",
+  };
+
+  function listedElsewhere(): () => Promise<SatIndex> {
+    const index = createSatIndex([
+      {
+        rfc: "SYN010101AAA",
+        name: "Aceros y Perfiles del Norte SA de CV",
+        status: "definitivo",
+        publishedAt: "2026-07-30",
+        listVersion: "official-test",
+      },
+    ]);
+    return async () => index;
+  }
+
+  it("fires on a supplier the official list carries and this instance never published", async () => {
+    const { app } = createTestApp({ satList: listedElsewhere() });
+    const intake = intakeResponseSchema.parse(
+      await (await app.request("/api/v1/instructions", json(CLEAN))).json(),
+    );
+    const sat = intake.findings.find(
+      (finding) => finding.detector === "sat_69b",
+    );
+
+    expect(sat?.evidence.status).toBe("definitivo");
+    expect(sat?.evidence.listVersion).toBe("official-test");
+    // Definitivo is provable from a published list, so the payment stops here
+    // and no person has to go and check anything first.
+    expect(intake.decision.action).toBe("hold");
+  });
+
+  it("says nothing when the same payment meets a list that does not carry it", async () => {
+    const { app } = createTestApp();
+    const intake = intakeResponseSchema.parse(
+      await (await app.request("/api/v1/instructions", json(CLEAN))).json(),
+    );
+
+    expect(intake.findings).toEqual([]);
+    expect(intake.decision.action).toBe("release");
   });
 });
 

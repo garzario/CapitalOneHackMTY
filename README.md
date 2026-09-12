@@ -1,15 +1,33 @@
 # Ceptinela, the last control before an irrevocable SPEI
 
-<!-- TODO(product) assets/demo.gif here: under 6 MB, looping, 10 to 15 seconds, no cursor jitter -->
+<!-- TODO(garzario) assets/demo.gif here: under 6 MB, looping, 10 to 15 seconds, no cursor jitter. Issue #73 -->
 
-**Demo video:** TODO(product) link | **Live:** TODO(product) production URL | HackMTY 2026,
-Capital One track 3, Real-Time Anomaly & Security Sentinel
+**Demo video:** TODO(garzario), issue #73 | **Live:** TODO(garzario), issues #44 and #59 |
+HackMTY 2026, Capital One track 3, Real-Time Anomaly & Security Sentinel
 
 ## The problem
 
-A Mexican SMB pays its suppliers by SPEI, which is instant and irrevocable. If the supplier sits on the SAT's definitive Article 69-B list, every deduction from that supplier is voided retroactively and the money is already gone. Ceptinela runs six explainable controls over the company's own CFDI ledger, the official SAT list and the Banxico-signed CEP at the moment of payment, and holds the transfer with the evidence on screen. TODO(FabriBanda) one cited number with its source and the persona from
-[`docs/02-persona.md`](docs/02-persona.md). Write it so a judge reading on a phone understands who
-loses money today and how much.
+A Mexican SMB pays its suppliers by SPEI, which is instant and irrevocable: an accepted transfer
+order is firme, irrevocable, exigible y oponible frente a terceros by law, so a payment run is a
+one-way door. If the supplier sits on the SAT's Article 69-B list, the invoices it issued no
+producen ni produjeron efecto fiscal alguno, retroactively, and the buyer has thirty days from the
+publication to prove the operation was real or file a corrective return. For every MXN 100,000 of
+subtotal already deducted from a supplier later declared definitivo, MXN 46,000 of tax effect
+reverses: 30 percent ISR plus 16 percent IVA, before surcharges. The frequency is set by the SAT
+and not by the payer, and in the twelve months to 31 July 2026 that list moved 973 taxpayers to
+definitivo across 33 publication dates, roughly one change every eleven days. Every figure in this
+paragraph is cited to its primary source in [`docs/04-market.md`](docs/04-market.md#sources).
+
+The person who absorbs that is Lupita Elizondo, the sole administrative clerk at a 28-employee
+metalmecanica in Apodaca, Nuevo Leon, who runs the supplier payment run every Thursday. She is not
+a fraud analyst and not a corporate treasurer: she is the one person who turns invoices and payment
+instructions into correct transfers, and she has no tool that looks at a payment and at a fiscal
+status at the same time. She is in [`docs/02-persona.md`](docs/02-persona.md), quantified, with the
+two venue interviews we still owe listed as open rather than invented.
+
+Ceptinela runs six explainable controls over the company's own CFDI ledger, the official SAT list
+and the Banxico-signed CEP at the moment of payment, and holds the transfer with the evidence on
+screen.
 
 ## What it does
 
@@ -21,14 +39,41 @@ loses money today and how much.
 
 ## Why it is different
 
-TODO(product) The differentiator in two sentences, plus the one thing existing tools cannot do.
-The competitor map and the gap live in [`docs/04-market.md`](docs/04-market.md).
+The three facts that decide whether a payment is safe are all public and all current, and they are
+never read together at the moment that matters: the 69-B list belongs to a compliance product, the
+CFDI belongs to the accountant, and the CEP belongs to a post-mortem, because Banxico publishes it
+only after the transfer is already irrevocable. The gap stays open because that window, the few
+minutes between approving a payment run and sending it, is nobody's product surface. Ceptinela is
+built to sit in exactly that window.
+
+What the alternatives structurally cannot do: the Mexican 69-B checkers run on a list rather than
+on a payment, so they never see the account the money is about to leave for; the international
+payee-verification platforms verify the account and ignore the counterparty's fiscal status, which
+is the larger Mexican loss, and none of them mentions CFDI, SAT, SPEI or CLABE anywhere in their
+public material. The competitor map, with published prices and access dates, is in
+[`docs/04-market.md`](docs/04-market.md#competitor-map).
 
 ## How it works
 
-TODO(product) The architecture diagram from [`docs/07-architecture.md`](docs/07-architecture.md)
-plus three sentences on the algorithm. The algorithm itself is pure, dependency-free TypeScript in
-`packages/core`, with its tests next to it, so it can be read and run in under a minute.
+Four lanes, and one rule that makes the architecture true: **the intelligence lane has no network
+and no database access.** It takes values and returns values, which is why it is unit-testable,
+why the retroactive sweep is a replay rather than a migration, and why a judge can run it in front
+of us with the Wi-Fi off. The diagrams are in
+[`docs/07-architecture.md`](docs/07-architecture.md).
+
+Three sentences on the algorithm. An instruction arrives with an amount and a CLABE, and one read
+assembles its context: the supplier, the accounts it has actually been paid on and the document
+that established each one, every CFDI and complement the company holds, the 69-B rows in force for
+that RFC, the CEP already verified for that account, and the bank mirror. `runControls` puts that
+one object through all six controls and accounts for every one of them in either `ran` or `skipped`
+with a named reason, so a control that cannot run says so instead of leaving an empty screen, and
+`decide` weighs the pesos at risk against what delaying this payment costs with this supplier.
+The controls themselves are a 3-7-1 check digit and OCR-aware Damerau-Levenshtein against the
+supplier's paid accounts, XMLDSig verification of a Banxico seal, and a fold over `LedgerEvent[]`
+that prices what a new publication did to invoices already paid and already deducted.
+
+It is pure, dependency-free TypeScript in `packages/core`, with its tests next to it, so it can be
+read and run in under a minute.
 
 ## Run it in four commands
 
@@ -44,9 +89,23 @@ bun run dev                     # web and API together
 Optional preflight before the first run: `bun run doctor` checks the bun version, the environment
 variables and database reachability. Copy `.env.example` to `.env` first.
 
+Three commands worth knowing about. `bun test` runs 1023 tests across 59 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real. `bun run
+eval` scores the six controls against 30 labelled holdout cases and prints precision, recall and
+the false positive rate per control. `bun run demo` drives the demo path headless and must be green
+before any rehearsal or judge visit.
+
 ## Screenshots
 
-TODO(product) Three stills from `assets/screenshots/`.
+The payment run, captured reproducibly by `apps/web/brand/shoot.ts`:
+
+| | |
+|---|---|
+| ![Payment run, light](assets/screenshots/run-light.png) | ![Payment run, dark](assets/screenshots/run-dark.png) |
+
+Narrow viewport, the way a clerk opens it from a phone:
+[`run-narrow-light.png`](assets/screenshots/run-narrow-light.png) and
+[`run-narrow-dark.png`](assets/screenshots/run-narrow-dark.png).
 
 ## Stack, and why
 
@@ -57,6 +116,9 @@ Fit for purpose is graded, so each row ties a tool to this problem rather than t
 | bun | 1.3.11 | One runtime for the API, the tests, the seeder, the migrations and the scripts. Native TypeScript with no build step, and a cold start fast enough for a streaming endpoint. |
 | TypeScript, strict | 5.9.3 | The money types and the ledger directions are checked at compile time, not in review. |
 | `packages/core`, zero dependencies | n/a | The intelligence is pure functions with unit tests and no mocks and no network, so a judge can read it and run it. This is the answer to "is it really working". |
+| `packages/engine` | n/a | The six controls behind one call, `runControls`. It exists for a dependency direction and not for taste: `packages/sat` and `packages/cep` already depend on `core`, so `core` cannot import them back without a cycle. Adapters only, no algorithm. |
+| `packages/sat` with a committed snapshot | n/a | The complete official Article 69-B listing, 4.5 MB, dated and committed with its provenance, so `GET /api/v1/sat/lookup` answers an RFC a judge picks themselves with no network and no conference Wi-Fi. |
+| `packages/cep` | n/a | XMLDSig against the Banxico certificate, byte-exact, reporting `unconfirmed_scheme` rather than claiming a seal it cannot prove. |
 | Hono | 4.13.7 | Small, standards-based HTTP. The API stays thin transport with no business logic in it. |
 | zod plus `@hono/zod-validator` | 4.5.4 / 0.9.1 | One schema per endpoint, validated at the edge, typed on both sides of the wire. |
 | Postgres via `postgres` | 3.4.9 | Raw SQL, no ORM. When a judge asks how the forecast works, the answer is the query. |
@@ -64,6 +126,8 @@ Fit for purpose is graded, so each row ties a tool to this problem rather than t
 | Vite, React, Tailwind | 8.2.2 / 19.2.8 / 4.3.3 | The judge-facing surface is a URL they open on their own phone, which is the cleanest rebuttal to a staged prototype. |
 | motion | 13.2.0 | Motion is first-class here, not a polish task, because the experience criteria are 20 points. |
 | recharts | 3.10.1 | Charts over our own ledger, not over screenshots. |
+| Gemini, in `packages/extract` only | `gemini-3.6-flash`, `GEMINI_MODEL` overrides | The only place that reaches a language model, and it may only transcribe: read the CLABE off a photo, transcribe a voice note. ADR-0004 keeps inference out of the per-transaction decision path, and `packages/extract/src/boundary.test.ts` enforces it by reading the package's own source. |
+| ElevenLabs, in `packages/voice` | zero dependencies, plus `convai-widget-embed` 0.18.1 loaded on press in the browser fallback | The verification call to the supplier when the decision is `verify`. The outcome parser is deterministic and not a model, for the same ADR-0004 reason, and the endpoint answers 422 with the exact script when the keys are absent so the clerk reads it on their own telephone. |
 | Nessie (optional) | n/a | System-of-record mirror for accounts and transactions. It has dates with no times, so anything intraday comes from our own ledger. See [`docs/09-api.md`](docs/09-api.md). |
 
 Every dependency is pinned exactly and must be more than three days old, enforced by
@@ -71,9 +135,10 @@ Every dependency is pinned exactly and must be more than three days old, enforce
 
 ## How we worked
 
-36 hours, four people, branch-and-PR with review on every change.
-[`docs/14-process.md`](docs/14-process.md) has the board, representative PRs, the review threads
-that caught real bugs, and the list of work we consciously cut.
+36 hours, four people, a branch and a pull request for every change and zero direct pushes to
+`main` or `dev`. [`docs/14-process.md`](docs/14-process.md) has the board and its nine views, the
+five epics, three pull requests worth reading with what each one argues, the review rotation, what
+build night mode cost us, the ADR index, and the list of work we consciously cut.
 
 ## Team
 
@@ -105,10 +170,16 @@ that caught real bugs, and the list of work we consciously cut.
 | 14 | [process](docs/14-process.md) | How we worked: board, PRs, reviews, ADR index, what we cut |
 | adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target |
 
+Plus [`AGENTS.md`](AGENTS.md), the contract every person and every assistant in this repository
+works under, and [`docs/design.md`](docs/design.md) for the reasoning behind the design system.
+
 ## Disclaimer
 
 Prototype built in 36 hours on synthetic data. Not a financial institution, not a regulated
-entity, and not financial advice. No real customer data is used anywhere in this repository.
+entity, and not financial advice. No real customer data is used anywhere in this repository. Every
+supplier, invoice, CLABE and RFC generated by `packages/seed` carries a `synthetic: true` flag that
+the UI renders as a visible watermark, and the only real data in the tree is public: the SAT's own
+Article 69-B listing, which the SAT publishes and declares de caracter publico in its first line.
 
 ## License
 

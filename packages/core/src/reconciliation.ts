@@ -186,21 +186,31 @@ export function detectBankReconciliation(
   const takenBy = new Map<number, Outflow>();
   const unbacked: Outflow[] = [];
   const contested = new Map<number, Outflow[]>();
+  const expectedByDay = indexByDay(expected);
 
   for (const outflow of outflows) {
-    // Linear scan per outflow. A payment run is hundreds of rows and the whole
-    // detector runs in well under a millisecond; when that stops being true,
-    // bucket `expected` by cents and scan only the neighbouring buckets.
     let free: ExpectedPayment | undefined;
     let busy: ExpectedPayment | undefined;
-    for (const candidate of expected) {
-      if (!matches(outflow, candidate, toleranceCents, windowDays)) {
-        continue;
-      }
-      if (takenBy.has(candidate.index)) {
-        busy = preferred(busy, candidate, outflow);
-      } else {
-        free = preferred(free, candidate, outflow);
+    // Only the days inside the window can match, so only those are scanned.
+    // The flat scan this replaces was quadratic in the size of the company:
+    // eight months of statement against eight months of documents is millions
+    // of comparisons per instruction, and a payment run runs the detector once
+    // per line. The window is a handful of days wide and independent of the
+    // history, so the cost is now the mirror times the window.
+    for (
+      let day = outflow.day.index - windowDays;
+      day <= outflow.day.index + windowDays;
+      day += 1
+    ) {
+      for (const candidate of expectedByDay.get(day) ?? []) {
+        if (!matches(outflow, candidate, toleranceCents, windowDays)) {
+          continue;
+        }
+        if (takenBy.has(candidate.index)) {
+          busy = preferred(busy, candidate, outflow);
+        } else {
+          free = preferred(free, candidate, outflow);
+        }
       }
     }
     if (free !== undefined) {
@@ -370,6 +380,34 @@ function buildExpectedPayments(
   }
 
   return expected;
+}
+
+/**
+ * Groups the expected payments by the calendar day they are expected on.
+ *
+ * The assignment reads this instead of the flat array. It changes no outcome:
+ * `matches` already requires the day to be inside the window, so a bucket
+ * outside it holds nothing that could have matched, and `preferred` is a total
+ * order over distinct expected payments (kind, then day distance, then amount
+ * distance, then the document id, which is a complement uuid, an instruction id
+ * or a CFDI uuid and is unique per expectation). Scan order therefore cannot
+ * decide which candidate wins.
+ */
+function indexByDay(
+  expected: readonly ExpectedPayment[],
+): Map<number, ExpectedPayment[]> {
+  const byDay = new Map<number, ExpectedPayment[]>();
+
+  for (const candidate of expected) {
+    const bucket = byDay.get(candidate.day.index);
+    if (bucket === undefined) {
+      byDay.set(candidate.day.index, [candidate]);
+    } else {
+      bucket.push(candidate);
+    }
+  }
+
+  return byDay;
 }
 
 /** Amount inside the tolerance and calendar day inside the window. */

@@ -38,12 +38,7 @@ export function instructionRoutes(deps: ApiDeps) {
       "/",
       zValidator("json", createInstructionBodySchema, rejectInvalid),
       async (c) => {
-        const outcome = await runIntake(
-          deps.repo,
-          deps.clock,
-          c.req.valid("json"),
-          deps.extractor,
-        );
+        const outcome = await runIntake(deps, c.req.valid("json"));
 
         if (!outcome.ok) {
           return fail(c, 422, "unprocessable", outcome.message);

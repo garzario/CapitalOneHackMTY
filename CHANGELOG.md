@@ -12,6 +12,41 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- The Article 69-B simulation replays the ledger for real (issue #49). `src/lib/replay.ts` turns
+  a `SweepResult` into one frame per month of the company's own ledger, apportioning each
+  supplier's exposure across the months its already-paid invoices fall in and pinning the last
+  frame to the sweep's own totals, so the counters climb and land exactly on the number the
+  engine reported. Suppliers light up in the month their first exposed invoice appears, quiet
+  months still get a tick, the whole replay is capped at 2.4 seconds however many months the seed
+  has, and reduced motion jumps straight to the answer. The constancia PDF is linked from the
+  result. The placeholder timeline and its hardcoded month list are gone.
+
+- End-to-end vertical slice. `SEED=ceptinela` now runs the six controls over the generated company
+  at boot, so `GET /api/v1/run/current` serves the engine's own findings and proposed actions
+  instead of an empty alert rail: 7 findings on 92 instructions, 2 held and 5 to verify, and
+  885,658.73 MXN that does not leave. The API boot line prints the seed, the run and the hero ids.
+  `sat_69b` now reads the committed official 69-B snapshot as well as the versions the instance was
+  posted, for that one RFC, so a real listed RFC is caught by the control and not only by the lookup
+  box, while every synthetic supplier still meets no real row. `bun run demo` is a rewrite that
+  drives the five beats of `docs/10-demo-script.md` headless against a freshly seeded in-memory app
+  and exits non-zero on any beat, with `--base <url>` to run the same beats over HTTP against a
+  deployment.
+- `packages/constancia`, the retention artifact as a real PDF (issue #69). A PDF writer with no
+  dependency and no headless browser: base-14 Helvetica, WinAnsi bytes so accents and `Ñ` survive,
+  exact cross-reference offsets, uncompressed streams so a layout bug is readable with `less`.
+  Two documents on top of it, one for the retroactive 69-B sweep and one for the weekly payment
+  run, each stating what was checked and not only what was found, naming its own sources, and
+  carrying a SHA-256 digest of the ledger range it describes. The page calls that digest a huella
+  and says in as many words that it is not an electronic signature. Served by
+  `GET /api/v1/sat/constancia?listVersion=` and `GET /api/v1/run/:id/constancia`, linked from the
+  69-B screen and the payment run screen.
+- `GET /api/v1/sat/lookup` hardened for the RFCs a judge types (issue #70). The input is
+  normalised before validation, so lower case, spaces and a hyphen before the homoclave all
+  reach the same taxpayer, and the answer echoes the normalised form back. The response now
+  carries `listed`, which is the newest situation and not "any row exists", the `effective` row,
+  and the `source` of the snapshot that answered, present even on an empty result so that "not
+  listed" can never be read as "no list loaded". The endpoint is rate limited to 30 requests per
+  minute per client with the shared error envelope, `Retry-After` and the `RateLimit-*` headers.
 - Measured accessibility pass over the whole app. `apps/web/audit/audit.ts` checks horizontal
   overflow at 390, 768, 1440 and 1920, keyboard reach and focus visibility under real Tab presses,
   reduced motion reaching the duration tokens, and WCAG contrast on every colour pairing in both
@@ -43,7 +78,20 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   `Metrics`. An `info` row is scored as context and never as a false positive. Four labels
   disagree with the engine today and all four are left in the table with the argument written
   down, because a set edited until it agrees measures nothing.
-
+- `docs/11-pitch.md` and `docs/13-devpost.md`, finished against the product that is actually in
+  `dev`. The pitch carries the 60, 90 and 240 second versions in Mexican Spanish, all three opening
+  with the fiscal hook, whose two halves are now cited at their primary sources (CFF article 69-B for
+  the retroactive effect and the thirty-day window, Ley de Sistemas de Pagos article 11 for the
+  finality of an accepted transfer order), plus the six controls in the words used at the table, a
+  gate table saying which lines may be spoken today and which are still blocked on issues #44 and
+  #57, a table of the only numbers we are allowed to say with the source of each, the blind
+  evaluation read off `bun run eval` including the four labels that disagree with the engine, and
+  the eight hardest judge questions answered in one breath each. The Devpost copy is submission ready with an
+  English and a Spanish block per field, the six prize categories each carrying the gate that has to
+  be true before it is selected, and `TODO(garzario)` placeholders for the live URL and the video.
+  Two discrepancies found while verifying and recorded rather than smoothed over: the reference run
+  amount in `docs/02-persona.md` predates the finished generator, and the committed SAT snapshot is a
+  different vintage from the open-data file cited in `docs/04-market.md`.
 - Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
@@ -165,7 +213,46 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Changed
 
+- `detectBankReconciliation` buckets the expected payments by the day they are expected on and
+  scans only the days inside the match window, instead of the whole company's documents once per
+  outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from
+  11 seconds to 1.5, which is what makes running the controls at boot possible at all.
+- `docs/01-rubric-mapping.md` carries a real claim sentence and real evidence for all fourteen
+  sub-criteria plus the engineering-process row: every evidence cell is a path, a PR number, a CI
+  run or a test name that exists on `dev` today. Five rows are yellow and each one names the single
+  thing that would turn it green, with the issue that tracks it. A self-score section states the
+  scoring rule (G full, Y half, R zero) and records M1 at 85 of 100, so the number is reproducible
+  instead of asserted. The scoring discipline now checks `dev` rather than `main`, which is where
+  the evidence actually lands.
+- `docs/14-process.md` replaces its M3 placeholders with the artifacts themselves: the board and
+  its nine views, the five epics, three pull requests worth reading with what each body argues
+  (#117 the detector registry that made every control silent, #119 what the real 4.5 MB SAT file
+  does to a parser, #118 why the call outcome is parsed deterministically), the CI run and the test
+  count, the rubric score trend, and the ADR index with each ADR's real status instead of the
+  placeholder ones. Build night mode now states what it bought and what it cost, including that no
+  merged PR carries a post-merge review thread yet. The cut list is written: the fourteen issues
+  superseded by the Ceptinela backlog after ADR-0002, the nine closed as duplicates, six deliberate
+  descopes each traced to the PR or doc that made the call, and the four surfaces decided out of
+  scope before the first commit.
+- `README.md` replaces its `TODO(product)` placeholders with what is true now: the problem stated
+  with the cited SAT, ISR, IVA and irrevocability figures and the named persona, the differentiator
+  and the gap, the four-lane architecture rule and three sentences on the algorithm, the real
+  screenshots, and stack rows for `packages/engine`, `packages/sat`, `packages/cep`, Gemini and
+  ElevenLabs. The GIF, the demo video and the live URL stay `TODO(garzario)` with their issue
+  numbers until they exist.
+
 ### Fixed
+
+- The API tests read the ambient environment, so a laptop that followed the setup in the README
+  and filled in `.env` saw 48 failures that CI never sees: `SEED=ceptinela` swapped the
+  hand-written fixture for the generated company, and a `GEMINI_API_KEY` turned the intake
+  refusal into a live model call. `createTestApp` now pins the repository and the extractor the
+  way it already pinned the clock, the seed guard and the voice configuration, and a test asserts
+  that it does.
+- The 69-B simulation on the `/sat` screen posted an RFC written into the screen, and that RFC
+  belonged to the hand-written fixture rather than to the seeded company, so the sweep listed
+  nobody and the demo's centrepiece showed a confident 0.00. The supplier is read off the payment
+  run now, and a sweep that lists nobody gets its own empty state instead of a row of zeros.
 
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
