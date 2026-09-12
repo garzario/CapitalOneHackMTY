@@ -2,8 +2,20 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { type ApiDeps, createDeps } from "./deps";
+import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
 import { requestId } from "./middleware/request-id";
+import { beneficiaryRoutes } from "./routes/beneficiaries";
+import { cepRoutes } from "./routes/cep";
+import { eventRoutes } from "./routes/events";
 import { health } from "./routes/health";
+import { instructionRoutes } from "./routes/instructions";
+import { ledgerRoutes } from "./routes/ledger";
+import { metricsRoutes } from "./routes/metrics";
+import { runRoutes } from "./routes/run";
+import { satRoutes } from "./routes/sat";
+import { seedRoutes } from "./routes/seed";
+import { supplierRoutes } from "./routes/suppliers";
 
 /**
  * This app is transport only: read the request, validate it, delegate, shape a
@@ -12,27 +24,18 @@ import { health } from "./routes/health";
  * Business logic and anything algorithmic belongs in packages/core, which is
  * pure TypeScript with no dependencies and is unit tested there. If a handler
  * in this workspace starts doing arithmetic on money, it is in the wrong file.
+ *
+ * The route tree mirrors docs/09-api.md one to one, and each group lives in its
+ * own file under src/routes. `createApp(deps)` takes its dependencies instead of
+ * reaching for a singleton, so a test can hand it a fresh repository and two
+ * tests never share state.
  */
-
-const UNKNOWN_REQUEST_ID = "unknown";
-
-type ErrorBody = {
-  error: {
-    code: string;
-    message: string;
-    requestId: string;
-  };
-};
-
-function errorBody(code: string, message: string, id: string): ErrorBody {
-  return { error: { code, message, requestId: id } };
-}
 
 const pingQuery = z.object({
   echo: z.string().min(1).max(64).optional(),
 });
 
-export function createApp() {
+export function createApp(deps: ApiDeps = createDeps()) {
   const app = new Hono();
 
   app.use("*", requestId);
@@ -41,18 +44,7 @@ export function createApp() {
 
   const v1 = new Hono().get(
     "/ping",
-    zValidator("query", pingQuery, (result, c) => {
-      if (!result.success) {
-        return c.json(
-          errorBody(
-            "bad_request",
-            "Query parameters are invalid.",
-            c.get("requestId"),
-          ),
-          400,
-        );
-      }
-    }),
+    zValidator("query", pingQuery, rejectInvalid),
     (c) => {
       const { echo } = c.req.valid("query");
 
@@ -64,6 +56,17 @@ export function createApp() {
       });
     },
   );
+
+  v1.route("/run", runRoutes(deps));
+  v1.route("/instructions", instructionRoutes(deps));
+  v1.route("/suppliers", supplierRoutes(deps));
+  v1.route("/sat", satRoutes(deps));
+  v1.route("/cep", cepRoutes(deps));
+  v1.route("/beneficiaries", beneficiaryRoutes(deps));
+  v1.route("/metrics", metricsRoutes(deps));
+  v1.route("/ledger", ledgerRoutes(deps));
+  v1.route("/events", eventRoutes(deps));
+  v1.route("/seed", seedRoutes(deps));
 
   app.route("/api/v1", v1);
 

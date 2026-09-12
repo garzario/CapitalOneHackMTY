@@ -14,6 +14,11 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
+- `apps/api` scaffold for the contract in `docs/09-api.md`: one file per route group under
+  `src/routes`, zod schemas for every request and response derived from the domain types, a
+  `Repository` interface with an in-memory implementation seeded with a synthetic payment run, the
+  Server-Sent Events broadcaster behind `GET /api/v1/events`, and the intake pipeline that calls the
+  detectors in `@hackmty/core` once they exist.
 
 ### Changed
 
