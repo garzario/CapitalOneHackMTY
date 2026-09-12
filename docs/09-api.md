@@ -1,8 +1,8 @@
 # 09. API contract
 
 Base path `/api/v1`. JSON in and out. Errors use one envelope: `{ "error": { "code": string, "message": string, "requestId": string } }`.
-Codes: `bad_request` 400, `forbidden` 403, `not_found` 404, `conflict` 409, `unprocessable` 422, `rate_limited` 429, `internal_error` 500, `unavailable` 503.
-`unavailable` is the one that is about us and not about the request: the server is missing something it needs to do this at all, which today means the one-cent verification on a server with no payment rail. A 422 there would tell a clerk their request was wrong when it was not.
+Codes: `bad_request` 400, `forbidden` 403, `not_found` 404, `conflict` 409, `unprocessable` 422, `rate_limited` 429, `internal_error` 500, `service_unavailable` 503.
+`service_unavailable` is a capability this instance was not configured with rather than a request that is wrong, and it is distinct from `forbidden`, which is about who is asking. Two endpoints answer it: the consortium when `ALLOW_CONSORTIUM` is unset, and the one-cent verification on a server with no payment rail. A 422 on either would tell a clerk their request was wrong when it was not.
 All amounts in MXN. All timestamps ISO 8601. Every synthetic object carries `synthetic: true`.
 Types are the ones in `packages/core/src/domain.ts`; the API never invents a second shape.
 
@@ -17,6 +17,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. Rate limited per client |
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
+| GET | `/api/v1/consortium/signal?rfc=&clabe=` | `{ rfc, clabe, network: NetworkSignal }` | what the SentryOne consortium holds for one beneficiary pair, read from the LOCAL snapshot and never from Snowflake. Both halves of the pair are required. `503 service_unavailable` when `ALLOW_CONSORTIUM` is unset, `404 not_found` when the network has never seen the pair or when nothing has been pulled. See "The consortium, and what the network can say" below |
 | GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand |
 | GET | `/api/v1/ledger?since=` | `{ events: LedgerEvent[] }` | append-only ledger, for the timeline |
 | GET | `/api/v1/sat/constancia?listVersion=` | `application/pdf` | constancia of the retroactive sweep for one loaded list version |
@@ -155,6 +156,39 @@ clave SPEI. It proves the flow, on the same account `bank_reconciliation` reads.
 RSA signature, and it refuses to run without `STP_*` configuration, so nothing here can
 pretend to be live. The CEP side is the same seam the pasted-XML path uses.
 
+### The consortium, and what the network can say
+
+`GET /api/v1/consortium/signal?rfc=&clabe=` is the second endpoint able to make a claim it has not
+earned, so its three states are written out here rather than left to the table. Everything it
+answers comes out of the local `consortium_snapshot` table, filled by `bun run consortium:pull`; the
+plumbing lives in `packages/consortium` and its README carries the privacy argument in full.
+
+- **It is never on the hot path.** The engine reads the same snapshot through the repository, so a
+  payment decision never waits on a warehouse and the demo works with the network unplugged. That
+  is a property a judge can test by unplugging it.
+- **`503 service_unavailable` names the flag.** With `ALLOW_CONSORTIUM` unset the route exists and
+  this instance will not answer it, which is a different statement from a 404 that pretends the
+  endpoint is not there. The message names the variable.
+- **`404 not_found` says which of two things happened.** Either nothing has ever been pulled here,
+  and the message names `bun run consortium:pull`, or the network was consulted and holds nothing
+  for this pair, and the message says that is an answer and not a failure.
+- **A `200` with `tenants: 0` is a real answer.** `NetworkSignal.source` separates
+  `not_consulted`, which is the network nobody read, from `snapshot`, which is the network that
+  answered. Zero tenants on a `snapshot` means the network has never seen this account, and
+  `otherAccounts` then says how many accounts it does hold for that supplier, which is the
+  impersonation case: forty companies pay this supplier, and none of them pays it here.
+- **There is no request shape that lists a supplier's accounts.** Both the RFC and the exact
+  eighteen-digit CLABE are required, so only somebody who already holds both can ask, exactly like
+  the CEP endpoint. No listing, no prefix match, no "which accounts does this supplier have". The
+  rule is `docs/06-regulatory-privacy.md` section 6.4 and a route test asserts all three refusals.
+- **Nothing personal is in the answer.** The warehouse holds salted HMAC-SHA256 hashes of the
+  normalised RFC and CLABE, a three-digit bank code that is printed on every SPEI receipt, dates,
+  counts and one of four outcomes. No name, no amount, no invoice, no clave de rastreo.
+- **The network in this repository is synthetic and the docs say so.** SentryOne has one tenant, so
+  the other tenants are generated deterministically from seed 69 with `synthetic = TRUE` on every
+  warehouse row. The mechanism is real, the other companies are not, and `consortium_pull.source`
+  says `snowflake` or `synthetic` so no screen can confuse the two.
+
 ### The constancias
 
 Two endpoints answer with a PDF rather than JSON, because the accountant files the document and reads it again when the SAT asks. They are the only non-JSON responses in the API.
@@ -185,6 +219,9 @@ curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application
   -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' | jq '.totalExposure'
+# The consortium, for one beneficiary pair. Both halves are required, and the answer comes
+# out of the local snapshot: this call reaches no warehouse and works with the network down.
+curl -s 'https://<host>/api/v1/consortium/signal?rfc=SYN980101S01&clabe=072180100000000007' | jq '.network'
 # A CEP the clerk pasted. jq -Rs turns the file into one JSON string, newlines and all,
 # because the signature is over bytes and a re-serialised document is a different document.
 jq -Rs '{xml: ., supplierRfc: "SYN201123S23"}' packages/cep/src/fixtures/synthetic-cep.xml \

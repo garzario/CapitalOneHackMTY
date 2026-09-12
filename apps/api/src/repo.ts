@@ -16,6 +16,8 @@
 
 import type {
   Cfdi,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   LedgerEvent,
@@ -90,6 +92,23 @@ export interface ResetSummary {
   events: number;
 }
 
+/**
+ * What the local consortium snapshot answers about one hashed pair.
+ *
+ * Three fields and not one, because three states have to be told apart and
+ * collapsing any two of them would make the product claim something it cannot.
+ * `pull` absent is "the network was never consulted here". `pull` present with
+ * `pair` absent is "the network WAS consulted and has never seen this account",
+ * which is a much stronger statement. `accountsForRfc` is what makes the
+ * impersonation case visible: the supplier is in the network, on other accounts.
+ */
+export interface ConsortiumLookup {
+  pull?: ConsortiumPull;
+  pair?: ConsortiumSnapshotRow;
+  /** Accounts the network holds for this RFC, the looked-up one included. */
+  accountsForRfc: number;
+}
+
 export interface Repository {
   /* Reads, one per endpoint in docs/09-api.md. */
   company(): Promise<CompanyIdentity>;
@@ -127,6 +146,15 @@ export interface Repository {
   satLookup(rfc: string): Promise<SatListEntry[]>;
   satVersions(): Promise<SatVersionSummary[]>;
   beneficiaries(): Promise<VerifiedBeneficiary[]>;
+  /**
+   * The local consortium snapshot for one HASHED pair. The repository never sees
+   * an RFC or a CLABE here: `src/consortium.ts` hashes them before it asks, which
+   * is what keeps the privacy boundary in one file.
+   */
+  consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup>;
   metrics(): Promise<Metrics>;
   ledger(query: LedgerQuery): Promise<LedgerEvent[]>;
   /**
@@ -177,6 +205,19 @@ export interface Repository {
     entries: SatListEntry[],
   ): Promise<SweepSubject[]>;
   saveVerifiedBeneficiary(row: VerifiedBeneficiary): Promise<void>;
+  /**
+   * Replaces the whole local snapshot and records the pull that produced it.
+   *
+   * Replaces and never merges: a pair the network has stopped corroborating must
+   * not stay in the snapshot, because a stale corroboration is the one way this
+   * signal turns into a false release. `bun run consortium:pull` is the caller on
+   * the Postgres path and a route test is the caller on the memory one.
+   */
+  replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number>;
   reset(seed: number): Promise<ResetSummary>;
 }
 
@@ -198,6 +239,19 @@ export class MemoryRepository implements Repository {
   private data: SyntheticDataset;
   private seed: number;
   private readonly build: DatasetFactory;
+  /**
+   * The local consortium snapshot, empty until something fills it.
+   *
+   * It sits beside the dataset rather than inside it on purpose: the network is
+   * not company data, it survives a `reset` the way the Postgres table survives a
+   * re-seed, and a store that wiped it when the company was regenerated would
+   * report "not consulted" after a rehearsal reset and quietly change every
+   * decision on the screen.
+   */
+  private consortium: {
+    pull?: ConsortiumPull;
+    rows: ConsortiumSnapshotRow[];
+  } = { rows: [] };
 
   /**
    * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
@@ -410,6 +464,35 @@ export class MemoryRepository implements Repository {
   }
 
   /**
+   * The same three-state answer the Postgres path gives, over an in-memory map.
+   *
+   * A fresh store holds no pull, so the network reads as `not_consulted` and this
+   * repository decides exactly what it decided before the consortium existed.
+   * That is deliberate: every route test that predates issue #164 has to keep
+   * passing without being told about a network.
+   */
+  async consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup> {
+    const result: ConsortiumLookup = {
+      accountsForRfc: this.consortium.rows.filter(
+        (row) => row.rfcHash === rfcHash,
+      ).length,
+    };
+    if (this.consortium.pull !== undefined) {
+      result.pull = copy(this.consortium.pull);
+    }
+    const pair = this.consortium.rows.find(
+      (row) => row.rfcHash === rfcHash && row.clabeHash === clabeHash,
+    );
+    if (pair !== undefined) {
+      result.pair = copy(pair);
+    }
+    return result;
+  }
+
+  /**
    * The blind evaluation, recomputed on demand.
    *
    * The numbers come from `@hackmty/seed`: the labelled cases in
@@ -600,6 +683,22 @@ export class MemoryRepository implements Repository {
     }
     account.establishedBy = "cep";
     account.establishedAt = stored.verifiedAt;
+  }
+
+  async replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number> {
+    this.consortium = {
+      pull: {
+        pulledAt: input.pulledAt,
+        source: input.source,
+        rows: input.rows.length,
+      },
+      rows: input.rows.map((row) => copy(row)),
+    };
+    return input.rows.length;
   }
 
   /**

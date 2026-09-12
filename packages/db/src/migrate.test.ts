@@ -7,6 +7,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   COMPANY_MIGRATION,
+  CONSORTIUM_SNAPSHOT_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
@@ -400,7 +401,7 @@ describe("supplier_weekly_outflow, both paths", () => {
   });
 });
 
-describe("0009_rail_events.sql", () => {
+describe("0010_rail_events.sql", () => {
   it("teaches the ledger the two event kinds the cent appends", async () => {
     const text = await Bun.file(
       `${MIGRATIONS_DIR}/${RAIL_EVENTS_MIGRATION}`,
@@ -454,6 +455,7 @@ describe("MIGRATIONS", () => {
       SENTRYONE_DRIFT_MIGRATION,
       COMPANY_MIGRATION,
       SUPPLIER_OUTFLOW_MIGRATION,
+      CONSORTIUM_SNAPSHOT_MIGRATION,
       RAIL_EVENTS_MIGRATION,
       TIMESCALE_MIGRATION,
       SENTRYONE_TIMESCALE_MIGRATION,

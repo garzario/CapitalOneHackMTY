@@ -25,6 +25,7 @@ import {
 import { createSql, type Sql } from "./index";
 import {
   COMPANY_MIGRATION,
+  CONSORTIUM_SNAPSHOT_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
@@ -171,6 +172,9 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
       "applied",
     );
     expect(resultFor(results, COMPANY_MIGRATION).status).toBe("applied");
+    expect(resultFor(results, CONSORTIUM_SNAPSHOT_MIGRATION).status).toBe(
+      "applied",
+    );
     await appendOnlyStillGuards();
   });
 
@@ -212,19 +216,22 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
       ),
     );
 
-    /* What is recorded, asserted against MIGRATIONS rather than against a list
-       written out here. A hand-written list goes stale the moment somebody adds a
-       plain migration, and then this test fails for a reason that has nothing to do
-       with the rename it exists to cover. Every plain file is recorded, the renamed
-       file is recorded under its NEW name, and no pre-rename name survives, which is
-       the actual claim. */
+    /* Every file the plain-Postgres path applies, plus the one Timescale file whose
+       row `recordOldNames` wrote so the rename pairs are complete. The expected set
+       is derived from MIGRATIONS rather than written out again: an exact comparison
+       still notices a file that stopped being applied or a row nobody expected,
+       which is the point of this assertion, and it no longer goes stale the moment
+       somebody adds a plain migration and fails for a reason that has nothing to do
+       with the rename this test covers. */
+    const plainFiles = MIGRATIONS.filter((spec) => !spec.requiresTimescale).map(
+      (spec) => spec.file,
+    );
+
+    expect([...(await recordedFiles())].sort()).toEqual(
+      [...plainFiles, SENTRYONE_TIMESCALE_MIGRATION].sort(),
+    );
+    // And no pre-rename name survived the reconciliation.
     const recorded = new Set(await recordedFiles());
-    for (const spec of MIGRATIONS) {
-      if (!spec.requiresTimescale) {
-        expect(recorded.has(spec.file)).toBe(true);
-      }
-    }
-    expect(recorded.has(SENTRYONE_TIMESCALE_MIGRATION)).toBe(true);
     for (const pair of RENAMED_MIGRATIONS) {
       expect(recorded.has(pair.from)).toBe(false);
     }

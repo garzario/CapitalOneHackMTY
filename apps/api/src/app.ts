@@ -7,6 +7,7 @@ import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
 import { requestId } from "./middleware/request-id";
 import { beneficiaryRoutes } from "./routes/beneficiaries";
 import { cepRoutes } from "./routes/cep";
+import { consortiumRoutes } from "./routes/consortium";
 import { constanciaRoutes } from "./routes/constancia";
 import { eventRoutes } from "./routes/events";
 import { health } from "./routes/health";
@@ -77,6 +78,7 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   v1.route("/suppliers", supplierRoutes(deps));
   v1.route("/sat", satRoutes(deps));
   v1.route("/cep", cepRoutes(deps));
+  v1.route("/consortium", consortiumRoutes(deps));
   v1.route("/beneficiaries", beneficiaryRoutes(deps));
   v1.route("/metrics", metricsRoutes(deps));
   v1.route("/ledger", ledgerRoutes(deps));

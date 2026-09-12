@@ -18,6 +18,7 @@ import {
   committedCepInbox,
   createCepSource,
 } from "./cep";
+import { type ConsortiumSource, createConsortiumSource } from "./consortium";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
@@ -75,6 +76,14 @@ export interface ApiDeps {
   /** How long the CEP poll waits and how often it asks. See `src/verification.ts`. */
   verification: VerificationOptions;
   /**
+   * Reads the LOCAL consortium snapshot for one beneficiary pair, hashing the RFC
+   * and the CLABE on the way in. Off unless `ALLOW_CONSORTIUM=1`, and it never
+   * reaches Snowflake: `bun run consortium:pull` fills the snapshot and this reads
+   * it, which is what keeps a warehouse off the hot path of a payment decision.
+   * See `src/consortium.ts`.
+   */
+  consortium: ConsortiumSource;
+  /**
    * Append to the ledger and push to every open SSE connection, in that order.
    * The ledger is the record; the stream is a view of it, so a subscriber can
    * never see an event that was not stored.
@@ -93,6 +102,7 @@ export interface DepsOverrides {
   cepInbox?: CepInbox;
   rail?: () => Promise<RailResolution>;
   verification?: VerificationOptions;
+  consortium?: ConsortiumSource;
 }
 
 function readEnv(name: string): string | undefined {
@@ -170,6 +180,9 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   const verification =
     overrides.verification ?? defaultVerificationOptions(readEnv);
   const rail = overrides.rail ?? memoize(() => railFor(repo));
+  /* Bound to the repository this process booted with, so the snapshot it reads is
+     the one the live store holds rather than a second connection's. */
+  const consortium = overrides.consortium ?? createConsortiumSource(repo);
 
   return {
     repo,
@@ -182,6 +195,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
     cepInbox,
     rail,
     verification,
+    consortium,
     async emit(event) {
       await repo.appendEvent(event);
       events.publish(event);

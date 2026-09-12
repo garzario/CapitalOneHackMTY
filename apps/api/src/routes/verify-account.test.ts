@@ -120,7 +120,7 @@ describe("POST /api/v1/instructions/:id/verify-account", () => {
     const body = (await response.json()) as ErrorBody;
 
     expect(response.status).toBe(503);
-    expect(body.error.code).toBe("unavailable");
+    expect(body.error.code).toBe("service_unavailable");
     expect(body.error.message).toContain("RAIL=nessie");
     expect(body.error.message).toContain("RAIL=stp");
   });

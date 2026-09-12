@@ -27,12 +27,14 @@ export type ErrorCode =
   | "http_error"
   | "internal_error"
   /**
-   * The server is missing something it needs to do this at all, and it is our
-   * configuration and not the request: the one-cent verification with no payment
-   * rail. A 422 would tell a clerk their request was wrong when it was not, and a
-   * 500 would tell them it is broken when it is unbought.
+   * A capability this server was not configured with, rather than a request that
+   * is wrong. Two cases: the consortium with `ALLOW_CONSORTIUM` unset, and the
+   * one-cent verification on a server with no payment rail. In both the route
+   * exists, the request is well formed, and this instance will not answer it, so a
+   * 422 would tell a clerk they got it wrong and a 500 would say it is broken when
+   * it is unconfigured. Distinct from `forbidden`, which is about who is asking.
    */
-  | "unavailable";
+  | "service_unavailable";
 
 /** Statuses this API actually returns. Anything else is a bug, not a choice. */
 export type ErrorStatus = 400 | 403 | 404 | 409 | 422 | 429 | 500 | 503;

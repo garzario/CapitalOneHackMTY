@@ -76,7 +76,7 @@ export function verifyAccountRoutes(deps: ApiDeps) {
           /* No rail, and a rail that refused the cent, are one answer: this
              server cannot do it right now and nothing about the request was
              wrong. Both say what would change that. */
-          return fail(c, 503, "unavailable", outcome.message);
+          return fail(c, 503, "service_unavailable", outcome.message);
         }
 
         /* The poll is deliberately not awaited. The clerk has the clave de

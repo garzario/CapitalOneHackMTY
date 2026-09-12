@@ -10,6 +10,7 @@ export * from "./decision";
 export * from "./domain";
 export * from "./duplicates";
 export * from "./money";
+export * from "./network";
 export * from "./reconciliation";
 export * from "./rolling";
 export * from "./types";

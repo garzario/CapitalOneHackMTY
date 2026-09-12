@@ -48,6 +48,52 @@ then the screens, then the narrative, then the plumbing.
   amount as a whole number so it reads back as 0, which is why the centavo lives in our ledger.
   `bun run demo` gained a beat that takes one seeded line to `released` and another to `blocked` from
   one call each, on the in-process rail and on synthetic CEPs, and it says so on the line it prints.
+- The cross-company beneficiary network, on Snowflake, and the network signal inside the beneficiary
+  control (issue #164). A supplier's first payment from this company has no history here and has
+  years of it in every other company that already pays that supplier, which is the signal Trustpair
+  and nsKnox sell to corporate treasuries. `packages/consortium` is our version of it: the SQL REST
+  API with a key-pair JWT and no SDK, one table `SENTRYONE.CONSORTIUM.BENEFICIARY_EVENTS` and one
+  view `BENEFICIARY_NETWORK`, `bun run consortium:seed`, `consortium:push` and `consortium:pull`, and
+  the deterministic synthetic network of other tenants the demo reads. The network is off unless
+  `ALLOW_CONSORTIUM=1`.
+  **What leaves a tenant** is salted HMAC-SHA256 hashes of the normalised RFC and CLABE, the
+  three-digit bank code that is printed on every SPEI receipt, one of `verified`, `paid`, `mismatch`
+  or `fraud_reported`, and a calendar day. Never a legal name, an amount, an invoice UUID, a clave de
+  rastreo or an account number: there is no column for any of them, and `sync.test.ts` serialises the
+  push payload AND the SQL it becomes and fails if one of those strings is in it. The salt is
+  network-wide on purpose, because two tenants can only agree they are paying the same account if
+  their hashes agree; the cost of that, stated in `packages/consortium/README.md` rather than hidden,
+  is that whoever holds the salt can confirm a guess, which is why the salt belongs to the operator
+  and the constant in the repository is a documented demo value.
+  **The warehouse is never on the hot path.** `bun run consortium:pull` fills the local
+  `consortium_snapshot` (migration `0009_consortium_snapshot.sql`, both database paths) and the
+  engine reads only that, so a payment decision never waits on Snowflake and the demo works with the
+  network unplugged. Two tables and not one, because three states have to be told apart: no pull row
+  is "never consulted", a pull row with no pair row is "consulted and never seen this account", and
+  both is what the network knows. A pull replaces the snapshot wholesale inside one transaction,
+  because a pair the network has stopped corroborating must not stay behind.
+  **The decision uses it deterministically and says so.** `assessNetwork` in
+  `packages/core/src/network.ts` turns one signal into a verdict and a multiplier on the expected
+  loss: `1 / (1 + 0.05 * tenants + 0.02 * months)`, floored at 0.2, monotone in both, and exactly 1
+  when the network was not consulted, so an instance with the flag off decides what this product
+  decided before the consortium existed. Any fraud report cancels every discount and raises the
+  beneficiary finding to `critical` whatever the CEP says, because a tenant who lost money to this
+  pair knows something the document does not carry. No LLM anywhere near it, and the two weights are
+  labelled priors with a `TODO` naming what would replace them. With no CEP at all the control used
+  to be silent and now reports what the network knows when the network knows something, which is the
+  case the consortium exists for: forty companies pay this supplier, and none of them pays it here.
+  `GET /api/v1/consortium/signal?rfc=&clabe=` answers one pair from the snapshot, 503 naming the flag
+  when the consortium is off and 404 when the pair is unknown, and it takes no request shape that
+  lists a supplier's accounts. `bun run doctor` gains a `snowflake` line that says whether this
+  laptop can decide with the network at all.
+  **The network is synthetic and every artifact says so.** SentryOne has one tenant, so the other
+  tenants are generated from seed 69 with `synthetic = TRUE` on every warehouse row, and
+  `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse a rehearsal
+  with a warehouse. Verified end to end against a local PostgreSQL 18 on 2026-09-12: 46 hashed pairs
+  pulled with `--offline`, a corroborated account released with "pagada por 34 empresas" on the
+  finding, and the same supplier on an account the network has never paid verified at 35,769.75 MXN
+  of expected loss. The live Snowflake path is untried because `SNOWFLAKE_ACCOUNT` and
+  `SNOWFLAKE_USER` are still empty.
 
 - Two things the deploy of #44 cost to learn, written down next to the commands in
   `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
@@ -184,6 +230,28 @@ then the screens, then the narrative, then the plumbing.
   `MemoryRepository` on the same seed, line for line, plus the endpoints and the SSE stream, and
   was run against the local PostgreSQL 18 and the managed TimescaleDB 2.30 service.
 
+- "Verificar cuenta" on the CEP screen, and the beat that follows it with nobody typing (issue
+  #167). One click posts `/api/v1/instructions/:id/verify-account`, and from there the panel
+  follows `GET /verification` and re-reads on every ledger event that names the instruction, so
+  the six states arrive on their own: sin verificar, centavo enviado with the clave de rastreo the
+  rail answered, esperando el CEP, CEP firmado por Banxico with the holder next to the CFDI legal
+  name, and pago liberado or pago bloqueado with the decision the engine took. The instruction
+  detail links into it from the destination account, so the beat starts on the screen that shows
+  the account it is about. Three rules hold the panel together. The rail is named on screen,
+  "espejo Nessie" in the demo, next to the sentence that says the CEP is Banxico's and the cent is
+  ours. The seal is rendered exactly as the API reports it and `sealVerdictOf` is the only place
+  that maps it: `valid` is the only value that reads valido, and anything else, including a value
+  this build has never seen, reads no verificado, which is what stops a `not_checked` seal from
+  being promoted to evidence. And offline the panel moves the first two beats and stops, because a
+  browser with no API holds no signed document and walking a mock to "CEP firmado" would fabricate
+  the evidence the control rests on. The ledger stream is read structurally rather than by a
+  switch on the event type, since `cent_sent` and `cep_awaited` are added to the union in issue
+  #166 and a switch would have compiled, dropped both and frozen the panel on "centavo enviado".
+  `?data=mock` carries a verification per instruction, one per state, so the offline run renders
+  all six. The 409 and the 503 are sentences a clerk can act on and not error codes: a payment
+  already released or blocked is not verified twice, and a deployment with no rail says which
+  configuration is missing instead of inventing a clave de rastreo.
+
 - The metrics page says how blind the blind evaluation actually is (issue #51). It used to claim
   the labels were written by a different person from the detectors, which the holdout README
   contradicts; the note now states the real position, names the four labels that disagree with
@@ -279,6 +347,14 @@ then the screens, then the narrative, then the plumbing.
   where the line between "no verificada" and "invalida" is drawn.
 
 ### Fixed
+
+- The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
+  synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the
+  running API the name comparison, which is the entire point of showing a CEP, printed "no
+  disponible" under the holder. `readLegalName` in `apps/web/src/lib/evidence.ts` reads both keys,
+  the engine's first, which is the module that already exists to keep the three evidence
+  vocabularies apart. `legalName` and `beneficiaryName` also gained Spanish labels, so the finding
+  panel stops printing our variable names at a clerk.
 
 - `POST /api/v1/cep/verify` does what `docs/09-api.md` says it does (issue #42). It had been the one
   write endpoint still wired to a stub: it only ever answered from the registry of verified

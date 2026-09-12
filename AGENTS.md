@@ -70,6 +70,13 @@ If the ADR is changed, change this section in the same PR.
   `StpRail` is the documented production path that refuses to run without `STP_*`, and
   `FakeRail` is the in-process one the suite and `bun run demo` use. Read `README.md` in that
   folder before quoting any of it: it says which rail has run live and which has not.
+- `packages/consortium`, the only place that talks to the cross-tenant network on Snowflake: the
+  hashing that is the privacy boundary, the key-pair JWT, the SQL REST API with an injectable
+  `fetch`, the DDL, the push and the pull, and the deterministic synthetic network the demo reads.
+  Server only (`node:crypto`), never on the hot path: the engine reads the local
+  `consortium_snapshot` table and a decision never waits on a warehouse. Read its README before
+  quoting the consortium anywhere, because the network in this repository is synthetic and every
+  claim about it has to say so.
 - `packages/seed`, deterministic synthetic Mexican transaction generator, fixed RNG seed.
 - `packages/db`, schema, migrations and SQL. Raw SQL through `postgres`, no ORM. Postgres only,
   no SQLite. `0001_init.sql` runs on any Postgres 16+. `0002_timescale.sql` is applied only when
@@ -92,6 +99,9 @@ bun run dev | bun test | bun run typecheck | bun run build
 bun run migrate                   # 0001 always, 0002 only if timescaledb is available
 bun run seed                      # idempotent, prints the demo IDs
 bun run nessie:mirror             # pushes the company bank mirror, validates the key with a write
+bun run consortium:seed           # warehouse schema plus the synthetic network, needs ALLOW_CONSORTIUM=1
+bun run consortium:push           # this tenant's outcomes, hashed, never a name or an amount
+bun run consortium:pull           # fills the local snapshot; --offline needs no Snowflake account
 bun run demo                      # drives the demo path headless, green before any rehearsal
 ```
 

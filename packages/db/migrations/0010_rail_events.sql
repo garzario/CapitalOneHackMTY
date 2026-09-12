@@ -1,4 +1,4 @@
--- packages/db/migrations/0009_rail_events.sql  runs on ANY Postgres 16+
+-- packages/db/migrations/0010_rail_events.sql  runs on ANY Postgres 16+
 --
 -- The two event kinds the one-cent verification appends, from issue #166:
 --

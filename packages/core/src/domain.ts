@@ -263,6 +263,89 @@ export type Detector =
 
 export type Severity = "info" | "warning" | "critical";
 
+/**
+ * What the SentryOne consortium knows about one (supplier RFC, account) pair,
+ * read from the LOCAL snapshot and never from the warehouse at decision time.
+ *
+ * The network is a cross-tenant corroboration signal and nothing more: other
+ * companies have paid this exact account for this exact supplier, for this long,
+ * and none of them has reported it. Nothing personal is in it. The warehouse
+ * holds salted hashes of the RFC and the CLABE, a bank code, dates, counts and
+ * an outcome, so this object can be computed without anybody's name, amount or
+ * account number leaving the tenant that owns it. `packages/consortium/README.md`
+ * holds the privacy argument in full.
+ *
+ * `source` is the honest part. `not_consulted` means the network was not read at
+ * all, because the flag is off or nothing has been pulled yet, and then the
+ * decision is exactly the decision this product made before the network
+ * existed. `snapshot` means the local snapshot answered, and `tenants: 0` on a
+ * `snapshot` is itself an answer: the network has never seen this account.
+ */
+export interface NetworkSignal {
+  source: "snapshot" | "not_consulted";
+  /** Distinct tenants that paid this exact pair. Zero is a real answer. */
+  tenants: number;
+  /** Oldest event date the network holds for the pair, ISO YYYY-MM-DD. */
+  firstSeen?: string;
+  /** Newest event date the network holds for the pair, ISO YYYY-MM-DD. */
+  lastSeen?: string;
+  /** Tenants that reported this pair as fraud. Any of them is disqualifying. */
+  fraudReports: number;
+  /**
+   * Other accounts the network holds for this supplier, this one excluded. A
+   * supplier that forty companies pay on a different account is the
+   * impersonation case, and this is the number that says so.
+   */
+  otherAccounts: number;
+  /** When the local snapshot was filled. Absent while nothing was pulled. */
+  pulledAt?: string;
+}
+
+/**
+ * One row of the LOCAL consortium snapshot: everything the network holds about
+ * one hashed beneficiary pair, as the warehouse aggregated it.
+ *
+ * It is the only shape that crosses from `@hackmty/consortium` into
+ * `@hackmty/db`, so it lives here with the rest of the contract rather than in
+ * either of them. Hashes are lower-case hex; `firstSeen` and `lastSeen` are ISO
+ * YYYY-MM-DD, because a day is all the network keeps.
+ */
+export interface ConsortiumSnapshotRow {
+  rfcHash: string;
+  clabeHash: string;
+  /** The three digits a CLABE carries in public. Not a secret, and not a name. */
+  bankCode: string;
+  tenants: number;
+  firstSeen: string;
+  lastSeen: string;
+  fraudReports: number;
+  otherAccounts: number;
+}
+
+/**
+ * What filled the local snapshot, one row per instance.
+ *
+ * `source` is load bearing rather than decorative: `snowflake` means the rows
+ * came from the warehouse, `synthetic` means they were generated on this laptop
+ * for an offline rehearsal, and a screen or a document that says "red SentryOne"
+ * over synthetic rows has to be able to say which one it is looking at.
+ */
+export interface ConsortiumPull {
+  pulledAt: string;
+  source: "snowflake" | "synthetic";
+  rows: number;
+}
+
+/**
+ * A value a finding may carry as evidence.
+ *
+ * Primitives, plus the one compound value the product has: the network signal.
+ * Flattening that into seven sibling keys would lose the thing that makes it one
+ * fact, and `NetworkSignal.source` is the field that keeps a network nobody read
+ * from reading as a clean one, so it has to travel with the rest of it.
+ */
+export type EvidenceValue = string | number | boolean | NetworkSignal;
+
 /** Every finding is either provable from documents or needs a human check. Never an accusation. */
 export type FindingState = "comprobable" | "requiere_verificacion";
 
@@ -284,7 +367,7 @@ export interface Finding {
   /** Plain Spanish explanation shown to the clerk. */
   explanation: string;
   /** Machine-readable evidence, rendered as chips. */
-  evidence: Record<string, string | number | boolean>;
+  evidence: Record<string, EvidenceValue>;
   createdAt: string;
 }
 

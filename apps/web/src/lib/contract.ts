@@ -16,15 +16,19 @@ import type {
   Cfdi,
   Clabe,
   Decision,
+  VerificationState as DomainVerificationState,
+  VerificationStateName as DomainVerificationStateName,
   Finding,
   InstructionSource,
   LedgerEvent,
   Metrics,
   PaymentComplement,
   PaymentInstruction,
+  RailId,
   Rfc,
   SatListEntry,
   SatListStatus,
+  SealState,
   Supplier,
   SweepResult,
   VerificationOutcome,
@@ -199,6 +203,48 @@ export interface CepVerification {
   nameMatch: NameMatch;
   finding: Finding;
 }
+
+/**
+ * Which rail carried the one-cent probe. `nessie` is the company's bank mirror,
+ * which is what the demo runs on; `stp` is the production path and refuses to
+ * run without its own configuration. The screen names them apart on purpose:
+ * the mirror is ours and the CEP is Banxico's, and a judge is owed the
+ * difference.
+ */
+export type VerificationRail = RailId;
+
+/**
+ * How far the one-cent verification of one instruction has got.
+ *
+ * Six states and not a boolean, because each one is a different thing to tell a
+ * clerk: nothing has been sent, the cent left and carries a clave de rastreo,
+ * Banxico has not published the CEP yet, the CEP is in and signed, the large
+ * payment was released, the large payment was blocked.
+ */
+export type VerificationStateName = DomainVerificationStateName;
+
+/**
+ * What the server is able to say about the Banxico seal on the CEP it holds.
+ *
+ * `not_checked` is the ordinary case and not an edge one: the CEP carries the
+ * serial of the Banxico certificate and not the certificate itself, so a
+ * deployment with no `BANXICO_CEP_CERT_PEM` parsed the document and verified
+ * nothing. It reads as "no verificado" and never as "valido", which is the one
+ * claim this screen is not allowed to make on its own.
+ */
+export type CepSealState = SealState;
+
+/**
+ * `GET /api/v1/instructions/:id/verification`, and the 202 body of
+ * `POST /api/v1/instructions/:id/verify-account`.
+ *
+ * Issue 166 landed the shape in `packages/core/src/domain.ts`, so this is the
+ * domain type and not a second declaration of it: the clave the bank answered
+ * with, the holder Banxico reports, the legal name it is compared against, the
+ * verdict, the seal state, and the decision the engine signed. Three of the four
+ * aliases above are the same promotion.
+ */
+export type VerificationState = DomainVerificationState;
 
 /**
  * `POST /api/v1/instructions/:id/verify-call`, one of three ways.

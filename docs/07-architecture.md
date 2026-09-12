@@ -226,6 +226,89 @@ The repository path and the fold answer the same question from two directions on
 is the definition, the repository is what the API stores, and `paidCfdisOf` is exported from the
 same file so that `bank_reconciliation` cannot disagree with the sweep about what "paid" means.
 
+## The third flow, the consortium network
+
+The first two flows stay inside one company. This one is the only thing in the product that crosses a
+customer boundary, and the shape of it is the decision: **two batch loops a person runs, and a hot
+path that never leaves the building.** ADR-0006 carries the reasoning and
+`docs/06-regulatory-privacy.md#8-the-consortium-network-what-leaves-the-tenant` carries what may and
+may not travel.
+
+```mermaid
+flowchart LR
+  subgraph T[This tenant]
+    DB[("packages/db on Tiger Data<br/>ledger_events, beneficiaries<br/>names, amounts, CLABEs, CEPs")]
+    SNAP[("consortium_snapshot<br/>consortium_pull<br/>0009, both db paths")]
+    API["apps/api<br/>GET /api/v1/consortium/signal"]
+    ENG["packages/engine beneficiary<br/>packages/core decide"]
+  end
+
+  subgraph C[packages/consortium, scripts only]
+    PUSH["consortium:push<br/>hash, then INSERT"]
+    PULL["consortium:pull<br/>SELECT the view"]
+    SEEDN["consortium:seed<br/>synthetic other tenants<br/>packages/seed, seed 69"]
+  end
+
+  subgraph S[Snowflake SENTRYONE.CONSORTIUM]
+    EV[("BENEFICIARY_EVENTS<br/>tenant_hash, rfc_hash, clabe_hash<br/>bank_code, outcome, event_date")]
+    VIEW["BENEFICIARY_NETWORK<br/>tenants, first_seen, last_seen<br/>fraud_reports, other_accounts"]
+  end
+
+  DB -- registry outcomes --> PUSH
+  PUSH -- HMAC of the pair, nothing else --> EV
+  SEEDN --> EV
+  EV --> VIEW
+  VIEW --> PULL
+  PULL --> SNAP
+  SNAP --> API
+  API -- NetworkSignal as an argument --> ENG
+  ENG -. never queries the warehouse .-> EV
+```
+
+**Step by step, in words.**
+
+1. **The tenant ledger does not move.** Names, amounts, CLABEs, CFDIs and CEPs stay in this company's
+   Postgres on Tiger Data, exactly where the first two flows left them. Nothing in this flow reads a
+   name or an amount.
+2. **`consortium:push` sends outcomes, hashed.** It reads this tenant's verified beneficiary registry
+   and the outcomes the payment runs produced, hashes each supplier RFC and each destination CLABE
+   with the network salt, keeps the bank code the CLABE already states in public, and inserts one row
+   per outcome into `BENEFICIARY_EVENTS`. The row has nowhere to put a name and nowhere to put a peso.
+3. **The network aggregates in the warehouse, not here.** `BENEFICIARY_NETWORK` counts distinct
+   `tenant_hash` values per pair, the first and last `event_date`, the fraud reports against the pair
+   and the other accounts seen for the same `rfc_hash`. A tenant reads a count of companies and never
+   a company, which is the property the whole privacy argument rests on.
+4. **`consortium:pull` lands that aggregate in Postgres.** One row per pair in `consortium_snapshot`
+   plus a single-row `consortium_pull` recording when, from where, and how many rows. Migration
+   `0009_consortium_snapshot.sql` applies on both database paths, so the offline Postgres 18 holds the
+   same table and the demo survives a dead uplink.
+5. **The engine reads the snapshot as an argument.** `composeInputFor` hands the beneficiary control a
+   `NetworkSignal` the same way it hands it the supplier's known accounts, the expected-loss decision
+   adjusts deterministically, and the adjustment is stated in the finding evidence under `network`.
+   `GET /api/v1/consortium/signal?rfc=&clabe=` answers from the same snapshot through the repository,
+   so a judge reading the evidence chip and a judge pasting the curl get the same numbers.
+
+**Which lane this is in, because the diagram at the top of this file has a rule.** `packages/consortium`
+is in lane 2, next to the SAT loader and the CEP parser: it is an adapter that turns an external
+source into rows in our database. Lane 3 is untouched and still has no IO. That is not a detail of
+taste. A control that called Snowflake would make a decision about this company's money depend on a
+third party being reachable, on another tenant's write landing in the last second, and on a warehouse
+resume that Snowflake bills with a 60-second minimum. `NetworkSignal.source` is `snapshot` or
+`not_consulted`, and those are the only two states a decision can see.
+
+**What is true with no Snowflake at all.** `ALLOW_CONSORTIUM` unset, or an empty account, and the API
+answers the signal route with a `503` naming the flag while every control still runs and the finding
+says the network was not consulted. `bun run doctor` carries a `snowflake` line that warns rather than
+fails in exactly that case, so nobody discovers it during a rehearsal. The three `consortium:*` scripts are the
+only code that authenticates to Snowflake and a person runs them, which is also why no request path
+holds that credential.
+
+**The network in this repository is synthetic.** `consortium:seed` creates the database, the schema,
+the table and the view, then loads a deterministic network of other tenants from `packages/seed` seed
+69, so the demo's legitimate supplier accounts carry months of sightings from many tenants and the
+hard negatives carry none or a fraud report. Every row is written with `synthetic = true`. There is
+one real tenant, and `docs/10-demo-script.md` carries the sentence that says so on stage.
+
 ## Why each choice, and what would make us switch
 
 | Decision | Alternative considered | Why this, for this problem | What would make us switch |
@@ -239,6 +322,7 @@ same file so that `bank_reconciliation` cannot disagree with the sweep about wha
 | Postgres, one dialect, two hosts | SQLite for the offline path | Two dialects means two implementations and two sets of bugs. Same SQL everywhere, same driver, and the offline fallback is a local Postgres 18 rather than a second database. ADR-0003 | Nothing. This was an explicit correction, and `bun:sqlite` is now forbidden |
 | Timescale on Tiger Data, hypertables on `ledger_tx` and `ledger_events` | Plain Postgres only | The ledger genuinely is a time series: append-only, read as one company over a window, rolled up per day. `0002` and `0004` add the hypertables and the two continuous aggregates, and they are the honest answer to "what happens at ten times the volume": the same SQL, partitioned by time | Nothing, because the fallback already exists. `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips both files on a plain Postgres 18, where the same rollups run as plain `date_trunc` queries. `bun run doctor` names which path is live |
 | Raw SQL through `postgres@3.4.9`, no ORM | Drizzle or Prisma | When a judge asks how the sweep is fed, the answer is the SQL on screen. No migration tool to fight, no generated client to explain. Numerics cross the boundary as strings and are moved as integer cents | A schema complex enough that hand-written queries drift. `packages/db/src/queries.ts` is the one file to watch |
+| **Snowflake for the cross-tenant network** (`packages/consortium`) | Another schema in the same Tiger Data Postgres | The ledger is single-tenant by a database check constraint (`0006_company.sql`, `check (id = 1)`), and that constraint is only defensible because nothing behind it is ever read across customers. The network is the opposite shape: append-only events scanned across every tenant, aggregated a handful of times a day, and it has to grow into something a participant can audit and revoke, which is what Secure Data Sharing already is. Separate vendor, separate credential, separate blast radius, and no name or amount in it. ADR-0006 | A participant who needs the operator not to see the pairs at all, which is private set intersection and the Cenote design ADR-0002 rejected for this event. The client is `fetch` plus WebCrypto and no SDK, so the warehouse is replaceable without touching the engine |
 | **`apps/api` on a Vultr instance** | Serverless functions on the web host | The payment-run screen updates from a Server-Sent Events stream, and SSE needs a long-lived process. A function runtime with a request timeout either drops the stream or forces a polling fallback that makes the product feel like a report. One small box with the API and Postgres next to it also removes a network hop from the read path. This amends ADR-0005, see below | If the SSE stream were dropped in favour of polling, the box stops earning its keep and the API goes back to the function runtime, which the no-`bun:*` rule keeps available |
 | **`apps/web` static on Vercel** | Serving the built assets from the same box | Judges walk up repeatedly across 36 hours and open the product on their own phone. A CDN-hosted static build with a preview URL per pull request is the cheapest way to be reachable and the cheapest evidence to attach to a UI PR. A dead API box then costs us the data, not the page | Nothing. The two-unit split is deliberate |
 | Hash router in `apps/web`, no router dependency | A path router | The app ships as a static build, so a path router needs a rewrite rule on the host for every deep link, and `#/intake` inside a QR code would break the first time a deploy target changed | A server-rendered surface, which we do not have |
