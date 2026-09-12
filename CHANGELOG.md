@@ -12,6 +12,18 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Real document import path, so the CFDI parser can be validated on a document a PAC actually
+  stamped (refs #68). `bun run scripts/import-real-cfdi.ts <file>` reads one real CFDI 4.0, de
+  ingreso or complemento de pagos 2.0, and writes a committable fixture: every amount scaled by a
+  secret factor from `REAL_CFDI_SCALE`, every RFC replaced by a `SYN` one carrying a correct SAT
+  check digit, legal names constructed, addresses blanked, UUID, folio, bank accounts, operation
+  numbers, stamps and certificates regenerated, and the structure, namespaces, attribute order and
+  tax breakdown left exactly where they were. Every arithmetic identity the original satisfied is
+  recomputed from the scaled inputs and reverified, and the command refuses to write a file in which
+  any replaced value, or any RFC or CLABE shaped token, survived. The redacted copy goes to
+  `packages/core/src/fixtures/real/`, the change map to the gitignored `.seed/real/`.
+  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
+  while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
 - End-to-end vertical slice. `SEED=ceptinela` now runs the six controls over the generated company
   at boot, so `GET /api/v1/run/current` serves the engine's own findings and proposed actions
   instead of an empty alert rail: 7 findings on 92 instructions, 2 held and 5 to verify, and

@@ -15,6 +15,14 @@
  *
  * These are the documents the parser tests read, and they are also what the
  * seeder and the demo start from, so a change here is a change to the demo.
+ *
+ * One folder next to them plays by different rules and is worth knowing about.
+ * `real/` holds redacted copies of documents a PAC actually stamped, produced by
+ * `scripts/import-real-cfdi.ts` and read from disk by `cfdi-real.test.ts`, never
+ * exported from here. They are pseudonymous rather than invented: every RFC,
+ * name, address, folio, UUID, account and stamp is replaced and every amount is
+ * scaled by a factor that is not in the repository. Nothing in the demo path
+ * reads them. See `real/README.md` and docs/08-data-model.md.
  */
 
 export { CFDI_INGRESO_PPD_XML } from "./cfdi-ingreso-ppd";
