@@ -30,6 +30,8 @@
 import { nameMatch } from "@hackmty/cep";
 import type {
   Cfdi,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   LedgerEvent,
@@ -45,12 +47,15 @@ import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
   appendLedgerEvents,
+  countConsortiumAccounts,
   countSentryOne,
   currentPaymentRun,
   deleteLedgerTxForAccount,
   findingsForSubjects,
   findingsForSupplier,
   getCompany,
+  getConsortiumPair,
+  getConsortiumPull,
   getInstruction,
   getSupplier,
   insertCfdis,
@@ -78,6 +83,7 @@ import {
   markInstructionSent,
   readLedger,
   recordKnownAccount,
+  replaceConsortiumSnapshot,
   selectSuppliers,
   transact,
   truncateSentryOne,
@@ -97,6 +103,7 @@ import {
 import { assessRun } from "./assess";
 import type {
   CompanyIdentity,
+  ConsortiumLookup,
   IntakeRecord,
   LedgerQuery,
   Repository,
@@ -360,6 +367,31 @@ export class PostgresRepository implements Repository {
   }
 
   /**
+   * The local consortium snapshot, three reads against the tables 0009 created
+   * and not one against Snowflake.
+   *
+   * That is the point of the snapshot: a payment decision never waits on a
+   * warehouse, so the demo works with the network unplugged and a judge can
+   * unplug it. `bun run consortium:pull` is the only thing here that ever talks
+   * to Snowflake, and it runs on a laptop rather than inside a request.
+   */
+  async consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup> {
+    const [pull, pair, accountsForRfc] = await Promise.all([
+      getConsortiumPull(this.sql),
+      getConsortiumPair(this.sql, rfcHash, clabeHash),
+      countConsortiumAccounts(this.sql, rfcHash),
+    ]);
+    return {
+      accountsForRfc,
+      ...(pull === undefined ? {} : { pull }),
+      ...(pair === undefined ? {} : { pair }),
+    };
+  }
+
+  /**
    * The blind evaluation, recomputed on demand and identical to the memory
    * path's. The labelled cases live in `packages/seed/src/holdout` and are not
    * in any table on purpose: a score read out of the same database the product
@@ -496,6 +528,14 @@ export class PostgresRepository implements Repository {
       establishedAt: row.verifiedAt,
       timesPaid: 0,
     });
+  }
+
+  async replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number> {
+    return replaceConsortiumSnapshot(this.sql, input);
   }
 
   /**

@@ -18,6 +18,53 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The cross-company beneficiary network, on Snowflake, and the network signal inside the beneficiary
+  control (issue #164). A supplier's first payment from this company has no history here and has
+  years of it in every other company that already pays that supplier, which is the signal Trustpair
+  and nsKnox sell to corporate treasuries. `packages/consortium` is our version of it: the SQL REST
+  API with a key-pair JWT and no SDK, one table `SENTRYONE.CONSORTIUM.BENEFICIARY_EVENTS` and one
+  view `BENEFICIARY_NETWORK`, `bun run consortium:seed`, `consortium:push` and `consortium:pull`, and
+  the deterministic synthetic network of other tenants the demo reads. The network is off unless
+  `ALLOW_CONSORTIUM=1`.
+  **What leaves a tenant** is salted HMAC-SHA256 hashes of the normalised RFC and CLABE, the
+  three-digit bank code that is printed on every SPEI receipt, one of `verified`, `paid`, `mismatch`
+  or `fraud_reported`, and a calendar day. Never a legal name, an amount, an invoice UUID, a clave de
+  rastreo or an account number: there is no column for any of them, and `sync.test.ts` serialises the
+  push payload AND the SQL it becomes and fails if one of those strings is in it. The salt is
+  network-wide on purpose, because two tenants can only agree they are paying the same account if
+  their hashes agree; the cost of that, stated in `packages/consortium/README.md` rather than hidden,
+  is that whoever holds the salt can confirm a guess, which is why the salt belongs to the operator
+  and the constant in the repository is a documented demo value.
+  **The warehouse is never on the hot path.** `bun run consortium:pull` fills the local
+  `consortium_snapshot` (migration `0009_consortium_snapshot.sql`, both database paths) and the
+  engine reads only that, so a payment decision never waits on Snowflake and the demo works with the
+  network unplugged. Two tables and not one, because three states have to be told apart: no pull row
+  is "never consulted", a pull row with no pair row is "consulted and never seen this account", and
+  both is what the network knows. A pull replaces the snapshot wholesale inside one transaction,
+  because a pair the network has stopped corroborating must not stay behind.
+  **The decision uses it deterministically and says so.** `assessNetwork` in
+  `packages/core/src/network.ts` turns one signal into a verdict and a multiplier on the expected
+  loss: `1 / (1 + 0.05 * tenants + 0.02 * months)`, floored at 0.2, monotone in both, and exactly 1
+  when the network was not consulted, so an instance with the flag off decides what this product
+  decided before the consortium existed. Any fraud report cancels every discount and raises the
+  beneficiary finding to `critical` whatever the CEP says, because a tenant who lost money to this
+  pair knows something the document does not carry. No LLM anywhere near it, and the two weights are
+  labelled priors with a `TODO` naming what would replace them. With no CEP at all the control used
+  to be silent and now reports what the network knows when the network knows something, which is the
+  case the consortium exists for: forty companies pay this supplier, and none of them pays it here.
+  `GET /api/v1/consortium/signal?rfc=&clabe=` answers one pair from the snapshot, 503 naming the flag
+  when the consortium is off and 404 when the pair is unknown, and it takes no request shape that
+  lists a supplier's accounts. `bun run doctor` gains a `snowflake` line that says whether this
+  laptop can decide with the network at all.
+  **The network is synthetic and every artifact says so.** SentryOne has one tenant, so the other
+  tenants are generated from seed 69 with `synthetic = TRUE` on every warehouse row, and
+  `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse a rehearsal
+  with a warehouse. Verified end to end against a local PostgreSQL 18 on 2026-09-12: 46 hashed pairs
+  pulled with `--offline`, a corroborated account released with "pagada por 34 empresas" on the
+  finding, and the same supplier on an account the network has never paid verified at 35,769.75 MXN
+  of expected loss. The live Snowflake path is untried because `SNOWFLAKE_ACCOUNT` and
+  `SNOWFLAKE_USER` are still empty.
+
 - Two things the deploy of #44 cost to learn, written down next to the commands in
   `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
   connection to port 22 and then never delivers the banner, so `refresh.sh` is unreachable from the

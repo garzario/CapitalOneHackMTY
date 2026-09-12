@@ -20,13 +20,20 @@ import type {
   ComposeInput,
   Detector,
   LedgerTx,
+  NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
   SatListEntry,
   Supplier,
   SweepResult,
 } from "@hackmty/core";
-import { clabeCheckDigit } from "@hackmty/core";
+import {
+  assessInstruction,
+  clabeCheckDigit,
+  decide,
+  NOT_CONSULTED,
+  supplierModelOf,
+} from "@hackmty/core";
 import { runControls, SENTRYONE_DETECTORS, sweptExposureFor } from "./index";
 
 const NOW = "2026-09-11T16:00:00.000Z";
@@ -463,5 +470,176 @@ describe("beneficiaryCepAdapter", () => {
 
     expect(finding?.evidence.signatureState).toBe("invalid");
     expect(finding?.severity).toBe("critical");
+  });
+});
+
+/**
+ * The consortium as an input to control 5, issue #164.
+ *
+ * The first two cases are the acceptance criterion: with the network unreachable
+ * the engine runs, the finding says the network was not consulted, and the
+ * decision is the decision this product made before the network existed. The
+ * second is asserted as an exact equality on the whole `Decision`, not on one
+ * field, because "roughly the same" is not the promise.
+ */
+describe("the network signal in the beneficiary control", () => {
+  const CLEAN_CEP: Cep = { ...CEP, beneficiaryName: SUPPLIER.legalName };
+
+  function cepFinding(input: ComposeInput) {
+    return runControls(input).findings.find(
+      (finding) => finding.detector === "beneficiary_cep",
+    );
+  }
+
+  function snapshot(over: Partial<NetworkSignal> = {}): NetworkSignal {
+    return {
+      source: "snapshot",
+      tenants: 0,
+      fraudReports: 0,
+      otherAccounts: 0,
+      pulledAt: "2026-09-11T09:00:00.000Z",
+      ...over,
+    };
+  }
+
+  it("says the network was not consulted when nothing was pulled", () => {
+    const finding = cepFinding(anInput({ cep: CLEAN_CEP }));
+
+    expect(finding?.explanation).toContain("no se consulto");
+    expect(finding?.evidence.networkVerdict).toBe("not_consulted");
+    expect(finding?.evidence.networkAdjustment).toBe(1);
+    expect(finding?.evidence.network).toEqual(NOT_CONSULTED);
+  });
+
+  it("leaves the decision exactly where it was when the network is absent", () => {
+    const findings = runControls(anInput({ cep: CLEAN_CEP })).findings;
+    const model = supplierModelOf(SUPPLIER);
+
+    expect(decide(INSTRUCTION, findings, model, { now: NOW })).toEqual(
+      decide(INSTRUCTION, findings, model, {
+        now: NOW,
+        network: NOT_CONSULTED,
+      }),
+    );
+  });
+
+  it("carries the whole signal, so an unseen account cannot read as an unread one", () => {
+    const finding = cepFinding(
+      anInput({ cep: CLEAN_CEP, network: snapshot() }),
+    );
+
+    expect(finding?.evidence.networkVerdict).toBe("unseen");
+    expect(finding?.explanation).toContain("nunca ha visto esta cuenta");
+  });
+
+  it("lowers the expected loss of a real finding as the network corroborates", () => {
+    const findings = runControls(anInput()).findings;
+    const model = supplierModelOf(SUPPLIER);
+    const thin = assessInstruction(INSTRUCTION, findings, model, {
+      now: NOW,
+      network: snapshot({
+        tenants: 3,
+        firstSeen: "2026-06-01",
+        lastSeen: "2026-09-01",
+      }),
+    });
+    const deep = assessInstruction(INSTRUCTION, findings, model, {
+      now: NOW,
+      network: snapshot({
+        tenants: 38,
+        firstSeen: "2024-03-04",
+        lastSeen: "2026-09-02",
+      }),
+    });
+
+    expect(deep.loss.expectedLossCents).toBeLessThan(
+      thin.loss.expectedLossCents,
+    );
+  });
+
+  it("is critical on a fraud report even when the CEP is clean and sealed", () => {
+    const finding = cepFinding(
+      anInput({
+        cep: CLEAN_CEP,
+        network: snapshot({ tenants: 9, fraudReports: 1 }),
+      }),
+    );
+
+    expect(finding?.severity).toBe("critical");
+    /* A report from another tenant is not a document this company holds. */
+    expect(finding?.state).toBe("requiere_verificacion");
+    expect(finding?.amountAtRisk).toBe(INSTRUCTION.amount);
+    expect(finding?.explanation).toContain("reporte de fraude");
+  });
+
+  it("a fraud report holds or verifies the payment, never releases it", () => {
+    const network = snapshot({ tenants: 40, fraudReports: 2 });
+    const findings = runControls(anInput({ cep: CLEAN_CEP, network })).findings;
+    const decision = decide(INSTRUCTION, findings, supplierModelOf(SUPPLIER), {
+      now: NOW,
+      network,
+    });
+
+    expect(decision.action).not.toBe("release");
+  });
+
+  it("stays silent with no CEP and no network, exactly as it did before", () => {
+    const report = runControls(anInput({ cep: undefined }));
+    const skipped = report.skipped.find(
+      (row) => row.detector === "beneficiary_cep",
+    );
+
+    expect(skipped?.reason).toBe("no_cep");
+    expect(
+      report.findings.some((finding) => finding.detector === "beneficiary_cep"),
+    ).toBe(false);
+    /* The skip still says what the network did, so silence is never ambiguous. */
+    expect(skipped?.detail).toContain("no se consulto");
+  });
+
+  it("reports what the network knows when there is no CEP to hang it on", () => {
+    /* The case the consortium exists for: a first payment to an account this
+       company has never used, on a supplier forty other companies pay. */
+    const report = runControls(
+      anInput({ cep: undefined, network: snapshot({ otherAccounts: 40 }) }),
+    );
+    const finding = report.findings.find(
+      (row) => row.id === `network:${INSTRUCTION.id}`,
+    );
+
+    expect(report.ran).toContain("beneficiary_cep");
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.state).toBe("requiere_verificacion");
+    expect(finding?.explanation).toContain("otras cuentas");
+    expect(finding?.evidence.networkOtherAccounts).toBe(40);
+  });
+
+  it("is critical with no CEP when the network has a report on the account", () => {
+    const finding = runControls(
+      anInput({
+        cep: undefined,
+        network: snapshot({ tenants: 2, fraudReports: 2 }),
+      }),
+    ).findings.find((row) => row.id === `network:${INSTRUCTION.id}`);
+
+    expect(finding?.severity).toBe("critical");
+    expect(finding?.amountAtRisk).toBe(INSTRUCTION.amount);
+  });
+
+  it("shows corroboration on a released payment without alerting on it", () => {
+    const finding = runControls(
+      anInput({
+        cep: undefined,
+        network: snapshot({
+          tenants: 37,
+          firstSeen: "2024-03-04",
+          lastSeen: "2026-09-02",
+        }),
+      }),
+    ).findings.find((row) => row.id === `network:${INSTRUCTION.id}`);
+
+    expect(finding?.severity).toBe("info");
+    expect(finding?.amountAtRisk).toBe(0);
+    expect(finding?.explanation).toContain("37 empresas pagan");
   });
 });

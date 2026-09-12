@@ -25,6 +25,7 @@ import {
 import { createSql, type Sql } from "./index";
 import {
   COMPANY_MIGRATION,
+  CONSORTIUM_SNAPSHOT_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
@@ -35,6 +36,7 @@ import {
   SENTRYONE_DRIFT_MIGRATION,
   SENTRYONE_MIGRATION,
   SENTRYONE_TIMESCALE_MIGRATION,
+  SUPPLIER_OUTFLOW_MIGRATION,
   TIMESCALE_MIGRATION,
 } from "./migrate";
 
@@ -171,6 +173,9 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
       "applied",
     );
     expect(resultFor(results, COMPANY_MIGRATION).status).toBe("applied");
+    expect(resultFor(results, CONSORTIUM_SNAPSHOT_MIGRATION).status).toBe(
+      "applied",
+    );
     await appendOnlyStillGuards();
   });
 
@@ -212,6 +217,10 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
       ),
     );
 
+    /* Every file the plain-Postgres path applies, plus the one Timescale file
+       whose row `recordOldNames` wrote so the rename pairs are complete. A new
+       migration has to be added here, which is the point: the list is what
+       notices a file that stopped being applied. */
     expect([...(await recordedFiles())].sort()).toEqual(
       [
         INIT_MIGRATION,
@@ -219,6 +228,8 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
         SENTRYONE_TIMESCALE_MIGRATION,
         SENTRYONE_DRIFT_MIGRATION,
         COMPANY_MIGRATION,
+        SUPPLIER_OUTFLOW_MIGRATION,
+        CONSORTIUM_SNAPSHOT_MIGRATION,
       ].sort(),
     );
     await appendOnlyStillGuards();

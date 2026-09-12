@@ -12,6 +12,7 @@ import type { LedgerEvent } from "@hackmty/core";
 import { getSql } from "@hackmty/db";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
 import { type CepSource, createCepSource } from "./cep";
+import { type ConsortiumSource, createConsortiumSource } from "./consortium";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
@@ -47,6 +48,14 @@ export interface ApiDeps {
    */
   cep: CepSource;
   /**
+   * Reads the LOCAL consortium snapshot for one beneficiary pair, hashing the RFC
+   * and the CLABE on the way in. Off unless `ALLOW_CONSORTIUM=1`, and it never
+   * reaches Snowflake: `bun run consortium:pull` fills the snapshot and this reads
+   * it, which is what keeps a warehouse off the hot path of a payment decision.
+   * See `src/consortium.ts`.
+   */
+  consortium: ConsortiumSource;
+  /**
    * Append to the ledger and push to every open SSE connection, in that order.
    * The ledger is the record; the stream is a view of it, so a subscriber can
    * never see an event that was not stored.
@@ -62,6 +71,7 @@ export interface DepsOverrides {
   satList?: () => Promise<SatIndex>;
   extractor?: IntakeExtractor;
   cep?: CepSource;
+  consortium?: ConsortiumSource;
 }
 
 function readEnv(name: string): string | undefined {
@@ -135,6 +145,9 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   const satList = overrides.satList ?? (() => officialSatIndex());
   const extractor = overrides.extractor ?? createExtractor();
   const cep = overrides.cep ?? createCepSource();
+  /* Bound to the repository this process booted with, so the snapshot it reads is
+     the one the live store holds rather than a second connection's. */
+  const consortium = overrides.consortium ?? createConsortiumSource(repo);
 
   return {
     repo,
@@ -144,6 +157,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
     allowSeed,
     extractor,
     cep,
+    consortium,
     async emit(event) {
       await repo.appendEvent(event);
       events.publish(event);

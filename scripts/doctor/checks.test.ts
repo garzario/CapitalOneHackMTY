@@ -28,6 +28,7 @@ import {
   checkNessie,
   checkOfflineDemo,
   checkSatSnapshot,
+  checkSnowflake,
   type DatabaseDeps,
   defaultDatabaseDeps,
   exitCode,
@@ -573,6 +574,106 @@ describe("the nessie check", () => {
     const check = await checkNessie({ apiKey: "" });
     expect(check.status).toBe("warn");
     expect(check.detail).toBe("NESSIE_API_KEY is not set, skipped");
+  });
+});
+
+/**
+ * The snowflake line.
+ *
+ * It answers one question a teammate actually has at 03:00: can this laptop make a
+ * decision that consults the network. So the assertions are about which sentence
+ * comes back, not about the colour: "the flag is off", "the account is empty",
+ * "the key is not there" and "there is no snapshot" take four different actions,
+ * and a line that said "warn" to all four would be a line nobody reads twice.
+ *
+ * Nothing here opens a socket. A doctor that authenticated against Snowflake
+ * would be a doctor that fails on a train.
+ */
+describe("the snowflake check", () => {
+  const snapshot = {
+    pulledAt: "2026-09-12T03:00:00.000Z",
+    source: "synthetic",
+    rows: 46,
+  };
+
+  it("says the network is off, and what that means for a decision", () => {
+    const check = checkSnowflake({ allowed: false, account: "myorg-x" });
+
+    expect(check.name).toBe("snowflake");
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain("ALLOW_CONSORTIUM is not 1");
+    expect(check.detail).toContain("not consulted");
+  });
+
+  it("names the empty variables and offers the offline path", () => {
+    const check = checkSnowflake({ allowed: true, user: "svc" });
+
+    expect(check.detail).toContain("SNOWFLAKE_ACCOUNT");
+    expect(check.detail).not.toContain("SNOWFLAKE_USER");
+    expect(check.detail).toContain("consortium:pull --offline");
+  });
+
+  it("reports a key path that points at no readable file", () => {
+    const check = checkSnowflake({
+      allowed: true,
+      account: "myorg-x",
+      user: "svc",
+      keyPresent: false,
+    });
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain("SNOWFLAKE_PRIVATE_KEY_PATH");
+    expect(check.detail).toContain("no local snapshot");
+  });
+
+  it("is a warning while there is no snapshot, however good the account is", () => {
+    /* The account is what lets a pull happen; the snapshot is what lets a
+       decision consult the network. Only the second one makes this line green. */
+    const check = checkSnowflake({
+      allowed: true,
+      account: "myorg-x",
+      user: "svc",
+      keyPresent: true,
+    });
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain("bun run consortium:pull");
+  });
+
+  it("is green with an account, a key and a snapshot, and says where it came from", () => {
+    const check = checkSnowflake({
+      allowed: true,
+      account: "myorg-x",
+      user: "svc",
+      keyPresent: true,
+      snapshot,
+    });
+
+    expect(check.status).toBe("ok");
+    expect(check.detail).toContain("46 pairs from synthetic");
+    expect(check.detail).toContain(snapshot.pulledAt);
+  });
+
+  it("still reports the snapshot when the warehouse is not configured", () => {
+    /* The offline rehearsal: no account at all, and a snapshot the generator
+       wrote. The demo works, and the line has to say so. */
+    const check = checkSnowflake({ allowed: true, snapshot });
+
+    expect(check.detail).toContain("46 pairs from synthetic");
+  });
+
+  it("never prints a key, a path's contents or a salt", () => {
+    const check = checkSnowflake({
+      allowed: true,
+      account: "myorg-x",
+      user: "svc",
+      privateKeyPath: "/home/p/.snowflake/sentryone.p8",
+      keyPresent: true,
+      snapshot,
+    });
+
+    expect(check.detail).not.toContain("PRIVATE KEY");
+    expect(check.detail).not.toContain("/home/p");
   });
 });
 

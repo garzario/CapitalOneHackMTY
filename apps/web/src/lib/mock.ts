@@ -33,6 +33,7 @@ import type {
   KnownAccount,
   LedgerEvent,
   Metrics,
+  NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
   Rfc,
@@ -54,6 +55,36 @@ import { notStartedVerification } from "./verification";
 /** The company running the payment run. Synthetic, like everything else. */
 export const COMPANY_RFC: Rfc = "SYN840101MTY";
 export const COMPANY_NAME = "Manufacturas Integrales del Norte SA de CV";
+
+/**
+ * What the SentryOne consortium says about the two accounts in this run that have
+ * a beneficiary story: the one the supplier has always been paid on, and the one
+ * that arrived by WhatsApp this week.
+ *
+ * Both are synthetic, like the rest of this file, and they are the two shapes the
+ * network actually produces. The corroborated one is a `snapshot` with tenants and
+ * months; the fresh one is a `snapshot` with zero tenants and the supplier's other
+ * accounts, which is the impersonation case and the reason the consortium exists.
+ * `pulledAt` is set on both, because a signal with no pull instant is a signal
+ * nobody can date.
+ */
+export const CORROBORATED_NETWORK: NetworkSignal = {
+  source: "snapshot",
+  tenants: 37,
+  firstSeen: "2024-03-04",
+  lastSeen: "2026-09-02",
+  fraudReports: 0,
+  otherAccounts: 1,
+  pulledAt: "2026-09-11T06:00:00-06:00",
+};
+
+export const FRESH_ACCOUNT_NETWORK: NetworkSignal = {
+  source: "snapshot",
+  tenants: 0,
+  fraudReports: 0,
+  otherAccounts: 23,
+  pulledAt: "2026-09-11T06:00:00-06:00",
+};
 
 /**
  * Display names for the bank code in the first three digits of a CLABE.
@@ -468,6 +499,10 @@ const RAW_ITEMS: Array<{
       digito_control_valido: true,
       pagos_previos_a_esta_cuenta: 0,
       canal: "whatsapp",
+      /* The account that arrived by message is not in the network either, while the
+         supplier's own accounts are. That is the sentence that makes this finding
+         land: other companies pay this supplier, none of them pays it here. */
+      network: FRESH_ACCOUNT_NETWORK,
     },
     "2026-09-09T18:41:03-06:00",
   );
@@ -630,6 +665,10 @@ const RAW_ITEMS: Array<{
       titular_cep: "Herramentales y Moldes del Norte SA de CV",
       razon_social_cfdi: "Herramentales y Moldes del Norte SA de CV",
       verificado_el: "2026-09-02",
+      /* The corroborated case, so the offline run shows the consortium line the
+         way the API's own findings carry it. The network in the demo is synthetic
+         and `packages/consortium/README.md` says so. */
+      network: CORROBORATED_NETWORK,
     },
     "2026-09-11T09:33:02-06:00",
   );

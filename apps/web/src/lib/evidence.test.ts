@@ -227,6 +227,107 @@ describe("the invoice a duplicate copies", () => {
   });
 });
 
+describe("the SentryOne network line", () => {
+  const pulled = "2026-09-11T06:00:00-06:00";
+
+  test("reads the corroborated case as the headline the brief asks for", () => {
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "snapshot",
+          tenants: 37,
+          firstSeen: "2024-03-04",
+          lastSeen: "2026-09-02",
+          fraudReports: 0,
+          otherAccounts: 1,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.network).toEqual({
+      label: "pagada por 37 empresas desde mar 2024",
+      verdict: "corroborated",
+      pulledAt: pulled,
+    });
+  });
+
+  test("renders a network nobody consulted rather than hiding it", () => {
+    /* The bug this pins: a missing line and a line that says "no consultada"
+       look the same to a reader, and only one of them is true. */
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "not_consulted",
+          tenants: 0,
+          fraudReports: 0,
+          otherAccounts: 0,
+        },
+      }),
+    );
+
+    expect(view.network?.label).toBe("no consultada");
+    expect(view.network?.pulledAt).toBeNull();
+  });
+
+  test("separates an account the network never saw from one it never read", () => {
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "snapshot",
+          tenants: 0,
+          fraudReports: 0,
+          otherAccounts: 23,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.network?.verdict).toBe("other_accounts_only");
+    expect(view.network?.label).toContain("23 otras cuentas del proveedor");
+  });
+
+  test("leads with the fraud report when the network holds one", () => {
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "snapshot",
+          tenants: 3,
+          fraudReports: 1,
+          otherAccounts: 0,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.network?.verdict).toBe("fraud_reported");
+    expect(view.network?.label).toBe("1 reporte de fraude");
+  });
+
+  test("is null on a finding that carries no network at all", () => {
+    expect(readEvidence(finding({ checkDigit: "valid" })).network).toBeNull();
+  });
+
+  test("never renders the signal as a chip as well", () => {
+    /* An object in the chip list prints as "[object Object]" at a clerk, which is
+       the failure this filter exists to make impossible. */
+    const view = readEvidence(
+      finding({
+        canal: "whatsapp",
+        network: {
+          source: "snapshot",
+          tenants: 4,
+          fraudReports: 0,
+          otherAccounts: 0,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.chips.map((chip) => chip.key)).toEqual(["canal"]);
+  });
+});
+
 describe("the chips", () => {
   test("never repeat a fact that was rendered on its own", () => {
     /* The bug this pins: the CLABE shown twice, once in the comparison and
@@ -409,6 +510,14 @@ describe("the label dictionary", () => {
     "sentAt",
     "sentDay",
     "outflowsNearby",
+    // the consortium, packages/engine/src/beneficiary.ts. `network` itself is
+    // rendered on its own line and is in EVIDENCE_ALIASES rather than here.
+    "networkVerdict",
+    "networkAdjustment",
+    "networkTenants",
+    "networkMonths",
+    "networkFraudReports",
+    "networkOtherAccounts",
     // the API's in-memory repository, apps/api/src/synthetic.ts
     "knownClabe",
     "proposedClabe",
