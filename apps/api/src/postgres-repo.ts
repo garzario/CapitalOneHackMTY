@@ -42,7 +42,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runMoney, sumAmounts } from "@hackmty/core";
 import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
@@ -238,6 +238,7 @@ export class PostgresRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        ...runMoney(items),
       },
       items,
     };
@@ -462,6 +463,7 @@ export class PostgresRepository implements Repository {
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = await latestDecision(this.sql, instructionId);
     if (current === undefined) {
@@ -477,6 +479,9 @@ export class PostgresRepository implements Repository {
       decidedAt,
       decidedBy,
     };
+    if (reason !== undefined) {
+      decision.reason = reason;
+    }
     await insertDecision(this.sql, decision);
 
     return decision;

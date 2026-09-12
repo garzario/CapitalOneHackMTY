@@ -422,6 +422,17 @@ export interface Decision {
    * on the one decision the engine signs itself.
    */
   decidedBy?: string;
+  /**
+   * Why that person chose this action, in their own words.
+   *
+   * Absent on the engine's own proposal, because the engine's reasoning is the
+   * findings and it is already on the object. The case this field exists for is
+   * the urgent payment: a clerk releases something the engine held, and the
+   * responsibility has a name in `decidedBy` and an argument here. Both land on
+   * the `decision_made` ledger event, so a release nobody can explain later is
+   * not a thing this product allows.
+   */
+  reason?: string;
 }
 
 /** Append-only ledger event. The retroactive sweep is a replay over these. */

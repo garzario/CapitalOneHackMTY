@@ -8,9 +8,20 @@ current browser without a build step.
 - `judge-card.html`: two A5 landscape pages, front and back. Print duplex and flip on the short
   edge.
 - `one-pager.html`: one A4 portrait page. Print 10 copies for the table.
+- `team-card.html`: one A4 portrait page, in Spanish, for the four of us and not for a judge. The
+  problem, the user, the five competitors, the model, and the six objections of 2026-09-12 with the
+  answer to each. Print four copies and carry one each. Issue #171.
 - `repo-qr.png`: QR code for `https://github.com/garzario/CapitalOneHackMTY`, generated and decoded
   locally before commit.
 - `print.css`: shared print styles with exact physical page dimensions.
+
+## What may go on the team card
+
+Every number on `team-card.html` comes from `docs/04-market.md`, `docs/05-business-model.md` or
+`docs/11-pitch.md`, and nothing else. If a number is not in one of those three, it does not go on the
+card and it is not said at the table. The full answers, each with the file or the endpoint that holds it
+up, are the "Table feedback of 12 September" section of `docs/12-judge-qa.md`, and that file wins if the
+two ever disagree.
 
 ## Print settings
 
