@@ -469,12 +469,18 @@ function pathOf(element: Element): string {
   return `${pathOf(parent)}/${element.name}${suffix}`;
 }
 
+/**
+ * Escapes for either delimiter, because a PAC is free to write an attribute in
+ * single quotes and a replacement dropped into one of those unescaped would end
+ * the value early and produce a document that no longer parses.
+ */
 function escapeXmlAttribute(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 // ---------------------------------------------------------------------------
