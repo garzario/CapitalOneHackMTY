@@ -37,7 +37,20 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   `Metrics`. An `info` row is scored as context and never as a false positive. Four labels
   disagree with the engine today and all four are left in the table with the argument written
   down, because a set edited until it agrees measures nothing.
-
+- `docs/11-pitch.md` and `docs/13-devpost.md`, finished against the product that is actually in
+  `dev`. The pitch carries the 60, 90 and 240 second versions in Mexican Spanish, all three opening
+  with the fiscal hook, whose two halves are now cited at their primary sources (CFF article 69-B for
+  the retroactive effect and the thirty-day window, Ley de Sistemas de Pagos article 11 for the
+  finality of an accepted transfer order), plus the six controls in the words used at the table, a
+  gate table saying which lines may be spoken today and which are still blocked on issues #44 and
+  #57, a table of the only numbers we are allowed to say with the source of each, the blind
+  evaluation read off `bun run eval` including the four labels that disagree with the engine, and
+  the eight hardest judge questions answered in one breath each. The Devpost copy is submission ready with an
+  English and a Spanish block per field, the six prize categories each carrying the gate that has to
+  be true before it is selected, and `TODO(garzario)` placeholders for the live URL and the video.
+  Two discrepancies found while verifying and recorded rather than smoothed over: the reference run
+  amount in `docs/02-persona.md` predates the finished generator, and the committed SAT snapshot is a
+  different vintage from the open-data file cited in `docs/04-market.md`.
 - Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
