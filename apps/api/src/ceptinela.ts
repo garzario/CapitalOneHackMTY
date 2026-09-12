@@ -49,8 +49,12 @@ export interface CeptinelaBootNotes {
  * that day rather than the wall clock, so two laptops that boot the same seed an
  * hour apart still produce the same findings and a screenshot stays true.
  * 09:00 in Monterrey, which is UTC-6 all year.
+ *
+ * Exported because `PostgresRepository.load` assesses the same run before it
+ * stores it. Two copies of this constant would be two companies that disagree
+ * about what day it is, and the memory and Postgres runs would stop matching.
  */
-function runInstant(runDay: string): string {
+export function runInstant(runDay: string): string {
   return `${runDay}T15:00:00.000Z`;
 }
 

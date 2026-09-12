@@ -8,8 +8,11 @@
  *
  * - **Ceptinela**, the demo company: 44 suppliers, eight months of CFDIs and payment
  *   complements, this week's payment run and the bank mirror of what already left the
- *   account. Its ids go to .seed/ceptinela.json and its bank mirror into `ledger_tx`.
- *   The API serves the same company in memory with `SEED=ceptinela`.
+ *   account. Its ids go to .seed/ceptinela.json, and with `DATABASE_URL` set the whole
+ *   company goes into Postgres through `PostgresRepository.load`: the documents, the
+ *   event ledger, and the findings and decisions the six controls produce over the run.
+ *   The API then serves it from there. Without a database it is served from memory with
+ *   `SEED=ceptinela`, and the two are the same company.
  * - **The consumer generator** from seed 86, which `bun run demo` and the rolling
  *   window functions in @hackmty/core run against.
  *
@@ -30,6 +33,7 @@
  */
 
 import { resolve } from "node:path";
+import type { CeptinelaLoadResult } from "../apps/api/src/postgres-repo.ts";
 import type {
   CeptinelaDataset,
   GeneratedDataset,
@@ -248,8 +252,9 @@ if (!flags.has("--no-ceptinela")) {
   );
 }
 
-// Local ledger.
+// Local ledger, and the demo company itself.
 let failed = false;
+let loaded: CeptinelaLoadResult | undefined;
 const databaseUrl = Bun.env.DATABASE_URL;
 if (flags.has("--no-db")) {
   console.log("skipping the local ledger (--no-db)");
@@ -265,13 +270,26 @@ if (flags.has("--no-db")) {
       `ledger: ${written} rows written, ${ledger.length - written} already there (insert is idempotent)`,
     );
     if (ceptinela !== undefined) {
-      // The bank mirror is the only half of the demo company Postgres can hold
-      // today: the supplier, CFDI and instruction writes in packages/db are still
-      // stubs (issue #40). Until they land, the API serves the rest from memory
-      // with SEED=ceptinela and `bank_reconciliation` reads these rows.
-      const mirrored = await insertLedgerTx(sql, ceptinela.bankMirror);
+      // The whole demo company, not only its bank mirror: suppliers, CFDI,
+      // complements, the run, the SAT version, the event ledger, and then the
+      // findings and decisions the six controls produce over it. One
+      // transaction, and it replaces the company's own rows rather than
+      // truncating ledger_tx, because the consumer dataset above lives there too.
+      const { PostgresRepository } = await import(
+        "../apps/api/src/postgres-repo.ts"
+      );
+      loaded = await new PostgresRepository(sql).load({
+        seed: ceptinelaSeed,
+        ...(weekOption === undefined ? {} : { weekOf: weekOption }),
+      });
       console.log(
-        `bank mirror: ${mirrored} rows written, ${ceptinela.bankMirror.length - mirrored} already there`,
+        `ceptinela into postgres: ${loaded.suppliers} suppliers, ${loaded.cfdis} CFDI, ${loaded.complements} complements, ${loaded.instructions} instructions`,
+      );
+      console.log(
+        `  ${loaded.bankMirrorRows} bank mirror rows, ${loaded.events} ledger events`,
+      );
+      console.log(
+        `  engine: ${loaded.findings} findings, ${loaded.held} held, ${loaded.toVerify} to verify`,
       );
     }
   } catch (cause) {
@@ -553,8 +571,20 @@ if (ceptinela !== undefined) {
   }
   console.log(`ids written to .seed/ceptinela.json`);
   console.log(
-    `serve this company from the API with: SEED=ceptinela SEED_NUMBER=${ceptinela.seed} bun run --filter '@hackmty/api' dev`,
+    `serve this company from memory with: SEED=ceptinela SEED_NUMBER=${ceptinela.seed} bun run --filter '@hackmty/api' dev`,
   );
+  if (loaded !== undefined) {
+    // The connection string is never echoed: it carries a password, and this
+    // line is printed on a laptop that is about to be projected.
+    console.log(
+      `serve this company from Postgres with: DATABASE_URL=... bun run --filter '@hackmty/api' dev`,
+    );
+    console.log(
+      `  run ${loaded.runId}, week of ${loaded.weekOf}, ${loaded.findings} findings, ${loaded.held} held, ${loaded.toVerify} to verify`,
+    );
+    console.log(`  hero instructions: ${loaded.heroInstructionIds.join(", ")}`);
+    console.log(`  demo rfcs: ${loaded.demoRfcs.join(", ")}`);
+  }
 }
 
 console.log("");

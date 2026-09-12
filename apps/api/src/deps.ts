@@ -9,11 +9,13 @@
  */
 
 import type { LedgerEvent } from "@hackmty/core";
+import { getSql } from "@hackmty/db";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
 import { ceptinelaDataset, wantsCeptinela } from "./ceptinela";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
+import { PostgresRepository } from "./postgres-repo";
 import { MemoryRepository, type Repository } from "./repo";
 
 export interface ApiDeps {
@@ -61,20 +63,59 @@ function readEnv(name: string): string | undefined {
   return holder.process?.env?.[name];
 }
 
+let bootNote: string | undefined;
+
+/**
+ * Which repository this process actually booted on, for the log line in
+ * index.ts. Undefined in a test, which pins its own repository and never goes
+ * through `bootRepository`.
+ */
+export function repositoryBootNote(): string | undefined {
+  return bootNote;
+}
+
+/**
+ * Names the host and the database of a connection string, and never anything
+ * before the `@`. A password in a log line is a password in a screenshot, and
+ * this line is printed on a laptop that is being projected.
+ */
+function describeDatabaseUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const database = parsed.pathname.replace(/^\//, "");
+    return `${parsed.host}/${database}`;
+  } catch {
+    return "the configured host";
+  }
+}
+
 /**
  * The repository the process boots with.
  *
- * `SEED=ceptinela` serves the generated demo company from @hackmty/seed, with
- * `SEED_NUMBER` choosing which one; anything else keeps the hand-written fixture,
- * which is what every test runs against. A test that wants the generated company
- * passes its own repository rather than setting an environment variable.
+ * `DATABASE_URL` wins: the API then answers every endpoint in docs/09-api.md out
+ * of Postgres, over the query layer in @hackmty/db, and the event ledger behind
+ * it is the one `bun run seed` wrote. With no database, `SEED=ceptinela` serves
+ * the generated demo company in memory, with `SEED_NUMBER` choosing which one,
+ * and anything else keeps the hand-written fixture.
+ *
+ * A test never reaches this: `createTestApp` pins `MemoryRepository`, so the
+ * suite behaves the same on CI, which has no `.env`, and on a laptop configured
+ * for a rehearsal.
  */
 function bootRepository(): Repository {
+  const databaseUrl = readEnv("DATABASE_URL");
+  if (databaseUrl !== undefined && databaseUrl.trim() !== "") {
+    bootNote = `postgres ${describeDatabaseUrl(databaseUrl.trim())}`;
+    return new PostgresRepository(getSql());
+  }
+
   if (!wantsCeptinela(readEnv("SEED"))) {
+    bootNote = "memory (fixture)";
     return new MemoryRepository();
   }
   const parsed = Number(readEnv("SEED_NUMBER"));
   const seed = Number.isInteger(parsed) ? parsed : 0;
+  bootNote = `memory (ceptinela seed ${seed})`;
   return new MemoryRepository(seed, ceptinelaDataset);
 }
 

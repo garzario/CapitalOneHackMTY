@@ -9,6 +9,7 @@ import {
   CEPTINELA_DRIFT_MIGRATION,
   CEPTINELA_MIGRATION,
   CEPTINELA_TIMESCALE_MIGRATION,
+  COMPANY_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
@@ -279,6 +280,28 @@ describe("0004_timescale_ceptinela.sql", () => {
   });
 });
 
+describe("0006_company.sql", () => {
+  it("creates one guarded company row and nothing else", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${COMPANY_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain("create table if not exists company");
+    // One row, enforced by the table. Two company rows would make "who are we"
+    // a question with two answers on the header of every constancia.
+    expect(statements[0]).toContain(
+      "integer primary key default 1 check (id = 1)",
+    );
+    expect(statements[0]).toContain("bank_account_id text not null");
+    // The run anchor. Without it GET /api/v1/run/current has to guess the week
+    // from the newest instruction, and one late intake moves the whole run.
+    expect(statements[0]).toContain("week_of         date not null");
+    expect(statements[0]).toContain("run_id          text not null");
+  });
+});
+
 describe("MIGRATIONS", () => {
   it("runs the plain files before the ones that need the extension", () => {
     const first = MIGRATIONS.findIndex((spec) => spec.requiresTimescale);
@@ -291,6 +314,7 @@ describe("MIGRATIONS", () => {
       INIT_MIGRATION,
       CEPTINELA_MIGRATION,
       CEPTINELA_DRIFT_MIGRATION,
+      COMPANY_MIGRATION,
       TIMESCALE_MIGRATION,
       CEPTINELA_TIMESCALE_MIGRATION,
     ]);

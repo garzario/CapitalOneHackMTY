@@ -1,5 +1,6 @@
 import app from "./app";
 import { ceptinelaBootNotes } from "./ceptinela";
+import { repositoryBootNote } from "./deps";
 
 /**
  * Entry point, deliberately thin: everything testable lives in app.ts, which
@@ -14,6 +15,17 @@ const DEFAULT_PORT = 3000;
 
 const parsed = Number(process.env.PORT);
 const port = Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_PORT;
+
+/**
+ * Say which store is live before anything else, because "the API is up" and "the
+ * API is serving the database you seeded" are different claims and the second one
+ * is the one a demo depends on. The connection string is named by host and
+ * database only: the credentials in it never reach a log line or a screenshot.
+ */
+const repository = repositoryBootNote();
+if (repository !== undefined) {
+  console.log(`repository: ${repository}`);
+}
 
 /**
  * Under `SEED=ceptinela`, say on stdout which company was loaded and what the

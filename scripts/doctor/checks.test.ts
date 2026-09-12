@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from "bun:test";
 import type { Sql } from "../../packages/db/src/index.ts";
+import { MIGRATIONS } from "../../packages/db/src/migrate.ts";
 import type { CeptinelaCounts } from "../../packages/db/src/queries.ts";
 import {
   type AppliedMigration,
@@ -624,7 +625,12 @@ describe("the database check, against a real Postgres", () => {
       expect(detailOf(checks, "timeseries path")).toContain("plain Postgres");
 
       expect(statusOf(checks, "migrations")).toBe("ok");
-      expect(detailOf(checks, "migrations")).toContain("3 of 5 applied");
+      // Counted off MIGRATIONS rather than written down, so adding a file is
+      // one line in the runner and not a red test here that says nothing.
+      const plain = MIGRATIONS.filter((spec) => !spec.requiresTimescale).length;
+      expect(detailOf(checks, "migrations")).toContain(
+        `${plain} of ${MIGRATIONS.length} applied`,
+      );
       expect(detailOf(checks, "migrations")).toContain("0002_timescale.sql");
       expect(detailOf(checks, "migrations")).toContain(
         "0004_timescale_ceptinela.sql",

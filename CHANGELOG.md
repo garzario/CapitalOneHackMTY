@@ -31,6 +31,23 @@ then the screens, then the narrative, then the plumbing.
   `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
   while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
 
+- The API answers every endpoint in `docs/09-api.md` out of Postgres, so the data platform is live
+  behind the product rather than beside it (issue #41). `apps/api/src/postgres-repo.ts` implements
+  the same `Repository` the screens were built against, over the query layer in `packages/db`, and
+  not one file in `src/routes` changed: `bootRepository()` picks it when `DATABASE_URL` is set and
+  the boot log names the host and database without the credentials. `bun run seed` now loads the
+  whole demo company into Postgres in one transaction, documents, event ledger, and the findings
+  and decisions the six controls produce over the run, replacing the company's own bank mirror by
+  account so the consumer dataset in `ledger_tx` survives; running it twice gives the same run.
+  Migration `0006_company.sql` adds the one-row `company` table the constancia header, the mirror
+  account id and the run anchor come from: the run screen reads the week the seed opened rather
+  than re-deriving it from the newest instruction, so an intake received in a later week joins the
+  open run instead of replacing it. The current decision is the newest row by append order and not
+  the largest `decided_at`, which is what lets a clerk override an engine decision stamped at a run
+  instant ahead of their own clock. `apps/api/src/postgres-repo.test.ts` asserts parity against
+  `MemoryRepository` on the same seed, line for line, plus the endpoints and the SSE stream, and
+  was run against the local PostgreSQL 18 and the managed TimescaleDB 2.30 service.
+
 - The metrics page says how blind the blind evaluation actually is (issue #51). It used to claim
   the labels were written by a different person from the detectors, which the holdout README
   contradicts; the note now states the real position, names the four labels that disagree with
