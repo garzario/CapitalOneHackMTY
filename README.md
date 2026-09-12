@@ -89,7 +89,7 @@ bun run dev                     # web and API together
 Optional preflight before the first run: `bun run doctor` checks the bun version, the environment
 variables and database reachability. Copy `.env.example` to `.env` first.
 
-Three commands worth knowing about. `bun test` runs 1020 tests across 58 files with no network, no
+Three commands worth knowing about. `bun test` runs 1023 tests across 59 files with no network, no
 database and no API key, which is the fastest way to check that the intelligence is real. `bun run
 eval` scores the six controls against 30 labelled holdout cases and prints precision, recall and
 the false positive rate per control. `bun run demo` drives the demo path headless and must be green
@@ -135,7 +135,7 @@ Every dependency is pinned exactly and must be more than three days old, enforce
 
 ## How we worked
 
-36 hours, four people, branch and PR on every change, 38 merged so far and zero direct pushes to
+36 hours, four people, a branch and a pull request for every change and zero direct pushes to
 `main` or `dev`. [`docs/14-process.md`](docs/14-process.md) has the board and its nine views, the
 five epics, three pull requests worth reading with what each one argues, the review rotation, what
 build night mode cost us, the ADR index, and the list of work we consciously cut.

@@ -57,7 +57,7 @@ score and they only exist if the thing works and we can talk about it.
 - Feature PRs are squash-merged into `dev`. The squash title is `<type>(<scope>): <summary> (#<issue>)`.
 - One review from a different role owner, per the rotation below. Since 03:30 on the 12th that
   review is post-merge rather than blocking, which is build night mode in point 7 of the review flow.
-- Few, meaningful commits. One logical commit per PR. Of the 38 merged so far, 35 went into `dev`
+- Few, meaningful commits. One logical commit per PR. Of the 39 merged so far, 36 went into `dev`
   and 3 were release PRs into `main`.
 - No required status checks, deliberately. A runner queue must never strand a PR at 04:00. CI is
   advisory and the reviewer reads it.
@@ -89,7 +89,7 @@ score and they only exist if the thing works and we can talk about it.
    The trade was made on purpose. Four people running assistants in parallel on a shared monorepo
    produce PRs faster than four people can read them, and a PR waiting three hours for an approval
    at 04:00 blocks the branch behind it rather than improving it. What we bought is throughput:
-   38 merged PRs, zero direct pushes to `main` or `dev`, and no branch stranded overnight.
+   39 merged PRs, zero direct pushes to `main` or `dev`, and no branch stranded overnight.
 
    What it cost is visible and we state it rather than dress it up: **as of this writing no merged
    PR carries a post-merge review thread.** The rotation below is owed on every one of them and the
@@ -142,12 +142,15 @@ three the PR body is the artifact and the post-merge review is still owed.
 
 ## Evidence you can check without us
 
+Counts are a snapshot, taken 2026-09-12 04:54 CST against `dev` at `8487841`. Re-read them off the
+commands rather than off this table if the hour matters.
+
 | Artifact | Where | Why this one |
 |---|---|---|
-| CI run | Run `34689374002` on `dev`, `verify` green in 29 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
-| Test suite | `bun test`: 1020 pass, 0 fail, 58 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
+| CI run | Run `34689622851` on `dev`, `verify` green in 33 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
+| Test suite | `bun test`: 1023 pass, 0 fail, 59 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
 | Blind evaluation | `bun run eval`: 30 labelled cases, 85.0 percent precision, 81.0 percent recall, 1.9 percent false positive rate | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
-| Rubric score trend | `docs/01-rubric-mapping.md#self-score` | M1, 2026-09-12 05:20 CST: **85 of 100** under the stated G/Y/R rule. M2, M3 and M4 go here as they are scored |
+| Rubric score trend | `docs/01-rubric-mapping.md#self-score` | M1, 2026-09-12 04:54 CST: **85 of 100** under the stated G/Y/R rule. M2, M3 and M4 go here as they are scored |
 | Changelog | `CHANGELOG.md`, `[Unreleased]` | Appended by whoever merges, in the same commit |
 
 ## What we cut, and why
