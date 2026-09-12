@@ -71,6 +71,7 @@ import {
   lookupSatEntries,
   markInstructionSent,
   readLedger,
+  readVerificationEvents,
   recordKnownAccount,
   type SupplierHistory,
   supplierHistory,
@@ -259,6 +260,110 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       };
       await appendLedgerEvent(sql, call);
       expect(await readLedger(sql)).toEqual([call]);
+    });
+
+    /**
+     * The two event kinds 0009 added, and the read that folds a verification.
+     *
+     * Three of the four kinds carry the instruction id and `decision_made` carries
+     * it one level down, inside the decision, so the query has to reach for it
+     * differently; the `cep_verified` is matched on the account instead, because a
+     * CEP names an account and no instruction. Getting any of those four wrong
+     * leaves a state machine stuck on `cent_sent` while the ledger holds the CEP.
+     */
+    it("reads the verification of one instruction, by id and by account", async () => {
+      const at = "2026-09-12T03:00:00.000Z";
+      const account = "014180004551203983";
+      const events: LedgerEvent[] = [
+        {
+          type: "cent_sent",
+          at,
+          instructionId: "INS-1",
+          rail: "nessie",
+          claveRastreo: "NSS68C4AA11BB22CC33DD44EE",
+          amount: 0.01,
+          clabeLast4: "3983",
+          simulated: true,
+        },
+        {
+          type: "cep_awaited",
+          at: "2026-09-12T03:00:05.000Z",
+          instructionId: "INS-1",
+          claveRastreo: "NSS68C4AA11BB22CC33DD44EE",
+          attempts: 2,
+          waitedMs: 3000,
+          reason: "Banxico has published no CEP for this clave de rastreo yet.",
+        },
+        // Another instruction's cent, which must not be in the answer.
+        {
+          type: "cent_sent",
+          at,
+          instructionId: "INS-2",
+          rail: "stp",
+          claveRastreo: "STPINS21234567",
+          amount: 0.01,
+          clabeLast4: "0001",
+          simulated: false,
+        },
+      ];
+      await appendLedgerEvents(sql, events);
+
+      const read = await readVerificationEvents(sql, "INS-1", account);
+
+      expect(read).toEqual([events[0], events[1]]);
+      // The types survive the round trip through the check constraint 0009 widened.
+      expect(read.map((event) => event.type)).toEqual([
+        "cent_sent",
+        "cep_awaited",
+      ]);
+      expect(await readVerificationEvents(sql, "INS-3", account)).toEqual([]);
+    });
+
+    it("finds the decision inside its payload and the CEP by its account", async () => {
+      const at = "2026-09-12T03:10:00.000Z";
+      const account = "014180004551203983";
+      const decision: LedgerEvent = {
+        type: "decision_made",
+        at,
+        decision: {
+          instructionId: "INS-1",
+          action: "release",
+          expectedLoss: 0,
+          delayCostPerDay: 0,
+          findings: [],
+          decidedAt: at,
+          decidedBy: "system",
+        },
+      };
+      const verified: LedgerEvent = {
+        type: "cep_verified",
+        at,
+        supplierRfc: supplier.rfc,
+        cep: {
+          claveRastreo: "NSS68C4AA11BB22CC33DD44EE",
+          transferredAt: at,
+          amount: 0.01,
+          senderName: "Metalicos del Norte SA de CV",
+          senderBank: "SinteticoDos",
+          beneficiaryName: "ACEROS Y PERFILES DEL NORTE SA DE CV",
+          beneficiaryAccount: account,
+          beneficiaryBank: "SinteticoUno",
+          signatureValid: false,
+          signatureReason: "not_checked",
+          xml: '<SPEI_Tercero sintetico="true" />',
+          synthetic: true,
+        },
+      };
+      await appendLedgerEvents(sql, [decision, verified]);
+
+      expect(await readVerificationEvents(sql, "INS-1", account)).toEqual([
+        decision,
+        verified,
+      ]);
+      // A CEP for another account is not this instruction's evidence.
+      expect(
+        await readVerificationEvents(sql, "INS-9", "072180100000000007"),
+      ).toEqual([]);
     });
 
     it("is append-only in the server: an update or a delete is refused, loudly", async () => {

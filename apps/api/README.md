@@ -23,7 +23,10 @@ src/
   synthetic.ts             the seeded payment run the UI is built against
   pipeline.ts              intake, the retroactive sweep, calls into core
   extraction.ts            the seam to @hackmty/extract, refuses without a key
-  cep.ts                   the seam to @hackmty/cep: accept, retrieve, check the seal
+  cep.ts                   the seam to @hackmty/cep: accept, retrieve, check the seal,
+                           and the inbox that finds a CEP by clave de rastreo
+  verification.ts          the one-cent pipeline: rail, CEP, engine, and the
+                           VerificationState folded out of the ledger
   events.ts                the SSE broadcaster (fan-out, not the route)
   middleware/request-id.ts correlation id on every response
   middleware/rate-limit.ts per-client budget, only on GET /sat/lookup
@@ -32,6 +35,8 @@ src/
     run.ts                 GET /api/v1/run/current
     instructions.ts        GET :id, POST /, POST :id/decide
     verify-call.ts         GET and POST :id/verify-call, the voice agent
+    verify-account.ts      POST :id/verify-account and GET :id/verification,
+                           the one-cent verification
     suppliers.ts           GET /api/v1/suppliers/:rfc
     sat.ts                 GET lookup, GET versions, POST publish
     cep.ts                 POST /api/v1/cep/verify

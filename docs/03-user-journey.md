@@ -15,7 +15,7 @@ flowchart TD
   B["2. Thursday run is triaged<br/>Emotion: -1, time pressure<br/>Screen: Corrida de pagos, #/run"]
   C["3. Lupita opens the evidence<br/>Emotion: -2, concerned<br/>Screen: Instruccion de pago, #/instructions/:id"]
   D{"What does the evidence require?"}
-  E["4. One-cent probe and CEP comparison<br/>Emotion: 0, checking<br/>Screen: CEP, #/cep"]
+  E["4. Verificar cuenta: the cent, the CEP and the comparison, in one press<br/>Emotion: 0, checking<br/>Screen: CEP, #/cep"]
   F["5. Human confirms hold, verify or release<br/>Emotion: +1, in control<br/>Screen: Instruccion de pago, #/instructions/:id"]
   G["6. Payment evidence and memo are archived<br/>Emotion: +2, confident<br/>Screen: Lista 69-B, #/sat, and CEP, #/cep"]
 
@@ -38,9 +38,45 @@ the post-outcome stage is required, but it does not claim that the PDF generator
 | 1. Pre-trigger | A supplier's CFDI XML arrives by email. Lupita files it for Thursday. | The ledger records `cfdi_received`, links the synthetic supplier and makes the invoice available to the run. | 0, routine | **Corrida de pagos**, `RunScreen`, `#/run` |
 | 2. Trigger | On Thursday, Lupita opens the run and scans the highest pesos at risk first. | `PaymentRun` shows totals and ranks instructions with decisions and findings. The reference synthetic run contains 92 payment instructions totaling MXN 2,174,210.76. | -1, time pressure | **Corrida de pagos**, `RunScreen`, `#/run` |
 | 3. Evidence | She opens one row, reads the evidence chips and opens the supplier history when needed. | The detail shows the CFDI link, CLABE, source, findings, expected loss and delay cost without treating message text as evidence. | -2, concerned | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id`; **Expediente del proveedor**, `SupplierDrawer` |
-| 4. Verification | For an unproved account, she sends a human-initiated one-cent SPEI probe, enters its clave de rastreo or signed XML, and selects **Verificar**. | The CEP signature status and beneficiary holder are shown beside the CFDI legal name. A verified account enters the beneficiary registry. | 0, checking | **CEP**, `CepScreen`, `#/cep` |
+| 4. Verification | For an unproved account, she presses **Verificar cuenta** once. She types nothing: no clave de rastreo, no XML, no statement to read. | The one cent leaves through the configured rail inside the same run, `cent_sent` records the clave de rastreo the bank gave back, the CEP for that clave is resolved and its seal checked as far as the server can, the holder is compared with the CFDI legal name, and the engine releases or blocks the instruction. A verified account enters the beneficiary registry. | 0, checking | **CEP**, `CepScreen`, `#/cep`; **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
 | 5. Decision and payment | She returns to the instruction and confirms **Retener**, **Verificar** or **Liberar**. The bank remains the place where the SPEI is sent. | The API appends `decision_made` with the action and `decidedBy`. SentryOne advises; a person decides. | +1, in control | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
 | 6. Post-outcome | She keeps the signed CEP, the decision and the SAT sweep memo with the payment evidence. | `cep_verified` preserves the verified beneficiary. A later `sat_list_published` event replays the ledger and quantifies prior exposure. The constancia PDF remains `TODO(fabbyyyy)`. | +2, confident | **CEP**, `CepScreen`, `#/cep`; **Lista 69-B**, `SatScreen`, `#/sat` |
+
+## The cent inside the run
+
+Stage 4 used to be a procedure with a button on top. The clerk sent one cent from the
+company's bank, waited, read the clave de rastreo off a statement, typed it into the CEP
+screen, and only then did the product have anything to compare. Three of those four steps
+were hers and none of them needed a person: Mexico has no confirmation-of-payee API, so
+the cent has to exist, but the clave de rastreo comes back from the bank and not from a
+keyboard.
+
+What is automated now, from one press of **Verificar cuenta**:
+
+- the 0.01 MXN probe, through `packages/rail`, on the company's own account;
+- the clave de rastreo, recorded as `cent_sent` the moment the rail answers;
+- the CEP lookup by that clave, and the seal check when a Banxico certificate is
+  configured;
+- the holder comparison against the CFDI legal name, by the same `nameMatch` the manual
+  path used;
+- the release of a payment whose only problem was an unproved account, or the block of one
+  whose CEP names somebody else, as `decision_made` signed `system`.
+
+What is still a person's, and stays a person's:
+
+- **starting the run.** Nothing sends a cent on its own. The clerk decides that this
+  account is worth verifying, which is also what keeps the product from probing every
+  account it sees.
+- **anything the engine holds for another reason.** A CEP that confirms the holder does
+  not settle a duplicated invoice or a supplier on the 69-B list, and those still end in
+  **Retener**, **Verificar** or **Liberar** with a name on the decision.
+- **the payment itself.** SentryOne never sends the SPEI. The cent is the only transfer it
+  originates, and `release` means nothing stops this payment.
+
+After the Thursday run there is nothing left to do by hand. No statement to reconcile
+against a clave nobody wrote down, no second visit to the bank portal, no manual entry the
+following morning. That is the change: the work is concentrated in the run the clerk was
+already doing.
 
 ## Branch 1: false positive
 
@@ -84,8 +120,9 @@ is absent from `knownAccounts`.
 
 1. **Instruccion de pago** and `SupplierDrawer` show the new CLABE beside prior accounts and how
    each was established.
-2. Lupita initiates the one-cent SPEI in the company's bank, then uses **CEP** at `#/cep` to verify
-   the signed receipt and compare its beneficiary with the CFDI legal name.
+2. Lupita presses **Verificar cuenta** on the instruction. The cent leaves through the rail, the
+   CEP comes back under the clave the rail recorded, and **CEP** at `#/cep` shows its beneficiary
+   beside the CFDI legal name with the seal state the server can prove.
 3. After a match and human decision, the account enters the beneficiary registry with
    `establishedBy: "cep"` and she selects **Liberar** on the instruction.
 4. The same account carries its evidence into the next run, so the legitimate change does not

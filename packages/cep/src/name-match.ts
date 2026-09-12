@@ -27,7 +27,14 @@
  * caller maps it to `requiere_verificacion` and a person decides.
  */
 
-export type NameMatch = "match" | "partial" | "mismatch";
+import type { NameMatch } from "@hackmty/core";
+
+/**
+ * The three verdicts, re-exported from the domain contract rather than declared
+ * again here. One vocabulary: `packages/core` owns the words the whole product
+ * switches on, this package owns the comparison that produces them.
+ */
+export type { NameMatch };
 
 /**
  * Tokens that spell a Mexican societary type rather than a name.

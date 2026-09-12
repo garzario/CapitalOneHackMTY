@@ -21,13 +21,21 @@ export type ErrorCode =
   | "bad_request"
   | "forbidden"
   | "not_found"
+  | "conflict"
   | "unprocessable"
   | "rate_limited"
   | "http_error"
-  | "internal_error";
+  | "internal_error"
+  /**
+   * The server is missing something it needs to do this at all, and it is our
+   * configuration and not the request: the one-cent verification with no payment
+   * rail. A 422 would tell a clerk their request was wrong when it was not, and a
+   * 500 would tell them it is broken when it is unbought.
+   */
+  | "unavailable";
 
 /** Statuses this API actually returns. Anything else is a bug, not a choice. */
-export type ErrorStatus = 400 | 403 | 404 | 422 | 429 | 500;
+export type ErrorStatus = 400 | 403 | 404 | 409 | 422 | 429 | 500 | 503;
 
 export type ErrorBody = {
   error: {

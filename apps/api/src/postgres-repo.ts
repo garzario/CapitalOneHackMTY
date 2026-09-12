@@ -77,6 +77,7 @@ import {
   lookupSatEntries,
   markInstructionSent,
   readLedger,
+  readVerificationEvents,
   recordKnownAccount,
   selectSuppliers,
   transact,
@@ -382,6 +383,13 @@ export class PostgresRepository implements Repository {
     return readLedger(this.sql, options);
   }
 
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return readVerificationEvents(this.sql, instructionId, beneficiaryAccount);
+  }
+
   /* --------------------------------------------------------------- writes */
 
   /**
@@ -440,6 +448,22 @@ export class PostgresRepository implements Repository {
     await insertDecision(this.sql, decision);
 
     return decision;
+  }
+
+  /**
+   * The engine's own decision on new evidence, findings first.
+   *
+   * One transaction, and the findings go in before the decision for the same
+   * reason `saveIntake` does it in that order: `decision_findings` has a foreign
+   * key on them, so a decision citing evidence the database does not hold is
+   * refused rather than stored. `insertFindings` is `on conflict do nothing`, so a
+   * finding the run already carried is not duplicated and not overwritten.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    await transact(this.sql, async (tx) => {
+      await insertFindings(tx, decision.findings);
+      await insertDecision(tx, decision);
+    });
   }
 
   async publishSatList(

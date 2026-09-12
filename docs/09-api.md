@@ -1,7 +1,8 @@
 # 09. API contract
 
 Base path `/api/v1`. JSON in and out. Errors use one envelope: `{ "error": { "code": string, "message": string, "requestId": string } }`.
-Codes: `bad_request` 400, `forbidden` 403, `not_found` 404, `unprocessable` 422, `rate_limited` 429, `internal_error` 500.
+Codes: `bad_request` 400, `forbidden` 403, `not_found` 404, `conflict` 409, `unprocessable` 422, `rate_limited` 429, `internal_error` 500, `unavailable` 503.
+`unavailable` is the one that is about us and not about the request: the server is missing something it needs to do this at all, which today means the one-cent verification on a server with no payment rail. A 422 there would tell a clerk their request was wrong when it was not.
 All amounts in MXN. All timestamps ISO 8601. Every synthetic object carries `synthetic: true`.
 Types are the ones in `packages/core/src/domain.ts`; the API never invents a second shape.
 
@@ -21,6 +22,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/sat/constancia?listVersion=` | `application/pdf` | constancia of the retroactive sweep for one loaded list version |
 | GET | `/api/v1/run/:id/constancia` | `application/pdf` | constancia of one weekly payment run. `current` is accepted as the id |
 | GET | `/api/v1/instructions/:id/verify-call` | `{ script, voiceConfigured, releasesPayment: false }` | the words the voice agent reads, or the clerk does. Side effect free: no call is placed and nothing is appended |
+| GET | `/api/v1/instructions/:id/verification` | `VerificationState` | where the one-cent verification of this instruction stands, folded out of the event ledger. `state: "not_started"` when the cent has not been sent, which is a real answer and what lets the screen offer the action. `404` for an instruction nobody holds |
 
 `PaymentRun` = `{ id, weekOf, totals: { instructions, amount, held, toVerify, released }, items: Array<{ instruction, supplier, decision, findings }> }`.
 
@@ -44,6 +46,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only) and runs the retroactive sweep over everything the ledger says is already paid. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult`. |
 | POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | retrieves or accepts the CEP, checks the Banxico seal, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`, where `finding` is the `beneficiary_cep` finding `packages/engine` authors, or `null` when no pending payment goes to that account. See "The CEP, and what verify can prove" below. |
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand. Never releases a payment: the response always carries `releasesPayment: false` and no `decision_made` is ever appended. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
+| POST | `/api/v1/instructions/:id/verify-account` | no body | the one-cent verification, with nobody typing. Sends 0.01 MXN to the account this instruction pays, through the configured rail; appends `cent_sent` with the clave de rastreo the rail answered; resolves the CEP for that clave; and with the CEP in hand runs the beneficiary control and the expected-loss rule and appends `decision_made` signed `system`. Answers `202` with the `VerificationState` it reached synchronously. `404` unknown instruction, `409` when it is already released or blocked, `503` when this server has no rail. See "The cent inside the run" below |
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
 
 ### The CEP, and what verify can prove
@@ -85,6 +88,73 @@ decides which way applies. `src/cep.ts` holds that wiring.
   follows it: accusing a supplier's document because this server holds no certificate would be our
   mistake printed as their fault.
 
+### The cent inside the run
+
+`POST /api/v1/instructions/:id/verify-account` is control 5 with the person taken out
+of it. Before it, the beneficiary check was a procedure with a button on top: somebody
+sent one cent from the company's bank, read the clave de rastreo off a statement,
+typed it into `POST /api/v1/cep/verify`, and SentryOne did the rest. Mexico has no
+confirmation-of-payee API and the Banxico CEP is the only document a central bank
+signs about who held an account, so the cent stays. What goes away is the typing.
+
+**The pipeline, in the order it runs.** `packages/rail` sends 0.01 MXN and answers with
+the clave de rastreo it filed the transfer under; `cent_sent` is appended. The CEP for
+that clave is looked for in the order the section above describes: the verified
+beneficiary registry, then the CEPs committed to this repository indexed by clave, then
+the Banxico portal and only with `ALLOW_CEP_FETCH=1`. With no CEP yet, `cep_awaited` is
+appended and a bounded poll keeps asking (`CEP_POLL_INTERVAL_MS`, default 3000, and
+`CEP_POLL_DEADLINE_MS`, default 60000, and zero on either disables the background
+work). With the CEP in hand the registry row is stored, which is what ARMS control 5 for
+that account, the six controls run again over the instruction, and `decide` in
+`packages/core` chooses the action. Nothing in `apps/api` authors a finding or weighs a
+peso.
+
+**The state machine.** `GET .../verification` answers `VerificationState` from
+`packages/core/src/domain.ts`, folded out of the ledger and never stored as a row.
+
+| `state` | What it means |
+|---|---|
+| `not_started` | no cent has been sent for this instruction |
+| `cent_sent` | the rail accepted the probe and the ledger holds its clave de rastreo |
+| `awaiting_cep` | the cent is out and Banxico has published no CEP for that clave yet. A CEP appears once the transfer settles, so this is a wait and not a failure |
+| `cep_signed` | the CEP is in hand and the payment is still stopped for some other reason. The decision says which |
+| `released` | the engine released it: nothing stops this payment. It does NOT mean SentryOne paid anything |
+| `blocked` | the CEP contradicts the documents: the beneficiary control came back critical, so the payment does not leave on this evidence |
+
+`blocked` and the engine's own action are two different fields on purpose. The action is
+`hold` when the evidence is provable on its own and `verify` when a person has to
+confirm it, and the state machine reports `blocked` for both, because from the clerk's
+side the money has stopped either way. A `decision_made` a PERSON signed is never read
+as a verification outcome: `POST /decide` is their call and is recorded as theirs.
+
+**Status codes.** `202` and not `200`, because on a real rail the CEP is published after
+the transfer settles and the work this call started is not finished when the response is
+written; the body says how far it got. `409` once the instruction is released or blocked,
+because a second cent costs another centavo and proves nothing new. `503` when this
+server has no rail, with a message naming `RAIL`, `NESSIE_API_KEY` and the `STP_*`
+variables, and the same `503` when there is a rail and it refused the cent: nothing about
+the request was wrong in either case, and nothing is appended, because a `cent_sent` for a
+cent that never left is the one entry this ledger must not hold.
+
+**What is claimed and what is not.** `sealState` is `valid` only when
+`BANXICO_CEP_CERT_PEM` verified the sello; otherwise it is `not_checked`, which the UI
+renders as "firma no verificada" and never as valid, and `invalid` is reserved for a
+defect in the document itself. The `cent_sent` event carries `simulated`, true only for
+the in-process rail the suite and `bun run demo` use, so a probe nothing sent can never
+be read later as a transfer that settled. The rail writes no name, no CLABE and no
+amount other than the cent into anybody else's system, and the ledger event carries four
+digits of the account rather than the CLABE.
+
+**Which parts are the Nessie mirror and which are Banxico.** `RAIL=nessie` records the
+cent as a withdrawal on the company's bank mirror with our own team key. Nessie is a
+sandbox and not a bank: no pesos move and no CEP is produced, and a cent sent that way
+cannot even build a portal query, because Nessie is not a SPEI participant and has no
+clave SPEI. It proves the flow, on the same account `bank_reconciliation` reads.
+`RAIL=stp` is the rail that produces a Banxico-signed CEP, it is written out in
+`packages/rail/src/stp.ts` with its `registraOrden` request, its cadena original and its
+RSA signature, and it refuses to run without `STP_*` configuration, so nothing here can
+pretend to be live. The CEP side is the same seam the pasted-XML path uses.
+
 ### The constancias
 
 Two endpoints answer with a PDF rather than JSON, because the accountant files the document and reads it again when the SAT asks. They are the only non-JSON responses in the API.
@@ -98,7 +168,7 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 
 ## Streaming
 
-`GET /api/v1/events` is Server-Sent Events. Every appended `LedgerEvent` is pushed as `event: ledger`, so the payment-run screen and the sweep animation update without polling.
+`GET /api/v1/events` is Server-Sent Events. Every appended `LedgerEvent` is pushed as `event: ledger`, so the payment-run screen and the sweep animation update without polling. That includes `cent_sent` and `cep_awaited`: the verification is not on a private channel, and the screen re-reads `GET /api/v1/instructions/:id/verification` whenever an event names that instruction.
 
 ## Curl a judge can paste
 
@@ -120,6 +190,12 @@ curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/
 jq -Rs '{xml: ., supplierRfc: "SYN201123S23"}' packages/cep/src/fixtures/synthetic-cep.xml \
   | curl -s -X POST https://<host>/api/v1/cep/verify -H 'content-type: application/json' \
     --data-binary @- | jq '{nameMatch, seal: .cep.signatureReason, finding: .finding.severity}'
+# The one-cent verification. The POST sends a real 0.01 on the configured rail, so on a
+# deployed instance it is a write: the GET is the read-only half and answers not_started
+# until somebody presses the button.
+curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047/verification | jq
+curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-account \
+  | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
 ```
 
 ## Where the 69-B rows a control sees come from
@@ -144,5 +220,15 @@ Three more quirks, verified with our own key on 2026-09-12 while seeding that mi
 The POST that creates the customer is what validates the key, since an invalid key answers `200 []` on every read. The instant it was accepted goes to the gitignored `.seed/nessie.json` as `keyValidatedAt`, next to `keyFingerprint`: the first twelve hex characters of SHA-256 over the key that made it, never the key. `bun run doctor` computes the same fingerprint over the key in `.env` and is green only when the two agree, because an instant on its own says that SOME key once wrote, which is not what a teammate holding a rotated key needs to hear. The state file also records the `--limit` the account was pushed with, and the verify pass reconciles against exactly that set: a later run with a narrower default must not report the rest of the account as missing days.
 
 `--import` replaces the generator's `ledger_tx` rows for the company account with the rows Nessie answered, scoped by account and by source, and the delete and the insert run inside one transaction so a failure between them cannot leave the company with a ledger shorter than its bank. It needs `--limit=0`, because the import replaces the mirror rather than adding to it, and the imported rows carry the bank's whole-peso amounts. It refuses outright when the push reported failures, when the read-back threw or was partly rejected, or when the reconciliation reported any differing day: a replacement built on a partial push is a ledger that is quietly short of the bank, and every rolling baseline the engine computes off it moves with it.
+
+One kind of row on that account is not mirror history: the one-cent verification writes a
+WITHDRAWAL, because the probe must name nobody and a withdrawal carries no payee at all.
+Verified on 2026-09-12 with our own key: `POST /accounts/{id}/withdrawals` with
+`{medium: "balance", transaction_date: "<Monterrey day>", amount: 0.01, status:
+"pending", description: "Verificacion de cuenta SPEI 0.01 MXN"}` answers a row whose
+`_id` becomes the clave de rastreo, and the amount reads back as `0` because Nessie
+stores a whole number. The exact centavo is in our ledger, like every other amount. No
+customer and no account is ever created by that path: the account is the one
+`bun run nessie:mirror` made, found by its nickname through `GET /accounts`.
 
 A re-seed undoes an import, on purpose and without doubling anything. `bun run seed` loads the company through `PostgresRepository.load`, which deletes the company account's `ledger_tx` rows by account id and writes the generator's mirror back, so after a `bun run seed` the ledger holds the generator's rows with their exact centavos again and `bun run nessie:mirror --import --limit=0` has to run once more to put Nessie's whole-peso rows back. The row count for the account equals the generator's mirror either way.

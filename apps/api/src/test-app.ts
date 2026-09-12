@@ -7,8 +7,9 @@
  * exact `decidedAt` instead of matching a regular expression against `now`.
  */
 
+import { NO_RAIL } from "@hackmty/rail";
 import { createApp } from "./app";
-import { acceptOnlyCepSource } from "./cep";
+import { acceptOnlyCepSource, staticCepInbox } from "./cep";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
 import { UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { PipelineClock } from "./pipeline";
@@ -56,6 +57,19 @@ export function createTestApp(
     repo: new MemoryRepository(),
     extractor: UNAVAILABLE_EXTRACTOR,
     cep: acceptOnlyCepSource(),
+    /* No rail, because the default one is whatever `NESSIE_API_KEY` is in the
+       `.env` of whoever runs the suite. A test that wants to send a cent passes
+       a `FakeRail`, and every other test gets the documented 503. */
+    rail: async () => ({ ok: false, message: NO_RAIL }),
+    cepInbox: staticCepInbox([], "empty CEP index (test)"),
+    /* A zero deadline means the pipeline appends `cep_awaited` and starts no
+       background work at all, so no test leaves a timer behind. The tests that
+       drive the poll pass their own interval and their own `sleep`. */
+    verification: {
+      pollIntervalMs: 0,
+      pollDeadlineMs: 0,
+      sleep: async () => {},
+    },
     ...overrides,
   });
 

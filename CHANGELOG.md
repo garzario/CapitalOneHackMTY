@@ -18,6 +18,37 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The one-cent verification travels inside the payment run, with nobody typing (issue #166).
+  `packages/rail` is the new workspace and the only place in the product that sends money: one
+  amount, 0.01 MXN, behind a `PaymentRail` interface with three adapters. `NessieRail` records the
+  cent as a withdrawal on the company's bank mirror with our own key and mints the clave de rastreo
+  from the object id Nessie returns, upper-cased letters and digits behind an `NSS` prefix, cut to
+  the 30 characters a SPEI field holds; a withdrawal and not a purchase, because the mirror's
+  settled history needs a payee and the probe must name nobody. `StpRail` is the documented
+  production path, `registraOrden` with the cadena original in one named field order and an RSA
+  SHA-256 `firma` over exactly those bytes, and its constructor refuses without `STP_BASE_URL`,
+  `STP_EMPRESA`, `STP_CLABE_ORDENANTE` and `STP_PRIVATE_KEY_PATH`, so it has never pretended to be
+  live: nothing in this repository holds an STP contract and `packages/rail/README.md` says so next
+  to what IS verified. `FakeRail` is the in-process one, and every `cent_sent` it produces carries
+  `simulated: true`. `POST /api/v1/instructions/:id/verify-account` is the pipeline: it sends the
+  cent, appends `cent_sent`, resolves the CEP for that clave through the existing seam (the verified
+  beneficiary registry, then the CEPs committed to this repository indexed by clave, then the Banxico
+  portal and only with `ALLOW_CEP_FETCH=1`), appends `cep_awaited` with a bounded poll when Banxico
+  has published nothing yet (`CEP_POLL_INTERVAL_MS`, `CEP_POLL_DEADLINE_MS`), and with the CEP in
+  hand stores the registry row that arms control 5, runs the six controls again and appends
+  `decision_made` signed `system`. `GET /api/v1/instructions/:id/verification` folds
+  `VerificationState` out of the ledger: `not_started`, `cent_sent`, `awaiting_cep`, `cep_signed`,
+  `released`, `blocked`, with the clave, the holder, the CFDI legal name, the comparison and the seal
+  state. `202` because the CEP is published after the transfer settles, `409` once the payment is
+  resolved because a second cent proves nothing new, `503` naming the variables when this server has
+  no rail. The seal is `valid` only when `BANXICO_CEP_CERT_PEM` verified it and `not_checked`
+  otherwise, which is never rendered as valid. Verified live against `api.nessieisreal.com` on
+  2026-09-12: the 0.01 withdrawal lands on the mirror account with no name, no CLABE and no amount
+  other than the cent in its description, no customer or account is created, and Nessie stores the
+  amount as a whole number so it reads back as 0, which is why the centavo lives in our ledger.
+  `bun run demo` gained a beat that takes one seeded line to `released` and another to `blocked` from
+  one call each, on the in-process rail and on synthetic CEPs, and it says so on the line it prints.
+
 - Two things the deploy of #44 cost to learn, written down next to the commands in
   `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
   connection to port 22 and then never delivers the banner, so `refresh.sh` is unreachable from the
@@ -665,6 +696,17 @@ then the screens, then the narrative, then the plumbing.
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 
 ### Changed
+
+- One vocabulary for the three-word answers the product switches on, with the one-cent verification
+  (issue #166). `NameMatch` and a new `SealState` live in `packages/core/src/domain.ts`, which is
+  where the words the whole product reads belong, and `packages/cep` re-exports the first rather than
+  declaring a second copy of it. The engine's seal verdict is now `valid`, `not_checked` or
+  `invalid`, so `evidence.signatureState` reads `not_checked` where it used to read `unconfirmed`:
+  the same fact, named the way the domain and the API name it, and `sealStateOf` is exported so
+  `GET /api/v1/instructions/:id/verification` reports the verdict the finding carries instead of
+  computing a second one. Nothing about what is claimed moved: `valid` still needs
+  `BANXICO_CEP_CERT_PEM` to have verified the sello, and the three unproven reasons still read as
+  "no verificada" and never as invalid.
 
 - `docs/07-architecture.md` and `docs/08-data-model.md` are finished against the merged tree
   (issue #64), and every figure on both pages now comes from a run or from a cited file. 07 carries

@@ -212,15 +212,22 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
       ),
     );
 
-    expect([...(await recordedFiles())].sort()).toEqual(
-      [
-        INIT_MIGRATION,
-        SENTRYONE_MIGRATION,
-        SENTRYONE_TIMESCALE_MIGRATION,
-        SENTRYONE_DRIFT_MIGRATION,
-        COMPANY_MIGRATION,
-      ].sort(),
-    );
+    /* What is recorded, asserted against MIGRATIONS rather than against a list
+       written out here. A hand-written list goes stale the moment somebody adds a
+       plain migration, and then this test fails for a reason that has nothing to do
+       with the rename it exists to cover. Every plain file is recorded, the renamed
+       file is recorded under its NEW name, and no pre-rename name survives, which is
+       the actual claim. */
+    const recorded = new Set(await recordedFiles());
+    for (const spec of MIGRATIONS) {
+      if (!spec.requiresTimescale) {
+        expect(recorded.has(spec.file)).toBe(true);
+      }
+    }
+    expect(recorded.has(SENTRYONE_TIMESCALE_MIGRATION)).toBe(true);
+    for (const pair of RENAMED_MIGRATIONS) {
+      expect(recorded.has(pair.from)).toBe(false);
+    }
     await appendOnlyStillGuards();
   });
 
