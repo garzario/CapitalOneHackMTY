@@ -15,6 +15,7 @@
     "migrate": "bun run scripts/migrate.ts",
     "seed": "bun run scripts/seed.ts",
     "reset": "bun run scripts/reset.ts",
+    "nessie:mirror": "bun run scripts/nessie-mirror.ts",
     "demo": "bun run scripts/demo.ts",
     "audit:web": "bun run apps/web/audit/audit.ts",
     "shoot:web": "bun run apps/web/brand/shoot.ts",

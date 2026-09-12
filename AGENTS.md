@@ -84,6 +84,7 @@ bun install --frozen-lockfile     # never plain bun install in CI
 bun run dev | bun test | bun run typecheck | bun run build
 bun run migrate                   # 0001 always, 0002 only if timescaledb is available
 bun run seed                      # idempotent, prints the demo IDs
+bun run nessie:mirror             # pushes the company bank mirror, validates the key with a write
 bun run demo                      # drives the demo path headless, green before any rehearsal
 ```
 
@@ -104,7 +105,12 @@ and CI goes green having checked nothing.
   bare JSON string. Map 404 to `[]` and tolerate string bodies.
 - Dates are `YYYY-MM-DD` with NO time. Intraday velocity is impossible from Nessie fields.
   Our own ledger holds `timestamptz`.
-- `amount` mixes int and float. `_id` mixes UUID and ObjectId. Never validate the shape.
+- `amount` mixes int and float on the way OUT, and is stored as a whole number on the way IN:
+  a purchase posted at 31320.50 reads back as 31320. Exact centavos live in our ledger, never
+  in the mirror. `_id` mixes UUID and ObjectId. Never validate the shape.
+- On a CREATE: merchant `category` is a bare string (the array `GET /merchants` returns is
+  refused with `400 category str type expected`), and an address `state` is at most two
+  characters, so "NL" and never "Nuevo Leon". Verified 2026-09-12 while seeding the mirror.
 - `status` is observed as `"completed"` and `"pending"`. Treat it as an open string set.
 - `/enterprise/*` is a GLOBAL pool shared with every other team and it is contaminated.
   Never compute on it. Read only our own key's data. Never POST anything identifying there.

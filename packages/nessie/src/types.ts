@@ -21,6 +21,11 @@ export interface NessieAddress {
   street_number: string;
   street_name: string;
   city: string;
+  /**
+   * At most TWO characters on a create. Verified on 2026-09-12: POST /merchants
+   * answers `400 address -> state ensure this value has at most 2 characters`
+   * for "Nuevo Leon". Use "NL".
+   */
   state: string;
   zip: string;
 }
@@ -235,7 +240,15 @@ export interface NewLoan {
 
 export interface NewMerchant {
   name: string;
-  category?: string[];
+  /**
+   * A bare STRING on a create, even though GET /merchants answers with an array.
+   * Verified on 2026-09-12: POST /merchants answers
+   * `400 category str type expected` for `["proveedores"]`. Narrowed to a string
+   * on purpose, so the shape the API refuses does not compile. The read type
+   * `NessieMerchant.category` stays `string[] | string`, because that is what
+   * comes back.
+   */
+  category?: string;
   address?: NessieAddress;
   geocode?: { lat: number; lng: number };
 }

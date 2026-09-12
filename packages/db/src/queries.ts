@@ -331,6 +331,29 @@ export async function deleteLedgerTxForAccount(
   return result.count;
 }
 
+/**
+ * Deletes one account's rows from one source, and leaves every other source alone.
+ *
+ * This exists for `bun run nessie:mirror --import`, which replaces the generator's
+ * rows for the company account with the rows Nessie actually answered. Scoped to
+ * the account AND the source on purpose: the alternative, truncating the ledger,
+ * would take the consumer dataset with it, and deleting by account alone would
+ * delete the imported rows on the second import.
+ *
+ * @returns how many rows were deleted.
+ */
+export async function deleteLedgerTxBySource(
+  sql: Db,
+  accountId: string,
+  source: string,
+): Promise<number> {
+  const result = await sql`
+    delete from ledger_tx
+    where account_id = ${accountId} and source = ${source}
+  `;
+  return result.count;
+}
+
 // ---------------------------------------------------------------------------
 // SentryOne. Everything below reads and writes the tables in
 // migrations/0003_sentryone.sql and 0005_sentryone_drift.sql, and every
