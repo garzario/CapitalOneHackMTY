@@ -18,6 +18,33 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The company's bank mirror is seeded into Nessie with our own key, and the key is validated with a
+  write (issue #45). `bun run nessie:mirror` pushes one customer, one Checking account and one
+  merchant per supplier, then the company's bank mirror: one purchase per outflow that has already
+  settled on the account, newest `--limit` first, 200 of 2446 by default on seed 69. Never the
+  pending instructions of the current payment run. Dated, signed outwards, with the beneficiary
+  named, which is what the issue's "withdrawals and transfers" means in substance. Purchases and not
+  bare withdrawals because a purchase carries a payee and a withdrawal does not, and because that is
+  the shape `packages/seed` already builds, so the read-back runs through the same
+  `normalizePurchase` the live import uses and the row that comes home is the row the generator
+  produced. The command reads the mirror back and reconciles it per Monterrey calendar day against
+  the set that was actually pushed, which the state file records, so a later run with a narrower
+  default does not report the rest of the account as differing days. `--import` replaces the
+  generator's `ledger_tx` rows for the company account with what Nessie answered, through the new
+  `deleteLedgerTxBySource` and inside one transaction, and it refuses a push that reported failures,
+  a read-back that threw or was partly rejected, and a reconciliation that did not balance. A later
+  `bun run seed` puts the generator's mirror back, once and never twice, because the loader deletes
+  the account's rows by account id before it inserts. Idempotent from the gitignored
+  `.seed/nessie.json`, which carries `keyValidatedAt` and `keyFingerprint`, twelve hex characters of
+  SHA-256 over the key that made that write and never the key: the POST that created the customer is
+  the only thing that proves the key, because an invalid key answers `200 []` on every read.
+  `bun run doctor` now reports that write, computes the same fingerprint over the key in `.env` and
+  is green only when the two agree, and still writes nothing itself. Three more Nessie quirks were
+  verified while doing it and are in `AGENTS.md` and `docs/09-api.md`: merchant `category` is a bare
+  string on a create (`NewMerchant.category` is typed as one, so the refused array shape does not
+  compile), an address `state` is at most two characters, and a purchase `amount` is stored as a
+  whole number, so the centavos live in our ledger and never in the mirror.
+
 - Real document import path, so the CFDI parser can be validated on a document a PAC actually
   stamped (refs #68). `bun run scripts/import-real-cfdi.ts <file>` reads one real CFDI 4.0, de
   ingreso or complemento de pagos 2.0, and writes a committable fixture: every amount scaled by a

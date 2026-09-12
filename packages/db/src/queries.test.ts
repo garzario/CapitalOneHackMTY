@@ -36,8 +36,10 @@ import {
   appendLedgerEvent,
   appendLedgerEvents,
   countLedgerEvents,
+  countLedgerTx,
   countSentryOne,
   currentPaymentRun,
+  deleteLedgerTxBySource,
   deleteLedgerTxForAccount,
   findingsFor,
   findingsForSubjects,
@@ -987,6 +989,54 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       expect(read.map((row) => row.id)).toEqual([rows[1]?.id, rows[0]?.id]);
       expect(read[1]).toEqual(rows[0]);
       expect(read[0]).toEqual(rows[1]);
+    });
+
+    /**
+     * The edge `bun run nessie:mirror --import` turns on: the generator's rows
+     * for one account are replaced by what Nessie answered, and nothing else in
+     * the ledger moves.
+     */
+    it("deletes one account's rows from one source and leaves the rest", async () => {
+      const rows = [
+        {
+          id: "1a0f6c56-1b0c-4bd4-9d6c-3a1e8e0b2c21",
+          accountId: "acc-company",
+          occurredAt: "2026-09-10T12:00:00.000Z",
+          amount: 18400,
+          direction: "debit" as const,
+          source: "seed",
+          raw: {},
+        },
+        {
+          id: "1a0f6c56-1b0c-4bd4-9d6c-3a1e8e0b2c22",
+          accountId: "acc-company",
+          occurredAt: "2026-09-04T12:00:00.000Z",
+          amount: 150000,
+          direction: "debit" as const,
+          source: "nessie",
+          raw: {},
+        },
+        {
+          id: "1a0f6c56-1b0c-4bd4-9d6c-3a1e8e0b2c23",
+          accountId: "acc-other",
+          occurredAt: "2026-09-04T12:00:00.000Z",
+          amount: 900,
+          direction: "debit" as const,
+          source: "seed",
+          raw: {},
+        },
+      ];
+      expect(await insertLedgerTx(sql, rows)).toBe(3);
+
+      expect(await deleteLedgerTxBySource(sql, "acc-company", "seed")).toBe(1);
+      expect(
+        (await listLedgerTx(sql, "acc-company")).map((row) => row.source),
+      ).toEqual(["nessie"]);
+      // Another account's rows from the same source are untouched.
+      expect(await countLedgerTx(sql, "acc-other")).toBe(1);
+      // A second import finds nothing left to delete, which is what makes it safe
+      // to run twice before a rehearsal.
+      expect(await deleteLedgerTxBySource(sql, "acc-company", "seed")).toBe(0);
     });
   });
 

@@ -4,6 +4,7 @@
  */
 
 export * from "./client";
+export * from "./mirror";
 export * from "./normalize";
 export * from "./types";
 export * from "./uuid";

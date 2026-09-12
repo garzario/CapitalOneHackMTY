@@ -840,16 +840,50 @@ export function sentryoneTables(checks: readonly Check[]): SentryOneTables {
 /* -------------------------------------------------------------------------- */
 
 /**
- * One read, and an honest sentence about what a read proves: nothing about the
- * key. An invalid key answers `200 []` on a read, so only a write tells the
- * truth, and the write validation is issue #45. This check does not write.
+ * What `bun run nessie:mirror` left behind, which is the only proof the key
+ * works. Everything here is optional because the file is written by a command
+ * this check must never run itself.
+ */
+export interface NessieMirrorState {
+  keyValidatedAt?: string;
+  /**
+   * The fingerprint of the key that write was made with. Absent on a state file
+   * written before this field existed, which is treated exactly like a
+   * mismatch: neither one can show the recorded write belongs to the key in
+   * hand.
+   */
+  keyFingerprint?: string;
+  getPath?: string;
+  purchases?: number;
+  ids?: { accountId?: string; customerId?: string };
+}
+
+/**
+ * A read for reachability, and the mirror state for the key.
+ *
+ * The distinction is the whole point of this line. A read proves nothing about
+ * the key: an invalid key answers `200 []`, so a doctor that only reads can go
+ * green against a key that would fail the first time the demo wrote anything.
+ * Only a write tells the truth, and the write lives in `bun run nessie:mirror`,
+ * which records the instant it was accepted. This check reads that record and
+ * never writes: a doctor with a side effect is a doctor nobody can run twice in
+ * front of a judge.
+ *
+ * The record is bound to the key that made it. `keyValidatedAt` on its own says
+ * that SOME key once wrote, so a teammate who pastes a new NESSIE_API_KEY into
+ * `.env` inherits a green line for a key nothing has ever proven. The mirror
+ * stores twelve hex characters of SHA-256 over the key, this check computes the
+ * same over the key in hand, and the line is green only when the two agree. The
+ * key itself is neither stored nor printed on either side.
  */
 export async function checkNessie(input: {
   apiKey?: string;
   list?: () => Promise<unknown[]>;
   timeoutMs?: number;
+  /** The parsed .seed/nessie.json, or undefined when the mirror never ran. */
+  mirror?: NessieMirrorState;
 }): Promise<Check> {
-  const { apiKey } = input;
+  const { apiKey, mirror } = input;
   if (apiKey === undefined || apiKey === "") {
     return {
       name: "nessie",
@@ -871,25 +905,48 @@ export async function checkNessie(input: {
       return client.listAccounts();
     });
 
+  // The read is a liveness probe and nothing more, so a dead sandbox is
+  // reported next to the write rather than instead of it.
   const started = Date.now();
+  let liveness: string;
+  let reachable = true;
   try {
     const accounts = await list();
-    return {
-      name: "nessie",
-      status: "ok",
-      detail: `GET /accounts returned ${plural(accounts.length, "account")} in ${Date.now() - started}ms. A read proves reachability and not the key: an invalid key answers 200 [] on reads, and the write that would prove it is issue #45`,
-    };
+    liveness = `GET /accounts returned ${plural(accounts.length, "account")} in ${Date.now() - started}ms`;
   } catch (cause) {
-    if (cause instanceof nessie.NessiePathError) {
+    reachable = false;
+    liveness =
+      cause instanceof nessie.NessiePathError
+        ? "403 Missing Authentication Token, which means a wrong path, not a bad key"
+        : messageOf(cause);
+  }
+
+  const validatedAt = mirror?.keyValidatedAt;
+  if (validatedAt !== undefined && validatedAt !== "") {
+    const account = mirror?.ids?.accountId ?? "unknown";
+    const { keyFingerprint } = await import(
+      "../../packages/nessie/src/mirror.ts"
+    );
+    const current = keyFingerprint(apiKey);
+    if (mirror?.keyFingerprint !== current) {
       return {
         name: "nessie",
         status: "warn",
-        detail:
-          "403 Missing Authentication Token, which means a wrong path, not a bad key",
+        detail: `the mirror on account ${account} was validated with a different key, run: bun run nessie:mirror. ${liveness}`,
       };
     }
-    return { name: "nessie", status: "warn", detail: messageOf(cause) };
+    return {
+      name: "nessie",
+      status: reachable ? "ok" : "warn",
+      detail: `key validated with a write at ${validatedAt} (POST /customers 201), same key ${current}, mirror account ${account}, ${plural(mirror?.purchases ?? 0, "purchase")} pushed. ${liveness}`,
+    };
   }
+
+  return {
+    name: "nessie",
+    status: "warn",
+    detail: `${liveness}. A read cannot prove the key: an invalid key answers 200 [] on reads and only fails on a write. Run: bun run nessie:mirror`,
+  };
 }
 
 /* -------------------------------------------------------------------------- */

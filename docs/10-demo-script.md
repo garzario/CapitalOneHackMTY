@@ -53,6 +53,26 @@ printed card exactly.
 | Seed value | 69 | Committed, so every ID above is stable |
 | Instruction count in the run | 92 | What the screen shows. Do not say a number on stage that the screen does not show |
 
+### The bank mirror
+
+The company's bank mirror is also in Nessie, seeded with our own key, and a judge can read it live.
+What is up there is one purchase per outflow that has already settled on the company's account,
+newest first: 206 of the 2446 the generator built for seed 69, which is the count the curl below
+prints. The default push is the newest 200, and the gitignored `.seed/nessie.json` records the
+limit the account was actually pushed with, so the reconciliation compares against that set and not
+against today's default. Not the payment run on the screen: those instructions are pending and have
+not left the account. The account id also comes from that file; the id below is the one it has
+right now.
+
+```bash
+curl "https://api.nessieisreal.com/accounts/ad2841a5-c274-47e4-84c8-e830667feea6/purchases?key=$NESSIE_API_KEY" | jq length
+```
+
+Say this out loud while it is on screen: Nessie carries dates with no time at all, so the day is
+the bank's and the intraday order is ours, out of our own ledger. Two more sentences if they push:
+every one of those rows is a settled outflow with the payee named, and the POST that created the
+customer is what proves the key, because an invalid key answers `200 []` on every read.
+
 ### Numbers the screen shows
 
 Say these only while they are on the screen. `bun run demo` prints every one of them from the API

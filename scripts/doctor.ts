@@ -34,6 +34,7 @@ import {
   defaultDatabaseDeps,
   exitCode,
   isReachable,
+  type NessieMirrorState,
   offlineSatSnapshot,
   plural,
   type SatSnapshotFacts,
@@ -67,6 +68,19 @@ if (argv.includes("--help") || argv.includes("-h")) {
 async function readText(path: string): Promise<string | undefined> {
   const file = Bun.file(path);
   return (await file.exists()) ? file.text() : undefined;
+}
+
+/** A state file that is missing, or that somebody edited by hand, is not a failure. */
+async function readJson(path: string): Promise<unknown> {
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
+    return undefined;
+  }
+  try {
+    return await file.json();
+  } catch {
+    return undefined;
+  }
 }
 
 /** The snapshot's own metadata, read through @hackmty/sat rather than the CSV. */
@@ -135,8 +149,18 @@ const databaseChecks: Check[] =
     : await checkDatabase(databaseUrl, await defaultDatabaseDeps());
 checks.push(...databaseChecks);
 
-// 6. Nessie, through the one client that is allowed to call it.
-checks.push(await checkNessie({ apiKey: Bun.env.NESSIE_API_KEY }));
+// 6. Nessie: a read for reachability, and the mirror state for the key. The
+// write that validates the key belongs to `bun run nessie:mirror`, so the
+// doctor reads what it recorded and stays side-effect free.
+const mirrorState = (await readJson(`${ROOT}/.seed/nessie.json`)) as
+  | NessieMirrorState
+  | undefined;
+checks.push(
+  await checkNessie({
+    apiKey: Bun.env.NESSIE_API_KEY,
+    ...(mirrorState === undefined ? {} : { mirror: mirrorState }),
+  }),
+);
 
 // 7. seed state, so nobody rehearses against an empty screen.
 checks.push(...(await checkSeedState({ root: ROOT })));
