@@ -1,0 +1,68 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "sat-status-desvirtuado-before-the-payment",
+  "title": "The supplier was presunto in March and desvirtuado in June, and we are paying in September",
+  "kind": "negative",
+  "notes": "Desvirtuado means the taxpayer answered and the SAT accepted, so they are not listed. Alerting on the old row is the fastest way for a clerk to stop trusting the control, and it is the reason the product keeps every version instead of the newest row per RFC.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-121",
+      "supplierRfc": "SYN232525S25",
+      "cfdiUuids": ["00000000-0081-4d00-8a00-000000000081"],
+      "clabe": "002180900123456782",
+      "amount": 74240,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN232525S25",
+      "legalName": "Vidrios Templados Monterrey SA de CV",
+      "firstInvoiceAt": "2023-06-08T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "002180900123456782",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-06-22T15:30:00.000Z",
+          "timesPaid": 44
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0081-4d00-8a00-000000000081",
+        "serie": "A",
+        "folio": "812",
+        "issuedAt": "2026-08-20T15:30:00.000Z",
+        "issuerRfc": "SYN232525S25",
+        "issuerName": "Vidrios Templados Monterrey SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 64000,
+        "iva": 10240,
+        "total": 74240,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "satEntries": [
+      {
+        "rfc": "SYN232525S25",
+        "name": "VIDRIOS TEMPLADOS MONTERREY SA DE CV",
+        "status": "presunto",
+        "publishedAt": "2026-03-02",
+        "listVersion": "2026-03-02"
+      },
+      {
+        "rfc": "SYN232525S25",
+        "name": "VIDRIOS TEMPLADOS MONTERREY SA DE CV",
+        "status": "desvirtuado",
+        "publishedAt": "2026-06-15",
+        "listVersion": "2026-06-15"
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}

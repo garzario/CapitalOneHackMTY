@@ -18,6 +18,7 @@ import type {
   Cfdi,
   Detector,
   FindingState,
+  LedgerTx,
   PaymentComplement,
   PaymentInstruction,
   SatListEntry,
@@ -35,6 +36,13 @@ export interface HoldoutInput {
   satEntries?: SatListEntry[];
   /** A CEP already in the registry for this supplier, when the case is about one. */
   cep?: Cep;
+  /**
+   * The company's own bank statement, mirrored from Nessie. Absent means the mirror
+   * was not loaded for this case, and the reconciliation control reports that it was
+   * skipped rather than reading every payment as missing from a statement that is not
+   * there.
+   */
+  bankMirror?: LedgerTx[];
 }
 
 /**

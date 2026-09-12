@@ -132,6 +132,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@hackmty/core": "workspace:*",
+        "@hackmty/engine": "workspace:*",
         "@hackmty/nessie": "workspace:*",
         "@hackmty/sat": "workspace:*",
       },

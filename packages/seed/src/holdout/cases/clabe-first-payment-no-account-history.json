@@ -1,0 +1,45 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-first-payment-no-account-history",
+  "title": "First payment to a supplier we have never paid, so there is no account to compare against",
+  "kind": "positive",
+  "notes": "Absence of history is itself a signal and it must not be silence: the company is about to send money to an account with nothing behind it. It is a question, never an accusation, and a new supplier is a normal event.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-108",
+      "supplierRfc": "SYN081010S10",
+      "cfdiUuids": ["00000000-0008-4d00-8a00-000000000008"],
+      "clabe": "137180500010101017",
+      "amount": 71920,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0008-4d00-8a00-000000000008",
+        "serie": "A",
+        "folio": "1",
+        "issuedAt": "2026-09-03T15:30:00.000Z",
+        "issuerRfc": "SYN081010S10",
+        "issuerName": "Insumos Medicos Escobedo SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 62000,
+        "iva": 9920,
+        "total": 71920,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "severity": "warning",
+      "because": "The RFC has no payment history at all, so no account can be corroborated and the first payment is the one that establishes the account."
+    }
+  ],
+  "expectedAction": "verify"
+}

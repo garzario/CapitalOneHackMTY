@@ -11,8 +11,8 @@ import { describe, expect, it } from "bun:test";
 import {
   ALL_DETECTORS,
   computeMetrics,
-  EXAMPLE_HOLDOUT_CASES,
   emptyMetrics,
+  HOLDOUT_CASES,
   type HoldoutCase,
   parseHoldoutCase,
   predictNothing,
@@ -100,10 +100,10 @@ describe("parseHoldoutCase", () => {
   });
 });
 
-describe("the example cases", () => {
-  it("loads three and validates every one of them", () => {
-    expect(EXAMPLE_HOLDOUT_CASES).toHaveLength(3);
-    for (const holdout of EXAMPLE_HOLDOUT_CASES) {
+describe("the labelled set", () => {
+  it("carries the twenty-five cases issue #55 asks for, and validates every one", () => {
+    expect(HOLDOUT_CASES.length).toBeGreaterThanOrEqual(25);
+    for (const holdout of HOLDOUT_CASES) {
       expect(holdout.id).not.toBe("");
       expect(holdout.input.instruction.synthetic).toBe(true);
       expect(holdout.input.instruction.supplierRfc).toMatch(
@@ -112,11 +112,11 @@ describe("the example cases", () => {
     }
   });
 
-  it("carries at least one hard negative, which is the half that decides usability", () => {
-    const negatives = EXAMPLE_HOLDOUT_CASES.filter(
+  it("is at least a third hard negatives, the half that decides usability", () => {
+    const negatives = HOLDOUT_CASES.filter(
       (holdout) => holdout.kind === "negative",
     );
-    expect(negatives.length).toBeGreaterThan(0);
+    expect(negatives.length * 3).toBeGreaterThanOrEqual(HOLDOUT_CASES.length);
     for (const holdout of negatives) {
       expect(holdout.expectedFindings).toHaveLength(0);
       expect(holdout.expectedAction).toBe("release");
@@ -124,7 +124,7 @@ describe("the example cases", () => {
   });
 
   it("explains every expectation, because somebody has to defend it", () => {
-    for (const holdout of EXAMPLE_HOLDOUT_CASES) {
+    for (const holdout of HOLDOUT_CASES) {
       for (const expectation of holdout.expectedFindings) {
         expect(expectation.because).toBeDefined();
         expect((expectation.because ?? "").length).toBeGreaterThan(20);
@@ -237,16 +237,22 @@ describe("computeMetrics", () => {
     expect(evaluation.rows).toHaveLength(1);
   });
 
-  it("reports recall 0 for the example cases while the detectors are unwired", () => {
+  it("scores the null model at precision 0 and recall 0 over the whole set", () => {
     const evaluation = computeMetrics(
-      EXAMPLE_HOLDOUT_CASES,
-      predictNothing(EXAMPLE_HOLDOUT_CASES),
+      HOLDOUT_CASES,
+      predictNothing(HOLDOUT_CASES),
     );
 
-    expect(evaluation.metrics.cases).toBe(3);
+    expect(evaluation.metrics.cases).toBe(HOLDOUT_CASES.length);
     expect(evaluation.metrics.recall).toBe(0);
+    expect(evaluation.metrics.precision).toBe(0);
     expect(evaluation.metrics.falsePositives).toBe(0);
-    // The two positive cases expect one finding each, so two misses.
-    expect(evaluation.metrics.falseNegatives).toBe(2);
+    // Every expectation on every positive case is a miss, and nothing else is.
+    expect(evaluation.metrics.falseNegatives).toBe(
+      HOLDOUT_CASES.reduce(
+        (total, holdout) => total + holdout.expectedFindings.length,
+        0,
+      ),
+    );
   });
 });

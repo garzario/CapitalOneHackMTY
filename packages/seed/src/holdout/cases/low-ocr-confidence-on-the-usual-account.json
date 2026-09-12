@@ -1,0 +1,54 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "low-ocr-confidence-on-the-usual-account",
+  "title": "A photographed remittance letter transcribes badly, and the digits still land on the known account",
+  "kind": "negative",
+  "notes": "Low confidence is a statement about the photograph, not about the account. The digits that came out match, character for character, the account this supplier has been paid on 132 times, and firing on the confidence alone would punish the clerk for using the QR page the product asks them to use.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-126",
+      "supplierRfc": "SYN252727S27",
+      "cfdiUuids": ["000000c9-0000-4d00-8a00-0000000000c9"],
+      "clabe": "072180100000000007",
+      "amount": 40600.0,
+      "source": "pdf",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "imageRef": "intake/INS-HOLDOUT-126",
+      "ocrConfidence": 0.41,
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN252727S27",
+      "legalName": "Ferreteria Industrial Escobedo SA de CV",
+      "firstInvoiceAt": "2022-02-03T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "072180100000000007",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2022-02-17T15:30:00.000Z",
+          "timesPaid": 132
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "000000c9-0000-4d00-8a00-0000000000c9",
+        "serie": "A",
+        "folio": "617",
+        "issuedAt": "2026-09-07T15:30:00.000Z",
+        "issuerRfc": "SYN252727S27",
+        "issuerName": "Ferreteria Industrial Escobedo SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 35000.0,
+        "iva": 5600.0,
+        "total": 40600.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "duplicate-invoice-uuid-loaded-twice",
+  "title": "The same timbred UUID is in the ledger twice, a month apart",
+  "kind": "positive",
+  "notes": "A UUID is assigned by the PAC at stamping time and is unique by construction, so two rows carrying it are one fiscal document loaded twice. There is nothing to interpret, which is what makes it comprobable.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-109",
+      "supplierRfc": "SYN091111S11",
+      "cfdiUuids": ["5a1c9b30-7d24-4e18-9f05-6b2e8c4a1d77"],
+      "clabe": "014180700055566679",
+      "amount": 40020,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN091111S11",
+      "legalName": "Papeleria Corporativa Regia SA de CV",
+      "firstInvoiceAt": "2023-08-17T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "014180700055566679",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-08-31T15:30:00.000Z",
+          "timesPaid": 88
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "5a1c9b30-7d24-4e18-9f05-6b2e8c4a1d77",
+        "serie": "A",
+        "folio": "880",
+        "issuedAt": "2026-08-06T15:30:00.000Z",
+        "issuerRfc": "SYN091111S11",
+        "issuerName": "Papeleria Corporativa Regia SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 34500,
+        "iva": 5520,
+        "total": 40020,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "5a1c9b30-7d24-4e18-9f05-6b2e8c4a1d77",
+        "serie": "A",
+        "folio": "902",
+        "issuedAt": "2026-09-03T15:30:00.000Z",
+        "issuerRfc": "SYN091111S11",
+        "issuerName": "Papeleria Corporativa Regia SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 34500,
+        "iva": 5520,
+        "total": 40020,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "duplicate_invoice",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "One stamped UUID cannot belong to two documents, so paying both rows sends the same amount twice and the two XMLs prove it."
+    }
+  ],
+  "expectedAction": "hold"
+}
