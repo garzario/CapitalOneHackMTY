@@ -23,8 +23,8 @@ Status legend: **G** claim written and evidence exists, **Y** evidence partially
 | 9 | Market size, TAM/SAM/SOM (5) | Bottom-up only, entities times price, every input cited to a named public series | `docs/04-market.md#sizing` | R |
 | 10 | Regulatory and operational feasibility (5) | We are not a regulated entity, we license to or operate under one, and the framework map says which obligations attach | `docs/06-regulatory-privacy.md#1-our-legal-position`, `docs/06-regulatory-privacy.md#2-framework-map-mexico` | R |
 | 11 | Adoption strategy, GTM (5) | TODO(FabriBanda): three concrete steps with a named beachhead category, no invented partners | `docs/05-business-model.md#gtm-in-three-steps` | R |
-| 12 | Specific user persona (7) | One named, quantified persona plus an explicit anti-persona, with a stated validation method | `docs/02-persona.md`, `assets/persona/` | R |
-| 13 | Structured user journey map (7) | Journey with a named pre-trigger and post-outcome stage, every stage mapped to a real screen | `docs/03-user-journey.md`, `apps/web/src/routes/` | R |
+| 12 | Specific user persona (7) | One named, quantified composite plus a corporate-treasury anti-persona, with venue validation explicitly pending | `docs/02-persona.md`, `assets/persona/lupita-elizondo.png` | Y |
+| 13 | Structured user journey map (7) | Journey from XML receipt to archived evidence, with emotion, exact screens and three human-decision branches | `docs/03-user-journey.md`, `apps/web/src/screens/` | Y |
 | 14 | Pitch (6) | Three timed variants written in the actual words, plus the eight hardest questions answered | `docs/11-pitch.md`, `docs/12-judge-qa.md`, rehearsal log in `docs/14-process.md` | R |
 | plus | Engineering process (not scored directly) | Real PRs with real review threads, a board, ADRs, and a written list of what we cut | `docs/14-process.md`, `docs/adr/`, the project board | R |
 
