@@ -82,11 +82,7 @@ score and they only exist if the thing works and we can talk about it.
 | Adan | Fabricio, or Patricio for data contracts |
 | Fabricio | Adan, or Patricio for `docs/07`, `docs/08` and the ADRs |
 
-7. **Stall rule, because half the team is asleep by design.** A PR waiting 45 minutes gets pinged in
-   the channel. At 90 minutes the lead reviews it regardless of rotation. If nobody with review
-   rights is awake, the author merges their own PR, writes `merged unreviewed at <time>, nobody
-   awake` in the PR body, and raises it at the next standup, where the reviewer leaves a real comment
-   on the merged PR. A stalled PR at hour 20 is worse than an imperfect merge.
+7. **Build night mode.** Between 2026-09-12 03:30 and the morning standup the approval gate is off: a PR merges when CI is green and the body is complete. Post-merge reviews from the rotation still happen and still leave comments.
 8. Quality target by M5: every PR has one approval or a recorded stall-rule note, at least two review
    comments, zero direct pushes to `main` or `dev`, and `git log dev --oneline` reads as a legible story.
 

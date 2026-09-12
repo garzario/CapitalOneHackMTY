@@ -31,6 +31,7 @@
       "Bash(git push --force-with-lease origin fix/:*)",
       "Bash(git push --force-with-lease origin docs/:*)",
       "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
       "Bash(gh pr edit:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
@@ -71,7 +72,6 @@
       "Bash(git commit --amend:*)",
       "Bash(rm -rf:*)",
       "Bash(gh repo delete:*)",
-      "Bash(gh pr merge:*)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(.seed/**)"
