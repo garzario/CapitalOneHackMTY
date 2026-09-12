@@ -14,7 +14,12 @@
 
 import { describe, expect, test } from "bun:test";
 import type { Finding } from "@hackmty/core";
-import { EVIDENCE_ALIASES, EVIDENCE_LABELS, readEvidence } from "./evidence";
+import {
+  EVIDENCE_ALIASES,
+  EVIDENCE_LABELS,
+  readEvidence,
+  readLegalName,
+} from "./evidence";
 
 function finding(evidence: Finding["evidence"]): Finding {
   return {
@@ -262,6 +267,40 @@ describe("the chips", () => {
       "some new signal",
       "otro dato",
     ]);
+  });
+});
+
+describe("the CFDI legal name", () => {
+  test("reads the key packages/engine writes", () => {
+    /* The CEP screen was reading only the Spanish key, which the offline run
+       writes and the engine does not, so the comparison that is the whole point
+       of the screen showed "no disponible" in front of the running API. */
+    expect(
+      readLegalName(
+        finding({ legalName: "Herramentales y Moldes del Norte SA de CV" }),
+      ),
+    ).toBe("Herramentales y Moldes del Norte SA de CV");
+  });
+
+  test("still reads the key the offline synthetic run writes", () => {
+    expect(
+      readLegalName(
+        finding({ razon_social_cfdi: "Aceros del Golfo SA de CV" }),
+      ),
+    ).toBe("Aceros del Golfo SA de CV");
+  });
+
+  test("prefers the engine's key when a finding carries both", () => {
+    expect(
+      readLegalName(
+        finding({ legalName: "del motor", razon_social_cfdi: "del mock" }),
+      ),
+    ).toBe("del motor");
+  });
+
+  test("answers nothing when there is no finding and when there is no name", () => {
+    expect(readLegalName(null)).toBeNull();
+    expect(readLegalName(finding({ nameMatch: "match" }))).toBeNull();
   });
 });
 

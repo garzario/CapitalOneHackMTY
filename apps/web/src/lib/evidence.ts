@@ -145,6 +145,8 @@ const LABELS: Record<string, string> = {
   sampleSize: "tamano de la muestra",
   instructionsThisRun: "instrucciones en esta corrida",
   nameMatch: "coincidencia del nombre",
+  legalName: "razon social del CFDI",
+  beneficiaryName: "titular de la cuenta",
   signatureValid: "firma valida",
   claveRastreo: "clave de rastreo",
   verifiedAt: "verificado el",
@@ -332,6 +334,23 @@ export function readEvidence(
     }));
 
   return { clabe, bankChange, satStatus, duplicateOf, chips };
+}
+
+/**
+ * The legal name on the CFDI, whichever vocabulary wrote the finding.
+ *
+ * The CEP screen was reading `razon_social_cfdi`, which only the offline
+ * synthetic run writes: in front of the running API the comparison drew "no
+ * disponible" under the holder name, which is the one field that makes the CEP
+ * worth showing. `packages/engine` writes `legalName`, so that key goes first
+ * and the Spanish one stays as the fallback the offline run needs.
+ */
+const LEGAL_NAME_KEYS = ["legalName", "razon_social_cfdi"] as const;
+
+export function readLegalName(finding: Finding | null): string | null {
+  return finding === null
+    ? null
+    : firstString(finding.evidence, LEGAL_NAME_KEYS);
 }
 
 /** Exported for the test that keeps the dictionary honest. */

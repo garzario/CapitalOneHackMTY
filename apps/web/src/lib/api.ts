@@ -34,6 +34,7 @@ import type {
   SupplierDetail,
   SweepResult,
   VerificationScriptText,
+  VerificationState,
   VerifyCallBody,
   VerifyCallResult,
   VerifyCallScript,
@@ -486,6 +487,57 @@ export async function verifyCep(
           typeof verification.nameMatch === "string",
         "CEP verification",
       ),
+  );
+}
+
+/** The shape check both verification routes share. */
+function shapedVerification(value: unknown): ApiResult<VerificationState> {
+  return shaped<VerificationState>(
+    value,
+    (state) =>
+      typeof state.instructionId === "string" &&
+      typeof state.state === "string",
+    "verification",
+  );
+}
+
+/**
+ * Sends the one-cent probe for one instruction and answers with how far the
+ * pipeline got before the response had to be written.
+ *
+ * There is no body: the instruction already knows its supplier, its account and
+ * its amount, and a rail that took an account from a caller would be a rail
+ * that can be pointed anywhere. The 202 is the state machine, not a promise:
+ * `cent_sent` means the cent left, `awaiting_cep` means Banxico has not
+ * published the CEP yet, and the rest of the beat arrives over the ledger
+ * stream.
+ */
+export async function verifyAccount(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<VerificationState>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/instructions/${encodeURIComponent(id)}/verify-account`,
+      { method: "POST" },
+      options,
+    ),
+    shapedVerification,
+  );
+}
+
+/** Where the one-cent verification of this instruction has got to. */
+export async function getVerification(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<VerificationState>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/instructions/${encodeURIComponent(id)}/verification`,
+      {},
+      options,
+    ),
+    shapedVerification,
   );
 }
 

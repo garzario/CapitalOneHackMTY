@@ -201,6 +201,72 @@ export interface CepVerification {
 }
 
 /**
+ * Which rail carried the one-cent probe. `nessie` is the company's bank mirror,
+ * which is what the demo runs on; `stp` is the production path and refuses to
+ * run without its own configuration. The screen names them apart on purpose:
+ * the mirror is ours and the CEP is Banxico's, and a judge is owed the
+ * difference.
+ */
+export type VerificationRail = "nessie" | "stp";
+
+/**
+ * How far the one-cent verification of one instruction has got.
+ *
+ * Six states and not a boolean, because each one is a different thing to tell a
+ * clerk: nothing has been sent, the cent left and carries a clave de rastreo,
+ * Banxico has not published the CEP yet, the CEP is in and signed, the large
+ * payment was released, the large payment was blocked.
+ */
+export type VerificationStateName =
+  | "not_started"
+  | "cent_sent"
+  | "awaiting_cep"
+  | "cep_signed"
+  | "released"
+  | "blocked";
+
+/**
+ * What the server is able to say about the Banxico seal on the CEP it holds.
+ *
+ * `not_checked` is the ordinary case and not an edge one: the CEP carries the
+ * serial of the Banxico certificate and not the certificate itself, so a
+ * deployment with no `BANXICO_CEP_CERT_PEM` parsed the document and verified
+ * nothing. It reads as "no verificado" and never as "valido", which is the one
+ * claim this screen is not allowed to make on its own.
+ */
+export type CepSealState = "valid" | "not_checked" | "invalid";
+
+/**
+ * `GET /api/v1/instructions/:id/verification`, and the 202 body of
+ * `POST /api/v1/instructions/:id/verify-account`.
+ *
+ * TODO(garzario): issue 166 puts this same shape in
+ * `packages/core/src/domain.ts` as `VerificationState`. When it lands, this
+ * declaration becomes a re-export, which is what the note at the top of this
+ * file describes for every other route.
+ */
+export interface VerificationState {
+  instructionId: string;
+  state: VerificationStateName;
+  /** Absent until a rail was chosen, which happens when the cent is sent. */
+  rail: VerificationRail | null;
+  /** The key the bank answered with. Never typed by a person. */
+  claveRastreo: string | null;
+  centSentAt: string | null;
+  /** When the signed CEP was resolved, not when the transfer settled. */
+  cepAt: string | null;
+  sealState: CepSealState | null;
+  /** Account holder as Banxico reports it on the CEP. */
+  holderName: string | null;
+  /** Legal name on the supplier's CFDI, which the holder is compared against. */
+  legalName: string | null;
+  nameMatch: NameMatch | null;
+  /** What the engine decided once the CEP was in. Never a person's decision. */
+  decision: Decision | null;
+  updatedAt: string;
+}
+
+/**
  * `POST /api/v1/instructions/:id/verify-call`, one of three ways.
  *
  * `toNumber` rings the supplier through the voice agent, `conversationId`
