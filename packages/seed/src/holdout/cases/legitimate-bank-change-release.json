@@ -1,0 +1,83 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "legitimate-bank-change-release",
+  "title": "The supplier really did change bank, and their own payment complement proves it",
+  "kind": "negative",
+  "notes": "The hard negative that matters most. Everything the previous case flags is true here too: new account, different bank, mid-week message. The difference is one document, and a sentinel that cannot tell these two apart is a sentinel the clerk switches off in a week.",
+  "input": {
+    "instruction": {
+      "id": "INS-EXAMPLE-003",
+      "supplierRfc": "SYN990202S02",
+      "cfdiUuids": ["a17e5b83-9c2f-4d60-b4a1-6e8c3f0d9b22"],
+      "clabe": "014180004551203983",
+      "amount": 31320.0,
+      "source": "email",
+      "receivedAt": "2026-09-09T14:02:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN990202S02",
+      "legalName": "Maquinados Industriales Regios SA de CV",
+      "firstInvoiceAt": "2021-11-02T15:00:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "014180004551203983",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2026-08-14T15:00:00.000Z",
+          "timesPaid": 1
+        },
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2021-12-01T15:00:00.000Z",
+          "timesPaid": 52
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "a17e5b83-9c2f-4d60-b4a1-6e8c3f0d9b22",
+        "serie": "A",
+        "folio": "914",
+        "issuedAt": "2026-08-25T16:20:00.000Z",
+        "issuerRfc": "SYN990202S02",
+        "issuerName": "Maquinados Industriales Regios SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 27000.0,
+        "iva": 4320.0,
+        "total": 31320.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "b5d31c07-72ae-4f95-8a3e-1c6b40d8e7f5",
+        "serie": "A",
+        "folio": "908",
+        "issuedAt": "2026-07-28T16:10:00.000Z",
+        "issuerRfc": "SYN990202S02",
+        "issuerName": "Maquinados Industriales Regios SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 24500.0,
+        "iva": 3920.0,
+        "total": 28420.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "complements": [
+      {
+        "uuid": "3c9f4e21-8b05-4d7a-9e63-0f2a5c1b8d44",
+        "relatedCfdiUuid": "b5d31c07-72ae-4f95-8a3e-1c6b40d8e7f5",
+        "paidAt": "2026-08-14T15:00:00.000Z",
+        "paidAmount": 28420.0,
+        "beneficiaryAccount": "014180004551203983",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}

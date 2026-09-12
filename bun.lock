@@ -84,6 +84,17 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/sat": {
+      "name": "@hackmty/sat",
+      "version": "0.1.0",
+      "dependencies": {
+        "@hackmty/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "5.9.3",
+      },
+    },
     "packages/seed": {
       "name": "@hackmty/seed",
       "version": "0.1.0",
@@ -124,6 +135,8 @@
     "@hackmty/db": ["@hackmty/db@workspace:packages/db"],
 
     "@hackmty/nessie": ["@hackmty/nessie@workspace:packages/nessie"],
+
+    "@hackmty/sat": ["@hackmty/sat@workspace:packages/sat"],
 
     "@hackmty/seed": ["@hackmty/seed@workspace:packages/seed"],
 
