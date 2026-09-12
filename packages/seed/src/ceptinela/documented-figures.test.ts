@@ -35,6 +35,7 @@ const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
 const PERSONA = join(REPO_ROOT, "docs", "02-persona.md");
 const JOURNEY = join(REPO_ROOT, "docs", "03-user-journey.md");
 const ONE_PAGER = join(REPO_ROOT, "docs", "print", "one-pager.html");
+const DEMO_SCRIPT = join(REPO_ROOT, "docs", "10-demo-script.md");
 
 const dataset = generateCeptinela({ seed: SEED, weekOf: WEEK_OF });
 
@@ -133,5 +134,79 @@ describe("docs/print/one-pager.html", () => {
     const millions = Math.floor(runTotal / 10_000) / 100;
 
     expect(source).toContain(`MXN ${millions.toFixed(2)}M`);
+  });
+});
+
+/**
+ * The demo script quotes exact ids and amounts and then tells the presenter to
+ * read them out loud while pointing at a screen. Its own rule is the strictest
+ * in the repository: "Do not say a number on stage that the screen does not
+ * show."
+ *
+ * Every figure below was verified by hand against a seeded API on 2026-09-12
+ * and every one was correct. None of them was protected by anything. The
+ * persona drifted the same way and nobody noticed for five hours, and the
+ * persona is a page a judge reads quietly rather than a sentence somebody says
+ * out loud while a table is on the projector.
+ *
+ * Only the generator-derived figures are asserted here. The engine-derived ones
+ * in the same tables, the seven findings, the 885,658.73 that is not leaving
+ * and the 404,152.59 of retroactive exposure, need the controls run over this
+ * dataset, so they belong in a test in `apps/api` beside `ceptinela.test.ts`.
+ * They are currently unprotected and that is worth someone's next twenty
+ * minutes.
+ */
+describe("docs/10-demo-script.md", () => {
+  const source = read(DEMO_SCRIPT);
+  const hero = dataset.instructions.find(
+    (instruction) => instruction.id === "INS-2026-09-07-047",
+  );
+  const largestHold = dataset.instructions.find(
+    (instruction) => instruction.id === "INS-2026-09-07-029",
+  );
+
+  test("names a run that the generator still produces", () => {
+    expect(source).toContain(`\`${dataset.runId}\``);
+    expect(source).toContain(`week of ${WEEK_OF}`);
+    expect(source).toContain(
+      `${instructions} instructions, ${grouped(runTotal, 2)} MXN`,
+    );
+  });
+
+  test("names the demo company by the rfc and legal name it has", () => {
+    expect(source).toContain(dataset.company.rfc);
+    expect(source).toContain(dataset.company.legalName);
+  });
+
+  test("quotes the hero instruction exactly", () => {
+    /* Beat 3 is the beat to protect: the judge submits it from their own phone
+       and the presenter says the amount out loud. */
+    expect(hero).toBeDefined();
+    expect(source).toContain(`${grouped(hero?.amount ?? 0, 2)} MXN, verificar`);
+    expect(source).toContain(`\`${hero?.clabe}\``);
+    expect(source).toContain(`\`${hero?.supplierRfc}\``);
+  });
+
+  test("quotes the account the hero supplier was really paid on", () => {
+    const supplier = dataset.suppliers.find(
+      (candidate) => candidate.rfc === hero?.supplierRfc,
+    );
+    const account = supplier?.knownAccounts[0];
+
+    expect(account).toBeDefined();
+    expect(source).toContain(
+      `paid ${account?.timesPaid} times on \`${account?.clabe}\``,
+    );
+  });
+
+  test("quotes the largest hold", () => {
+    expect(largestHold).toBeDefined();
+    expect(source).toContain(`${grouped(largestHold?.amount ?? 0, 2)} MXN`);
+  });
+
+  test("still refuses to promise a real CEP it does not have", () => {
+    /* The one claim on the sheet that cannot be checked against anything,
+       because the evidence does not exist yet. It has to stay a TODO. */
+    expect(source).toContain("TODO(Apanawa)");
   });
 });
