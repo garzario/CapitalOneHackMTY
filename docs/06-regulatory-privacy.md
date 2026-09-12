@@ -4,7 +4,7 @@ Worth 5 points directly (regulatory and operational feasibility) and it is the s
 judge probes hardest, because almost no hackathon team writes it.
 
 **This is a framework map, not legal advice.** It lists which Mexican regimes attach to which part
-of Ceptinela and what obligation each one creates, so that an engineer or a product person can
+of SentryOne and what obligation each one creates, so that an engineer or a product person can
 check that we thought about the right things. It is not an opinion on compliance and it was not
 written by counsel. Any production deployment needs a licensed review.
 
@@ -19,7 +19,7 @@ Owner: Fabricio (`FabriBanda`), with the lead on the LLM boundary. Due M2.
 Stated first, because stating it first is what separates a team that thought about this from a team
 that did not.
 
-- **We are payer-side software.** Ceptinela sits between the company's own documents and the
+- **We are payer-side software.** SentryOne sits between the company's own documents and the
   company's own bank portal. It reads the CFDI ledger, the payment instructions that arrived by
   email or WhatsApp, the public SAT list and the CEP of the company's own payments, and it ranks
   what the clerk should look at before pressing send.
@@ -45,7 +45,7 @@ that did not.
   section 5 shows it is enforced by the domain types rather than by a promise.
 
 ADR-0002 fixes the day-one path: payer-side software sold to the company, or to the accounting firm
-that holds the XML of thirty companies. The white-label path, where an institution embeds Ceptinela
+that holds the XML of thirty companies. The white-label path, where an institution embeds SentryOne
 inside its own perimeter and its own authorisation, is still open as headline or year-two expansion
 in the `TODO(garzario)` in `docs/05-business-model.md`. Both paths are compatible with everything
 below, because in the second one the institution's obligations are added to ours, not substituted
@@ -173,7 +173,7 @@ it moved the authority: art. 2, fr. XV defines Secretaría as the Secretaría An
 Gobierno. Article 2, fr. VIII also defines Días as días hábiles, so every deadline below is in
 business days.
 
-### 4.1 What personal data Ceptinela would touch in production
+### 4.1 What personal data SentryOne would touch in production
 
 | Data | Where it comes from | Why it is personal data |
 |---|---|---|
@@ -238,7 +238,7 @@ read on the portal on 2026-09-12.
    Interbancarios (SPEI) relacionados con la Orden de Transferencia Aceptada correspondiente", and
    that obtaining one requires the user to supply confidential information previously agreed with
    the institution. Retrieval needs the date, the clave de rastreo or the número de referencia, both
-   institutions, the beneficiary account and the exact amount. **Product rule: Ceptinela retrieves a
+   institutions, the beneficiary account and the exact amount. **Product rule: SentryOne retrieves a
    CEP only for a payment the client itself made.** `POST /api/v1/cep/verify` must never become a
    general lookup, and the demo must not imply that it is one.
 2. **Banxico is the publisher, the receiving bank is the author.** The portal states that CEPs "se

@@ -3,7 +3,7 @@ import { hostOf, INTAKE_PATH, intakeLink } from "./intake-link";
 
 describe("hostOf", () => {
   it("drops the scheme and the port", () => {
-    expect(hostOf("https://ceptinela.tech:8443")).toBe("ceptinela.tech");
+    expect(hostOf("https://sentryone.tech:8443")).toBe("sentryone.tech");
   });
 
   it("reads a bracketed IPv6 host", () => {
@@ -17,15 +17,15 @@ describe("hostOf", () => {
 
 describe("intakeLink", () => {
   it("builds an absolute link to the hash route", () => {
-    const link = intakeLink("https://ceptinela.tech");
+    const link = intakeLink("https://sentryone.tech");
 
     expect(link.reachable).toBe(true);
-    expect(link.url).toBe(`https://ceptinela.tech/${INTAKE_PATH}`);
+    expect(link.url).toBe(`https://sentryone.tech/${INTAKE_PATH}`);
   });
 
   it("does not double the slash when the origin carries one", () => {
-    expect(intakeLink("https://ceptinela.tech/").url).toBe(
-      "https://ceptinela.tech/#/intake",
+    expect(intakeLink("https://sentryone.tech/").url).toBe(
+      "https://sentryone.tech/#/intake",
     );
   });
 

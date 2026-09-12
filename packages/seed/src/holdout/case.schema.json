@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ceptinela.tech/schemas/holdout-case.json",
-  "title": "Ceptinela labelled holdout case",
+  "$id": "https://sentryone.tech/schemas/holdout-case.json",
+  "title": "SentryOne labelled holdout case",
   "description": "One payment instruction, everything the detectors may read about it, and the label. Field names and enumerations are the ones in packages/core/src/domain.ts; this file never introduces a second shape. The runtime half of this contract is parseHoldoutCase in ./types.ts, and the two have to be edited together.",
   "type": "object",
   "additionalProperties": false,

@@ -7,7 +7,7 @@ Read it on a phone before a judge reaches the table.
 
 Owner: Patricio (`garzario`), drafted for the team to validate. Issue #56.
 
-**Twenty-second version, if that is all there is.** "Ceptinela checks a supplier payment against
+**Twenty-second version, if that is all there is.** "SentryOne checks a supplier payment against
 three things at the moment you pay it: your own invoice ledger, the SAT's Article 69-B list, and the
 receipt Banxico signs for every SPEI. Hold, verify or release, with the reason on screen, and a
 person decides."

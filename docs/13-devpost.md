@@ -20,7 +20,7 @@ this repository follows. Both are deliberate.
 
 ## Project name and tagline
 
-**Name:** Ceptinela
+**Name:** SentryOne
 
 **Tagline, English (76 characters):**
 
@@ -34,7 +34,7 @@ this repository follows. Both are deliberate.
 
 **EN**
 
-> Ceptinela is the check that runs in the minutes before a Mexican SMB pays its suppliers. It joins
+> SentryOne is the check that runs in the minutes before a Mexican SMB pays its suppliers. It joins
 > three things nobody joins at that moment: the company's own CFDI invoice ledger, the SAT's
 > official Article 69-B list, and the receipt Banxico signs for every SPEI. Each payment comes back
 > hold, verify or release, with the evidence on screen and a person deciding. Six deterministic
@@ -42,7 +42,7 @@ this repository follows. Both are deliberate.
 
 **ES**
 
-> Ceptinela es el control que corre en los minutos antes de que una PyME mexicana le pague a sus
+> SentryOne es el control que corre en los minutos antes de que una PyME mexicana le pague a sus
 > proveedores. Une tres cosas que nadie une en ese momento: el catálogo de CFDI de la propia
 > empresa, la lista oficial del artículo 69-B del SAT y el comprobante que Banxico firma por cada
 > SPEI. Cada pago regresa como retener, verificar o liberar, con la evidencia en pantalla y con una
@@ -115,7 +115,7 @@ this repository follows. Both are deliberate.
 >   replaying the company's own append-only event ledger: which invoices were already paid, the
 >   deducted base, and the ISR and IVA at risk per newly listed supplier.
 > - **Establishes that a bank account really belongs to a supplier before the first payment.** A
->   person sends a one-cent SPEI from the company's own bank, and Ceptinela reads the receipt Banxico
+>   person sends a one-cent SPEI from the company's own bank, and SentryOne reads the receipt Banxico
 >   signs for it, keeps the XML byte-exact, and compares the account holder name with the legal name
 >   on the invoice being settled.
 > - **Calls the supplier when a new account needs confirming.** A Spanish-speaking voice agent rings
@@ -144,7 +144,7 @@ this repository follows. Both are deliberate.
 >   lista**, reproduciendo la bitácora de eventos de la propia empresa: qué facturas ya se pagaron,
 >   la base deducida, y el ISR y el IVA en riesgo por proveedor recién listado.
 > - **Comprueba que una cuenta bancaria de verdad es del proveedor antes del primer pago.** Una
->   persona manda un SPEI de un centavo desde el banco de la empresa, y Ceptinela lee el comprobante
+>   persona manda un SPEI de un centavo desde el banco de la empresa, y SentryOne lee el comprobante
 >   que Banxico firma, guarda el XML tal cual llegó y compara el nombre del titular contra la razón
 >   social de la factura que se está pagando.
 > - **Le llama al proveedor cuando hay que confirmar una cuenta nueva.** Un agente de voz en español
@@ -506,9 +506,9 @@ the deployed build and not against an intention.
 | Capital One challenge, track 3, Real-Time Anomaly and Security Sentinel | The whole product: anomaly detection over a payment ledger at the moment of an irreversible transfer | Always. This is the submission |
 | Best Use of Gemini API | Transcription only, and provably only that: `packages/extract` reads a CLABE off a photograph and transcribes a voice note, sends one instruction string plus one file and no supplier, RFC, ledger or history, gets back a schema with nowhere to put an opinion, and hands the digits straight back to the deterministic check digit and the supplier's own payment record. `packages/extract/src/boundary.test.ts` reads the package source and fails if a shipped module names `decide`, `score` or `recommend` | `GEMINI_API_KEY` is set on the deployed API and a judge can send a photograph through the QR intake page and watch the CLABE come back. Without the key the endpoint answers 422 and says so, which is honest but is not a demonstration |
 | Best Use of ElevenLabs | The verification call to the supplier: a Conversational AI agent speaking Mexican Spanish, placed through the Twilio integration, with a script that speaks four digits and never eighteen, promises nothing and accuses nobody, and a deterministic outcome parser that never releases a payment | The agent exists, a telephone number is connected, and one call has been placed and recorded. `TODO(garzario)`: paste the conversation id and the date into `docs/14-process.md`. If no live call has been placed, the browser-widget demonstration is the honest fallback and the copy says "browser agent" |
-| Best Use of Tiger Data | The event ledger is a hypertable and the daily rollup the timeline reads is a continuous aggregate, applied conditionally so a plain Postgres runs the identical SQL against the base table | `0002_timescale.sql` and `0004_timescale_ceptinela.sql` applied on the deployed database, and the aggregate actually read. If we are running on plain Postgres at submission time, do not select it. Issue #72 |
+| Best Use of Tiger Data | The event ledger is a hypertable and the daily rollup the timeline reads is a continuous aggregate, applied conditionally so a plain Postgres runs the identical SQL against the base table | `0002_timescale.sql` and `0004_timescale_sentryone.sql` applied on the deployed database, and the aggregate actually read. If we are running on plain Postgres at submission time, do not select it. Issue #72 |
 | Best Use of Vultr | `apps/api` runs on a Vultr instance because the Server-Sent Events stream needs a long-lived process, with the database next to it | The deployed API URL in the README answers `/health` over HTTPS. Issue #44 |
-| Best .Tech Domain Name | `ceptinela.tech` is the product's only public address, and the name states what the product does: a centinela standing at the CEP, the receipt Banxico signs for every SPEI | The domain resolves to the production site. Issue #59. `TODO(garzario)`: ADR-0002 records CEPTINELA as one of the two merged finalist ideas and does not record how the name was built, so confirm that etymology line with the team before pasting it |
+| Best .Tech Domain Name | `sentryone.tech` is the product's only public address, and the name states what the product does: a centinela standing at the CEP, the receipt Banxico signs for every SPEI | The domain resolves to the production site. Issue #59. `TODO(garzario)`: ADR-0002 records SENTRYONE as one of the two merged finalist ideas and does not record how the name was built, so confirm that etymology line with the team before pasting it |
 
 At M4, walk this table with the deployed build open and tick only what is live.
 

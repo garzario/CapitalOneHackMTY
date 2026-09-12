@@ -21,7 +21,7 @@ core  <-  sat  <-  engine  <-  api
 |---|---|
 | `sat69b.ts` | `sat69bAdapter`, over `matchRfc` plus the `SweepResult` exposure of CFDIs already paid to a newly listed supplier. |
 | `beneficiary.ts` | `beneficiaryCepAdapter`, over `nameMatch` and `Cep.signatureValid`. |
-| `index.ts` | `CEPTINELA_DETECTORS`, the six adapters in domain order, and `runControls`. |
+| `index.ts` | `SENTRYONE_DETECTORS`, the six adapters in domain order, and `runControls`. |
 
 Nothing in this package is an algorithm. The adapters shape arguments and build
 a `Finding`; every rule that decides anything lives in `@hackmty/core`.

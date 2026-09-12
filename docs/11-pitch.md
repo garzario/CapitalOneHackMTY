@@ -78,8 +78,8 @@ than being corrected.
 | The price anchor | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
 | Break-even | One stopped invoice of MXN 23,452 of subtotal per year | `docs/05-business-model.md` |
 | Avoided loss | One held invoice of MXN 100,000 of subtotal pays 51 months of subscription; one misdirected SPEI of the same amount pays 111 months | `docs/05-business-model.md` |
-| The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/ceptinela`, printed by `bun run seed` |
-| This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeCeptinela` |
+| The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`, printed by `bun run seed` |
+| This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeSentryOne` |
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted across 31 invoices to the supplier the simulated publication names | same, `notes.scenarios` |
 | The blind evaluation | 30 labelled cases, 180 case-by-detector pairs. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval` at `4e9e2eb`, unchanged since `5d4d506`. **Re-run it before quoting it** |
 | Tests | 1,116 tests across 65 files, green on 2026-09-12 at `4e9e2eb` | `bun test` |
@@ -98,7 +98,7 @@ say neither. Never quote 14,761 as the size of the list the lookup box answers f
 ## The six controls, in the words used at the table
 
 Said in this order, because it is the order `Detector` declares in
-`packages/core/src/domain.ts`, the order `CEPTINELA_DETECTORS` runs them and the order the UI lists
+`packages/core/src/domain.ts`, the order `SENTRYONE_DETECTORS` runs them and the order the UI lists
 them. One sentence each is enough; the evidence column is what you open when they push.
 
 | # | Control | Said out loud | Open this |
@@ -131,7 +131,7 @@ About 150 words. Say it and then stop talking.
 > veintiocho empleados en Apodaca. Los jueves manda entre setenta y ciento diez transferencias
 > antes del corte del banco, con una hoja de calculo, WhatsApp y el portal del banco.
 >
-> Ceptinela junta tres cosas en el momento en que ella paga: su propio catalogo de facturas, la
+> SentryOne junta tres cosas en el momento en que ella paga: su propio catalogo de facturas, la
 > lista oficial del SAT y el comprobante que firma Banxico por cada SPEI. Cada pago regresa como
 > retener, verificar o liberar, con la razon en pantalla, y decide una persona.
 >
@@ -151,7 +151,7 @@ This is the one to memorise. About 230 words, five beats.
 > **(20 s, lo irreversible.)** Dos cosas pueden salir mal y ninguna se deshace. Si el proveedor esta
 > en la lista del articulo 69-B, las deducciones que ella ya tomo se anulan de forma retroactiva, y
 > la exposicion la crea la publicacion, no el pago. Y si la cuenta esta mal, el SPEI es firme e
-> irrevocable. Ceptinela vive exactamente en los minutos antes de que ella le de enviar.
+> irrevocable. SentryOne vive exactamente en los minutos antes de que ella le de enviar.
 >
 > **(25 s, el mecanismo.)** Juntamos tres fuentes que nadie junta: su propio catalogo de CFDI, la
 > lista oficial del SAT con todas sus versiones, y el CEP que firma Banxico por cada SPEI. Seis
@@ -187,7 +187,7 @@ About 350 spoken words plus the demo lines, which are in `docs/10-demo-script.md
 
 **0:40, the product in one line.**
 
-> Ceptinela lee las facturas que ella ya tiene y, en el momento de pagar, le dice cuales pagos
+> SentryOne lee las facturas que ella ya tiene y, en el momento de pagar, le dice cuales pagos
 > retener, cuales verificar y cuales liberar.
 
 **2:40, how it works.**
@@ -473,7 +473,7 @@ Open: `docs/06-regulatory-privacy.md` section 6.3, `docs/05-business-model.md#un
 > primero que se rompe es el abanico del stream de eventos en un solo proceso, y se arregla
 > particionando por empresa.
 
-Open: `docs/07-architecture.md`, `packages/db/migrations/0004_timescale_ceptinela.sql`.
+Open: `docs/07-architecture.md`, `packages/db/migrations/0004_timescale_sentryone.sql`.
 
 **8. What did you cut?**
 

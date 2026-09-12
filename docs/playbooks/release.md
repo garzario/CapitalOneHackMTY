@@ -60,7 +60,7 @@ git switch dev && git pull --ff-only
 gh pr create --base main --head dev --title "release: v1.0.0" --body-file - <<'BODY'
 ## What
 
-Release of Ceptinela v1.0.0 for HackMTY 2026, Capital One challenge, track 3.
+Release of SentryOne v1.0.0 for HackMTY 2026, Capital One challenge, track 3.
 
 Closes #66
 
@@ -110,7 +110,7 @@ check, it is no check, and the correct reading is that the last run on `dev` is 
 ## 6. Tag
 
 ```bash
-git tag -a v1.0.0 -m "Ceptinela v1.0.0, HackMTY 2026 submission"
+git tag -a v1.0.0 -m "SentryOne v1.0.0, HackMTY 2026 submission"
 git push origin v1.0.0
 git describe --tags --exact-match HEAD   # prints v1.0.0
 ```
@@ -121,7 +121,7 @@ not worth the two characters it saves.
 Optional, and only if the submission links to it:
 
 ```bash
-gh release create v1.0.0 --title "Ceptinela v1.0.0" --notes-file - <<'NOTES'
+gh release create v1.0.0 --title "SentryOne v1.0.0" --notes-file - <<'NOTES'
 The 1.0.0 section of CHANGELOG.md, pasted.
 NOTES
 ```

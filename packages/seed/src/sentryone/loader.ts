@@ -1,8 +1,8 @@
 /**
  * The loader the API calls at boot, and the only thing outside this package that has
- * to know the Ceptinela dataset exists.
+ * to know the SentryOne dataset exists.
  *
- * `apps/api` sets `SEED=ceptinela` and gets this snapshot instead of the hand-written
+ * `apps/api` sets `SEED=sentryone` and gets this snapshot instead of the hand-written
  * fixture in `apps/api/src/synthetic.ts`. Everything in it is a domain type from
  * @hackmty/core, so the repository stores it without translating anything, and the
  * route handlers cannot tell the difference between a company that came from here and
@@ -24,13 +24,13 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { generateCeptinela } from "./generator";
-import type { CeptinelaOptions } from "./types";
+import { generateSentryOne } from "./generator";
+import type { SentryOneOptions } from "./types";
 
 /** The environment value that switches the API onto this dataset. */
-export const CEPTINELA_SEED_NAME = "ceptinela";
+export const SENTRYONE_SEED_NAME = "sentryone";
 
-export interface CeptinelaSnapshot {
+export interface SentryOneSnapshot {
   seed: number;
   companyRfc: Rfc;
   companyName: string;
@@ -58,10 +58,10 @@ export interface CeptinelaSnapshot {
  * for the same seed serve byte-identical data, which is what makes a rehearsal
  * reproducible and a screenshot still true an hour later.
  */
-export function loadCeptinela(
-  options: CeptinelaOptions = {},
-): CeptinelaSnapshot {
-  const dataset = generateCeptinela(options);
+export function loadSentryOne(
+  options: SentryOneOptions = {},
+): SentryOneSnapshot {
+  const dataset = generateSentryOne(options);
   const { demoRfcs } = dataset.notes;
 
   return {

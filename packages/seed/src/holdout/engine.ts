@@ -36,7 +36,7 @@ import type {
   SupplierModel,
 } from "@hackmty/core";
 import { composeFindingsReport, decide } from "@hackmty/core";
-import { CEPTINELA_DETECTORS, runControls } from "@hackmty/engine";
+import { runControls, SENTRYONE_DETECTORS } from "@hackmty/engine";
 import type { CasePrediction, PredictedFinding } from "./metrics";
 import type { HoldoutCase } from "./types";
 
@@ -55,7 +55,7 @@ export const UNPRICED_SUPPLIER: SupplierModel = {
 };
 
 /** The six controls offered to every case, in the order the domain declares them. */
-export const OFFERED_CONTROLS: readonly Detector[] = CEPTINELA_DETECTORS.map(
+export const OFFERED_CONTROLS: readonly Detector[] = SENTRYONE_DETECTORS.map(
   (adapter) => adapter.detector,
 );
 

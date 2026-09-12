@@ -10,7 +10,7 @@
  * shape rather than a font glyph at 16 px.
  *
  * The svg is `aria-hidden` because the word next to it already carries the
- * accessible name. Two readings of "Ceptinela" in a row is noise.
+ * accessible name. Two readings of "SentryOne" in a row is noise.
  */
 
 const SIZES = {
@@ -53,7 +53,7 @@ export function Wordmark({ size = "md" }: { size?: WordmarkSize }) {
           color: "var(--c-ink)",
         }}
       >
-        Ceptinela
+        SentryOne
       </span>
     </span>
   );

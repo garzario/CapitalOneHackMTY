@@ -1,5 +1,5 @@
 /**
- * The Ceptinela generator: one synthetic company, its suppliers, eight months of
+ * The SentryOne generator: one synthetic company, its suppliers, eight months of
  * CFDIs and payment complements, the current week's payment run, and the bank mirror
  * of everything that has already left the account.
  *
@@ -55,11 +55,11 @@ import {
   settleCfdi,
 } from "./build";
 import {
-  CEPTINELA_DEFAULT_SEED,
   DEMO_COMPANY,
   HISTORY_MONTHS,
   RUN_SIZE_MAX,
   RUN_SIZE_MIN,
+  SENTRYONE_DEFAULT_SEED,
 } from "./company";
 import {
   HARD_NEGATIVE_INJECTORS,
@@ -67,7 +67,7 @@ import {
 } from "./hard-negatives";
 import { buildBankMirror, buildMerchants, buildTransfers } from "./mirror";
 import { DEMO_SCENARIOS, LISTED_SUPPLIER_RFC } from "./scenarios";
-import { CEPTINELA_SUPPLIERS, type CeptinelaSupplierSpec } from "./suppliers";
+import { SENTRYONE_SUPPLIERS, type SentryOneSupplierSpec } from "./suppliers";
 import {
   AVERAGE_DAYS_PER_MONTH,
   businessDaysBetween,
@@ -86,11 +86,11 @@ import {
 } from "./timeline";
 import type {
   CaseOutcome,
-  CeptinelaDataset,
-  CeptinelaDraft,
-  CeptinelaOptions,
-  CeptinelaSummary,
   GenerationPlan,
+  SentryOneDataset,
+  SentryOneDraft,
+  SentryOneOptions,
+  SentryOneSummary,
 } from "./types";
 
 /** How often a PPD invoice is settled in two partial payments rather than one. */
@@ -226,7 +226,7 @@ function generateCfdis(rng: Rng, plan: GenerationPlan): Cfdi[] {
 function generateComplements(
   rng: Rng,
   cfdis: readonly Cfdi[],
-  specs: ReadonlyMap<Rfc, CeptinelaSupplierSpec>,
+  specs: ReadonlyMap<Rfc, SentryOneSupplierSpec>,
   /** Everything that came due before this day has already been paid and documented. */
   settledBefore: string,
 ): PaymentComplement[] {
@@ -294,7 +294,7 @@ function generateRun(
   rng: Rng,
   cfdis: readonly Cfdi[],
   complements: readonly PaymentComplement[],
-  specs: ReadonlyMap<Rfc, CeptinelaSupplierSpec>,
+  specs: ReadonlyMap<Rfc, SentryOneSupplierSpec>,
   weekOf: string,
 ): PaymentInstruction[] {
   const settled = new Set(complements.map((entry) => entry.relatedCfdiUuid));
@@ -360,7 +360,7 @@ function generateRun(
  * the instruction objects rather than remembered: a case that appended a line changes
  * the numbering of every line after it.
  */
-function numberRun(draft: CeptinelaDraft): void {
+function numberRun(draft: SentryOneDraft): void {
   draft.instructions.sort((left, right) => {
     if (left.receivedAt !== right.receivedAt) {
       return left.receivedAt.localeCompare(right.receivedAt);
@@ -387,7 +387,7 @@ function numberRun(draft: CeptinelaDraft): void {
  * as instructions this company never recorded. The bank mirror is what proves the
  * historical money moved, and `bank_reconciliation` reads it.
  */
-function toLedgerEvents(draft: CeptinelaDraft): LedgerEvent[] {
+function toLedgerEvents(draft: SentryOneDraft): LedgerEvent[] {
   const events: LedgerEvent[] = [
     ...draft.cfdis.map(
       (cfdi): LedgerEvent => ({
@@ -446,7 +446,7 @@ function buildPlan(weekOf: string, months: number): GenerationPlan {
     // is a future date in a ledger a judge is about to scroll through, and the run is
     // built from invoices that came due, not from invoices that have not arrived.
     issuedBefore: addDays(runDayOf(weekOf), 1),
-    specs: [...CEPTINELA_SUPPLIERS],
+    specs: [...SENTRYONE_SUPPLIERS],
     cadence: new Map<string, number>(),
     reserved: new Set<Rfc>(),
   };
@@ -454,12 +454,12 @@ function buildPlan(weekOf: string, months: number): GenerationPlan {
 
 /**
  * Builds the whole company. Deterministic: the same options produce byte-identical
- * output on every machine, which is asserted in ceptinela.test.ts.
+ * output on every machine, which is asserted in sentryone.test.ts.
  */
-export function generateCeptinela(
-  options: CeptinelaOptions = {},
-): CeptinelaDataset {
-  const seed = options.seed ?? CEPTINELA_DEFAULT_SEED;
+export function generateSentryOne(
+  options: SentryOneOptions = {},
+): SentryOneDataset {
+  const seed = options.seed ?? SENTRYONE_DEFAULT_SEED;
   const months = options.months ?? HISTORY_MONTHS;
   const rng = createRng(seed);
   const weekOf = mondayOf(
@@ -484,7 +484,7 @@ export function generateCeptinela(
     specs,
     runWindow(weekOf).from,
   );
-  const draft: CeptinelaDraft = {
+  const draft: SentryOneDraft = {
     company: DEMO_COMPANY,
     weekOf,
     runDay: plan.runDay,
@@ -582,9 +582,9 @@ export function generateCeptinela(
 }
 
 /** The figures `bun run seed` prints and the test asserts. */
-export function summarizeCeptinela(
-  dataset: CeptinelaDataset,
-): CeptinelaSummary {
+export function summarizeSentryOne(
+  dataset: SentryOneDataset,
+): SentryOneSummary {
   const invoicedCents = dataset.cfdis.reduce(
     (sum, cfdi) => sum + cents(cfdi.total),
     0,

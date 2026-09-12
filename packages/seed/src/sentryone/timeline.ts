@@ -1,5 +1,5 @@
 /**
- * The calendar and money arithmetic every part of the Ceptinela generator shares.
+ * The calendar and money arithmetic every part of the SentryOne generator shares.
  *
  * It is a separate file so the injectors in ./hard-negatives.ts and the demo
  * scenarios in ./scenarios.ts can build objects that land on the same business days

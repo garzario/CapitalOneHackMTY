@@ -1,6 +1,6 @@
 # apps/api
 
-The Hono transport for Ceptinela. It reads a request, validates it, delegates, and
+The Hono transport for SentryOne. It reads a request, validates it, delegates, and
 shapes a response. Nothing in here decides anything.
 
 The contract is `docs/09-api.md` and the types are
@@ -18,7 +18,7 @@ src/
   schemas.ts               every request and response as a zod schema
   repo.ts                  Repository interface and MemoryRepository
   postgres-repo.ts         the same interface over @hackmty/db, live on DATABASE_URL
-  ceptinela.ts             the generated demo company, for the in-memory path
+  sentryone.ts             the generated demo company, for the in-memory path
   assess.ts                the six controls over a whole run, at boot and at load
   synthetic.ts             the seeded payment run the UI is built against
   pipeline.ts              intake, the retroactive sweep, calls into core
@@ -53,7 +53,7 @@ repository and two tests never see each other's writes.
   is what wrote them. Not one file in `src/routes` changed to get there, which is
   what the `Repository` interface existed to prove.
 - **no database**: `MemoryRepository`, on the generated demo company under
-  `SEED=ceptinela` and on the hand-written fixture otherwise.
+  `SEED=sentryone` and on the hand-written fixture otherwise.
 
 The two are asserted against each other in `postgres-repo.test.ts`, on the same
 seed: same run id, same week, same totals, same ordered lines, same findings and
@@ -120,7 +120,7 @@ bun run --filter '@hackmty/api' dev      # http://localhost:3000
 bun test                                 # 150 tests, no socket, no database
 bun run typecheck
 
-TEST_DATABASE_URL=postgres://localhost:5432/ceptinela_test bun test   # and the Postgres suite
+TEST_DATABASE_URL=postgres://localhost:5432/sentryone_test bun test   # and the Postgres suite
 ```
 
 The route suite drives the app through `app.request()`, including the SSE

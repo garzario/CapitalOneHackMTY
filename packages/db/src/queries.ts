@@ -332,8 +332,8 @@ export async function deleteLedgerTxForAccount(
 }
 
 // ---------------------------------------------------------------------------
-// Ceptinela. Everything below reads and writes the tables in
-// migrations/0003_ceptinela.sql and 0005_ceptinela_drift.sql, and every
+// SentryOne. Everything below reads and writes the tables in
+// migrations/0003_sentryone.sql and 0005_sentryone_drift.sql, and every
 // argument and return value is a type from packages/core/src/domain.ts. There
 // is no second shape: if a screen needs a field, it is added to the domain
 // first and to a table second.
@@ -1486,8 +1486,8 @@ export async function getVerifiedBeneficiary(
 
 // --- Maintenance ------------------------------------------------------------
 
-/** Row counts per Ceptinela table, for the doctor and the seed summary. */
-export interface CeptinelaCounts {
+/** Row counts per SentryOne table, for the doctor and the seed summary. */
+export interface SentryOneCounts {
   suppliers: number;
   knownAccounts: number;
   cfdis: number;
@@ -1501,7 +1501,7 @@ export interface CeptinelaCounts {
   events: number;
 }
 
-export async function countCeptinela(sql: Db): Promise<CeptinelaCounts> {
+export async function countSentryOne(sql: Db): Promise<SentryOneCounts> {
   const rows = await sql<
     {
       suppliers: number;
@@ -1547,13 +1547,13 @@ export async function countCeptinela(sql: Db): Promise<CeptinelaCounts> {
 }
 
 /**
- * Empties every Ceptinela table. Destructive, and called only by scripts/reset.ts
+ * Empties every SentryOne table. Destructive, and called only by scripts/reset.ts
  * and the guarded `POST /api/v1/seed`, the same as truncateLedger.
  *
  * `truncate` and not `delete` on ledger_events: the append-only rules in 0003 turn a
  * DELETE into a no-op, and truncate is not routed through the rule system.
  */
-export async function truncateCeptinela(sql: Db): Promise<void> {
+export async function truncateSentryOne(sql: Db): Promise<void> {
   await sql`
     truncate table ledger_events, decision_findings, decisions, findings,
       instructions, payment_complements, cfdis, verified_beneficiaries,

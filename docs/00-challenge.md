@@ -35,11 +35,11 @@ Read it before filing an issue or opening a PR.
 
 ## Our track and thesis, decided
 
-Track 3, Real-Time Anomaly & Security Sentinel. Product: Ceptinela. Full reasoning, the six controls,
+Track 3, Real-Time Anomaly & Security Sentinel. Product: SentryOne. Full reasoning, the six controls,
 the narrative rules and the alternatives are in `docs/adr/0002-track-and-thesis.md`.
 
 Thesis: the payments clerk of a Mexican SMB can stop a fiscally toxic, duplicated or misdirected SPEI
-before it leaves, because Ceptinela joins, at the moment of payment, the company's own CFDI ledger, the
+before it leaves, because SentryOne joins, at the moment of payment, the company's own CFDI ledger, the
 SAT's official Article 69-B list and the CEP that Banxico signs for every SPEI.
 
 Why this track: the least crowded of the three by expectation, and the only one where we hold two

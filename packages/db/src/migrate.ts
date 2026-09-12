@@ -26,9 +26,9 @@ import type { Sql } from "./index";
 
 export const INIT_MIGRATION = "0001_init.sql";
 export const TIMESCALE_MIGRATION = "0002_timescale.sql";
-export const CEPTINELA_MIGRATION = "0003_ceptinela.sql";
-export const CEPTINELA_TIMESCALE_MIGRATION = "0004_timescale_ceptinela.sql";
-export const CEPTINELA_DRIFT_MIGRATION = "0005_ceptinela_drift.sql";
+export const SENTRYONE_MIGRATION = "0003_sentryone.sql";
+export const SENTRYONE_TIMESCALE_MIGRATION = "0004_timescale_sentryone.sql";
+export const SENTRYONE_DRIFT_MIGRATION = "0005_sentryone_drift.sql";
 export const COMPANY_MIGRATION = "0006_company.sql";
 
 /** Resolved from this file, so the runner works from any working directory. */
@@ -50,11 +50,11 @@ export interface MigrationSpec {
  */
 export const MIGRATIONS: readonly MigrationSpec[] = [
   { file: INIT_MIGRATION, requiresTimescale: false },
-  { file: CEPTINELA_MIGRATION, requiresTimescale: false },
-  { file: CEPTINELA_DRIFT_MIGRATION, requiresTimescale: false },
+  { file: SENTRYONE_MIGRATION, requiresTimescale: false },
+  { file: SENTRYONE_DRIFT_MIGRATION, requiresTimescale: false },
   { file: COMPANY_MIGRATION, requiresTimescale: false },
   { file: TIMESCALE_MIGRATION, requiresTimescale: true },
-  { file: CEPTINELA_TIMESCALE_MIGRATION, requiresTimescale: true },
+  { file: SENTRYONE_TIMESCALE_MIGRATION, requiresTimescale: true },
 ];
 
 export interface MigrationResult {
