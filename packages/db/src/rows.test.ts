@@ -12,6 +12,7 @@ import type {
   LedgerEvent,
   PaymentInstruction,
   Supplier,
+  SupplierBehaviourInput,
 } from "@hackmty/core";
 import {
   beneficiaryFromRow,
@@ -29,11 +30,13 @@ import {
   ledgerEventFromRow,
   ledgerEventToRow,
   ledgerTxFromRow,
+  type SupplierHistory,
   satEntryFromRow,
   satEntryToRow,
   subjectIdForStorage,
   supplierFromRow,
   supplierToRow,
+  supplierWeekFromRow,
   toInstant,
   toMoney,
   uuidArrayLiteral,
@@ -494,5 +497,96 @@ describe("bank mirror rows", () => {
     expect("merchantId" in tx).toBe(false);
     expect("category" in tx).toBe(false);
     expect(tx.raw).toEqual({ day: "2026-09-10", synthetic: true });
+  });
+});
+
+describe("supplierWeekFromRow", () => {
+  it("reads the plain view and the continuous aggregate the same way", () => {
+    // The plain view hands a timestamptz back as a Date and numerics as text.
+    // The continuous aggregate returns the same five columns, so one mapper
+    // covers both paths and neither of them gets a private shape.
+    const week = supplierWeekFromRow({
+      supplier_rfc: "SYN990202S02",
+      week: new Date("2026-08-31T00:00:00.000Z"),
+      invoices: "3",
+      outflow: "184200.50",
+      max_invoice: "98000.00",
+    });
+
+    expect(week).toEqual({
+      week: "2026-08-31T00:00:00.000Z",
+      invoices: 3,
+      outflow: 184200.5,
+      maxInvoice: 98000,
+    });
+  });
+
+  it("normalises a bucket the driver rendered with an offset", () => {
+    // Monterrey is UTC minus 6 all year. The bucket is cut in UTC on both
+    // paths, so the same instant written two ways has to land on one string.
+    const week = supplierWeekFromRow({
+      supplier_rfc: "SYN990202S02",
+      week: "2026-08-30T18:00:00-06:00",
+      invoices: 2,
+      outflow: 3500.11,
+      max_invoice: 2500.1,
+    });
+
+    expect(week.week).toBe("2026-08-31T00:00:00.000Z");
+    expect(week.invoices).toBe(2);
+    // 1000.005 rounded into numeric(14,2) is 1000.01, and the sum is exact.
+    expect(week.outflow).toBe(3500.11);
+  });
+
+  it("refuses a count that is not whole", () => {
+    // count(*) is a bigint. A fraction here means the column moved and the
+    // series is being read off something that is not the count.
+    expect(() =>
+      supplierWeekFromRow({
+        supplier_rfc: "SYN990202S02",
+        week: "2026-08-31T00:00:00.000Z",
+        invoices: "2.5",
+        outflow: "100.00",
+        max_invoice: "100.00",
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it("refuses an outflow that is not a number", () => {
+    expect(() =>
+      supplierWeekFromRow({
+        supplier_rfc: "SYN990202S02",
+        week: "2026-08-31T00:00:00.000Z",
+        invoices: "1",
+        outflow: "NaN",
+        max_invoice: "1.00",
+      }),
+    ).toThrow(RangeError);
+  });
+});
+
+describe("SupplierHistory", () => {
+  it("is the input the behaviour detector consumes, with no reshaping", () => {
+    // The assertion that matters is the type annotation: this only compiles
+    // while SupplierHistory stays assignable to SupplierBehaviourInput, so a
+    // field renamed on either side fails `bun run typecheck` instead of
+    // failing at 03:00 against a database nobody wants to be debugging.
+    const history: SupplierHistory = {
+      supplier: {
+        rfc: "SYN990202S02",
+        legalName: "Maquinados Industriales Regios SA de CV",
+        knownAccounts: [],
+        firstInvoiceAt: "2026-01-05T15:00:00.000Z",
+        synthetic: true,
+      },
+      cfdis: [],
+      now: "2026-09-10T22:00:00.000Z",
+      weeks: [],
+    };
+    const detectorInput: SupplierBehaviourInput = history;
+
+    expect(detectorInput.supplier.rfc).toBe("SYN990202S02");
+    expect(detectorInput.now).toBe(history.now);
+    expect(detectorInput.cfdis).toBe(history.cfdis);
   });
 });

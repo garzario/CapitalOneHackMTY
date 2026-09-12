@@ -156,113 +156,135 @@ Three places, all deliberate. The API returns the domain shape in every case, pe
 
 ## Migrations
 
-Two files, applied by `scripts/migrate.ts`. `0001` runs on any Postgres 16 or newer. `0002` is
-applied **only when the `timescaledb` extension is available**, which the migrator checks against
-`pg_available_extensions`.
+Eight files, applied in order by `scripts/migrate.ts` and tracked in `schema_migrations` with a
+checksum, so an edited migration is reported instead of silently diverging between four laptops.
+Five run on any Postgres 16 or newer. Three are applied **only when the `timescaledb` extension is
+available**, which the migrator checks against `pg_available_extensions`, and that is what keeps a
+plain local PostgreSQL 18 usable as the offline demo database. The tables are the ERD above, written
+out field for field against `domain.ts` in `0003_ceptinela.sql`; the rules for adding a migration
+are in `packages/db/migrations/README.md`.
 
-**State of the tree.** The `0001_init.sql` on `dev` today is the bootstrap ledger (`ledger_tx`) from
-before ADR-0002. Issue #40 replaces it with the schema below. What follows is the contract for that
-issue, written against `domain.ts` field by field, and the reviewer's job on #40 is to diff the two.
+| File | Runs on | What it adds |
+|---|---|---|
+| `0001_init.sql` | any Postgres 16+ | `ledger_tx`, the bank mirror spine |
+| `0003_ceptinela.sql` | any Postgres 16+ | the Ceptinela schema and the append-only `ledger_events` |
+| `0005_ceptinela_drift.sql` | any Postgres 16+ | the columns the domain grew after `0003`, and the append-only guard rewritten as a trigger that raises |
+| `0006_company.sql` | any Postgres 16+ | the one-row `company` table: who we are, and the account the mirror hangs off |
+| `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view |
+| `0002_timescale.sql` | only with `timescaledb` | hypertable and daily aggregate over `ledger_tx` |
+| `0004_timescale_ceptinela.sql` | only with `timescaledb` | hypertable and daily aggregate over `ledger_events` |
+| `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` as a continuous aggregate |
+
+The plain files all run before the ones that need the extension, so a fresh database is fully usable
+even when the extension turns out to be missing halfway through.
+
+Two shapes in `0003` exist because of Timescale and are worth naming, because both were found by
+running the migration rather than by reading the documentation. `ledger_events` has
+`primary key (at, event_id)` and not `event_id` alone, because a hypertable refuses a unique index
+that leaves out the partitioning column; the same discovery moved `ledger_tx` to
+`primary key (occurred_at, id)` in `0005`. And the append-only guard on `ledger_events` started as
+two rules, which Timescale also refuses on a hypertable, so `0005` replaced them with a trigger that
+raises `restrict_violation`. The trigger is the louder guard `0003` wanted anyway: an update or a
+delete now fails instead of being silently ignored.
+
+### supplier_weekly_outflow, one name over two definitions
+
+The feed the `supplier_behaviour` detector and the supplier drawer read: what each supplier invoiced
+this company, per week. It exists twice under one name, so `packages/db/src/queries.ts` holds one
+query, `packages/db/src/rows.ts` holds one mapper, and `bun run doctor` is what says which of the
+two answered.
 
 ```sql
--- packages/db/migrations/0001_init.sql   runs on ANY Postgres 16+
--- Event spine. Everything else is a projection that can be rebuilt from these rows.
-create table if not exists ledger_events (
-  id          bigint generated always as identity,
-  at          timestamptz not null,
-  company_id  text        not null,
-  type        text        not null,
-  payload     jsonb       not null,
-  primary key (id, at)
-);
-create index if not exists ledger_events_company_time on ledger_events (company_id, at desc);
-create index if not exists ledger_events_type_time    on ledger_events (type, at desc);
-
--- Projections. Money is numeric, never float. CLABE and RFC are text, never numeric.
-create table if not exists suppliers (
-  rfc              text primary key,
-  company_id       text not null,
-  legal_name       text not null,
-  first_invoice_at timestamptz,
-  synthetic        boolean not null default false
-);
-
-create table if not exists known_accounts (
-  supplier_rfc   text not null references suppliers (rfc),
-  clabe          text not null check (length(clabe) = 18),
-  established_by text not null check (established_by in ('payment_complement','instruction','cep')),
-  established_at timestamptz not null,
-  times_paid     int not null default 0,
-  primary key (supplier_rfc, clabe)
-);
-
-create table if not exists instructions (
-  id             text primary key,
-  company_id     text not null,
-  supplier_rfc   text,
-  clabe          text not null check (length(clabe) = 18),
-  amount         numeric(14,2) not null,
-  source         text not null check (source in ('email','whatsapp','pdf','portal','manual')),
-  received_at    timestamptz not null,
-  raw_text       text,
-  image_ref      text,
-  ocr_confidence numeric(3,2),
-  synthetic      boolean not null default false
-);
-create index if not exists instructions_company_time on instructions (company_id, received_at desc);
+-- packages/db/migrations/0007_supplier_outflow.sql   runs on ANY Postgres 16+
+create or replace view supplier_weekly_outflow as
+  select ledger_events.payload -> 'cfdi' ->> 'issuerRfc' as supplier_rfc,
+         date_trunc('week', ledger_events.at at time zone 'UTC') at time zone 'UTC'
+           as week,
+         count(*)::bigint as invoices,
+         sum((ledger_events.payload -> 'cfdi' ->> 'total')::numeric(14,2))
+           as outflow,
+         max((ledger_events.payload -> 'cfdi' ->> 'total')::numeric(14,2))
+           as max_invoice
+  from ledger_events
+  where ledger_events.type = 'cfdi_received'
+  group by ledger_events.payload -> 'cfdi' ->> 'issuerRfc',
+           date_trunc('week', ledger_events.at at time zone 'UTC') at time zone 'UTC';
 ```
 
-The remaining tables (`cfdis`, `payment_complements`, `instruction_cfdi`, `findings`, `decisions`,
-`sat_list_versions`, `sat_list_entries`, `ceps`, `verified_beneficiaries`) follow the same rules and
-the same column names as the ERD. TODO(fabbyyyy): write them in #40 and keep the check constraints,
-because a check constraint is a migration that never blocks at 03:00 and an enum is.
-
 ```sql
--- packages/db/migrations/0002_timescale.sql   applied ONLY when the extension exists.
-create extension if not exists timescaledb;
+-- packages/db/migrations/0008_timescale_supplier_outflow.sql   only with timescaledb
+drop view if exists supplier_weekly_outflow;
 
-select create_hypertable('ledger_events', 'at',          if_not_exists => true, migrate_data => true);
-select create_hypertable('instructions',  'received_at', if_not_exists => true, migrate_data => true);
-
--- The feed for the supplier-behaviour detector (#72): committed outflow per supplier per week.
 create materialized view supplier_weekly_outflow
   with (timescaledb.continuous) as
-  select company_id,
-         supplier_rfc,
-         time_bucket('7 days', received_at) as week,
-         sum(amount) as outflow,
-         count(*)    as n
-  from instructions
-  group by company_id, supplier_rfc, week;
+  select payload -> 'cfdi' ->> 'issuerRfc' as supplier_rfc,
+         time_bucket('7 days', at) as week,
+         count(*)::bigint as invoices,
+         sum((payload -> 'cfdi' ->> 'total')::numeric(14,2)) as outflow,
+         max((payload -> 'cfdi' ->> 'total')::numeric(14,2)) as max_invoice
+  from ledger_events
+  where type = 'cfdi_received'
+  group by payload -> 'cfdi' ->> 'issuerRfc', time_bucket('7 days', at);
+
+alter materialized view supplier_weekly_outflow
+  set (timescaledb.materialized_only = false);
+
+select add_continuous_aggregate_policy('supplier_weekly_outflow',
+  start_offset      => interval '1 year',
+  end_offset        => interval '1 hour',
+  schedule_interval => interval '1 hour',
+  if_not_exists     => true);
 ```
 
-Three things this file forces, and each one is a real constraint rather than a decoration.
+Four decisions, each one a constraint rather than a preference.
 
-1. **A hypertable's unique indexes must include the partitioning column.** That is why
-   `ledger_events` has `primary key (id, at)` rather than `primary key (id)`, and why `instructions`
-   has to be created in `0001` with that in mind. TODO(fabbyyyy) verify against the Timescale version
-   on the target instance and adjust the primary key of `instructions` in #40 if it refuses.
-2. **A continuous aggregate cannot be created inside a transaction or a `DO` block**, which is why
-   the Timescale DDL is its own file rather than a guarded branch inside `0001`.
-3. **Exactly one query depends on the continuous aggregate**, per ADR-0003, and the plain-SQL
-   equivalent is written at the same time so the offline path answers identically:
+1. **The source is the event ledger, and on the Timescale path there is no alternative.** `cfdis`
+   cannot become a hypertable: `payment_complements.related_cfdi_uuid` references `cfdis (uuid)`,
+   that foreign key needs a unique index on `uuid` alone, and a unique index without the
+   partitioning column is exactly what `create_hypertable` refuses. `instructions` is pinned the
+   same way by `decisions.instruction_id`. Neither key can be widened without dropping a foreign key
+   the sweep and the payment run depend on, and `0003` is applied everywhere so it cannot be edited.
+   `ledger_events` is already the hypertable `0004` made, and `0003` calls it the system of record
+   with every other table a projection of it, so the aggregate belongs there on the merits as well.
+   One `cfdi_received` is emitted per CFDI at `cfdi.issuedAt`, so the aggregate and the `cfdis` table
+   carry the same pesos; `queries.test.ts` asserts that against `sumAmounts` rather than trusting it.
+2. **The bucket is Monday 00:00 UTC on both paths.** `date_trunc('week', ...)` lands on Monday, and
+   `time_bucket('7 days', ...)` counts from Timescale's default origin of 2000-01-03, itself a
+   Monday, in UTC. Every boundary is therefore the same instant under both definitions. The week is
+   cut in UTC and not in Monterrey on purpose: an invoice stamped 23:59 UTC on a Sunday is 17:59
+   locally, a local cut would move it into the next bucket, and nobody reads the hour a week opened.
+   The daily chart in `dailySpend` does cut in Monterrey, because a purchase at 23:30 belongs to the
+   day the person made it. Different question, different cut, both stated in the query.
+3. **Money is cast to `numeric(14,2)` on the way out of the jsonb.** `total` is `numeric(14,2)` in
+   `cfdis` and a JSON number in the payload. Without the cast the sum is built out of floats and
+   stops agreeing with `sum(total) from cfdis` at the cent, which is the drift `@hackmty/core`
+   exists to avoid.
+4. **Real-time aggregation is on, and it is a demo-path decision.** TimescaleDB 2.13 changed the
+   default of `materialized_only` to true, and under that default a CFDI ingested during the demo
+   would not reach the detector until the next refresh ran. Set to false, a read unions the
+   materialised buckets with the rows newer than the refresh watermark. The refresh policy is what
+   makes the aggregate cheaper than the view: buckets older than an hour are computed once and kept,
+   and only the tail is computed per request.
 
-```sql
--- Fallback for the same feed on a plain Postgres 18, used when 0002 was skipped.
-select company_id,
-       supplier_rfc,
-       date_trunc('week', received_at) as week,
-       sum(amount) as outflow,
-       count(*)    as n
-from instructions
-where company_id = $1
-group by 1, 2, 3;
-```
+**The two-path note.** The plain view is not a degraded mode. It is the same five columns over the
+same rows with the same bucket boundaries, computed at read time instead of kept materialised, so
+the offline database answers every question the managed one answers and answers it with the same
+numbers. What changes is cost, not truth: the view rescans the CFDI events of the window on every
+request, the aggregate reads buckets it already has. `supplierHistory(rfc, weeks)` in
+`packages/db/src/queries.ts` is written against the name and never against either definition, and it
+returns `SupplierBehaviourInput` from `packages/core/src/behaviour.ts` with one extra field, so
+`assessSupplierBehaviour(await supplierHistory(sql, rfc))` runs with nothing in between. A feed that
+has to be reshaped before the detector accepts it is a feed that can be reshaped wrongly, and
+`rows.test.ts` holds the type-level assertion that keeps the two shapes in step without a database.
 
-TODO(fabbyyyy) verify whether the demo needs `add_continuous_aggregate_policy` or whether real-time
-aggregation on the target version already includes rows newer than the last refresh. The demo writes
-an instruction and expects the behaviour detector to see it within seconds, so this is a demo-path
-question, not a tuning question.
+The window that function reads is `SUPPLIER_BEHAVIOUR_DEFAULTS.baselineWeeks + recentWeeks`, taken
+from the detector's own defaults rather than restated as a number, so lengthening the baseline
+cannot leave the feed handing it less history than it is about to measure against. It is bounded at
+the bottom and open at the top: the lower bound is what stops the read from growing with the age of
+the company, and an upper bound would add a boundary the detector does not share, because the
+detector keeps an invoice issued at exactly `now` and drops anything after it. The weekly series is
+bounded by the bucket that contains the lower bound, not by the raw instant, or the series would
+start a week late.
 
 `bun run doctor` reports which path is live, so nobody demos against the wrong database by accident.
 Recorded in `docs/adr/0003-datastore-and-timeseries.md`.

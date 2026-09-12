@@ -30,6 +30,9 @@ export const CEPTINELA_MIGRATION = "0003_ceptinela.sql";
 export const CEPTINELA_TIMESCALE_MIGRATION = "0004_timescale_ceptinela.sql";
 export const CEPTINELA_DRIFT_MIGRATION = "0005_ceptinela_drift.sql";
 export const COMPANY_MIGRATION = "0006_company.sql";
+export const SUPPLIER_OUTFLOW_MIGRATION = "0007_supplier_outflow.sql";
+export const SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION =
+  "0008_timescale_supplier_outflow.sql";
 
 /** Resolved from this file, so the runner works from any working directory. */
 export const MIGRATIONS_DIR = `${import.meta.dir}/../migrations`;
@@ -53,8 +56,10 @@ export const MIGRATIONS: readonly MigrationSpec[] = [
   { file: CEPTINELA_MIGRATION, requiresTimescale: false },
   { file: CEPTINELA_DRIFT_MIGRATION, requiresTimescale: false },
   { file: COMPANY_MIGRATION, requiresTimescale: false },
+  { file: SUPPLIER_OUTFLOW_MIGRATION, requiresTimescale: false },
   { file: TIMESCALE_MIGRATION, requiresTimescale: true },
   { file: CEPTINELA_TIMESCALE_MIGRATION, requiresTimescale: true },
+  { file: SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION, requiresTimescale: true },
 ];
 
 export interface MigrationResult {

@@ -29,6 +29,7 @@ import type {
   PaymentInstruction,
   Supplier,
 } from "@hackmty/core";
+import { assessSupplierBehaviour, sumAmounts } from "@hackmty/core";
 import { createSql, type Sql } from "./index";
 import { migrate } from "./migrate";
 import {
@@ -69,6 +70,9 @@ import {
   markInstructionSent,
   readLedger,
   recordKnownAccount,
+  type SupplierHistory,
+  supplierHistory,
+  supplierWeeklyOutflow,
   truncateCeptinela,
   truncateLedger,
   upsertCompany,
@@ -983,6 +987,212 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       expect(read.map((row) => row.id)).toEqual([rows[1]?.id, rows[0]?.id]);
       expect(read[1]).toEqual(rows[0]);
       expect(read[0]).toEqual(rows[1]);
+    });
+  });
+
+  /**
+   * supplier_weekly_outflow is one name over two definitions: the plain view in
+   * 0007 and, where the extension exists, the continuous aggregate that replaces
+   * it in 0008. These cases run against whichever one this server has, and every
+   * assertion is about the contract both of them owe, never about the shape of
+   * one. On the local PostgreSQL 18 the plain view is what answers, which is the
+   * offline demo path, and that is worth a run before every rehearsal.
+   */
+  describe("supplier_weekly_outflow and the behaviour detector feed", () => {
+    const OTHER_RFC = "SYN880101T44";
+    const NOW = "2026-09-10T22:00:00.000Z";
+    /** 2026-08-31 and 2026-09-07 are both Mondays. */
+    const FIRST_WEEK = "2026-08-31T00:00:00.000Z";
+    const SECOND_WEEK = "2026-09-07T00:00:00.000Z";
+
+    /** Deterministic and valid: the uuid column is a uuid, not text. */
+    function uuidOf(index: number): string {
+      return `00000000-0000-4000-8000-${index.toString(16).padStart(12, "0")}`;
+    }
+
+    /**
+     * Writes an invoice the way the loader does: the projection row and the
+     * `cfdi_received` event that is the system of record, at the same instant.
+     * The aggregate reads the event ledger, so an invoice written to only one of
+     * the two would make the two disagree, which is what the totals below check.
+     */
+    async function receive(
+      uuid: string,
+      issuedAt: string,
+      total: number,
+      issuerRfc: string = supplier.rfc,
+    ): Promise<Cfdi> {
+      const row: Cfdi = { ...cfdi(uuid, issuedAt, total), issuerRfc };
+      await insertCfdis(sql, [row]);
+      await appendLedgerEvent(sql, {
+        type: "cfdi_received",
+        at: issuedAt,
+        cfdi: row,
+      });
+      return row;
+    }
+
+    /** The fixture every case in this group reads. */
+    async function seedInvoices(): Promise<Cfdi[]> {
+      await upsertSupplier(sql, supplier);
+      return [
+        await receive(uuidOf(1), "2026-08-31T15:00:00.000Z", 1000.1),
+        await receive(uuidOf(2), "2026-09-06T23:59:59.000Z", 2500.2),
+        await receive(uuidOf(3), "2026-09-07T00:00:00.000Z", 99.99),
+        // A second issuer, which is the denominator of the concentration
+        // signal and must never land in this supplier's own series.
+        await receive(uuidOf(4), "2026-09-07T05:00:00.000Z", 400, OTHER_RFC),
+      ];
+    }
+
+    it("cuts the bucket on Monday 00:00 UTC, not on the local week", async () => {
+      await seedInvoices();
+
+      const weeks = await supplierWeeklyOutflow(sql, supplier.rfc);
+
+      // The second invoice is 23:59:59 UTC on a Sunday, which is Sunday 17:59
+      // in Monterrey. Cutting the week locally would move it into the next
+      // bucket and the detector would read a week that never happened.
+      expect(weeks).toEqual([
+        {
+          week: FIRST_WEEK,
+          invoices: 2,
+          outflow: 3500.3,
+          maxInvoice: 2500.2,
+        },
+        {
+          week: SECOND_WEEK,
+          invoices: 1,
+          outflow: 99.99,
+          maxInvoice: 99.99,
+        },
+      ]);
+    });
+
+    it("totals the same pesos the cfdis table holds, to the cent", async () => {
+      const written = await seedInvoices();
+
+      const weeks = await supplierWeeklyOutflow(sql, supplier.rfc);
+      const mine = written.filter((row) => row.issuerRfc === supplier.rfc);
+
+      // 1000.10 + 2500.20 + 99.99 is 3600.2900000000004 as a float sum. The
+      // aggregate adds in numeric and sumAmounts adds in cents, so both say
+      // 3600.29 and the two paths agree on money rather than nearly agreeing.
+      expect(sumAmounts(weeks.map((week) => week.outflow))).toBe(
+        sumAmounts(mine.map((row) => row.total)),
+      );
+      expect(sumAmounts(weeks.map((week) => week.outflow))).toBe(3600.29);
+    });
+
+    it("counts the CFDI events and nothing else in the ledger", async () => {
+      await seedInvoices();
+      await appendLedgerEvents(sql, [
+        {
+          type: "payment_sent",
+          at: "2026-09-08T18:00:00.000Z",
+          instructionId: "INS-1",
+        },
+        {
+          type: "instruction_received",
+          at: "2026-09-08T18:00:00.000Z",
+          instruction: instruction("INS-1", "2026-09-08T18:00:00.000Z"),
+        },
+      ]);
+
+      const weeks = await supplierWeeklyOutflow(sql, supplier.rfc);
+      expect(weeks.map((week) => week.invoices)).toEqual([2, 1]);
+    });
+
+    it("keeps a second issuer out of this supplier's series", async () => {
+      await seedInvoices();
+
+      const others = await supplierWeeklyOutflow(sql, OTHER_RFC);
+      expect(others).toEqual([
+        { week: SECOND_WEEK, invoices: 1, outflow: 400, maxInvoice: 400 },
+      ]);
+    });
+
+    it("hands the behaviour detector its input with nothing in between", async () => {
+      await seedInvoices();
+
+      const history = await supplierHistory(sql, supplier.rfc, 4, { now: NOW });
+      if (history === undefined) {
+        throw new Error("the supplier was written, so it has to come back");
+      }
+
+      // The whole point of the shape: no mapping step, no second object.
+      const assessment = assessSupplierBehaviour(history);
+      expect(assessment.supplierRfc).toBe(supplier.rfc);
+      // Three invoices is below the eight the detector needs, and it says so
+      // instead of firing on a sample that cannot carry a test.
+      expect(assessment.gate).toBe("insufficient_history");
+      expect(assessment.finding).toBeNull();
+
+      expect(history.now).toBe(NOW);
+      expect(history.weeks.map((week) => week.week)).toEqual([
+        FIRST_WEEK,
+        SECOND_WEEK,
+      ]);
+    });
+
+    it("reads every issuer into cfdis, because that is the denominator", async () => {
+      await seedInvoices();
+
+      const history = await supplierHistory(sql, supplier.rfc, 4, { now: NOW });
+
+      // Handed one supplier's invoices the concentration signal would read
+      // every supplier as 100 percent of the spend.
+      expect(history?.cfdis.map((row) => row.issuerRfc)).toContain(OTHER_RFC);
+      expect(history?.cfdis).toHaveLength(4);
+    });
+
+    it("bounds the invoices by the window and keeps the partial first bucket", async () => {
+      await seedInvoices();
+
+      // One week back from Thursday 22:00 is the previous Thursday, which is
+      // inside the bucket that opened on Monday 2026-08-31.
+      const history = await supplierHistory(sql, supplier.rfc, 1, { now: NOW });
+
+      expect(history?.cfdis.map((row) => row.uuid)).toEqual([
+        uuidOf(2),
+        uuidOf(3),
+        uuidOf(4),
+      ]);
+      // The bucket containing the lower bound still belongs to the window:
+      // filtering on the raw instant would start the series a week late.
+      expect(history?.weeks.map((week) => week.week)).toEqual([
+        FIRST_WEEK,
+        SECOND_WEEK,
+      ]);
+    });
+
+    it("answers undefined for an RFC we hold no supplier row for", async () => {
+      await seedInvoices();
+      expect(await supplierHistory(sql, "SYN770707Q99", 4, { now: NOW })).toBe(
+        undefined,
+      );
+    });
+
+    it("refuses a window that is not a positive number of weeks", async () => {
+      await upsertSupplier(sql, supplier);
+      expect(
+        supplierHistory(sql, supplier.rfc, 0, { now: NOW }),
+      ).rejects.toThrow(RangeError);
+      expect(
+        supplierHistory(sql, supplier.rfc, 4, { now: "no" }),
+      ).rejects.toThrow(RangeError);
+    });
+
+    it("answers an empty series for a supplier that has never invoiced", async () => {
+      await upsertSupplier(sql, supplier);
+
+      const history = await supplierHistory(sql, supplier.rfc, 4, { now: NOW });
+      expect(history?.weeks).toEqual([]);
+      expect(history?.cfdis).toEqual([]);
+      // Empty is a real answer and not a missing one: the detector gates on it.
+      expect(assessSupplierBehaviour(history as SupplierHistory).gate).toBe(
+        "insufficient_history",
+      );
     });
   });
 

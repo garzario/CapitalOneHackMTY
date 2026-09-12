@@ -14,6 +14,8 @@ import {
   INIT_MIGRATION,
   MIGRATIONS,
   MIGRATIONS_DIR,
+  SUPPLIER_OUTFLOW_MIGRATION,
+  SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION,
   splitSqlStatements,
   TIMESCALE_MIGRATION,
 } from "./migrate";
@@ -302,6 +304,100 @@ describe("0006_company.sql", () => {
   });
 });
 
+describe("supplier_weekly_outflow, both paths", () => {
+  /** The aliases a select gives its columns, in order. */
+  function aliases(sql: string): string[] {
+    return (
+      [...sql.matchAll(/\bas\s+([a-z_]+)\b/g)]
+        .map((match) => match[1] as string)
+        // `create ... as select` matches too, and it is not a column alias.
+        .filter((name) => name !== "select")
+    );
+  }
+
+  async function plainText(): Promise<string> {
+    return Bun.file(`${MIGRATIONS_DIR}/${SUPPLIER_OUTFLOW_MIGRATION}`).text();
+  }
+
+  async function timescaleText(): Promise<string> {
+    return Bun.file(
+      `${MIGRATIONS_DIR}/${SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION}`,
+    ).text();
+  }
+
+  it("is one plain view on a database with no extension", async () => {
+    const statements = splitSqlStatements(await plainText());
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain(
+      "create or replace view supplier_weekly_outflow",
+    );
+    // A continuous aggregate cannot exist here, and neither can a hypertable.
+    expect(statements[0]).not.toContain("timescaledb");
+  });
+
+  it("keeps the continuous aggregate whole and turns off materialized_only", async () => {
+    const statements = splitSqlStatements(await timescaleText());
+
+    expect(statements).toHaveLength(5);
+    expect(statements[0]).toContain(
+      "create extension if not exists timescaledb",
+    );
+    // The plain view has to go before the aggregate can take its name.
+    expect(statements[1]).toBe("drop view if exists supplier_weekly_outflow");
+    expect(statements[2]).toContain("timescaledb.continuous");
+    expect(statements[2]).toContain("time_bucket('7 days', at)");
+    // Without this a CFDI ingested during the demo would not reach the detector
+    // until the next refresh ran, because 2.13 made materialized_only default
+    // to true.
+    expect(statements[3]).toContain("timescaledb.materialized_only = false");
+    expect(statements[4]).toContain("add_continuous_aggregate_policy");
+  });
+
+  it("answers with the same five columns in the same order", async () => {
+    const plain = splitSqlStatements(await plainText())[0] as string;
+    const aggregate = splitSqlStatements(await timescaleText())[2] as string;
+
+    const columns = [
+      "supplier_rfc",
+      "week",
+      "invoices",
+      "outflow",
+      "max_invoice",
+    ];
+    // queries.ts selects these by name off whichever object is live, and
+    // rows.ts maps them once. A column added to one path and not the other is
+    // the bug this test exists for.
+    expect(aliases(plain)).toEqual(columns);
+    expect(aliases(aggregate)).toEqual(columns);
+  });
+
+  it("reads the event ledger on both paths, and only the CFDI events", async () => {
+    for (const text of [await plainText(), await timescaleText()]) {
+      const definition = splitSqlStatements(text).join("\n");
+
+      expect(definition).toContain("from ledger_events");
+      expect(definition).toContain("'cfdi_received'");
+      // cfdis and instructions are pinned by foreign keys that need a unique
+      // index without the partitioning column, so neither can be a hypertable
+      // and neither can carry this aggregate.
+      expect(definition).not.toContain("from cfdis");
+      expect(definition).not.toContain("from instructions");
+    }
+  });
+
+  it("casts the money to the storage type on both paths", async () => {
+    for (const text of [await plainText(), await timescaleText()]) {
+      const definition = splitSqlStatements(text).join("\n");
+
+      // Without the cast the sum is a float built out of jsonb numbers, and it
+      // stops agreeing with sum(total) from cfdis at the cent.
+      expect(definition).toContain("::numeric(14,2)");
+      expect(definition).not.toMatch(/\b(real|double precision|float\d*)\b/);
+    }
+  });
+});
+
 describe("MIGRATIONS", () => {
   it("runs the plain files before the ones that need the extension", () => {
     const first = MIGRATIONS.findIndex((spec) => spec.requiresTimescale);
@@ -315,9 +411,26 @@ describe("MIGRATIONS", () => {
       CEPTINELA_MIGRATION,
       CEPTINELA_DRIFT_MIGRATION,
       COMPANY_MIGRATION,
+      SUPPLIER_OUTFLOW_MIGRATION,
       TIMESCALE_MIGRATION,
       CEPTINELA_TIMESCALE_MIGRATION,
+      SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION,
     ]);
+  });
+
+  it("creates the plain supplier_weekly_outflow before replacing it", () => {
+    // 0008 drops the view 0007 created and puts the continuous aggregate under
+    // the same name. That is only safe while the plain file is guaranteed to
+    // have run first, which is what this ordering is.
+    const plain = MIGRATIONS.findIndex(
+      (spec) => spec.file === SUPPLIER_OUTFLOW_MIGRATION,
+    );
+    const timescale = MIGRATIONS.findIndex(
+      (spec) => spec.file === SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION,
+    );
+
+    expect(plain).toBeGreaterThanOrEqual(0);
+    expect(timescale).toBeGreaterThan(plain);
   });
 
   it("names a file that exists on disk", async () => {
