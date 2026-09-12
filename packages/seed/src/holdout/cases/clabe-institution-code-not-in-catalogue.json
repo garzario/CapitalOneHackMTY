@@ -1,0 +1,58 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-institution-code-not-in-catalogue",
+  "title": "The first three digits are not a participant the Banxico snapshot knows",
+  "kind": "positive",
+  "notes": "The catalogue is a dated snapshot and participants are added and merged continuously, so an unknown code is only ever allowed to ask a question. This case exists to keep that asymmetry honest: the finding must not read as an invalid account.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-106",
+      "supplierRfc": "SYN060808S08",
+      "cfdiUuids": ["00000000-0006-4d00-8a00-000000000006"],
+      "clabe": "999180000123456782",
+      "amount": 50808,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN060808S08",
+      "legalName": "Refacciones Hidraulicas Apodaca SA de CV",
+      "firstInvoiceAt": "2024-05-23T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "044180200011122239",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2024-06-06T15:30:00.000Z",
+          "timesPaid": 22
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0006-4d00-8a00-000000000006",
+        "serie": "A",
+        "folio": "77",
+        "issuedAt": "2026-08-20T15:30:00.000Z",
+        "issuerRfc": "SYN060808S08",
+        "issuerName": "Refacciones Hidraulicas Apodaca SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 43800,
+        "iva": 7008,
+        "total": 50808,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "because": "Digits 1 to 3 are not in the participant snapshot and the account is at a different institution from every account this supplier has been paid on."
+    }
+  ],
+  "expectedAction": "verify"
+}

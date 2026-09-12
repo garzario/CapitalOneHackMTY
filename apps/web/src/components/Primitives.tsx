@@ -124,9 +124,13 @@ export function SectionHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex flex-col gap-1">
-        <h2 id={id} className="t-lg">
+        {/* h1, once per screen. Every screen renders exactly one of these and
+            the app had no h1 at all, so a screen reader's document outline
+            started at level two with nothing above it and "jump to the main
+            heading" landed nowhere. The visual size is a token, not the tag. */}
+        <h1 id={id} className="t-lg">
           {title}
-        </h2>
+        </h1>
         {description ? (
           <p className="muted max-w-prose t-sm">{description}</p>
         ) : null}

@@ -1,0 +1,74 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "sat-69b-definitivo-and-new-account",
+  "title": "A definitively listed supplier asks for the money on an account we have never paid",
+  "kind": "positive",
+  "notes": "Two independent controls fire on one instruction, which is the case the alert rail has to render without turning into a wall of chips. The 69-B row is the one that holds the payment; the account is the one that makes a phone call useless.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-102",
+      "supplierRfc": "SYN020404S04",
+      "cfdiUuids": ["00000000-0002-4d00-8a00-000000000002"],
+      "clabe": "062180300022233345",
+      "amount": 159500,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true,
+      "text": "Adjunto factura. Este mes recibimos en otra cuenta, gracias."
+    },
+    "supplier": {
+      "rfc": "SYN020404S04",
+      "legalName": "Transportes Cumbres del Poniente SA de CV",
+      "firstInvoiceAt": "2022-09-01T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "058180500012345675",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2022-11-10T15:30:00.000Z",
+          "timesPaid": 63
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0002-4d00-8a00-000000000002",
+        "serie": "A",
+        "folio": "2210",
+        "issuedAt": "2026-08-27T15:30:00.000Z",
+        "issuerRfc": "SYN020404S04",
+        "issuerName": "Transportes Cumbres del Poniente SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 137500,
+        "iva": 22000,
+        "total": 159500,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "satEntries": [
+      {
+        "rfc": "SYN020404S04",
+        "name": "TRANSPORTES CUMBRES DEL PONIENTE SA DE CV",
+        "status": "definitivo",
+        "publishedAt": "2026-08-21",
+        "listVersion": "2026-08-21"
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "sat_69b",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "The status is definitivo and the publication precedes the payment, so the deduction has no fiscal effect and the list itself is the proof."
+    },
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "because": "The account is at a different bank from the only account this supplier has ever been paid on and no complement or CEP establishes it."
+    }
+  ],
+  "expectedAction": "hold"
+}

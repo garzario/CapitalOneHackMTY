@@ -11,6 +11,7 @@ import type { Action, Rfc } from "@hackmty/core";
 import { useCallback, useMemo, useState } from "react";
 import { ActionBar } from "../components/Decision";
 import { AlertRail, type RailEntry } from "../components/Findings";
+import { IntakeQr } from "../components/IntakeQr";
 import {
   Amount,
   anySynthetic,
@@ -18,6 +19,7 @@ import {
   SectionHeader,
   SyntheticMark,
 } from "../components/Primitives";
+import { RunVerdict } from "../components/RunVerdict";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -26,13 +28,19 @@ import {
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
-import { decideInstruction, getCurrentRun, useEvents } from "../lib/api";
+import {
+  decideInstruction,
+  getCurrentRun,
+  runConstanciaHref,
+  useEvents,
+} from "../lib/api";
 import type { PaymentRun } from "../lib/contract";
 import { formatClabe, formatCount, formatDate } from "../lib/format";
 import { SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
+import { orderItems, runVerdict } from "../lib/run-view";
 
 /** The border colour that marks a row's decision, from the semantic tokens. */
 const ROW_ACCENT: Record<Action, string> = {
@@ -100,6 +108,12 @@ export function RunScreen() {
     );
   }, [run]);
 
+  /* Both read the items rather than `run.totals`, so the headline and the
+     table stay consistent with each other after a decision applied with no
+     API behind the page. See lib/run-view.test.ts. */
+  const verdict = useMemo(() => (run ? runVerdict(run) : null), [run]);
+  const rows = useMemo(() => (run ? orderItems(run.items) : []), [run]);
+
   const onDecide = useCallback(
     async (instructionId: string, action: Action) => {
       setWriteError(null);
@@ -143,7 +157,7 @@ export function RunScreen() {
         title="Corrida de pagos"
         description={
           run
-            ? `Semana del ${formatDate(run.weekOf)}. ${formatCount(run.totals.instructions)} instrucciones.`
+            ? `Semana del ${formatDate(run.weekOf)}. ${formatCount(verdict?.totalCount ?? 0)} instrucciones.`
             : "Semana en curso."
         }
         aside={
@@ -154,6 +168,20 @@ export function RunScreen() {
                 anySynthetic(run.items.map((i) => i.instruction))
               }
             />
+            {/* The retention artifact for this run: what was checked, what was
+                decided, and a digest of the ledger range behind it. Offered
+                only against the engine, because a constancia of a run the
+                browser made up would be a document about nothing. */}
+            {run && source !== "mock" ? (
+              <a
+                className="btn"
+                href={runConstanciaHref(run.id)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Constancia de la corrida (PDF)
+              </a>
+            ) : null}
             <span className="subtle t-xs">
               {stream.status === "open"
                 ? "Flujo de eventos conectado"
@@ -189,62 +217,13 @@ export function RunScreen() {
         </div>
       ) : null}
 
-      {run ? (
+      {run && verdict ? (
         <>
           <SourceNotice
             notice={resource.status === "ready" ? resource.notice : null}
           />
 
-          <section
-            aria-label="Totales de la corrida"
-            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            <div className="panel flex flex-col gap-1 p-5">
-              <span className="eyebrow">Total de la corrida</span>
-              <Amount value={run.totals.amount} size="xl" />
-              <span className="subtle t-xs">
-                {formatCount(run.totals.instructions)} instrucciones
-              </span>
-            </div>
-            <div className="panel flex flex-col gap-1 p-5">
-              <span className="eyebrow">Retenido</span>
-              <span style={{ color: "var(--c-hold-ink)" }}>
-                <Amount value={run.totals.held} size="xl" />
-              </span>
-              <span className="subtle t-xs">
-                {formatCount(
-                  run.items.filter((i) => i.decision.action === "hold").length,
-                )}{" "}
-                instrucciones
-              </span>
-            </div>
-            <div className="panel flex flex-col gap-1 p-5">
-              <span className="eyebrow">Por verificar</span>
-              <span style={{ color: "var(--c-verify-ink)" }}>
-                <Amount value={run.totals.toVerify} size="xl" />
-              </span>
-              <span className="subtle t-xs">
-                {formatCount(
-                  run.items.filter((i) => i.decision.action === "verify")
-                    .length,
-                )}{" "}
-                instrucciones
-              </span>
-            </div>
-            <div className="panel flex flex-col gap-1 p-5">
-              <span className="eyebrow">Liberado</span>
-              <span style={{ color: "var(--c-release-ink)" }}>
-                <Amount value={run.totals.released} size="xl" />
-              </span>
-              <span className="subtle t-xs">
-                {formatCount(
-                  run.items.filter((i) => i.decision.action === "release")
-                    .length,
-                )}{" "}
-                instrucciones
-              </span>
-            </div>
-          </section>
+          <RunVerdict verdict={verdict} />
 
           {writeError ? (
             <p role="status" className="panel-sunken muted px-4 py-2 t-sm">
@@ -261,6 +240,9 @@ export function RunScreen() {
                 <h2 id="run-table-heading" className="eyebrow">
                   Instrucciones de pago
                 </h2>
+                <p className="subtle m-0 t-xs">
+                  Primero lo que no sale, despues por importe.
+                </p>
               </div>
 
               {run.items.length === 0 ? (
@@ -292,9 +274,10 @@ export function RunScreen() {
                       </tr>
                     </thead>
                     <tbody>
-                      {run.items.map((item) => (
+                      {rows.map((item) => (
                         <tr key={item.instruction.id}>
                           <td
+                            className="cell-supplier"
                             style={{
                               borderLeft: `3px solid ${ROW_ACCENT[item.decision.action]}`,
                             }}
@@ -302,7 +285,7 @@ export function RunScreen() {
                             <div className="flex flex-col gap-1">
                               <button
                                 type="button"
-                                className="text-left font-medium underline"
+                                className="link-quiet text-left font-medium"
                                 onClick={() => setDrawerRfc(item.supplier.rfc)}
                               >
                                 {item.supplier.legalName}
@@ -377,6 +360,8 @@ export function RunScreen() {
                 </h2>
                 <AlertRail entries={railEntries} />
               </section>
+
+              <IntakeQr />
 
               <StatusCard />
             </aside>

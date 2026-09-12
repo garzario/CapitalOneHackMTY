@@ -1,0 +1,59 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-adjacent-transposition-passes-check-digit",
+  "title": "Two adjacent digits are swapped and the check digit still passes",
+  "kind": "positive",
+  "notes": "The hole in the check-digit scheme, on purpose. Swapping neighbours five apart changes the weighted sum by a multiple of ten, so the arithmetic says yes and only the supplier's own history says no.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-105",
+      "supplierRfc": "SYN050707S07",
+      "cfdiUuids": ["00000000-0005-4d00-8a00-000000000005"],
+      "clabe": "012180100091764163",
+      "amount": 82360,
+      "source": "pdf",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN050707S07",
+      "legalName": "Polimeros Tecnicos de Occidente SA de CV",
+      "firstInvoiceAt": "2023-01-19T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-02-23T15:30:00.000Z",
+          "timesPaid": 57
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0005-4d00-8a00-000000000005",
+        "serie": "A",
+        "folio": "308",
+        "issuedAt": "2026-08-27T15:30:00.000Z",
+        "issuerRfc": "SYN050707S07",
+        "issuerName": "Polimeros Tecnicos de Occidente SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 71000,
+        "iva": 11360,
+        "total": 82360,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "severity": "critical",
+      "because": "One transposition away from an account paid 57 times, with a check digit that cannot catch a transposition of digits five apart."
+    }
+  ],
+  "expectedAction": "verify"
+}

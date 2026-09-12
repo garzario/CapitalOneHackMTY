@@ -10,12 +10,14 @@ import type { ReactNode } from "react";
 import { SYNTHETIC_LABEL } from "../lib/labels";
 import { dataMode } from "../lib/resource";
 import { href, PATHS, type Route, type RouteName } from "../lib/router";
+import { Wordmark } from "./Wordmark";
 
 const NAV: Array<{ to: string; label: string; match: RouteName[] }> = [
   { to: PATHS.run, label: "Corrida", match: ["run", "instruction"] },
   { to: PATHS.intake, label: "Alta por QR", match: ["intake"] },
   { to: PATHS.sat, label: "Lista 69-B", match: ["sat"] },
   { to: PATHS.cep, label: "CEP", match: ["cep"] },
+  { to: PATHS.verifyCall, label: "Llamada", match: ["verifyCall"] },
   { to: PATHS.metrics, label: "Metricas", match: ["metrics"] },
 ];
 
@@ -59,10 +61,10 @@ export function AppShell({
             <div className="flex flex-col gap-1">
               <a
                 href={href(PATHS.run)}
-                className="t-lg font-semibold no-underline"
+                className="no-underline"
                 style={{ color: "var(--c-ink)" }}
               >
-                Ceptinela
+                <Wordmark />
               </a>
               <p className="muted max-w-prose t-sm">{TAGLINE}</p>
             </div>

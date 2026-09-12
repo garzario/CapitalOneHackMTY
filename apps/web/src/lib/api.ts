@@ -33,6 +33,10 @@ import type {
   SeedBody,
   SupplierDetail,
   SweepResult,
+  VerificationScriptText,
+  VerifyCallBody,
+  VerifyCallResult,
+  VerifyCallScript,
 } from "./contract";
 
 export const API_TIMEOUT_MS = 6000;
@@ -45,6 +49,13 @@ export type ApiFailure = {
   message: string;
   /** The requestId from the error envelope, when the API answered with one. */
   requestId?: string;
+  /**
+   * The parsed response body, kept because two routes answer a refusal that
+   * carries something the screen needs: `/verify-call` puts the script the
+   * clerk has to read next to its 422. Nothing else should read this; the
+   * envelope is still the contract.
+   */
+  body?: unknown;
 };
 
 export type ApiResult<T> =
@@ -81,10 +92,11 @@ function failureFrom(status: number, body: unknown): ApiFailure {
           : typeof code === "string"
             ? code
             : undefined,
+      body,
     };
   }
 
-  return { status, message: `The API answered with status ${status}.` };
+  return { status, message: `The API answered with status ${status}.`, body };
 }
 
 type JsonInit = {
@@ -306,7 +318,9 @@ export async function lookupSatRfc(
       shaped<SatLookup>(
         value,
         (lookup) =>
-          typeof lookup.rfc === "string" && Array.isArray(lookup.entries),
+          typeof lookup.rfc === "string" &&
+          Array.isArray(lookup.entries) &&
+          typeof lookup.listed === "boolean",
         "SAT lookup",
       ),
   );
@@ -369,6 +383,22 @@ export async function getLedger(
     (value) =>
       shaped<LedgerPage>(value, (page) => Array.isArray(page.events), "ledger"),
   );
+}
+
+/**
+ * The constancia is a PDF, so it is a link and not a fetch.
+ *
+ * These build the href the anchor carries. Letting the browser navigate is what
+ * makes the file open in the reader the judge already has, keeps the filename
+ * the server chose, and costs no memory. Fetching the bytes into a blob would
+ * cost all three and buy nothing.
+ */
+export function sweepConstanciaHref(listVersion: string): string {
+  return `${API_PREFIX}/sat/constancia?listVersion=${encodeURIComponent(listVersion)}`;
+}
+
+export function runConstanciaHref(runId: string): string {
+  return `${API_PREFIX}/run/${encodeURIComponent(runId)}/constancia`;
 }
 
 /* -------------------------------------------------------------------- write */
@@ -457,6 +487,92 @@ export async function verifyCep(
         "CEP verification",
       ),
   );
+}
+
+/**
+ * The script for one instruction. Reading it rings nobody and writes nothing,
+ * which is what lets the page show a clerk the words before anything happens.
+ */
+export async function getVerifyCallScript(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<VerifyCallScript>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/instructions/${encodeURIComponent(id)}/verify-call`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<VerifyCallScript>(
+        value,
+        (payload) => isRecord(payload.script),
+        "verification script",
+      ),
+  );
+}
+
+/**
+ * The verification call to the supplier.
+ *
+ * Three bodies, one endpoint: ring the supplier, collect a call that already
+ * happened, or record one a person made by hand. The answer never releases the
+ * payment; the release stays `decideInstruction` with a name on it.
+ */
+export async function verifyCall(
+  id: string,
+  body: VerifyCallBody,
+  options?: RequestOptions,
+): Promise<ApiResult<VerifyCallResult>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/instructions/${encodeURIComponent(id)}/verify-call`,
+      { method: "POST", body },
+      options,
+    ),
+    (value) =>
+      shaped<VerifyCallResult>(
+        value,
+        (result) =>
+          typeof result.status === "string" && isRecord(result.script),
+        "verification call",
+      ),
+  );
+}
+
+/**
+ * The script out of a refusal.
+ *
+ * When the voice integration is not configured the API answers 422 and puts the
+ * words the clerk has to say next to the envelope, so the page can show them
+ * instead of only reporting that nothing worked.
+ */
+export function scriptFromFailure(
+  failure: ApiFailure,
+): VerificationScriptText | null {
+  const body = failure.body;
+
+  if (!isRecord(body) || !isRecord(body.script)) {
+    return null;
+  }
+
+  const { firstMessage, question, clabeLast4, spoken } = body.script;
+
+  if (
+    typeof firstMessage !== "string" ||
+    typeof question !== "string" ||
+    typeof clabeLast4 !== "string" ||
+    !Array.isArray(spoken)
+  ) {
+    return null;
+  }
+
+  return {
+    firstMessage,
+    question,
+    clabeLast4,
+    spoken: spoken.filter((line): line is string => typeof line === "string"),
+  };
 }
 
 /** Regenerates the demo company. Development only, guarded by ALLOW_SEED=1. */

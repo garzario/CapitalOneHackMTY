@@ -9,7 +9,10 @@
  */
 
 import type { LedgerEvent } from "@hackmty/core";
+import { officialSatIndex, type SatIndex } from "@hackmty/sat";
+import { ceptinelaDataset, wantsCeptinela } from "./ceptinela";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
+import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
 import { MemoryRepository, type Repository } from "./repo";
 
@@ -17,8 +20,23 @@ export interface ApiDeps {
   repo: Repository;
   events: LedgerBroadcaster;
   clock: PipelineClock;
+  /**
+   * The official Article 69-B list, read-only, for `GET /api/v1/sat/lookup`.
+   *
+   * It is a function and not an index because the committed snapshot is 14234
+   * taxpayers: an API that never receives a lookup never parses it, and one that
+   * does parses it once. A failure is not swallowed into an empty index, because
+   * "not listed" is the one answer this endpoint must never invent.
+   */
+  satList(): Promise<SatIndex>;
   /** `POST /api/v1/seed` only answers when this is true. Dev and demo only. */
   allowSeed: boolean;
+  /**
+   * Reads a CLABE off a photo or a voice note. Transcription only, never a
+   * decision: see `packages/extract/README.md`. It refuses everything when the
+   * server holds no `GEMINI_API_KEY`, which is also how the tests run it.
+   */
+  extractor: IntakeExtractor;
   /**
    * Append to the ledger and push to every open SSE connection, in that order.
    * The ledger is the record; the stream is a view of it, so a subscriber can
@@ -32,6 +50,8 @@ export interface DepsOverrides {
   events?: LedgerBroadcaster;
   clock?: PipelineClock;
   allowSeed?: boolean;
+  satList?: () => Promise<SatIndex>;
+  extractor?: IntakeExtractor;
 }
 
 function readEnv(name: string): string | undefined {
@@ -41,17 +61,38 @@ function readEnv(name: string): string | undefined {
   return holder.process?.env?.[name];
 }
 
+/**
+ * The repository the process boots with.
+ *
+ * `SEED=ceptinela` serves the generated demo company from @hackmty/seed, with
+ * `SEED_NUMBER` choosing which one; anything else keeps the hand-written fixture,
+ * which is what every test runs against. A test that wants the generated company
+ * passes its own repository rather than setting an environment variable.
+ */
+function bootRepository(): Repository {
+  if (!wantsCeptinela(readEnv("SEED"))) {
+    return new MemoryRepository();
+  }
+  const parsed = Number(readEnv("SEED_NUMBER"));
+  const seed = Number.isInteger(parsed) ? parsed : 0;
+  return new MemoryRepository(seed, ceptinelaDataset);
+}
+
 export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
-  const repo = overrides.repo ?? new MemoryRepository();
+  const repo = overrides.repo ?? bootRepository();
   const events = overrides.events ?? createBroadcaster();
   const clock = overrides.clock ?? createClock();
   const allowSeed = overrides.allowSeed ?? readEnv("ALLOW_SEED") === "1";
+  const satList = overrides.satList ?? (() => officialSatIndex());
+  const extractor = overrides.extractor ?? createExtractor();
 
   return {
     repo,
     events,
     clock,
+    satList,
     allowSeed,
+    extractor,
     async emit(event) {
       await repo.appendEvent(event);
       events.publish(event);

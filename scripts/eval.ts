@@ -14,11 +14,12 @@
  * 1. **It works with zero cases.** An empty or missing directory prints a zeroed table
  *    and says why, rather than dividing by zero or exiting with a stack trace. The
  *    metrics page is on the demo path and it cannot be the thing that breaks it.
- * 2. **It never invents a prediction.** The detectors are not wired in yet, so the
- *    table reports recall 0 and states that out loud, in the output, every time. A
- *    harness that fakes predictions to make its own table look finished is worse than
- *    an empty table, and a judge reading 0.97 precision off unimplemented detectors is
- *    the fastest way to lose the room.
+ * 2. **It never invents a prediction.** Predictions come from `runEngine`, which runs
+ *    the six controls in @hackmty/engine over the case and asks `decide` for the
+ *    action. A control that could not run on any case is named in the footer with the
+ *    reason, so a zero in its row reads as "not armed" and never as "tried and failed".
+ *    A judge reading 0.97 precision off a control that never executed is the fastest
+ *    way to lose the room.
  *
  * Exit code: 0 when the table printed. Loading a malformed case is a failure, because a
  * case silently skipped makes recall look better than it is.
@@ -35,7 +36,8 @@ import {
   computeMetrics,
   emptyMetrics,
   parseHoldoutCase,
-  predictNothing,
+  runEngine,
+  skippedControls,
 } from "../packages/seed/src/holdout/index.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
@@ -153,10 +155,7 @@ function printTable(
 
 const cases = await loadCases(casesDir);
 
-// TODO(garzario), issue #55: replace predictNothing with composeFindings and decide
-// from @hackmty/core when the detectors merge. The line below is the only change this
-// script needs, which is the reason the harness takes predictions as an argument.
-const predictions: CasePrediction[] = predictNothing(cases);
+const predictions: CasePrediction[] = runEngine(cases);
 
 const evaluation =
   cases.length === 0
@@ -193,13 +192,16 @@ if (flags.has("--json")) {
       `no cases in ${casesDir}. The table above is zeroed, not computed. See packages/seed/src/holdout/README.md.`,
     );
   }
+  const notArmed = skippedControls(cases);
+  for (const skip of notArmed) {
+    console.log(`not armed  ${skip.detector}: ${skip.detail}`);
+  }
+  if (notArmed.length > 0) {
+    console.log(
+      "A control that never ran is a gap in the evidence, not a measured result.",
+    );
+  }
   console.log(
-    "DETECTORS ARE NOT WIRED IN. composeFindings and decide land with the detector PR,",
-  );
-  console.log(
-    "so every prediction above is empty and recall is 0 by construction, not by result.",
-  );
-  console.log(
-    `action agreement ${evaluation.actionAgreement} of ${cases.length}, for the same reason.`,
+    `action agreement ${evaluation.actionAgreement} of ${cases.length}`,
   );
 }

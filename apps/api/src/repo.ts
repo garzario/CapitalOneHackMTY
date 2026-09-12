@@ -18,15 +18,17 @@
 import type {
   Cfdi,
   Decision,
-  Detector,
   Finding,
   LedgerEvent,
+  LedgerTx,
   Metrics,
+  PaymentComplement,
   PaymentInstruction,
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
 import { sumAmounts } from "@hackmty/core";
+import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
 import type {
   InstructionDetail,
   PaymentRun,
@@ -36,6 +38,32 @@ import type {
   VerifiedBeneficiary,
 } from "./schemas";
 import { createSyntheticDataset, type SyntheticDataset } from "./synthetic";
+
+/** Who the company is, for the header of a constancia. */
+export interface CompanyIdentity {
+  rfc: string;
+  legalName: string;
+  /** True while the store is the synthetic one, which the document watermarks. */
+  synthetic: boolean;
+}
+
+/**
+ * Everything a constancia needs about one stored list version, read without
+ * publishing anything. `publishSatList` is the write; this is the read that
+ * lets the document be reprinted a year later without moving the ledger.
+ */
+export interface SweepSnapshot {
+  listVersion: string;
+  /** DOF publication date of the version, from its own rows. */
+  publishedAt: string;
+  subjects: SweepSubject[];
+  /**
+   * Supplier RFCs the company holds. It is the denominator: "one of twelve
+   * suppliers is on the list" is an answer, "one supplier is on the list" is a
+   * claim with nothing behind it.
+   */
+  suppliersChecked: number;
+}
 
 /** Everything a 69-B publication has to know about one newly listed supplier. */
 export interface SweepSubject {
@@ -65,7 +93,12 @@ export interface ResetSummary {
 
 export interface Repository {
   /* Reads, one per endpoint in docs/09-api.md. */
+  company(): Promise<CompanyIdentity>;
   currentRun(): Promise<PaymentRun>;
+  /** One run by id. Undefined when this store does not hold that run. */
+  run(id: string): Promise<PaymentRun | undefined>;
+  /** A stored list version, priced but not republished. Undefined when unknown. */
+  sweepSnapshot(listVersion: string): Promise<SweepSnapshot | undefined>;
   instructionDetail(id: string): Promise<InstructionDetail | undefined>;
   supplierDetail(rfc: string): Promise<SupplierDetail | undefined>;
   findSupplier(rfc: string): Promise<Supplier | undefined>;
@@ -78,6 +111,20 @@ export interface Repository {
    * of the spend.
    */
   allCfdis(): Promise<Cfdi[]>;
+  /**
+   * Every payment complement the company holds. The duplicate detector needs
+   * them to know what is already settled, and bank reconciliation builds its
+   * expected payments from them, so both read the whole set rather than one
+   * supplier's.
+   */
+  allComplements(): Promise<PaymentComplement[]>;
+  /**
+   * The company's bank statement, mirrored from Nessie and normalised into
+   * `LedgerTx`. Only `bank_reconciliation` reads it. An empty array means the
+   * mirror was not imported, and the detector reports that rather than calling
+   * every payment missing from a statement we do not hold.
+   */
+  bankMirror(): Promise<LedgerTx[]>;
   satLookup(rfc: string): Promise<SatListEntry[]>;
   satVersions(): Promise<SatVersionSummary[]>;
   beneficiaries(): Promise<VerifiedBeneficiary[]>;
@@ -102,15 +149,6 @@ export interface Repository {
   reset(seed: number): Promise<ResetSummary>;
 }
 
-const ALL_DETECTORS: readonly Detector[] = [
-  "sat_69b",
-  "clabe_forensics",
-  "duplicate_invoice",
-  "supplier_behaviour",
-  "beneficiary_cep",
-  "bank_reconciliation",
-];
-
 const DEFAULT_LEDGER_LIMIT = 500;
 
 /**
@@ -122,20 +160,82 @@ function copy<T>(value: T): T {
   return structuredClone(value);
 }
 
-function ratio(numerator: number, denominator: number): number {
-  return denominator === 0 ? 0 : numerator / denominator;
-}
+/** How a repository gets its data. The seed is what `POST /api/v1/seed` passes. */
+export type DatasetFactory = (seed: number) => SyntheticDataset;
 
 export class MemoryRepository implements Repository {
   private data: SyntheticDataset;
   private seed: number;
+  private readonly build: DatasetFactory;
 
-  constructor(seed = 0) {
-    this.data = createSyntheticDataset();
+  /**
+   * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
+   * the seed. `SEED=ceptinela` hands in the generated company from @hackmty/seed
+   * instead, and then the seed number actually changes the data.
+   */
+  constructor(
+    seed = 0,
+    build: DatasetFactory = () => createSyntheticDataset(),
+  ) {
+    this.build = build;
+    this.data = build(seed);
     this.seed = seed;
   }
 
   /* ---------------------------------------------------------------- reads */
+
+  async company(): Promise<CompanyIdentity> {
+    return {
+      rfc: this.data.companyRfc,
+      legalName: this.data.companyName,
+      // This store is the synthetic one by construction. The Postgres one will
+      // answer false, and the constancia stops printing the band on that day.
+      synthetic: true,
+    };
+  }
+
+  /**
+   * One run by id.
+   *
+   * There is exactly one run in this store, so the honest implementation is to
+   * answer it when the id matches and undefined otherwise, rather than to
+   * pretend a history exists. `current` is accepted as an alias so a link can
+   * be built before the run id is known, which is what the screens do.
+   */
+  async run(id: string): Promise<PaymentRun | undefined> {
+    if (id !== "current" && id !== this.data.runId) {
+      return undefined;
+    }
+    return this.currentRun();
+  }
+
+  /**
+   * Prices a stored list version against everything already paid, without
+   * publishing anything.
+   *
+   * It shares `sweepSubjectsFor` with `publishSatList`, because two different
+   * answers to "what did this version touch" is a bug waiting for a judge to
+   * find it: the constancia has to say the same thing the screen said.
+   */
+  async sweepSnapshot(listVersion: string): Promise<SweepSnapshot | undefined> {
+    const entries = this.data.satEntries.filter(
+      (entry) => entry.listVersion === listVersion,
+    );
+    if (entries.length === 0) {
+      return undefined;
+    }
+
+    const publishedAt = entries
+      .map((entry) => entry.publishedAt)
+      .sort()[0] as string;
+
+    return {
+      listVersion,
+      publishedAt,
+      subjects: this.sweepSubjectsFor(entries),
+      suppliersChecked: this.data.suppliers.length,
+    };
+  }
 
   async currentRun(): Promise<PaymentRun> {
     const items: PaymentRunItem[] = [];
@@ -233,6 +333,14 @@ export class MemoryRepository implements Repository {
     return copy(this.data.cfdis);
   }
 
+  async allComplements(): Promise<PaymentComplement[]> {
+    return copy(this.data.complements);
+  }
+
+  async bankMirror(): Promise<LedgerTx[]> {
+    return copy(this.data.bankMirror);
+  }
+
   async satLookup(rfc: string): Promise<SatListEntry[]> {
     return copy(
       this.data.satEntries
@@ -271,61 +379,21 @@ export class MemoryRepository implements Repository {
   }
 
   /**
-   * Tallies the labelled cases. It is a count and a division, which is what the
-   * SQL version will be too.
+   * The blind evaluation, recomputed on demand.
    *
-   * TODO(Apanawa): issue #55 owns the blind harness. Call it with the
-   * detector output instead of the `firedDetectors` column, so the numbers come
-   * from the real detectors rather than from the fixture's own labels.
+   * The numbers come from `@hackmty/seed`: the labelled cases in
+   * `packages/seed/src/holdout/cases`, put through the same six controls
+   * `pipeline.ts` runs on intake and scored by `computeMetrics`. Nothing here
+   * counts a column the fixture wrote about itself, which is the whole reason
+   * the precision on the metrics screen is worth reading.
+   *
+   * It is recomputed per request rather than cached. Thirty cases through six
+   * controls is a few milliseconds, and a cached evaluation that survives a
+   * change to a control is a number nobody can trust mid-build-night.
    */
   async metrics(): Promise<Metrics> {
-    const perDetector = Object.fromEntries(
-      ALL_DETECTORS.map((detector) => [detector, { tp: 0, fp: 0, fn: 0 }]),
-    ) as Metrics["perDetector"];
-
-    let truePositives = 0;
-    let falsePositives = 0;
-    let falseNegatives = 0;
-    let trueNegatives = 0;
-
-    for (const labelled of this.data.labelledCases) {
-      const fired = labelled.firedDetectors;
-
-      if (fired.length === 0) {
-        if (labelled.fraudulent) {
-          falseNegatives += 1;
-          if (labelled.expectedDetector !== undefined) {
-            perDetector[labelled.expectedDetector].fn += 1;
-          }
-        } else {
-          trueNegatives += 1;
-        }
-        continue;
-      }
-
-      if (labelled.fraudulent) {
-        truePositives += 1;
-        for (const detector of fired) {
-          perDetector[detector].tp += 1;
-        }
-      } else {
-        falsePositives += 1;
-        for (const detector of fired) {
-          perDetector[detector].fp += 1;
-        }
-      }
-    }
-
-    return {
-      cases: this.data.labelledCases.length,
-      truePositives,
-      falsePositives,
-      falseNegatives,
-      precision: ratio(truePositives, truePositives + falsePositives),
-      recall: ratio(truePositives, truePositives + falseNegatives),
-      falsePositiveRate: ratio(falsePositives, falsePositives + trueNegatives),
-      perDetector,
-    };
+    const predictions = runEngine(HOLDOUT_CASES);
+    return computeMetrics(HOLDOUT_CASES, predictions).metrics;
   }
 
   async ledger(query: LedgerQuery): Promise<LedgerEvent[]> {
@@ -400,27 +468,7 @@ export class MemoryRepository implements Repository {
       this.data.satEntries.push(copy(entry));
     }
 
-    const paidUuids = this.paidCfdiUuids();
-    const subjects: SweepSubject[] = [];
-
-    for (const entry of entries) {
-      const supplier = this.supplierRow(entry.rfc);
-      if (supplier === undefined) {
-        // A listed RFC we have never paid is not an exposure, it is news.
-        continue;
-      }
-      subjects.push(
-        copy({
-          supplier,
-          status: entry.status,
-          paidCfdis: this.data.cfdis.filter(
-            (cfdi) => cfdi.issuerRfc === entry.rfc && paidUuids.has(cfdi.uuid),
-          ),
-        }),
-      );
-    }
-
-    return subjects;
+    return this.sweepSubjectsFor(entries);
   }
 
   async saveVerifiedBeneficiary(row: VerifiedBeneficiary): Promise<void> {
@@ -459,12 +507,13 @@ export class MemoryRepository implements Repository {
   }
 
   /**
-   * TODO(garzario): issue #43, drive this from @hackmty/seed so the seed number
-   * changes the data. Today it rebuilds the same fixture and only records the
-   * number, which is honest but not yet useful.
+   * Rebuilds the company from the factory this repository was constructed with.
+   * Under `SEED=ceptinela` the seed number really does change the data; under the
+   * hand-written fixture it rebuilds the same rows and only records the number,
+   * which is honest but not useful, and is why the ceptinela path exists.
    */
   async reset(seed: number): Promise<ResetSummary> {
-    this.data = createSyntheticDataset();
+    this.data = this.build(seed);
     this.seed = seed;
 
     return {
@@ -476,6 +525,35 @@ export class MemoryRepository implements Repository {
   }
 
   /* --------------------------------------------------------------- private */
+
+  /**
+   * The suppliers a set of list rows touches, with the CFDI of theirs we have
+   * already paid. Shared by the publish write and the constancia read so the
+   * document can never disagree with the screen.
+   */
+  private sweepSubjectsFor(entries: readonly SatListEntry[]): SweepSubject[] {
+    const paidUuids = this.paidCfdiUuids();
+    const subjects: SweepSubject[] = [];
+
+    for (const entry of entries) {
+      const supplier = this.supplierRow(entry.rfc);
+      if (supplier === undefined) {
+        // A listed RFC we have never paid is not an exposure, it is news.
+        continue;
+      }
+      subjects.push(
+        copy({
+          supplier,
+          status: entry.status,
+          paidCfdis: this.data.cfdis.filter(
+            (cfdi) => cfdi.issuerRfc === entry.rfc && paidUuids.has(cfdi.uuid),
+          ),
+        }),
+      );
+    }
+
+    return subjects;
+  }
 
   private supplierRow(rfc: string): Supplier | undefined {
     return this.data.suppliers.find((supplier) => supplier.rfc === rfc);

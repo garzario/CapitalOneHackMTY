@@ -20,7 +20,7 @@ import {
   SectionHeader,
   SyntheticMark,
 } from "../components/Primitives";
-import { ErrorBlock } from "../components/States";
+import { EmptyBlock, ErrorBlock } from "../components/States";
 import { createInstruction } from "../lib/api";
 import type { InstructionDetail } from "../lib/contract";
 import { formatMoney } from "../lib/format";
@@ -255,15 +255,28 @@ export function IntakeScreen() {
           </p>
         </div>
 
-        <button
-          type="submit"
-          className="btn btn-accent btn-lg"
-          aria-busy={submission.status === "sending"}
-          disabled={submission.status === "sending"}
-        >
-          {submission.status === "sending" ? "Revisando" : "Revisar el pago"}
-        </button>
+        {/* Pinned to the bottom of the viewport on a phone, where this page is
+            actually used: the judge is holding the invoice in the other hand
+            and the button used to be five fields below the fold. Static again
+            above the small breakpoint, where the form fits and a fixed bar is
+            just a bar in the way. */}
+        <div className="form-actions">
+          <button
+            type="submit"
+            className="btn btn-accent btn-lg w-full"
+            aria-busy={submission.status === "sending"}
+            disabled={submission.status === "sending"}
+          >
+            {submission.status === "sending" ? "Revisando" : "Revisar el pago"}
+          </button>
+        </div>
       </form>
+
+      {submission.status === "sending" ? (
+        <p role="status" className="panel-sunken muted px-4 py-2 t-sm">
+          Corriendo los seis controles sobre esta instruccion.
+        </p>
+      ) : null}
 
       {submission.status === "failed" ? (
         <div className="panel">
@@ -285,9 +298,22 @@ export function IntakeScreen() {
             <Amount value={submission.detail.instruction.amount} size="xl" />
             <SyntheticMark when={submission.detail.instruction.synthetic} />
           </div>
-          {submission.detail.findings.map((finding) => (
-            <FindingPanel key={finding.id} finding={finding} />
-          ))}
+          {submission.detail.findings.length === 0 ? (
+            <div className="panel">
+              <EmptyBlock
+                title="Sin hallazgos"
+                description="Los seis controles corrieron sobre esta instruccion y ninguno encontro nada que revisar. Ya aparece en la corrida de esta semana."
+              />
+            </div>
+          ) : (
+            submission.detail.findings.map((finding) => (
+              <FindingPanel
+                key={finding.id}
+                finding={finding}
+                proposedClabe={submission.detail.instruction.clabe}
+              />
+            ))
+          )}
         </section>
       ) : null}
 
@@ -308,7 +334,11 @@ export function IntakeScreen() {
                 formulario.
               </p>
               {example.findings.map((finding) => (
-                <FindingPanel key={finding.id} finding={finding} />
+                <FindingPanel
+                  key={finding.id}
+                  finding={finding}
+                  proposedClabe={example.instruction.clabe}
+                />
               ))}
             </div>
           ) : null}

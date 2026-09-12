@@ -13,6 +13,7 @@ import {
   pathOf,
   queryOf,
   targetFromHash,
+  verifyCallPath,
 } from "./router";
 
 describe("parsePath", () => {
@@ -22,6 +23,7 @@ describe("parsePath", () => {
     expect(parsePath("/sat")).toEqual({ name: "sat" });
     expect(parsePath("/cep")).toEqual({ name: "cep" });
     expect(parsePath("/metrics")).toEqual({ name: "metrics" });
+    expect(parsePath("/verify-call")).toEqual({ name: "verifyCall" });
   });
 
   test("reads the instruction id out of the path", () => {
@@ -61,6 +63,21 @@ describe("parsePath", () => {
     expect(parsePath("/intake?rfc=SYN010101AAA&amount=1000")).toEqual({
       name: "intake",
     });
+  });
+});
+
+describe("verifyCallPath", () => {
+  test("carries the instruction the call is about", () => {
+    const path = verifyCallPath("ins-2026w37-01");
+
+    expect(parsePath(path)).toEqual({ name: "verifyCall" });
+    expect(queryOf(path).get("instruction")).toBe("ins-2026w37-01");
+  });
+
+  test("encodes an id that would otherwise break the query", () => {
+    const path = verifyCallPath("ins 2026w37/01");
+
+    expect(queryOf(path).get("instruction")).toBe("ins 2026w37/01");
   });
 });
 

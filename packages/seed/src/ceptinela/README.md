@@ -1,87 +1,123 @@
 # The Ceptinela generator
 
-One synthetic company, its 42 suppliers, eight months of CFDIs and payment complements,
-and the current week's payment run.
+One synthetic company, its suppliers, eight months of CFDIs and payment complements,
+the current week's payment run, and the bank mirror of everything that already left
+the account.
 
 ```
 src/ceptinela/
-  README.md        this file
-  company.ts       the demo company and the constants the rest of the repo reads
-  suppliers.ts     the 42-supplier catalogue, literals, with valid CLABEs
-  clabe.ts         CLABE arithmetic the generator needs to mint an account
-  generator.ts     generateCeptinela and summarizeCeptinela
-  index.ts         the surface
-  ceptinela.test.ts the invariants
+  README.md          this file
+  company.ts         the demo company and the constants the rest of the repo reads
+  suppliers.ts       the 42-supplier catalogue, literals, with valid CLABEs
+  clabe.ts           CLABE arithmetic, including the two-digit near miss
+  timeline.ts        the calendar and money helpers every phase shares
+  build.ts           the object builders: supplier row, CFDI, complements, run line
+  types.ts           the plan, the draft, the case and the dataset shapes
+  hard-negatives.ts  the four cases that look like fraud and are not
+  scenarios.ts       the four cases the demo opens on
+  mirror.ts          SPEI transfers and the Nessie-shaped bank mirror
+  generator.ts       generateCeptinela and summarizeCeptinela
+  loader.ts          loadCeptinela, what the API boots on with SEED=ceptinela
+  index.ts           the surface
+  ceptinela.test.ts  the invariants
 ```
 
-The deterministic RNG is `createRng` from `../rng.ts`, already in this package:
-mulberry32, integer maths only, byte-identical output on every machine. The Ceptinela
-seed is 69 and the consumer generator's is 86, deliberately different, so a determinism
-bug in one does not look like a bug in the other.
+The deterministic RNG is `createRng` from `../rng.ts`: mulberry32, integer maths only,
+byte-identical output on every machine. The Ceptinela seed is 69 and the consumer
+generator's is 86, deliberately different, so a determinism bug in one does not look
+like a bug in the other.
 
-## What is finished
+## The five phases
 
-- **The supplier projection.** 42 suppliers with `firstInvoiceAt` spread by tenure and
-  one known account each, established by a payment complement.
-- **The CFDI stream.** Cadence and ticket size per supplier, amounts lognormal inside
-  the supplier's range, IVA at the general rate, `total = subtotal + iva` to the cent,
-  sequential folios per issuer, never issued on a weekend.
-- **The complement stream.** One complement per invoice already settled before the run
-  window, carrying the account the supplier says it was paid on.
-- **The payment run.** One instruction per invoice that came due inside the window and
-  has not been settled, numbered in the order the clerk sees them.
-- **The event ledger.** Every object above as a `LedgerEvent`, sorted, which is the
-  input the retroactive sweep folds over.
+1. **Plan.** The catalogue plus whatever a case injector adds, and a cadence map that
+   says how many invoices each supplier issues in each month. Seasonality and a
+   ramping supplier are decided here, before a single object exists, because they are
+   properties of how the company buys rather than patches applied to finished data.
+2. **Draw.** Invoices month by month on working days, complements for everything
+   already settled, and one run line per supplier per due day.
+3. **Inject.** The four hard negatives and the four demo scenarios mutate the draft
+   and then MEASURE what landed. `applied` comes from the measurement, never from the
+   intention, so `notes` cannot claim a case the data does not contain.
+4. **Settle.** Complements are grouped into the SPEI transfers that paid them, each
+   transfer gets a clave de rastreo, and the mirror is built from those through
+   `normalizePurchase` in @hackmty/nessie, the same function the live import uses.
+5. **Replay.** Everything becomes the append-only event stream the retroactive sweep
+   folds over.
 
-## What is not, and where it is marked
+## The cases
 
-Every item below has a named hook in the code and a `TODO(Apanawa)` against issue #43,
-and `dataset.notes.pending` lists them so `bun run seed` can print them out loud rather
-than letting them be discovered on stage.
+Four hard negatives, all applied, all measured:
 
-- Seasonality, inside `drawInvoiceCount` rather than as a post-processing pass.
-- PPD instalments: several partial complements against one CFDI.
-- `payment_sent` events and the Nessie mirror of outflows, which is what
-  `bank_reconciliation` compares against.
-- The four hard negatives in `HARD_NEGATIVE_INJECTORS`.
-- `notes.heroInstructionId`, which is the engine's answer and not the generator's.
+| Case | What it is | How it is verified |
+|---|---|---|
+| `legitimate_bank_change` | A supplier really did move bank, and the complement it issued for the invoice we paid names the new account | The account is on `knownAccounts` with `establishedBy: "payment_complement"`, at a different institution, and this week's lines pay it |
+| `ramping_new_supplier` | A supplier that did not exist four months ago now carries a material share of the outflow | The cadence is sized for 15 per cent of the month; the share it actually drew is measured and printed |
+| `round_number_invoice` | An invoice for exactly 100,000.00 MXN, because the quote was | `total` is a whole multiple of 10,000 to the cent and `subtotal + iva` still adds back exactly |
+| `seasonal_spike` | A shutdown month where consumables double and tooling does not | The peak consumable month is compared against the median month and the ratio is printed |
 
-The injectors are wired, not implemented. Each one returns
-`{ applied: false, detail: "TODO(Apanawa)..." }`, so `notes.hardNegatives` never claims
-a case the dataset does not contain. That honesty is the point of the scaffold: a note
-saying a hard negative is present when it is not would be found by the first judge who
-asks to see it.
+Four demo scenarios, one per named hero instruction:
+
+| Case | What the clerk sees |
+|---|---|
+| `clabe_two_digits_off` | A WhatsApp message with a CLABE two digits from the one with a hundred payments behind it, check digit valid |
+| `invalid_check_digit` | A photographed PDF whose CLABE fails the 3-7-1 sum, with an OCR confidence attached |
+| `duplicate_invoice` | An invoice a complement already settled in full, back on the run |
+| `listed_supplier_69b` | A supplier of two years whose RFC is on the simulated Article 69-B publication |
+
+`bun run seed` prints the instruction id of each one and writes them to
+`.seed/ceptinela.json`.
+
+## Three rules
+
+1. **The labelled positives do not come from here.** The holdout cases in
+   `../holdout/` are written by somebody who does not write the detectors, and they
+   are the only thing precision and recall may be computed from. The four scenarios
+   above are the demo path and are counted towards nothing. A generator that also
+   labels its own fraud is a generator marking its own work.
+2. **Everything carries `synthetic: true` and a `SYN` RFC**, including the bank RFC on
+   a payment complement. The UI watermarks from the flag, never from a name, per
+   ADR-0002. The municipalities are real places; the companies are not. The one row on
+   the Article 69-B list is taken verbatim from the synthetic snapshot in
+   @hackmty/sat, whose name carries SINTETICOS, because a row on a fiscal blacklist is
+   an accusation and an invented one has to be unmistakably invented even in a
+   screenshot with the watermark cropped off.
+3. **Nothing is dated after the run day.** A ledger a judge scrolls through must not
+   contain tomorrow, and that is one of the assertions in `ceptinela.test.ts`.
 
 ## The arithmetic, which is the part that gets asked about
 
 | Figure | Value | Where it comes from |
 |---|---|---|
-| Suppliers | 42 | the catalogue |
-| Invoices per month | 439 | the sum of `invoicesPerMonth` |
-| Payment-run lines | about 92 to 101 | 439 a month over the seven-day run window |
-| Monthly supplier spend | about 4 to 5 million MXN | the generated invoices, not an assumption |
+| Suppliers | 44 | the 42-row catalogue, plus the one that ramps and the one the list names |
+| Invoices per month | about 500 | the catalogue sums to 439, the two injected suppliers add the rest |
+| Payment-run lines | 70 to 110, about 90 | roughly a week of dues, grouped one line per supplier per due day |
+| Monthly supplier spend | 5 to 6 million MXN | the generated invoices, not an assumption |
 | History | 8 months | `HISTORY_MONTHS` |
 
 The run size is **not padded to a target.** It falls out of the cadence, and
-`RUN_SIZE_MIN` and `RUN_SIZE_MAX` are asserted in the test so that editing the catalogue
-without noticing what it does to the demo screen fails in CI instead of at 03:00.
+`RUN_SIZE_MIN` and `RUN_SIZE_MAX` are asserted in the test so that editing the
+catalogue without noticing what it does to the demo screen fails in CI instead of at
+03:00. Three things shape it, and all three are decisions rather than accidents:
 
-The run window is the seven days ending on the Thursday run day, not Monday to
-Thursday. A four-day window quietly produces 55 lines and nobody would know why the
-screen looked thin, which is exactly the bug the assertion caught while this was being
-written.
+- **One line per supplier per due day**, not one per invoice. A company pays a
+  supplier once and the SPEI covers whatever came due, which is why
+  `PaymentInstruction.cfdiUuids` is an array and why a complement carries a
+  `paymentTotal` separate from the share one invoice took. The eight months of history
+  are settled the same way, so the run and the mirror agree.
+- **The run carries stragglers.** Six per cent of what came due in the previous
+  fortnight is still unpaid, because a clerk who has never been behind is not a clerk,
+  and a run that is exactly one week of dues is a spreadsheet rather than a payables
+  ledger.
+- **Invoices are drawn on working days**, not on calendar days rolled forward to the
+  next Monday. Rolling puts three times its share of the invoices on Mondays, and then
+  three times its share of the due dates lands in one payment run.
 
-The shape is a long tail on purpose: the busiest five suppliers carry more than a fifth
-of the invoices and the quietest issue one or two a month. A catalogue where every
-supplier has the same cadence makes concentration drift undetectable, and detecting it
-is one of the six things this product claims to do.
+## What is deliberately not here
 
-## Two rules
-
-1. **The labelled positives do not come from this file.** They live in `../holdout/`,
-   written by somebody else, and the detector author does not read them before the
-   detectors merge. A generator that also labels its own fraud is a generator marking
-   its own work.
-2. **Everything carries `synthetic: true` and a `SYN` RFC.** The UI watermarks from the
-   flag and never from a name, per ADR-0002. The municipalities in the catalogue are
-   real places; the companies are not.
+- **`payment_sent` events, and any outflow with no document behind it.** Nothing in
+  this week's run has left the bank yet, which is the premise of the product, and the
+  eight months of history arrived from the accounting system as invoices and
+  complements rather than as instructions this company never recorded. A payment with
+  no document behind it is a labelled positive, and those live in `../holdout/`.
+- **Findings, decisions and verified beneficiaries.** They are the engine's output.
+  The CEP evidence comes from packages/cep and from the real one-cent probe.

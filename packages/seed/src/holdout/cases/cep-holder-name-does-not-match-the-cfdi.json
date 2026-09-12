@@ -1,0 +1,72 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "cep-holder-name-does-not-match-the-cfdi",
+  "title": "The one-cent probe comes back with an account holder who is not the supplier",
+  "kind": "positive",
+  "notes": "This is the control no competitor has, because it needs a real SPEI to exist first. The CEP is signed by Banxico and it names the account holder, so the comparison is against the CFDI legal name and nothing else.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-116",
+      "supplierRfc": "SYN171919S19",
+      "cfdiUuids": ["00000000-0052-4d00-8a00-000000000052"],
+      "clabe": "021180600045678903",
+      "amount": 136880,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN171919S19",
+      "legalName": "Acabados Arquitectonicos Cumbres SA de CV",
+      "firstInvoiceAt": "2025-05-08T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "021180600045678903",
+          "establishedBy": "instruction",
+          "establishedAt": "2026-09-03T15:30:00.000Z",
+          "timesPaid": 0
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0052-4d00-8a00-000000000052",
+        "serie": "A",
+        "folio": "1502",
+        "issuedAt": "2026-08-20T15:30:00.000Z",
+        "issuerRfc": "SYN171919S19",
+        "issuerName": "Acabados Arquitectonicos Cumbres SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 118000,
+        "iva": 18880,
+        "total": 136880,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "cep": {
+      "claveRastreo": "SYN2026090900000042",
+      "transferredAt": "2026-09-09T15:30:00.000Z",
+      "amount": 0.01,
+      "senderName": "Distribuidora Sintetica del Norte SA de CV",
+      "senderBank": "BANORTE",
+      "beneficiaryName": "COMERCIALIZADORA VERTICE DEL GOLFO SA DE CV",
+      "beneficiaryAccount": "021180600045678903",
+      "beneficiaryBank": "HSBC",
+      "signatureValid": true,
+      "xml": "<SPEI_Tercero synthetic=\"true\"/>",
+      "synthetic": true
+    }
+  },
+  "expectedFindings": [
+    {
+      "detector": "beneficiary_cep",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "The CEP is a Banxico-signed document naming the account holder, and the holder shares no name core with the supplier on the CFDI."
+    }
+  ],
+  "expectedAction": "hold"
+}
