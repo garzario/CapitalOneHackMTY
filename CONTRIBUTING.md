@@ -77,6 +77,7 @@ event. Use these, and do not bump them during the event.
 | `@tailwindcss/vite` | 4.3.3 | keep both tailwind pins identical |
 | `motion` | 13.2.0 | animation, first-class and not a polish task |
 | `recharts` | 3.10.1 | charts over our own ledger |
+| `uqr` | 0.1.3 | QR encoder for the intake code, zero dependencies, published 2026-04-03 |
 
 Anything not on this list, including sponsor SDKs, a Python sidecar, an ORM, a second database and
 any deploy CLI, is out of scope unless an ADR in `docs/adr/` argues it in. Four infrastructure
