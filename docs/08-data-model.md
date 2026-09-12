@@ -12,8 +12,8 @@ stored and generated. Where the storage shape differs from the domain shape, the
 and justified below. There is no second shape.
 
 **Every figure on this page comes from a run.** The dataset numbers are
-`summarizeCeptinela(generateCeptinela({ seed: 69, weekOf: "2026-09-07" }))`, which is the reference
-run `packages/seed/src/ceptinela/documented-figures.test.ts` asserts the judged documents against.
+`summarizeSentryOne(generateSentryOne({ seed: 69, weekOf: "2026-09-07" }))`, which is the reference
+run `packages/seed/src/sentryone/documented-figures.test.ts` asserts the judged documents against.
 The evaluation numbers are `bun run eval`. Anything not yet measured is a `TODO`, never a plausible
 number.
 
@@ -221,11 +221,11 @@ laptops.
 | File | Runs on | What it adds |
 |---|---|---|
 | `0001_init.sql` | any Postgres 16+ | `ledger_tx`, the bank mirror spine, plus `(account_id, occurred_at desc)` |
-| `0003_ceptinela.sql` | any Postgres 16+ | the Ceptinela schema: suppliers, known accounts, CFDIs, complements, instructions, findings, decisions and their join, the SAT list, the verified-beneficiary registry, and the append-only event ledger |
-| `0005_ceptinela_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003, the two widened check constraints, the `ledger_tx` key, and the append-only trigger |
+| `0003_sentryone.sql` | any Postgres 16+ | the SentryOne schema: suppliers, known accounts, CFDIs, complements, instructions, findings, decisions and their join, the SAT list, the verified-beneficiary registry, and the append-only event ledger |
+| `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003, the two widened check constraints, the `ledger_tx` key, and the append-only trigger |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
-| `0004_timescale_ceptinela.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
+| `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 
 **`0001_init.sql`** is the bootstrap bank mirror from before ADR-0002, and it stayed. `ledger_tx` is
 what Nessie normalises into and what `bank_reconciliation` reads, so replacing it would have been a
@@ -233,7 +233,7 @@ rewrite for a rename. `amount` is `numeric(14,2)`, `direction` is a check constr
 enum, and `raw jsonb` keeps the original payload verbatim because Nessie mixes integers and floats
 in `amount` and UUIDs with Mongo ObjectIds in `_id`.
 
-**`0003_ceptinela.sql`** is the product schema, and its column names are snake_case versions of the
+**`0003_sentryone.sql`** is the product schema, and its column names are snake_case versions of the
 domain fields one for one, so a reader can hold the TypeScript type and the table side by side.
 Three shape decisions are worth the review time.
 
@@ -253,7 +253,7 @@ Statement style in this file is whole-line `--` comments only and no dollar-quot
 `splitSqlStatements` in `packages/db/src/migrate.ts` splits on semicolons outside a string. That is
 why `0003` wrote the append-only guard as two rules rather than as a trigger.
 
-**`0005_ceptinela_drift.sql`** closes the gap between `0003` and the domain as it stands today. The
+**`0005_sentryone_drift.sql`** closes the gap between `0003` and the domain as it stands today. The
 first three of its five changes are domain drift; the last two were found by running `0002` and
 `0004` against a real managed instance rather than by reading them, which is the reason this file is
 worth a reviewer's time.
@@ -290,13 +290,13 @@ intake joins it. One row, enforced by `id integer primary key default 1 check (i
 by convention, because a second company row would make "which one is us" a question with two
 answers.
 
-**`0002_timescale.sql` and `0004_timescale_ceptinela.sql`** are the only files that need the
+**`0002_timescale.sql` and `0004_timescale_sentryone.sql`** are the only files that need the
 extension, and `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips
 them otherwise. They are separate files rather than guarded branches because a continuous aggregate
 cannot be created inside a transaction or a `DO` block.
 
 ```sql
--- 0004_timescale_ceptinela.sql
+-- 0004_timescale_sentryone.sql
 create extension if not exists timescaledb;
 select create_hypertable('ledger_events', 'at', if_not_exists => true, migrate_data => true);
 create materialized view ledger_events_daily
@@ -307,7 +307,7 @@ create materialized view ledger_events_daily
   from ledger_events group by day, type;
 ```
 
-Nothing Ceptinela needs to work is in either file. They make the event ledger cheaper to scan, which
+Nothing SentryOne needs to work is in either file. They make the event ledger cheaper to scan, which
 is the honest answer to "what happens at ten times the volume": the same SQL, partitioned by time,
 with the daily counts the timeline reads kept as a continuous aggregate instead of recomputed per
 request. On a plain Postgres 18 the same rollup is a `date_trunc` query over the base table, and
@@ -336,16 +336,16 @@ against the wrong database by accident. Recorded in `docs/adr/0003-datastore-and
 
 ## Synthetic data methodology
 
-The generator is `packages/seed/src/ceptinela`, issue #43. Its own layout, arithmetic and rules are
-in `packages/seed/src/ceptinela/README.md`. This section is the data-foundation score.
+The generator is `packages/seed/src/sentryone`, issue #43. Its own layout, arithmetic and rules are
+in `packages/seed/src/sentryone/README.md`. This section is the data-foundation score.
 
 **Determinism.** `createRng` is mulberry32 with integer maths only, so output is byte-identical on
-every machine. The Ceptinela seed is 69 and the consumer generator's is 86, deliberately different,
+every machine. The SentryOne seed is 69 and the consumer generator's is 86, deliberately different,
 so a determinism bug in one does not look like a bug in the other. Two laptops asking for the same
 seed and the same week serve the same data, which is what makes a rehearsal reproducible and a
 screenshot still true an hour later.
 
-**The reference run.** Seed 69, week of 2026-09-07. These are the figures `summarizeCeptinela`
+**The reference run.** Seed 69, week of 2026-09-07. These are the figures `summarizeSentryOne`
 returns, and `documented-figures.test.ts` fails when a document quotes a number the generator no
 longer produces. That test exists because the numbers drifted once: `docs/02-persona.md` claimed a
 run of 92 invoices totalling MXN 673,460.27 over 42 suppliers while the generator was producing MXN
@@ -383,7 +383,7 @@ because rolling to the next Monday puts three times its share of the due dates i
 | Real RFCs appear in exactly one place, the lookup box a judge types into | ADR-0002 narrative rules, and `docs/09-api.md` specifies that endpoint on its own for that reason |
 | Synthetic CLABEs carry a valid 3-7-1 control digit | Otherwise the check-digit control would fire on every row and prove nothing. Invalid ones exist only where a case means them to be invalid. Eight distinct institution codes appear across the known accounts, so the bank-consistency half of the control has something to check |
 | Synthetic legal names are constructed, never taken from a real company | Including the bank RFC on a payment complement, and including the row on the simulated 69-B list, whose name carries `SINTETICOS` because a row on a fiscal blacklist is an accusation and an invented one has to be unmistakably invented even in a screenshot with the watermark cropped off |
-| Nothing is dated after the run day | A ledger a judge scrolls must not contain tomorrow. Asserted in `ceptinela.test.ts`; the latest event in the reference run is 2026-09-10T23:54Z and the run day is 2026-09-10 |
+| Nothing is dated after the run day | A ledger a judge scrolls must not contain tomorrow. Asserted in `sentryone.test.ts`; the latest event in the reference run is 2026-09-10T23:54Z and the run day is 2026-09-10 |
 
 **Distributions and cadences, with what the reference run actually produced.**
 
@@ -560,9 +560,9 @@ explicitly. Counting good news as a false positive would report a rate the produ
 The action is scored separately as plain agreement, because `Metrics` in the domain has no field for
 it and inventing one would be a second shape.
 
-**The measured table.** `bun run eval`, 30 cases from `packages/seed/src/holdout/cases`, against
-`dev` at the commit this document landed on. `GET /api/v1/metrics` serves the same object from the
-same function.
+**The measured table.** `bun run eval`, 30 cases from `packages/seed/src/holdout/cases`, measured
+2026-09-12 against `dev` at `9599afe`. `GET /api/v1/metrics` serves the same object computed by the
+same function, so the terminal and the screen cannot disagree.
 
 | Detector | tp | fp | fn | tn | precision | recall |
 |---|---|---|---|---|---|---|

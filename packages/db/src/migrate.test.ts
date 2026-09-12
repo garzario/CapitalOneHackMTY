@@ -6,14 +6,14 @@
 
 import { describe, expect, it } from "bun:test";
 import {
-  CEPTINELA_DRIFT_MIGRATION,
-  CEPTINELA_MIGRATION,
-  CEPTINELA_TIMESCALE_MIGRATION,
   COMPANY_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
   MIGRATIONS_DIR,
+  SENTRYONE_DRIFT_MIGRATION,
+  SENTRYONE_MIGRATION,
+  SENTRYONE_TIMESCALE_MIGRATION,
   splitSqlStatements,
   TIMESCALE_MIGRATION,
 } from "./migrate";
@@ -95,10 +95,10 @@ describe("splitSqlStatements", () => {
   });
 });
 
-describe("0003_ceptinela.sql", () => {
+describe("0003_sentryone.sql", () => {
   it("splits into statements the runner can send one at a time", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -124,7 +124,7 @@ describe("0003_ceptinela.sql", () => {
 
   it("is unchanged: the rules it wrote are replaced, not edited, by 0005", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
 
     // The rules were written when the splitter could not survive a plpgsql
@@ -137,7 +137,7 @@ describe("0003_ceptinela.sql", () => {
 
   it("keeps the cep xml as bytea and money as numeric(14,2)", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
 
     expect(text).toContain("cep_xml          bytea not null");
@@ -152,10 +152,10 @@ describe("0003_ceptinela.sql", () => {
 
   it("partitions the event ledger by the column its primary key carries", async () => {
     const plain = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_MIGRATION}`,
     ).text();
     const timescale = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_TIMESCALE_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_TIMESCALE_MIGRATION}`,
     ).text();
 
     // create_hypertable refuses a unique index that does not include the
@@ -165,10 +165,10 @@ describe("0003_ceptinela.sql", () => {
   });
 });
 
-describe("0005_ceptinela_drift.sql", () => {
+describe("0005_sentryone_drift.sql", () => {
   it("widens the two check constraints the domain outgrew", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_DRIFT_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -187,7 +187,7 @@ describe("0005_ceptinela_drift.sql", () => {
 
   it("is idempotent, so it is safe on a database that already ran 0003", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_DRIFT_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -215,7 +215,7 @@ describe("0005_ceptinela_drift.sql", () => {
 
   it("replaces the rules with a trigger, which is what a hypertable accepts", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_DRIFT_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -243,7 +243,7 @@ describe("0005_ceptinela_drift.sql", () => {
 
   it("names every field the domain has that 0003 lacked", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_DRIFT_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_DRIFT_MIGRATION}`,
     ).text();
 
     for (const column of [
@@ -263,10 +263,10 @@ describe("0005_ceptinela_drift.sql", () => {
   });
 });
 
-describe("0004_timescale_ceptinela.sql", () => {
+describe("0004_timescale_sentryone.sql", () => {
   it("keeps its continuous aggregate whole", async () => {
     const text = await Bun.file(
-      `${MIGRATIONS_DIR}/${CEPTINELA_TIMESCALE_MIGRATION}`,
+      `${MIGRATIONS_DIR}/${SENTRYONE_TIMESCALE_MIGRATION}`,
     ).text();
     const statements = splitSqlStatements(text);
 
@@ -312,11 +312,11 @@ describe("MIGRATIONS", () => {
     expect(plainAfter).toEqual([]);
     expect(MIGRATIONS.map((spec) => spec.file)).toEqual([
       INIT_MIGRATION,
-      CEPTINELA_MIGRATION,
-      CEPTINELA_DRIFT_MIGRATION,
+      SENTRYONE_MIGRATION,
+      SENTRYONE_DRIFT_MIGRATION,
       COMPANY_MIGRATION,
       TIMESCALE_MIGRATION,
-      CEPTINELA_TIMESCALE_MIGRATION,
+      SENTRYONE_TIMESCALE_MIGRATION,
     ]);
   });
 

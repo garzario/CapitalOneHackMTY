@@ -32,7 +32,7 @@ describe("createTestApp", () => {
       await baseline.app.request("/api/v1/run/current")
     ).json();
 
-    const seeded = await withEnv("SEED", "ceptinela", async () => {
+    const seeded = await withEnv("SEED", "sentryone", async () => {
       const { app } = createTestApp();
       return (await app.request("/api/v1/run/current")).json();
     });

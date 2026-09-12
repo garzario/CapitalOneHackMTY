@@ -24,9 +24,9 @@ import type { Cfdi, LedgerTx, PaymentComplement, Rfc } from "@hackmty/core";
 import type { NessiePurchase } from "@hackmty/nessie";
 import { normalizePurchase, stableUuid } from "@hackmty/nessie";
 import type { CompanyProfile } from "./company";
-import type { CeptinelaSupplierSpec } from "./suppliers";
+import type { SentryOneSupplierSpec } from "./suppliers";
 import { cents, dayOf, fromCents, instantAt, SPEI_MINUTE } from "./timeline";
-import type { CeptinelaMerchant, SyntheticTransfer } from "./types";
+import type { SentryOneMerchant, SyntheticTransfer } from "./types";
 
 /** Nessie ids are 24 hex characters when they are ObjectIds, so ours are too. */
 const OBJECT_ID_LENGTH = 24;
@@ -41,10 +41,10 @@ function objectIdFrom(key: string): string {
  * pool mixes both and nothing downstream may assume either.
  */
 export function buildMerchants(
-  specs: readonly CeptinelaSupplierSpec[],
-): CeptinelaMerchant[] {
+  specs: readonly SentryOneSupplierSpec[],
+): SentryOneMerchant[] {
   return specs.map((spec) => ({
-    id: objectIdFrom(`ceptinela:merchant:${spec.rfc}`),
+    id: objectIdFrom(`sentryone:merchant:${spec.rfc}`),
     rfc: spec.rfc,
     name: spec.legalName,
     city: spec.city,
@@ -135,8 +135,8 @@ export function buildTransfers(
 
 /** Segment per merchant id, so a mirror row carries what the money was spent on. */
 function categoryIndex(
-  merchants: readonly CeptinelaMerchant[],
-  specs: ReadonlyMap<Rfc, CeptinelaSupplierSpec>,
+  merchants: readonly SentryOneMerchant[],
+  specs: ReadonlyMap<Rfc, SentryOneSupplierSpec>,
 ): Record<string, string> {
   const index: Record<string, string> = {};
   for (const merchant of merchants) {
@@ -157,8 +157,8 @@ function categoryIndex(
 export function buildBankMirror(
   company: CompanyProfile,
   transfers: readonly SyntheticTransfer[],
-  merchants: readonly CeptinelaMerchant[],
-  specs: ReadonlyMap<Rfc, CeptinelaSupplierSpec>,
+  merchants: readonly SentryOneMerchant[],
+  specs: ReadonlyMap<Rfc, SentryOneSupplierSpec>,
 ): LedgerTx[] {
   const merchantByRfc = new Map(
     merchants.map((merchant) => [merchant.rfc, merchant] as const),
@@ -168,7 +168,7 @@ export function buildBankMirror(
   const rows = transfers.map((transfer) => {
     const merchant = merchantByRfc.get(transfer.supplierRfc);
     const purchase: NessiePurchase = {
-      _id: objectIdFrom(`ceptinela:transfer:${transfer.claveRastreo}`),
+      _id: objectIdFrom(`sentryone:transfer:${transfer.claveRastreo}`),
       type: "merchant",
       merchant_id: merchant?.id ?? "",
       payer_id: company.bankAccountId,

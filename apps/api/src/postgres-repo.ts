@@ -45,7 +45,7 @@ import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
   appendLedgerEvents,
-  countCeptinela,
+  countSentryOne,
   currentPaymentRun,
   deleteLedgerTxForAccount,
   findingsForSubjects,
@@ -80,22 +80,21 @@ import {
   recordKnownAccount,
   selectSuppliers,
   transact,
-  truncateCeptinela,
+  truncateSentryOne,
   upsertCompany,
   upsertSupplier,
   upsertVerifiedBeneficiary,
 } from "@hackmty/db/queries";
 import { normalizeRfc } from "@hackmty/sat";
-import type { CeptinelaOptions } from "@hackmty/seed";
+import type { SentryOneOptions } from "@hackmty/seed";
 import {
   computeMetrics,
   DEMO_COMPANY,
   HOLDOUT_CASES,
-  loadCeptinela,
+  loadSentryOne,
   runEngine,
 } from "@hackmty/seed";
 import { assessRun } from "./assess";
-import { runInstant } from "./ceptinela";
 import type {
   CompanyIdentity,
   IntakeRecord,
@@ -113,6 +112,7 @@ import type {
   SupplierDetail,
   VerifiedBeneficiary,
 } from "./schemas";
+import { runInstant } from "./sentryone";
 
 /** Monterrey is UTC minus 6 all year, so there is no daylight-saving seam. */
 const MONTERREY_OFFSET_MS = 6 * 60 * 60 * 1000;
@@ -137,7 +137,7 @@ export function mondayInMonterrey(instant: string): string {
 }
 
 /** What `PostgresRepository.load` wrote, for the line `bun run seed` prints. */
-export interface CeptinelaLoadResult extends ResetSummary {
+export interface SentryOneLoadResult extends ResetSummary {
   weekOf: string;
   runId: string;
   cfdis: number;
@@ -198,7 +198,7 @@ export class PostgresRepository implements Repository {
       (await latestRunWeek(this.sql)) ??
       mondayInMonterrey(new Date().toISOString());
     // The generator names the run `run-<weekOf>` and the id on the screen has to
-    // be the id in `.seed/ceptinela.json`, so it is stored and read back, and
+    // be the id in `.seed/sentryone.json`, so it is stored and read back, and
     // rebuilt the same way only when there is no company row to read it from.
     const runId = company?.runId ?? `run-${weekOf}`;
     const rows = await currentPaymentRun(this.sql, weekOf, {
@@ -260,7 +260,7 @@ export class PostgresRepository implements Repository {
       listVersion,
       publishedAt,
       subjects: await this.sweepSubjectsFor(entries),
-      suppliersChecked: (await countCeptinela(this.sql)).suppliers,
+      suppliersChecked: (await countSentryOne(this.sql)).suppliers,
     };
   }
 
@@ -530,13 +530,13 @@ export class PostgresRepository implements Repository {
    * apart on the morning of the demo.
    *
    * The order is the order the documents actually arrived in, and the findings
-   * come last because they are the engine's answer to the rest. `truncateCeptinela`
+   * come last because they are the engine's answer to the rest. `truncateSentryOne`
    * first and `deleteLedgerTxForAccount` rather than `truncateLedger`, because
    * `ledger_tx` also holds the consumer dataset and a reseed of this company must
    * not touch it. Running it twice gives the same run.
    */
-  async load(options: CeptinelaOptions = {}): Promise<CeptinelaLoadResult> {
-    const snapshot = loadCeptinela(options);
+  async load(options: SentryOneOptions = {}): Promise<SentryOneLoadResult> {
+    const snapshot = loadSentryOne(options);
     const assessed = assessRun({
       suppliers: snapshot.suppliers,
       cfdis: snapshot.cfdis,
@@ -555,7 +555,7 @@ export class PostgresRepository implements Repository {
       if (previous !== undefined) {
         accountIds.add(previous.bankAccountId);
       }
-      await truncateCeptinela(tx);
+      await truncateSentryOne(tx);
       for (const accountId of accountIds) {
         await deleteLedgerTxForAccount(tx, accountId);
       }

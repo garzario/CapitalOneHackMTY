@@ -86,7 +86,7 @@ const script = buildVerificationScript({
 });
 
 const agentConfig = {
-  name: config.name ?? "Ceptinela, verificacion de cuenta",
+  name: config.name ?? "SentryOne, verificacion de cuenta",
   systemPrompt: script.systemPrompt,
   firstMessage: script.firstMessage,
   ...(config.language === undefined ? {} : { language: config.language }),

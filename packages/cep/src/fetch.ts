@@ -212,7 +212,7 @@ function requestInit(
 ): RequestInit {
   const headers: Record<string, string> = {
     /** We identify ourselves rather than impersonating a browser. */
-    "user-agent": "Ceptinela/0.1",
+    "user-agent": "SentryOne/0.1",
     accept: "*/*",
   };
   if (cookie !== undefined) {

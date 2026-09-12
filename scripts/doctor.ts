@@ -21,7 +21,6 @@
 import { resolve } from "node:path";
 import {
   type Check,
-  ceptinelaTables,
   checkBunVersion,
   checkCepFixture,
   checkDatabase,
@@ -38,6 +37,7 @@ import {
   offlineSatSnapshot,
   plural,
   type SatSnapshotFacts,
+  sentryoneTables,
 } from "./doctor/checks.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
@@ -148,7 +148,7 @@ checks.push(...(await checkSeedState({ root: ROOT })));
 const offline = checkOfflineDemo({
   databaseUrl,
   databaseReachable: isReachable(databaseChecks),
-  tables: ceptinelaTables(databaseChecks),
+  tables: sentryoneTables(databaseChecks),
   satSnapshot: offlineSatSnapshot({ ...snapshot, today }),
   cepFixture: cepCheck.status === "ok",
 });

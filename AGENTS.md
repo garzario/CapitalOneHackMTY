@@ -16,8 +16,8 @@ Challenge overview, verbatim: "How can we leverage real-time financial data and 
 automation to build resilient tools that empower individuals, protect businesses, and safeguard
 digital capital?"
 
-- Track: 3, Real-Time Anomaly & Security Sentinel. Product: Ceptinela (ceptinela.tech). Decided in `docs/adr/0002-track-and-thesis.md`, read it first.
-- Thesis: the payments clerk of a Mexican SMB can stop a fiscally toxic, duplicated or misdirected SPEI before it leaves, because Ceptinela joins at the moment of payment the company's CFDI ledger, the SAT Article 69-B list and the Banxico-signed CEP.
+- Track: 3, Real-Time Anomaly & Security Sentinel. Product: SentryOne (sentryone.tech). Decided in `docs/adr/0002-track-and-thesis.md`, read it first.
+- Thesis: the payments clerk of a Mexican SMB can stop a fiscally toxic, duplicated or misdirected SPEI before it leaves, because SentryOne joins at the moment of payment the company's CFDI ledger, the SAT Article 69-B list and the Banxico-signed CEP.
 - Product model: six controls (69-B with retroactive sweep, CLABE forensics, duplicates, supplier behaviour change, CEP beneficiary verification, expected-loss decision). Domain types live in `packages/core/src/domain.ts`; the HTTP contract in `docs/09-api.md`. The narrative rules in ADR-0002 are binding: the hook is fiscal (69-B) plus SPEI irreversibility, never "cambiamos de cuenta"; real RFCs never sit next to fabricated evidence; synthetic data is watermarked.
 
 Read `docs/00-challenge.md` next. Before writing code, read "Where things live" and
@@ -145,7 +145,7 @@ Five epics on GitHub (#80 to #84) with every issue linked as a sub-issue. Everyo
 | #80 Engine | Patricio (garzario) | `packages/core`, `packages/cep`, `packages/sat`, `packages/seed`: CFDI and payment-complement parser, CLABE forensics, duplicates and supplier behaviour, CEP signature verification, expected-loss decision, Nessie reconciliation, SAT list loader and retroactive sweep, synthetic company, Gemini extraction (photo and voice note, extraction only), ElevenLabs verification call, the deployed vertical slice |
 | #81 Data platform and API | Fabian (fabbyyyy) | `packages/db`, `apps/api`: ledger on Tiger Data with continuous aggregates, read and write endpoints per `docs/09-api.md`, SSE, Nessie mirror, scripts (doctor, demo), architecture and data-model docs |
 | #82 UI/UX | Fabricio (FabriBanda) designs, Fabricio and Adan (Apanawa) build | `apps/web`: brand and design system, screen designs and flows, payment run and finding panel (Fabricio), QR intake, SAT replay, CEP viewer, metrics and polish (Adan), persona and journey research, demo script and judge Q&A, printed judge card, blind holdout cases and the metrics harness, constancia PDF (Adan) |
-| #83 Infrastructure and release | Fabian (fabbyyyy) | Vercel, Vultr, Tiger Data, ceptinela.tech, accounts and keys, offline demo mode, the real one-cent CEP, release to main with v1.0.0, security scrub |
+| #83 Infrastructure and release | Fabian (fabbyyyy) | Vercel, Vultr, Tiger Data, sentryone.tech, accounts and keys, offline demo mode, the real one-cent CEP, release to main with v1.0.0, security scrub |
 | #84 Narrative and submission | everyone, Patricio closes | market and business model, pitch and Devpost, rubric mapping, process and README, video, rehearsals (Patricio); regulatory and privacy (Adan); architecture and data model (Fabian); persona, journey and demo script (Fabricio) |
 
 Scaffold PRs give every front typed stubs and mock data equal to the API's in-memory repository, so nobody waits to start. Reviewers: Patricio reviews Fabian, Fabian reviews Patricio, Fabricio reviews Adan, Adan reviews Fabricio; the lead reviews anything stalled past 90 minutes.

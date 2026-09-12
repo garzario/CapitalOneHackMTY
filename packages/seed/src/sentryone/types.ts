@@ -1,5 +1,5 @@
 /**
- * The shapes the Ceptinela generator passes between its own files.
+ * The shapes the SentryOne generator passes between its own files.
  *
  * Domain objects are never redefined here: a supplier is `Supplier` from
  * @hackmty/core and an invoice is `Cfdi`, per the rule in docs/09-api.md that the
@@ -21,7 +21,7 @@ import type {
 } from "@hackmty/core";
 import type { Rng } from "../rng";
 import type { CompanyProfile } from "./company";
-import type { CeptinelaSupplierSpec } from "./suppliers";
+import type { SentryOneSupplierSpec } from "./suppliers";
 
 /**
  * A payee as the bank statement names it. Nessie models a payment as a purchase
@@ -29,7 +29,7 @@ import type { CeptinelaSupplierSpec } from "./suppliers";
  * `merchantId` on every row points at it. The id is ObjectId-shaped on purpose:
  * Nessie mixes UUIDs and Mongo ObjectIds and nothing downstream may assume either.
  */
-export interface CeptinelaMerchant {
+export interface SentryOneMerchant {
   id: string;
   rfc: Rfc;
   name: string;
@@ -76,7 +76,7 @@ export interface GenerationPlan {
   /** The last day an invoice may be issued on, exclusive. */
   issuedBefore: string;
   /** The catalogue, plus anything an injector appended. Mutable on purpose. */
-  specs: CeptinelaSupplierSpec[];
+  specs: SentryOneSupplierSpec[];
   /**
    * Multiplier on a supplier's monthly invoice count, keyed `<rfc>|<YYYY-MM>`.
    * Missing means 1. This is where seasonality and a ramp live.
@@ -91,13 +91,13 @@ export interface GenerationPlan {
 }
 
 /** The dataset while it is still being written to. Injectors mutate it in place. */
-export interface CeptinelaDraft {
+export interface SentryOneDraft {
   company: CompanyProfile;
   weekOf: string;
   runDay: string;
   window: { from: string; to: string };
   /** Cadence knobs per RFC, including suppliers an injector appended. */
-  specs: Map<Rfc, CeptinelaSupplierSpec>;
+  specs: Map<Rfc, SentryOneSupplierSpec>;
   suppliers: Supplier[];
   cfdis: Cfdi[];
   complements: PaymentComplement[];
@@ -152,10 +152,10 @@ export interface CaseInjector {
   /** Change the cadence before anything is drawn. Optional. */
   plan?(plan: GenerationPlan, rng: Rng): void;
   /** Change the drawn data and report what actually landed. */
-  apply(draft: CeptinelaDraft, rng: Rng): CaseResult;
+  apply(draft: SentryOneDraft, rng: Rng): CaseResult;
 }
 
-export interface CeptinelaOptions {
+export interface SentryOneOptions {
   seed?: number;
   /**
    * Any day inside the current payment-run week. The run is built for the Monday of
@@ -167,7 +167,7 @@ export interface CeptinelaOptions {
   scenarios?: readonly CaseInjector[];
 }
 
-export interface CeptinelaNotes {
+export interface SentryOneNotes {
   /**
    * The run lines the demo opens on, in demo order, one per scenario that landed.
    * The generator names WHICH line carries each scenario; it does not rank them.
@@ -191,7 +191,7 @@ export interface CeptinelaNotes {
   pending: readonly string[];
 }
 
-export interface CeptinelaDataset {
+export interface SentryOneDataset {
   seed: number;
   company: CompanyProfile;
   /** The CFDI history window, inclusive of `from`, exclusive of the run week. */
@@ -203,7 +203,7 @@ export interface CeptinelaDataset {
   /** Stable id of this week's run, the one `GET /api/v1/run/current` reports. */
   runId: string;
   suppliers: Supplier[];
-  merchants: CeptinelaMerchant[];
+  merchants: SentryOneMerchant[];
   cfdis: Cfdi[];
   complements: PaymentComplement[];
   instructions: PaymentInstruction[];
@@ -214,10 +214,10 @@ export interface CeptinelaDataset {
   satEntries: SatListEntry[];
   /** Every object above, as the append-only event stream, in chronological order. */
   events: LedgerEvent[];
-  notes: CeptinelaNotes;
+  notes: SentryOneNotes;
 }
 
-export interface CeptinelaSummary {
+export interface SentryOneSummary {
   suppliers: number;
   cfdis: number;
   complements: number;

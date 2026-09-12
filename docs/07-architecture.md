@@ -3,10 +3,10 @@
 Worth 5 points directly (system design) and it underwrites the algorithmic-logic row, because a
 judge cannot believe the algorithm is real until they can see where it lives and what it touches.
 
-Owner: Patricio (`garzario`). Issue #64. Due M3, drafted at M0, rewritten for Ceptinela after
+Owner: Patricio (`garzario`). Issue #64. Due M3, drafted at M0, rewritten for SentryOne after
 ADR-0002 was accepted, and rewritten again against the merged tree.
 
-Product: Ceptinela, track 3. The thesis and the six controls are in
+Product: SentryOne, track 3. The thesis and the six controls are in
 `docs/adr/0002-track-and-thesis.md`. The domain types are in `packages/core/src/domain.ts` and the
 HTTP contract is in `docs/09-api.md`. Nothing below invents a second shape for either. Every figure
 on this page names the command or the file it came from.
@@ -104,7 +104,7 @@ Four things to say out loud about this diagram.
    the normaliser, that no schema field could carry a judgment, and that it sends no supplier, no
    history and no ledger. ADR-0004.
 3. **The ledger is the spine.** `LedgerEvent` is append-only in the database and not only by
-   convention: `0005_ceptinela_drift.sql` installs a trigger that raises `restrict_violation` on an
+   convention: `0005_sentryone_drift.sql` installs a trigger that raises `restrict_violation` on an
    update or a delete. So the retroactive sweep after a SAT publication is a replay over events that
    already exist, not a recomputation of mutable rows.
 4. **The verification call points back at the API and stops there.** A voice agent that phoned the
@@ -168,8 +168,8 @@ see an event that was not stored.
 
 **What the compute step costs, measured.** `assessRun` in `apps/api/src/assess.ts` puts all six
 controls plus `decide` over the whole seeded payment run: 92 instructions against 4103 CFDIs, 3801
-complements and 2446 bank-mirror rows. Median of five runs after a warm-up on an Apple M3 Pro under
-bun 1.3.11: 1395 ms for the run, 15.2 ms per line. That is the arithmetic only, with no network and
+complements and 2446 bank-mirror rows. Median of five runs after a warm-up, on an Apple M3 Pro under
+bun 1.3.11, measured 2026-09-12: 1387 ms for the run, 15.1 ms per line. That is the arithmetic only, with no network and
 no database in it, and it is the number that does not move when the load does, because there is no
 inference in it. TODO(fabbyyyy): measure the full request on the deployed box in #44, split into
 extraction, read, compute and append, and put the measured milliseconds here. The extraction call
@@ -215,8 +215,8 @@ sequenceDiagram
 
 **The same numbers come out of a pure fold, which is how we know the API is not making them up.**
 `sweep` in `packages/sat/src/sweep.ts` takes `LedgerEvent[]` and nothing else: no database, no clock,
-no network. Over the seeded company (`generateCeptinela({ seed: 69, weekOf: "2026-09-07" })`, 7997
-events) it prices the seeded publication `2026-08-14` in 2.9 ms and returns one newly listed
+no network. Over the seeded company (`generateSentryOne({ seed: 69, weekOf: "2026-09-07" })`, 7997
+events) it prices the seeded publication `2026-08-14` in 3.6 ms and returns one newly listed
 supplier, `SYN080910HI8`, with 24 paid CFDIs, a deducted base of MXN 878,592.59, ISR exposure MXN
 263,577.78, IVA exposure MXN 140,574.81 and a total exposure of MXN 404,152.59. The `newlyListed`
 diff is real: republishing the same RFC on a later version returns zero, because it was already
@@ -233,7 +233,7 @@ same file so that `bank_reconciliation` cannot disagree with the sweep about wha
 | Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 1341 tests across 77 files in 5.8 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
 | TypeScript monorepo, Bun workspaces | Separate repos, or one flat app | All four people commit on day one, and the engine is imported by the API, the tests, the metrics harness and the demo script with nothing published | Nothing in this window |
 | `packages/core`, pure functions, zero runtime dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
-| `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `CEPTINELA_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |
+| `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `SENTRYONE_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |
 | Event-sourced ledger, `ledger_events` append-only | Mutable tables updated in place | The retroactive sweep is a replay. With mutable rows, "what did we deduct to this supplier before it was listed" is unanswerable. Enforced by a trigger that raises, not by convention | Nothing before M5. It is the spine |
 | Hono 4.13.7 | Express, or a framework-free handler | Small, standards-based, portable across the three deploy targets we considered, and `@hono/zod-validator` gives request validation that doubles as the documented contract in `docs/09-api.md` | A target that does not support it |
 | Postgres, one dialect, two hosts | SQLite for the offline path | Two dialects means two implementations and two sets of bugs. Same SQL everywhere, same driver, and the offline fallback is a local Postgres 18 rather than a second database. ADR-0003 | Nothing. This was an explicit correction, and `bun:sqlite` is now forbidden |
@@ -274,7 +274,7 @@ and both are deliberate.
 | `apps/api` | Vultr instance, HTTPS in front | TODO(fabbyyyy): the exact commands, per issue #44, which is still open | `curl /health` and an SSE trace |
 | Database | Tiger Data managed Timescale, or Timescale on the same instance | `bun run migrate` applies the four plain files always and the two Timescale files only when the extension exists | `bun run doctor` names the live path |
 | Offline fallback | Local Postgres 18 on 5432, second API port | Same SQL, same driver, same migrations | `docs/10-demo-script.md`, offline section |
-| No database at all | Any laptop | `SEED=ceptinela bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
+| No database at all | Any laptop | `SEED=sentryone bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
 
 TODO(fabbyyyy): fill the `apps/api` row before M3, including how HTTPS is terminated and which
 environment variables the box needs. The production URL goes in the README and in
@@ -291,7 +291,7 @@ preference.
 | **`apps/ios`**, a native client | ADR-0001 scored it as the strongest originality and privacy story and the worst fit for continuous evaluation: signing and provisioning on the critical path, no link a judge can open, two people idle on UI work. The camera path we do need is a web intake page opened from a QR code | A differentiator that is inherently on-device: on-device inference so raw transactions never leave the phone, lock-screen alerts, NFC or CoDi. ADR-0001 says B is a superset of A in the same repo, never a rewrite, and the deadline for that call was 2026-09-11 22:00 |
 | **`services/ml`**, a Python sidecar | Every one of the six controls is arithmetic, string distance, a state machine or a check digit. A testable TypeScript implementation scores higher on algorithmic logic than an opaque artifact, and it keeps one runtime, one lockfile and one CI job | A model with no TypeScript equivalent that the product genuinely needs. ADR-0001 states the rule as a threshold: under 150 lines of maths goes in `packages/core` |
 | **MongoDB**, including MongoDB Atlas | It is an MLH prize category (`docs/00-challenge.md`), which is exactly why it is named here rather than quietly skipped. Our two write shapes are an append-only event log and a set of projections with foreign keys and check constraints, and both are Postgres shapes. Adopting a document store for a prize would be the sponsor-costume version of the Timescale decision we made honestly | A workload that is genuinely document-shaped. The nearest candidate is raw Nessie payloads, whose `_id` mixes UUIDs and Mongo ObjectIds and whose `amount` mixes integers and floats, and today those live verbatim in `ledger_tx.raw` as `jsonb`, which costs nothing and needs no second database |
-| **A queue or a worker tier** | The sweep is a replay over events that fits in one request at demo scale: 2.9 ms over 7997 events. The SSE fan-out is one process | A second API instance, which is the SSE row of the scaling table below: the fan-out moves to Postgres `LISTEN`/`NOTIFY` and a sweep that no longer fits one request goes behind the same publisher. Until then a queue would be a component with nothing in it |
+| **A queue or a worker tier** | The sweep is a replay over events that fits in one request at demo scale: 3.6 ms over 7997 events. The SSE fan-out is one process | A second API instance, which is the SSE row of the scaling table below: the fan-out moves to Postgres `LISTEN`/`NOTIFY` and a sweep that no longer fits one request goes behind the same publisher. Until then a queue would be a component with nothing in it |
 | **A second database for the SAT list** | A list version is rows in `sat_list_versions` and `sat_list_entries` plus an in-memory index keyed by RFC, rebuilt on load. The committed official snapshot is 14234 rows and 28935 situations, parsed once per process | Nothing at this size. Matching is a hash lookup, so growth changes load time and not query time |
 | **An LLM explanation layer** | ADR-0004 allows one, on demand and outside the decision. It is not built: `Finding.explanation` is deterministic Spanish written by the control that produced the finding | A clerk asking for a rephrasing often enough to be worth the cost model in `docs/06-regulatory-privacy.md`. It never changes an action, a severity or a state |
 
@@ -314,7 +314,7 @@ reassuring.
 | Limit | What happens | The fix, and when it is worth doing |
 |---|---|---|
 | SSE fan-out on one process | `createBroadcaster` is a `Set` of callbacks inside one process, so two API instances do not see each other's events and a browser on instance B misses what instance A appended | Publish through Postgres `LISTEN`/`NOTIFY` on the ledger table. The `LedgerBroadcaster` interface stays and only `createBroadcaster` changes, which is the TODO already written in `apps/api/src/events.ts`. Worth doing the day there is a second instance, not before |
-| Detector work per run | Every control is O(n) over one company's window with no IO. Measured: 15.2 ms per line over 4103 CFDIs and 2446 mirror rows, so a 92-line run costs 1.4 s of arithmetic | Narrow the evidence per line. `composeInputFor` hands every control the whole ledger because the concentration signal needs it as a denominator, so the first fix is a precomputed per-supplier rollup, which is exactly what a continuous aggregate is for. Worth doing when one company's history stops fitting a single read |
+| Detector work per run | Every control is O(n) over one company's window with no IO. Measured: 15.1 ms per line over 4103 CFDIs and 2446 mirror rows, so a 92-line run costs 1.4 s of arithmetic | Narrow the evidence per line. `composeInputFor` hands every control the whole ledger because the concentration signal needs it as a denominator, so the first fix is a precomputed per-supplier rollup, which is exactly what a continuous aggregate is for. Worth doing when one company's history stops fitting a single read |
 | SAT list size | A version is loaded once and matched by hash lookup, so matching is O(1) per supplier. The `sweep` fold indexes the version rather than filtering per RFC, because a filter inside the loop makes publishing quadratic over the 28935 situations the committed snapshot carries | Nothing. Growth in the list changes load time, not query time |
 | Ledger growth | Append-only rows accumulate for every company | This is the Timescale case: `0004` partitions `ledger_events` by `at` and keeps `ledger_events_daily` as a continuous aggregate, so the timeline reads a rollup instead of scanning |
 | The retroactive sweep | A replay over the newly listed suppliers' events | Bounded by what the publication touched and not by the whole ledger: a supplier already listed on a prior version is skipped, so a republication costs nothing |

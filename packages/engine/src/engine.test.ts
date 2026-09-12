@@ -27,7 +27,7 @@ import type {
   SweepResult,
 } from "@hackmty/core";
 import { clabeCheckDigit } from "@hackmty/core";
-import { CEPTINELA_DETECTORS, runControls, sweptExposureFor } from "./index";
+import { runControls, SENTRYONE_DETECTORS, sweptExposureFor } from "./index";
 
 const NOW = "2026-09-11T16:00:00.000Z";
 const SUPPLIER_RFC = "SYN020202BBB";
@@ -252,7 +252,7 @@ describe("runControls", () => {
   });
 
   it("offers the six in the order the domain contract declares them", () => {
-    expect(CEPTINELA_DETECTORS.map((adapter) => adapter.detector)).toEqual([
+    expect(SENTRYONE_DETECTORS.map((adapter) => adapter.detector)).toEqual([
       ...ALL_SIX,
     ]);
   });

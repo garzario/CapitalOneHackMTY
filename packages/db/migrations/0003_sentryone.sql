@@ -1,6 +1,6 @@
--- packages/db/migrations/0003_ceptinela.sql  runs on ANY Postgres 16+
+-- packages/db/migrations/0003_sentryone.sql  runs on ANY Postgres 16+
 --
--- The Ceptinela schema. Column names are snake_case versions of the fields in
+-- The SentryOne schema. Column names are snake_case versions of the fields in
 -- packages/core/src/domain.ts, one for one, so a reader can hold the TypeScript
 -- type and the table side by side. The mapping is restated in
 -- packages/db/src/queries.ts, which is the only file that writes these tables.
@@ -13,7 +13,7 @@
 -- 2. Money is numeric(14,2) everywhere, the same as ledger_tx in 0001. postgres.js
 --    returns numerics as strings, which is what keeps a peso from turning into a
 --    float on the way out.
--- 3. Nothing here depends on an extension. 0004_timescale_ceptinela.sql adds the
+-- 3. Nothing here depends on an extension. 0004_timescale_sentryone.sql adds the
 --    hypertable and the continuous aggregate, and is skipped on a plain Postgres,
 --    exactly like 0002 does for ledger_tx.
 --

@@ -23,7 +23,6 @@ import type { Cep, LedgerEvent } from "@hackmty/core";
 import { createSql, type Sql } from "@hackmty/db";
 import { RUN_SIZE_MAX, RUN_SIZE_MIN } from "@hackmty/seed";
 import { migrate } from "../../../packages/db/src/migrate";
-import { ceptinelaDataset } from "./ceptinela";
 import { PostgresRepository } from "./postgres-repo";
 import { MemoryRepository } from "./repo";
 import {
@@ -40,6 +39,7 @@ import {
   supplierDetailSchema,
   sweepResultSchema,
 } from "./schemas";
+import { sentryoneDataset } from "./sentryone";
 import { createTestApp, flush, TEST_NOW } from "./test-app";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -89,7 +89,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
     await migrate(sql);
     pg = new PostgresRepository(sql);
     await pg.load({ seed: SEED });
-    memory = new MemoryRepository(SEED, ceptinelaDataset);
+    memory = new MemoryRepository(SEED, sentryoneDataset);
   }, REMOTE_TIMEOUT_MS);
 
   afterAll(async () => {
@@ -536,7 +536,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
         const before = await pg.currentRun();
         expect(before.id).toBe("run-2026-09-07");
         expect(before.items.length).toBe(
-          (await new MemoryRepository(SEED, ceptinelaDataset).currentRun())
+          (await new MemoryRepository(SEED, sentryoneDataset).currentRun())
             .items.length,
         );
 
@@ -582,11 +582,11 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
 
         expect(res.status).toBe(200);
         // `.strict()` is the assertion: the endpoint promises four keys, and the
-        // whole CeptinelaLoadResult leaking through would be a second shape the
+        // whole SentryOneLoadResult leaking through would be a second shape the
         // web app never agreed to.
         const summary = seedResponseSchema.strict().parse(await res.json());
 
-        const fromMemory = new MemoryRepository(0, ceptinelaDataset);
+        const fromMemory = new MemoryRepository(0, sentryoneDataset);
         const fromMemorySummary = await fromMemory.reset(0);
         expect(summary.suppliers).toBe(fromMemorySummary.suppliers);
         expect(summary.instructions).toBe(fromMemorySummary.instructions);
@@ -607,7 +607,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
     it(
       "maps seed 0 to the default company, exactly as MemoryRepository does",
       async () => {
-        // `loadCeptinela(0)` is a different company from `loadCeptinela()`, and
+        // `loadSentryOne(0)` is a different company from `loadSentryOne()`, and
         // the memory store has always read 0 as "no seed given". Passing the
         // literal 0 through to the generator made the two stores answer
         // `POST /api/v1/seed` with two different runs.

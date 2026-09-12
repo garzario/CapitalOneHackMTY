@@ -7,13 +7,13 @@
 
 ## Decision
 
-Track 3, Real-Time Anomaly & Security Sentinel. Product: **Ceptinela** (working name, domain
-`ceptinela.tech`), the merge of the two finalist ideas TIMBRE (payment-run sentinel over CFDI and the
-SAT Article 69-B list) and CEPTINELA (beneficiary verification with the Banxico CEP before an
+Track 3, Real-Time Anomaly & Security Sentinel. Product: **SentryOne** (working name, domain
+`sentryone.tech`), the merge of the two finalist ideas TIMBRE (payment-run sentinel over CFDI and the
+SAT Article 69-B list) and SENTRYONE (beneficiary verification with the Banxico CEP before an
 irrevocable SPEI).
 
 **Thesis, one sentence:** the payments clerk of a Mexican SMB can stop a fiscally toxic, duplicated or
-misdirected SPEI before it leaves, because Ceptinela joins, at the moment of payment, three data sources
+misdirected SPEI before it leaves, because SentryOne joins, at the moment of payment, three data sources
 nobody else joins: the company's own CFDI ledger, the SAT's official Article 69-B list, and the CEP that
 Banxico signs for every SPEI.
 
@@ -30,7 +30,7 @@ Banxico signs for every SPEI.
 4. **Supplier behaviour change.** Issuance rate, amount and concentration drift versus the supplier's
    own history, with explicit validity gating on sample size.
 5. **Beneficiary verification with the CEP.** A one-cent SPEI probe is sent by a human from the
-   company's bank; Ceptinela fetches the Banxico CEP, validates the digital signature and compares the
+   company's bank; SentryOne fetches the Banxico CEP, validates the digital signature and compares the
    account holder name with the CFDI legal name. The result is stored as evidence in a per-company
    registry of verified beneficiaries.
 6. **Expected-loss decision.** Hold, verify or release, weighing the amount at risk against the real
