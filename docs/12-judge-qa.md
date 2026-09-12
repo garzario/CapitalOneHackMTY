@@ -279,6 +279,160 @@ analytics store, and we never compute on the shared enterprise pool.
 **What did you cut, and why.** The `cut` label on the board, with one line of reasoning per issue,
 listed in `docs/14-process.md`. Name two specific ones out loud, including one you wanted.
 
+## Table feedback of 12 September and the answers
+
+Three Capital One judges, two engineers and one product person, came to the table on the afternoon of
+2026-09-12 and the table went badly. What follows is what they said and the answer to give next time,
+each one in about thirty seconds. Every sentence here is checked against the code, and the file or the
+endpoint it rests on is named once. Issue #171.
+
+The rule that produced this section, and it is the rule for adding to it: **an answer that is not true
+in the repository today is written as "today X, and by the demo Y", with the issue number that makes it
+Y.** A judge who finds the gap costs more than the gap.
+
+### 1. "Do you know who your competition is?" We could not answer
+
+> Si. Dos directos mexicanos, tres plataformas globales, y el statu quo. Los mexicanos corren sobre
+> una lista: 69b.mx monitorea RFCs por ciento noventa y nueve pesos al mes, y Tesio cruza los CFDI que
+> ya descargaste contra la lista actualizada desde cuatrocientos noventa y nueve. Ninguno de los dos ve
+> nunca la cuenta a la que esta por salir el dinero. Las tres globales de verificacion de beneficiario,
+> Trustpair, nsKnox y Eftsure, si ven la cuenta y no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en nada
+> de su material publico que hayamos encontrado. Y el statu quo es el contador con una hoja de calculo
+> y WhatsApp. Nosotros somos el unico que junta las tres cosas en el momento del pago.
+
+Rests on: `docs/04-market.md#competitor-map`, where every company named is named with its own published
+material and its access date. The market, the gap and the sizing are issue #169 and land in `docs/04`,
+`docs/02` and the sections above.
+
+### 2. "My father has a PyME and talks to his suppliers constantly. I am not your user"
+
+> Correcto, usted no es el usuario. El usuario no es el dueno que conoce a cinco proveedores por la
+> voz. Es la empresa cuya corrida del jueves le paga a decenas de proveedores a traves de una sola
+> persona de administracion, que no conoce a ninguno por la voz y que no puede llamarle a cuarenta y
+> cuatro. Y hay algo mas importante: el WhatsApp y el correo del proveedor son precisamente el canal
+> que usa el atacante. Confiar en la conversacion no es la defensa, es el modo de falla. Y la perdida
+> del articulo 69-B no necesita fraude de nadie: nadie le robo nada, el SAT publico una lista, y las
+> deducciones que ya tomo se anularon.
+
+Rests on: `docs/02-persona.md` for the person, and the narrative rule in
+`docs/adr/0002-track-and-thesis.md` that keeps the hook fiscal instead of "me cambiaron la cuenta". The
+demo company is 28 employees with 44 suppliers over eight months of history, printed by `bun run seed`.
+
+### 3. "What is the market, the model, the competition, what are you solving, is it worth anything?"
+
+> Doscientos cuarenta y seis mil empresas mexicanas de once a doscientos cincuenta personas, y el
+> tamano se construye de abajo hacia arriba, entidades por precio, con cada insumo citado. Cobramos
+> ochocientos noventa y nueve pesos al mes a la empresa y tres mil novecientos al despacho contable que
+> trae veinte. Se paga con una sola factura detenida de veintitres mil cuatrocientos cincuenta y dos
+> pesos de subtotal al ano. Y si despues de doscientos barridos gratuitos menos del cinco por ciento
+> destapa un RFC listado o un beneficiario no verificable, el problema es demasiado raro en este
+> segmento y paramos. Esa prueba corre sobre la cuna, cuesta un mes y no un ano.
+
+Rests on: `docs/04-market.md#sizing` and `docs/05-business-model.md`. The stop condition is the last
+row of `docs/05`, and volunteering it is the point: a business model with no falsification test is a
+pitch.
+
+### 4. "In real life this takes 8 minutes and with your product it takes seconds." They did not care
+
+They were right, and the sentence is out of the pitch.
+
+> Tiene razon, los ocho minutos no valen nada. Lo que vale es la perdida que no ocurrio, y por eso la
+> corrida contesta en pesos y no en minutos: cuanto se detuvo, cuanto se libero, y cuanto de lo que ya
+> pagamos y ya dedujimos quedo expuesto. De un subtotal rechazado se revierte el cuarenta y seis por
+> ciento entre ISR e IVA, asi que una factura de cien mil pesos de subtotal detenida paga cincuenta y
+> un meses de suscripcion, y un SPEI mal dirigido del mismo monto paga ciento once, porque ahi no hay
+> nada que revertir. No decimos con que frecuencia pasa. Eso es justo lo que mide el barrido gratuito.
+
+Rests on: `GET /api/v1/run/current`, whose `totals` now carry `heldAmount`, `toVerifyAmount`,
+`releasedAmount`, `stoppedAmount`, `amountAtRisk`, `retroactive69bBase` and `retroactive69bExposure`,
+from `runMoney` in `packages/core/src/exposure.ts`. The two 69-B fields are what the run's own findings
+price, and they read zero until a sweep has priced a supplier this run pays; the whole-ledger figure for
+one publication is `SweepResult.totalExposure` on `POST /api/v1/sat/publish` and on the sweep
+constancia. Today the run screen shows the pesos it stopped and not the retroactive pair, and by the
+demo it shows both (#174); folding the newest sweep into the run counter so it climbs on stage is #175.
+
+### 5a. "What if the person does not answer the call?"
+
+> Nadie contestando es una respuesta, no un hueco. El lector de la llamada la clasifica como no_answer,
+> que incluye el buzon de voz, y eso queda en la bitacora con la frase que se escucho. El pago sigue
+> detenido: la llamada no libera nada, nunca. Y en la misma respuesta viene el plazo y los siguientes
+> pasos: volver a llamar, verificar la cuenta con un centavo, que no necesita que nadie conteste nada,
+> o liberar con nombre y con razon escrita. La retencion trae fecha limite, tres dias, y el reintento se
+> acota con esa fecha y no con un contador.
+
+Rests on: `parseVerificationOutcome` in `packages/voice/src/outcome.ts` for the four outcomes, and
+`POST /api/v1/instructions/:id/verify-call`, whose recorded response carries `hold` with the deadline
+and the ordered `nextSteps` from `holdWindow` in `packages/core/src/hold.ts`. Two properties worth
+volunteering: `releasesPayment: false` is on every response of that endpoint, and after a `denied` the
+only step offered is `keep_held`, because suggesting "libera de todos modos" next to the supplier's own
+denial would be the product arguing against its own finding. Today the deadline and the steps are in
+the API and not yet on the screen, and by the demo they are on the instruction detail (#174).
+
+### 5b. "What if it is urgent and nobody answers?"
+
+> Se libera, y se libera bien. Hay salida y esta dentro del producto, porque una retencion sin salida
+> se brinca por fuera, donde no queda registro de nada. El pago se libera con el nombre de quien lo
+> decide y con la razon escrita, y en la pantalla en ese momento estan los pesos en riesgo, la perdida
+> esperada y lo que cuesta retrasar ese pago un dia. Queda como evento decision_made en una bitacora
+> que solo crece.
+
+Rests on: `POST /api/v1/instructions/:id/decide`, which takes `decidedBy` and `reason` and answers
+`amountAtRisk` next to the decision; the argument is stored on `decisions.reason`
+(`packages/db/migrations/0009_decision_reason.sql`) and travels on the `decision_made` event. The
+expected loss and the delay cost are already on the instruction screen beside the three buttons, in
+`apps/web/src/screens/InstructionScreen.tsx`. Honest gap: that screen still sends a fixed `clerk@demo`
+and does not ask for the reason before an override, so today the reason is recorded when it is sent and
+by the demo the screen asks for it under the person's own name (#174). The API deliberately does not
+refuse a release with no prose, because an API that did would be refused by the clerk instead, outside
+the product.
+
+### 5c. "What if the calculation is wrong? How sure are you about the percentages?"
+
+> Los dos errores no cuestan lo mismo, y el producto esta escrito alrededor de eso. Un falso positivo
+> cuesta un retraso, y el retraso esta acotado por la fecha limite de la retencion y valuado en pesos
+> por dia dentro de la decision misma. Un falso negativo cuesta el monto completo y es irrevocable.
+> Ademas ningun hallazgo es una acusacion: cada uno trae su evidencia en pantalla y decide una persona.
+> Y dos de los seis controles no son estimaciones, son hechos: que un RFC este en la lista del 69-B, y
+> que el titular de la cuenta en un comprobante que firma Banxico sea o no la razon social del CFDI que
+> estamos pagando.
+>
+> De los numeros: treinta casos etiquetados por quien no escribe los detectores, ochenta y cinco por
+> ciento de precision, ochenta y uno de recall, uno punto nueve por ciento de falsos positivos, y el
+> motor eligio la accion etiquetada en veintiocho de treinta. Son casos sinteticos y lo decimos. La
+> calibracion de verdad es despues del hackathon: modo sombra con un socio de diseno, sobre corridas
+> reales, y si despues de doscientos barridos menos del cinco por ciento destapa algo, paramos.
+
+Rests on: the asymmetry is `decide` in `packages/core/src/decision.ts`, whose header says the tie goes
+to paying and why; the deadline is `holdWindow`, built on the same `EXPECTED_DELAY_DAYS` table the
+expected loss was weighed against, so the arithmetic and the promise on screen cannot drift apart. The
+numbers come from `scripts/eval.ts` over the thirty cases in `packages/seed/src/holdout/cases`, served
+by `GET /api/v1/metrics`, and they were re-run on this branch before this section was written. Read them
+off a fresh run, never from memory.
+
+One thing to volunteer rather than defend: **the loss probability per severity is a prior, not a
+measurement.** `LOSS_PROBABILITY_BY_SEVERITY` in `decision.ts` carries three numbers with a `TODO` on
+top saying exactly that, and the UI says so too. What is not a prior is the amount at risk: it is the
+instruction's own pesos plus, for a listed supplier, the ISR and IVA that reverse on the subtotal
+already deducted, at the published rates. The shape of the table is the argument, the values are the
+assumption, and they sit in one place so tuning the engine is a one-line diff a reviewer can see.
+
+### 6. "The judges looked uninterested. It did not seem like a real problem"
+
+That is a hook failure and not a product failure, so the fix is the first sentence and not the build.
+
+> Dos cosas son ciertas cuando le pagas a un proveedor en Mexico. Si ese proveedor aparece en la lista
+> del articulo 69-B del SAT, las deducciones que ya tomaste sobre sus facturas se anulan de forma
+> retroactiva, y tienes treinta dias desde la publicacion para responder. La lista cambio treinta y
+> tres veces en doce meses, una cada once dias. Y una vez que sale el SPEI es firme e irrevocable. La
+> exposicion la crea la publicacion, no el pago, asi que revisar al proveedor cuando lo diste de alta
+> no protege nada. Esto no necesita que nadie te defraude.
+
+Rests on: the hook table at the top of `docs/11-pitch.md`, with both halves cited at their primary
+source, Codigo Fiscal de la Federacion article 69-B and Ley de Sistemas de Pagos article 11. Say it
+first, every time. The honest gap to volunteer in the same breath: we have no frequency figure for how
+often this bites a company of this size, and the free supplier-register sweep in the go-to-market is
+the thing that measures it.
+
 ## Rules for this sheet
 
 - The honest gap is mandatory and it is the highest-value line here. A volunteered gap reads as

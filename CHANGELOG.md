@@ -18,6 +18,43 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
+  behaviour that makes four of them true rather than asserted (issue #171). A held payment now
+  carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same
+  `EXPECTED_DELAY_DAYS` table `decide` weighed the expected loss against, so the delay the arithmetic
+  charged for and the deadline a clerk is promised are one number and cannot drift, three days for a
+  hold and one for a verification, measured from the decision's own instant. The deadline decides
+  nothing when it passes, which is binding under ADR-0002: `expired` turns true, the payment goes
+  back in front of a person, and what the deadline actually buys is a bound on the retry loop. The
+  window carries ordered `nextSteps`, and the one worth saying out loud is `one_cent_cep`, because it
+  needs nobody to answer a telephone; after a `denied` the only step offered is `keep_held`, since
+  suggesting a release next to the supplier's own denial would be the product arguing against its own
+  finding. `GET /api/v1/instructions/:id` answers it, and so does a recorded
+  `POST /api/v1/instructions/:id/verify-call`, which is how "nadie contesto" and "y ahora que" arrive
+  in the same response. `POST /api/v1/instructions/:id/decide` takes a `reason` next to the required
+  `decidedBy` and answers the `amountAtRisk` it was decided against: an urgent payment can be released
+  under a named person's responsibility with a written argument, and both land on the `decision_made`
+  ledger event and on `decisions.reason` (`packages/db/migrations/0009_decision_reason.sql`), because a
+  hold with no way out is bypassed outside the product where nothing is recorded at all. And the run
+  answers in pesos rather than in line counts: `runMoney` in `packages/core/src/exposure.ts` puts
+  `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount`, `amountAtRisk`,
+  `retroactive69bBase` and `retroactive69bExposure` on the `totals` of `GET /api/v1/run/current`, with
+  the 69-B pair counted once per supplier because the sweep prices it per supplier and one supplier can
+  sit on three payments in one week. `docs/09-api.md` and `docs/08-data-model.md` carry the contract
+  and the column. The same pass corrects a number the pitch said out loud: the listed-supplier
+  scenario summed its deducted base over the settled invoices and then reported the supplier's whole
+  invoice count next to it, so `docs/11-pitch.md` and `docs/08-data-model.md` said 31 invoices while
+  `docs/07-architecture.md` and `bun run demo` said 24 paid ones for the same MXN 878,592.59. The
+  note in `packages/seed/src/sentryone/scenarios.ts` now counts the set the base was summed over, and
+  the two docs say 24 of 31.
+
+- `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
+  problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one
+  line each, the business model in three sentences, and the six objections of 2026-09-12 with the
+  answer to say out loud. It uses `docs/print/print.css` and the visual system of `judge-card.html`,
+  and `docs/print/README.md` states the rule that governs it: no number reaches that card that is not
+  already in `docs/04`, `docs/05` or `docs/11`.
+
 - The one-cent verification travels inside the payment run, with nobody typing (issue #166).
   `packages/rail` is the new workspace and the only place in the product that sends money: one
   amount, 0.01 MXN, behind a `PaymentRail` interface with three adapters. `NessieRail` records the
@@ -347,6 +384,23 @@ then the screens, then the narrative, then the plumbing.
   where the line between "no verificada" and "invalida" is drawn.
 
 ### Changed
+
+- `docs/12-judge-qa.md` gains "Table feedback of 12 September and the answers": the six objections,
+  a thirty-second answer each, and the file or the endpoint each answer rests on named once. The rule
+  it is written under is the one to keep: an answer that is not true in the repository today is written
+  as "today X, and by the demo Y" with the issue that makes it Y, which is why the screen work is
+  #174 and folding the newest sweep into the run counter is #175.
+
+- `docs/11-pitch.md` drops the minutes framing for the loss framing. "En la vida real esto toma ocho
+  minutos y con nuestro producto toma segundos" is now banned in Delivery rules rather than merely
+  discouraged: it prices the product at the wage of the person doing the work, which anyone can
+  compute while you are still talking, and it invites the objection the second engineer gave us. The
+  new section "The value is the loss, not the minutes" says what replaces it, and "The objection about
+  the father's PyME" answers that engineer: the user is not the owner who knows his suppliers by
+  voice, it is the company whose Thursday run pays dozens of them through one clerk, the supplier's own
+  WhatsApp is the channel the attacker uses so trusting the conversation is the failure mode and not
+  the defence, and the 69-B loss needs no fraud at all. The gated table gains the two rows these
+  changes let us say, and the numbers table gains the hold window.
 
 - The three questions three Capital One judges asked at the table on 2026-09-12 in the afternoon are
   answered with sources, and one claim we had been making is withdrawn (issue #173). They asked, one

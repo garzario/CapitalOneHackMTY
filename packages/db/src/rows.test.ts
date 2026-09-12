@@ -353,6 +353,7 @@ describe("finding and decision rows", () => {
       delay_cost_per_day: "665.00",
       decided_at: new Date("2026-09-11T16:30:00.000Z"),
       decided_by: null,
+      reason: null,
       findings: [
         {
           id: finding.id,

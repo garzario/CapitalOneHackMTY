@@ -9,6 +9,8 @@ export * from "./clabe";
 export * from "./decision";
 export * from "./domain";
 export * from "./duplicates";
+export * from "./exposure";
+export * from "./hold";
 export * from "./money";
 export * from "./network";
 export * from "./reconciliation";

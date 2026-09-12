@@ -124,6 +124,7 @@ erDiagram
     numeric delay_cost_per_day
     timestamptz decided_at
     text decided_by "null until a person decides"
+    text reason "what that person wrote, null on the engine proposal"
   }
   DECISION_FINDING {
     bigint decision_id PK "references decisions"
@@ -228,6 +229,7 @@ laptops.
 | `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events |
 | `0009_consortium_snapshot.sql` | any Postgres 16+ | `consortium_snapshot` and the one-row `consortium_pull`: the local projection of the cross-tenant network |
 | `0010_rail_events.sql` | any Postgres 16+ | `cent_sent` and `cep_awaited` as ledger event types, the two the one-cent verification appends |
+| `0011_decision_reason.sql` | any Postgres 16+ | `decisions.reason`, the argument a person wrote when they overrode the engine, next to the name in `decided_by` |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
@@ -625,8 +627,9 @@ demo path, not evidence. `clabe_two_digits_off` puts `SYN990202S02` on an accoun
 the one with a hundred payments behind it with a valid check digit, MXN 38,417.48 at risk;
 `invalid_check_digit` arrives as a photographed PDF at OCR confidence 0.82; `duplicate_invoice`
 puts an invoice a complement already settled back on the run; `listed_supplier_69b` puts a supplier
-of two years on the simulated publication with MXN 878,592.59 of base already deducted across 31
-invoices.
+of two years on the simulated publication with MXN 878,592.59 of base already deducted, across 24 of
+their 31 invoices: the base counts the settled ones only, because an invoice nobody has paid yet was
+not deducted yet and carries no retroactive exposure.
 
 **In the holdout set**, 10 of the 30 labelled cases are negatives, and they are where the
 false-positive rate is actually computed. The overlap with the list above is deliberate and the two

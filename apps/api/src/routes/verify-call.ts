@@ -24,12 +24,24 @@
  * **The account is never spoken in full.** The script carries four digits. The
  * ledger event carries four digits. Neither carries the CLABE.
  *
+ * **Nobody answering is an answer, and it says what to do next.** A Capital One
+ * judge asked what happens when the supplier does not pick up. The response that
+ * reports `no_answer` carries `hold`: how long the payment stays stopped, and the
+ * ordered next steps, one of which is the one-cent CEP path that needs nobody to
+ * answer anything at all. The deadline is what bounds the retry loop, and nothing
+ * is released or refused when it passes.
+ *
  * It is mounted as a second router on `/instructions` rather than added to
  * `routes/instructions.ts`, so this feature is one file that can be reverted in
  * one commit while three other people edit that one.
  */
 
-import type { VerificationOutcome, VerificationTurn } from "@hackmty/core";
+import type {
+  Decision,
+  VerificationOutcome,
+  VerificationTurn,
+} from "@hackmty/core";
+import { holdWindow } from "@hackmty/core";
 import {
   parseVerificationOutcome,
   scriptForInstruction,
@@ -187,6 +199,7 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               evidence: body.evidence,
               transcript: [],
               manual: true,
+              decision: detail.decision,
             }),
           );
         }
@@ -241,6 +254,7 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               transcript: conversation.transcript,
               conversationId: conversation.conversationId,
               manual: false,
+              decision: detail.decision,
             }),
           );
         }
@@ -290,6 +304,8 @@ interface RecordInput {
   transcript: VerificationTurn[];
   conversationId?: string;
   manual: boolean;
+  /** The standing decision, so the answer can say how long the hold lasts. */
+  decision: Decision | null;
 }
 
 /**
@@ -325,6 +341,12 @@ async function record(
     outcome: input.outcome,
     transcript: input.transcript,
     releasesPayment: false,
+    /* Null when the payment was already released, which is the one case where
+       there is no window to report and no next step to offer. */
+    hold:
+      input.decision === null
+        ? null
+        : holdWindow(input.decision, { now: at, outcome: input.outcome }),
   };
   if (input.evidence !== undefined) {
     response.evidence = input.evidence;
