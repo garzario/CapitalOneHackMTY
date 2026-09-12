@@ -27,7 +27,7 @@ Last scored **2026-09-12 04:54 CST**, just past the M1 gate, against `dev` at `8
 | 11 | Adoption strategy, GTM (5) | Three steps from a named beachhead category, accounting firms serving 11 to 250 person companies in the Monterrey corridor, opened with a free supplier-register sweep, and no company named that has not agreed to anything | `docs/05-business-model.md#gtm-in-three-steps` (PR #93) | G |
 | 12 | Specific user persona (7) | One named quantified composite, Lupita Elizondo, plus a corporate-treasury anti-persona, with the two venue interviews carried as open tasks rather than invented quotes | `docs/02-persona.md`, `docs/02-persona.md#pending-human-validation`, `assets/persona/lupita-elizondo.png` (PR #114) | Y |
 | 13 | Structured user journey map (7) | Six stages from XML receipt to archived evidence, each mapped to the screen and the ledger event that carry it, with three human-decision branches including the false positive, and every one of those screens designed in four states rather than a happy path | `docs/03-user-journey.md#stage-by-stage-map`, `apps/web/src/screens/`, `apps/web/src/screens/states.test.ts` (PR #114, PR #115, PR #124, PR #127) | Y |
-| 14 | Pitch (6) | Three timed variants, the eight hardest questions answered, a per-person answer sheet and a printable A5 judge card with a repository QR that was decoded before it was committed | `docs/11-pitch.md`, `docs/12-judge-qa.md`, `docs/print/judge-card.html`, `docs/print/README.md` (PR #98, PR #120) | Y |
+| 14 | Pitch (6) | Three timed variants in Mexican Spanish opening with the fiscal hook cited to CFF 69-B and the Ley de Sistemas de Pagos, the eight hardest questions answered in one breath each, a gate table of which sentences may be spoken today, a table of the only numbers we are allowed to say with the source of each, a per-person answer sheet and a printable A5 judge card with a repository QR that was decoded before it was committed | `docs/11-pitch.md`, `docs/12-judge-qa.md`, `docs/13-devpost.md`, `docs/print/judge-card.html`, `docs/print/README.md` (PR #98, PR #120, PR #131) | Y |
 | plus | Engineering process (not scored directly) | 39 merged PRs on a board with nine views, every PR body naming what it deliberately did not do, five ADRs, and a written cut list | `docs/14-process.md`, `docs/adr/`, the project board, PR #117, PR #118, PR #119 | Y |
 
 ## Why the yellow rows are yellow
@@ -41,7 +41,7 @@ turn it green. Nothing else belongs in this list.
 | 7 | `scripts/demo.ts` still drives the pre-Ceptinela generator rather than the payment run, and there is no live URL for a judge to open on their own phone | #63, #44 |
 | 12 | The two venue conversations in `docs/02-persona.md#pending-human-validation` have not happened, so the workload numbers are synthetic and are labelled as such | #52, closed with those two acceptance criteria deliberately left unchecked rather than ticked |
 | 13 | The same two conversations, plus the constancia PDF that stage 6 of the journey names | #69 |
-| 14 | Slides 6 to 8 of `docs/11-pitch.md` still carry `TODO(FabriBanda)`, no rehearsal has been run and no video exists | #73, #75, #56 |
+| 14 | No rehearsal has been run and no video exists. The market, model and regulation block of the pitch now carries cited numbers instead of the `TODO(FabriBanda)` the slide table used to carry | #73, #75 |
 | plus | Build night mode has the approval gate off, so no merged PR carries a post-merge review thread yet. The PR bodies carry the reasoning in the meantime | `docs/14-process.md` |
 
 ## Self-score
