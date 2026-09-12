@@ -1,0 +1,22 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"rawText\": \"Deposito a CLABE\\n0585 8000 0723 4567 74\",\n  \"clabe\": \"058580000723456774\",\n  \"amount\": null,\n  \"supplierHint\": null,\n  \"clarity\": 0.81\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1748,
+    "candidatesTokenCount": 80,
+    "totalTokenCount": 1828
+  },
+  "modelVersion": "gemini-2.5-flash"
+}

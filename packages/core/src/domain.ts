@@ -91,7 +91,9 @@ export interface PaymentInstruction {
   text?: string;
   /** Reference to an uploaded image (QR intake). OCR result goes into `clabe`. */
   imageRef?: string;
-  /** Confidence of the OCR when the CLABE came from an image, 0 to 1. */
+  /** Reference to an uploaded voice note. Its transcript goes into `text`. */
+  audioRef?: string;
+  /** Confidence of the transcription when the CLABE came from a file, 0 to 1. */
   ocrConfidence?: number;
   /**
    * When the company marked the SPEI as sent, projected from the `payment_sent`

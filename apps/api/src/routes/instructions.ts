@@ -42,6 +42,7 @@ export function instructionRoutes(deps: ApiDeps) {
           deps.repo,
           deps.clock,
           c.req.valid("json"),
+          deps.extractor,
         );
 
         if (!outcome.ok) {
