@@ -1,6 +1,6 @@
 # ADR-0001: Bun and TypeScript monorepo, with the intelligence as a pure package
 
-- **Status:** Proposed
+- **Status:** Accepted, 2026-09-12 02:30 CST. Option A. No Python sidecar: every detector fits in TypeScript
 - **Date:** 2026-09-11
 - **Deciders:** `garzario`, with `fabbyyyy`
 - **Affects:** the whole tree, `docs/07-architecture.md`, milestone M0

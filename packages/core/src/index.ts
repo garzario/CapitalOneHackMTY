@@ -6,3 +6,4 @@
 export * from "./money";
 export * from "./rolling";
 export * from "./types";
+export * from "./domain";

@@ -1,21 +1,23 @@
-# TODO(product) Product name, TODO(product) seven-word promise
+# Ceptinela, the last control before an irrevocable SPEI
 
 <!-- TODO(product) assets/demo.gif here: under 6 MB, looping, 10 to 15 seconds, no cursor jitter -->
 
 **Demo video:** TODO(product) link | **Live:** TODO(product) production URL | HackMTY 2026,
-Capital One track TODO(product) N
+Capital One track 3, Real-Time Anomaly & Security Sentinel
 
 ## The problem
 
-TODO(product) Three sentences. One cited number with its source. One named persona from
+A Mexican SMB pays its suppliers by SPEI, which is instant and irrevocable. If the supplier sits on the SAT's definitive Article 69-B list, every deduction from that supplier is voided retroactively and the money is already gone. Ceptinela runs six explainable controls over the company's own CFDI ledger, the official SAT list and the Banxico-signed CEP at the moment of payment, and holds the transfer with the evidence on screen. TODO(FabriBanda) one cited number with its source and the persona from
 [`docs/02-persona.md`](docs/02-persona.md). Write it so a judge reading on a phone understands who
 loses money today and how much.
 
 ## What it does
 
-- TODO(product) Outcome, not feature.
-- TODO(product) Outcome, not feature.
-- TODO(product) Outcome, not feature.
+- Stops a payment to a supplier the SAT has listed, and quantifies the ISR and IVA already exposed.
+- Catches a CLABE that differs from the supplier's history, fails its check digit or changed bank without a payment complement behind it.
+- Proves who owns the destination account with a Banxico-signed CEP and keeps it as evidence.
+- Flags duplicate invoices and suppliers whose billing behaviour changed.
+- Decides hold, verify or release by expected loss, and always leaves the final call to a person.
 
 ## Why it is different
 
