@@ -12,6 +12,8 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- A quantified composite payment-clerk persona, explicit corporate-treasury anti-persona, and a
+  screen-mapped journey covering false positives, partial name matches and legitimate bank changes.
 - Ceptinela brand layer and the rationale behind the design system: the name lockup in
   `apps/web/src/components/Wordmark.tsx`, the favicon, touch icon and social card in
   `apps/web/public/` with their sources in `apps/web/brand/`, and `docs/design.md`. The token
