@@ -37,9 +37,11 @@ import {
   countCeptinela,
   countLedgerEvents,
   currentPaymentRun,
+  deleteLedgerTxForAccount,
   findingsFor,
   findingsForSubjects,
   findingsForSupplier,
+  getCompany,
   getInstruction,
   getSupplier,
   getVerifiedBeneficiary,
@@ -58,6 +60,7 @@ import {
   listCfdisByUuid,
   listComplementsForCfdis,
   listLedgerTx,
+  listPaidCfdisByIssuer,
   listSatVersions,
   listSuppliers,
   listUnassessedInstructions,
@@ -68,6 +71,7 @@ import {
   recordKnownAccount,
   truncateCeptinela,
   truncateLedger,
+  upsertCompany,
   upsertSupplier,
   upsertVerifiedBeneficiary,
 } from "./queries";
@@ -525,6 +529,34 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       expect((await countCeptinela(sql)).decisions).toBe(2);
     });
 
+    it("answers with the row appended last, even when it was decided earlier", async () => {
+      // The engine stamps a seeded decision at the instant the run was prepared,
+      // and that instant sits ahead of the clerk's wall clock whenever the run
+      // day is ahead of today. Ordered by decided_at, the clerk's hold would be
+      // appended and never returned, and the screen would keep showing the
+      // engine's answer to a question a person already answered.
+      const evidence = finding("fnd-late", "INS-1", 31320);
+      await insertFindings(sql, [evidence]);
+      const engine: Decision = {
+        instructionId: "INS-1",
+        action: "verify",
+        expectedLoss: 31320,
+        delayCostPerDay: 640,
+        findings: [evidence],
+        decidedAt: "2026-09-30T15:00:00.000Z",
+      };
+      const clerk: Decision = {
+        ...engine,
+        action: "hold",
+        decidedAt: "2026-09-11T09:00:00.000Z",
+        decidedBy: "ana.tesoreria",
+      };
+      await insertDecision(sql, engine);
+      await insertDecision(sql, clerk);
+
+      expect(await latestDecision(sql, "INS-1")).toEqual(clerk);
+    });
+
     it("refuses a decision that cites a finding the database does not hold", async () => {
       await expect(
         insertDecision(sql, {
@@ -644,6 +676,30 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
         "INS-last",
       ]);
     });
+
+    it("keeps the Monday but drops the upper bound when the run is open ended", async () => {
+      // The run screen reads it this way. An intake that lands next Monday joins
+      // the run the clerk has open instead of starting a second one, which is
+      // what the in-memory store does by holding one list; the week before is
+      // still not part of it.
+      await upsertSupplier(sql, supplier);
+      await insertInstructions(sql, [
+        instruction("INS-before", "2026-09-07T05:30:00.000Z"),
+        instruction("INS-first", "2026-09-07T06:30:00.000Z"),
+        instruction("INS-next-week", "2026-09-14T06:30:00.000Z"),
+      ]);
+
+      expect(
+        (await currentPaymentRun(sql, "2026-09-07", { openEnded: true })).map(
+          (item) => item.instruction.id,
+        ),
+      ).toEqual(["INS-first", "INS-next-week"]);
+      expect(
+        (await currentPaymentRun(sql, "2026-09-07")).map(
+          (item) => item.instruction.id,
+        ),
+      ).toEqual(["INS-first"]);
+    });
   });
 
   describe("the SAT list", () => {
@@ -722,6 +778,118 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
         "2026-08-29",
         "2026-06-27",
       ]);
+    });
+  });
+
+  describe("the company", () => {
+    it("holds exactly one row and replaces it on a reseed", async () => {
+      expect(await getCompany(sql)).toBeUndefined();
+
+      const company = {
+        rfc: "SYN090615C01",
+        legalName: "Metalicos del Norte SA de CV",
+        bankAccountId: "5e1a0f00c0ffee0000000001",
+        weekOf: "2026-09-07",
+        runId: "run-2026-09-07",
+        synthetic: true,
+      };
+      await upsertCompany(sql, company);
+      expect(await getCompany(sql)).toEqual(company);
+
+      // A reseed with a different week is still the same company row: the
+      // constancia has one header and the mirror has one account.
+      await upsertCompany(sql, {
+        ...company,
+        legalName: "Metalicos del Norte",
+        weekOf: "2026-09-14",
+        runId: "run-2026-09-14",
+      });
+      const reseeded = await getCompany(sql);
+      expect(reseeded?.legalName).toBe("Metalicos del Norte");
+      expect(reseeded?.weekOf).toBe("2026-09-14");
+      expect(reseeded?.runId).toBe("run-2026-09-14");
+      const rows = await sql<{ count: number }[]>`
+        select count(*)::int as count from company
+      `;
+      expect(rows[0]?.count).toBe(1);
+    });
+
+    it("hands the anchored week back as a plain date, not an instant", async () => {
+      // `week_of` is a date column and the API compares it as the "YYYY-MM-DD"
+      // the generator prints. A driver that returned a Date would render it in
+      // the process timezone and put the run on the Sunday on a UTC machine.
+      await upsertCompany(sql, {
+        rfc: "SYN090615C01",
+        legalName: "Metalicos del Norte SA de CV",
+        bankAccountId: "5e1a0f00c0ffee0000000001",
+        weekOf: "2026-09-07",
+        runId: "run-2026-09-07",
+        synthetic: true,
+      });
+      expect((await getCompany(sql))?.weekOf).toBe("2026-09-07");
+    });
+  });
+
+  describe("the bank mirror of one account", () => {
+    it("is replaced by account, so the consumer dataset survives a reseed", async () => {
+      const row = (id: string, accountId: string) => ({
+        id,
+        accountId,
+        occurredAt: "2026-09-03T17:00:00.000Z",
+        amount: 12000,
+        direction: "debit" as const,
+        source: "seed",
+        raw: {},
+      });
+      await insertLedgerTx(sql, [
+        row("1f0f6c56-1b0c-4bd4-9d6c-3a1e8e0b2c21", "acc-company"),
+        row("1f0f6c56-1b0c-4bd4-9d6c-3a1e8e0b2c22", "acc-company"),
+        row("1f0f6c56-1b0c-4bd4-9d6c-3a1e8e0b2c23", "acc-consumer"),
+      ]);
+
+      expect(await deleteLedgerTxForAccount(sql, "acc-company")).toBe(2);
+      expect(await listLedgerTx(sql, "acc-company")).toEqual([]);
+      expect((await listLedgerTx(sql, "acc-consumer")).length).toBe(1);
+      expect(await deleteLedgerTxForAccount(sql, "acc-nothing")).toBe(0);
+    });
+  });
+
+  describe("the invoices a sweep is priced against", () => {
+    it("counts an invoice with a complement and one an instruction says was sent", async () => {
+      await upsertSupplier(sql, supplier);
+      await insertCfdis(sql, [
+        cfdi(UUID_A, "2026-06-02T16:00:00.000Z", 28420),
+        cfdi(UUID_B, "2026-07-02T16:00:00.000Z", 31320),
+        cfdi(UUID_C, "2026-08-02T16:00:00.000Z", 18000),
+      ]);
+      await insertPaymentComplements(sql, [
+        {
+          uuid: COMPLEMENT_A,
+          relatedCfdiUuid: UUID_A,
+          paidAt: "2026-06-18T15:00:00.000Z",
+          paidAmount: 28420,
+          synthetic: true,
+        },
+      ]);
+      await insertInstruction(
+        sql,
+        instruction("INS-PAID", "2026-07-16T15:00:00.000Z", {
+          cfdiUuids: [UUID_B],
+        }),
+      );
+      await insertInstruction(
+        sql,
+        instruction("INS-PENDING", "2026-08-13T15:00:00.000Z", {
+          cfdiUuids: [UUID_C],
+        }),
+      );
+      // Only the sent one counts. UUID_C is still in this week's run, so
+      // nothing has been deducted for it and it is not an exposure yet.
+      await markInstructionSent(sql, "INS-PAID", "2026-07-16T17:00:00.000Z");
+
+      const paid = await listPaidCfdisByIssuer(sql, supplier.rfc);
+      expect(paid.map((row) => row.uuid)).toEqual([UUID_A, UUID_B]);
+      expect(await listPaidCfdisByIssuer(sql, "SYN010101AAA")).toEqual([]);
     });
   });
 

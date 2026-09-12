@@ -64,7 +64,10 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 ## Curl a judge can paste
 
 The ids are the seeded ones from `docs/10-demo-script.md`, which `bun run demo` prints. A local
-instance is `SEED=ceptinela bun run dev` in `apps/api`.
+instance is `SEED=ceptinela bun run dev` in `apps/api`, which serves the generated company from
+memory; with a database it is `bun run migrate && bun run seed` once and then
+`DATABASE_URL=postgres://... bun run --filter '@hackmty/api' dev`, which serves the same company
+out of Postgres. The boot log says which of the two is live.
 
 ```bash
 curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' | jq

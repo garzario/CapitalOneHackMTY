@@ -6,10 +6,9 @@
  * a running API today, and the Postgres implementation lands behind the same
  * interface with no route change at all.
  *
- * TODO(fabbyyyy): issue #40, implement `PostgresRepository` in packages/db over the SQL
- * in `packages/db/src/queries.ts` and export it there, then swap it in from
- * `createDeps()` when DATABASE_URL is set. Nothing in `src/routes` should need
- * to change; if it does, this interface is wrong and it is cheaper to fix it now.
+ * `PostgresRepository` in `postgres-repo.ts` is the second implementation, over
+ * the SQL in `packages/db/src/queries.ts`, and `bootRepository()` picks it when
+ * DATABASE_URL is set without one file in `src/routes` changing.
  *
  * The rule this file exists to protect: a repository queries and aggregates,
  * it never decides. Anything that weighs evidence belongs in @hackmty/core.

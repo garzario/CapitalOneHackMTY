@@ -312,6 +312,25 @@ export async function truncateLedger(sql: Db): Promise<void> {
   await sql`truncate table ledger_tx`;
 }
 
+/**
+ * Removes one account's rows from the bank mirror.
+ *
+ * `ledger_tx` holds two datasets at once: the consumer generator's accounts and
+ * the demo company's SPEI outflow. Reloading the company must therefore replace
+ * its own account and leave everything else alone, which is why this exists and
+ * why the seed never reaches for `truncateLedger`.
+ *
+ * @returns how many rows were removed.
+ */
+export async function deleteLedgerTxForAccount(
+  sql: Db,
+  accountId: string,
+): Promise<number> {
+  const result =
+    await sql`delete from ledger_tx where account_id = ${accountId}`;
+  return result.count;
+}
+
 // ---------------------------------------------------------------------------
 // Ceptinela. Everything below reads and writes the tables in
 // migrations/0003_ceptinela.sql and 0005_ceptinela_drift.sql, and every
@@ -363,6 +382,23 @@ export interface PaymentRunItem {
   findings: Finding[];
 }
 
+/** Which instructions `currentPaymentRun` counts as belonging to the week. */
+export interface PaymentRunWindow {
+  /** Where the Monday is cut. Monterrey is UTC-6 all year, so there is no seam. */
+  timeZone?: string;
+  /**
+   * Drop the upper bound and take everything received on or after the Monday.
+   *
+   * The run screen reads it that way. A run is opened once, by the seed, and an
+   * instruction that arrives afterwards joins it, which is what the in-memory
+   * store does by holding one list: a payment that lands on the following Monday
+   * is still the clerk's open work and must not silently start a second run and
+   * hide the 92 lines behind it. The seven day window, the default, is the one a
+   * report over a closed week wants.
+   */
+  openEnded?: boolean;
+}
+
 export interface LedgerReadOptions {
   /**
    * Exclusive lower bound on the event instant, ISO 8601. Exclusive because the
@@ -386,6 +422,83 @@ const EVIDENCE_RANK_EXCLUDED =
   "case excluded.established_by when 'cep' then 3 when 'payment_complement' then 2 else 1 end";
 const EVIDENCE_RANK_CURRENT =
   "case known_accounts.established_by when 'cep' then 3 when 'payment_complement' then 2 else 1 end";
+
+// --- The company ------------------------------------------------------------
+
+/**
+ * Who the company is, from 0006_company.sql. One row, and the table enforces it.
+ *
+ * `bankAccountId` is the account the bank mirror hangs off. It is stored rather
+ * than inferred because `ledger_tx` also holds the consumer dataset, and a seed
+ * that guessed which account was ours from whichever rows were present would
+ * delete somebody else's history the first time both were loaded.
+ *
+ * `weekOf` and `runId` are the run anchor. The run the screen opens on is the
+ * one the seed prepared, so it is written down once and read back, rather than
+ * re-derived from the newest instruction: derive it and a single payment that
+ * arrives next Monday moves the whole run and hides the week behind it.
+ */
+export interface CompanyRow {
+  rfc: Rfc;
+  legalName: string;
+  bankAccountId: string;
+  /** The Monday the seeded run opens on, "YYYY-MM-DD", cut in Monterrey time. */
+  weekOf: string;
+  /** The id the generator printed for that run, `run-<weekOf>`. */
+  runId: string;
+  synthetic: boolean;
+}
+
+/** Writes the one company row, replacing whatever was there. */
+export async function upsertCompany(
+  sql: Db,
+  company: CompanyRow,
+): Promise<void> {
+  await sql`
+    insert into company (id, rfc, legal_name, bank_account_id, week_of, run_id,
+                         synthetic, seeded_at)
+    values (1, ${company.rfc}, ${company.legalName}, ${company.bankAccountId},
+            ${company.weekOf}::date, ${company.runId},
+            ${company.synthetic}, now())
+    on conflict (id) do update set
+      rfc = excluded.rfc,
+      legal_name = excluded.legal_name,
+      bank_account_id = excluded.bank_account_id,
+      week_of = excluded.week_of,
+      run_id = excluded.run_id,
+      synthetic = excluded.synthetic,
+      seeded_at = excluded.seeded_at
+  `;
+}
+
+/** The company, or undefined on a database nobody has seeded yet. */
+export async function getCompany(sql: Db): Promise<CompanyRow | undefined> {
+  const rows = await sql<
+    {
+      rfc: string;
+      legal_name: string;
+      bank_account_id: string;
+      week_of: string;
+      run_id: string;
+      synthetic: boolean;
+    }[]
+  >`
+    select rfc, legal_name, bank_account_id,
+           to_char(week_of, 'YYYY-MM-DD') as week_of, run_id, synthetic
+    from company where id = 1
+  `;
+  const row = rows[0];
+  return row === undefined
+    ? undefined
+    : {
+        rfc: row.rfc,
+        legalName: row.legal_name,
+        bankAccountId: row.bank_account_id,
+        weekOf: row.week_of,
+        runId: row.run_id,
+        synthetic: row.synthetic,
+      };
+}
 
 // --- Event ledger ----------------------------------------------------------
 
@@ -697,6 +810,32 @@ export async function listCfdisByUuid(
 }
 
 /**
+ * The invoices of one supplier that we have already paid, oldest first.
+ *
+ * Paid means one of two things, and both count because both mean the deduction
+ * has already been taken: the supplier issued a payment complement for the
+ * invoice, or an instruction naming it was marked sent. This is the denominator
+ * of the retroactive sweep, so an invoice that is still sitting in this week's
+ * run is deliberately not in it: nothing has been deducted for it yet.
+ */
+export async function listPaidCfdisByIssuer(
+  sql: Db,
+  rfc: Rfc,
+): Promise<Cfdi[]> {
+  const rows = await sql.unsafe<CfdiRow[]>(
+    `select ${CFDI_COLUMNS} from cfdis c
+     where c.issuer_rfc = $1
+       and (exists (select 1 from payment_complements pc
+                    where pc.related_cfdi_uuid = c.uuid)
+         or exists (select 1 from instructions i
+                    where i.sent_at is not null and c.uuid = any(i.cfdi_uuids)))
+     order by c.issued_at asc, c.uuid asc`,
+    [rfc],
+  );
+  return rows.map(cfdiFromRow);
+}
+
+/**
  * Inserts complements, chunked.
  *
  * A complement whose `beneficiary_account` is new is the legitimate way an account
@@ -887,14 +1026,16 @@ export async function latestRunWeek(
 export async function currentPaymentRun(
   sql: Db,
   weekOf: string,
-  timeZone: string = DEFAULT_TIME_ZONE,
+  window: PaymentRunWindow = {},
 ): Promise<PaymentRunItem[]> {
+  const timeZone = window.timeZone ?? DEFAULT_TIME_ZONE;
   const instructionRows = await sql.unsafe<InstructionRow[]>(
     `select ${INSTRUCTION_COLUMNS} from instructions
      where received_at >= ($1::date::timestamp at time zone $2)
-       and received_at <  (($1::date + 7)::timestamp at time zone $2)
+       and ($3::boolean
+            or received_at < (($1::date + 7)::timestamp at time zone $2))
      order by received_at asc, id asc`,
-    [weekOf, timeZone],
+    [weekOf, timeZone, window.openEnded === true],
   );
   const instructions = instructionRows.map(instructionFromRow);
   if (instructions.length === 0) {
@@ -1098,8 +1239,8 @@ const DECISION_SELECT = `
 
 /**
  * The current decision for an instruction, with its findings rehydrated. The
- * newest row wins: a clerk can hold on Thursday and release on Friday, and both
- * rows survive in the history.
+ * newest row wins, by append order and not by `decided_at`: a clerk can hold on
+ * Thursday and release on Friday, and both rows survive in the history.
  */
 export async function latestDecision(
   sql: Db,
@@ -1109,7 +1250,20 @@ export async function latestDecision(
   return found.get(instructionId);
 }
 
-/** The current decision for each of many instructions, keyed by instruction id. */
+/**
+ * The current decision for each of many instructions, keyed by instruction id.
+ *
+ * "Newest" is the newest ROW and not the largest `decided_at`, which is why the
+ * ordering is the identity column alone. The engine stamps a seeded decision at
+ * the instant the run was prepared, and that instant can sit ahead of the wall
+ * clock of the person looking at the screen: order by `decided_at` and the
+ * clerk's hold, appended after it, would never be the answer. `id` is
+ * `generated always as identity`, so it is the append order by construction and
+ * it is also total inside one instant, which `decided_at` is not.
+ *
+ * `decided_at` stays a column and never an ordering: the constancia prints when
+ * a decision was taken, and the history keeps every moment either way.
+ */
 export async function latestDecisions(
   sql: Db,
   instructionIds: readonly string[],
@@ -1124,7 +1278,7 @@ export async function latestDecisions(
        from (${DECISION_SELECT}
              where d.instruction_id = any($1::text[])
              group by d.id) grouped
-       order by instruction_id, decided_at desc, id desc
+       order by instruction_id, id desc
      ) latest`,
     [[...instructionIds]],
   );
@@ -1403,7 +1557,7 @@ export async function truncateCeptinela(sql: Db): Promise<void> {
   await sql`
     truncate table ledger_events, decision_findings, decisions, findings,
       instructions, payment_complements, cfdis, verified_beneficiaries,
-      known_accounts, sat_list_entries, sat_list_versions, suppliers
+      known_accounts, sat_list_entries, sat_list_versions, suppliers, company
     restart identity
   `;
 }
