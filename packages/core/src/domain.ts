@@ -52,6 +52,17 @@ export interface PaymentComplement {
   relatedCfdiUuid: string;
   paidAt: string;
   paidAmount: number;
+  /**
+   * Monto of the Pago node: what left the bank in one transfer. One transfer can
+   * settle several invoices, and then `paidAmount` is this row's share of it. The
+   * CEP is matched against the transfer, never against the share.
+   */
+  paymentTotal?: number;
+  /**
+   * NumOperacion in the complement. For a SPEI this is the clave de rastreo,
+   * which is how the CEP for this payment is located at Banxico.
+   */
+  operationNumber?: string;
   /** CtaBeneficiario in the complement, the account the supplier says it received money on. */
   beneficiaryAccount?: Clabe;
   /** RfcEmisorCtaBen, the bank that holds that account. */
