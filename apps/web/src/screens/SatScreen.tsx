@@ -23,6 +23,7 @@ import {
   SourceNotice,
 } from "../components/States";
 import {
+  getCurrentRun,
   getSatVersions,
   lookupSatRfc,
   publishSatList,
@@ -46,10 +47,35 @@ const REPLAY_MONTHS = [
   "2026-09",
 ];
 
-const SIMULATED_RFCS = ["SYN010101AAA"];
+/** The synthetic supplier the offline sweep is about. Never sent to the API. */
+const OFFLINE_RFCS = ["SYN010101AAA"];
 
 function versionsFallback() {
   return { versions: SAT_VERSIONS };
+}
+
+/**
+ * Which supplier the simulated publication names.
+ *
+ * It is read off the payment run rather than written down here. A constant was
+ * an RFC from a different dataset, so against the seeded company the sweep came
+ * back with nothing listed and the screen showed a confident zero. The supplier
+ * whose line already carries a 69-B finding is the one the demo turns
+ * definitivo, and it is synthetic by construction because every supplier in the
+ * run is.
+ */
+async function rfcsToSimulate(): Promise<string[]> {
+  const run = await getCurrentRun();
+
+  if (!run.ok) {
+    return OFFLINE_RFCS;
+  }
+
+  const listed = run.data.items.find((item) =>
+    item.findings.some((finding) => finding.detector === "sat_69b"),
+  );
+
+  return listed === undefined ? OFFLINE_RFCS : [listed.instruction.supplierRfc];
 }
 
 export function SatScreen() {
@@ -79,7 +105,12 @@ export function SatScreen() {
 
     const result = await publishSatList({
       simulate: true,
-      rfcs: SIMULATED_RFCS,
+      rfcs: await rfcsToSimulate(),
+      // The heading above promises a supplier that passes to definitivo, which
+      // is the status that voids the deductions retroactively. The endpoint
+      // publishes presunto when nobody says, and a screen that says one thing
+      // and posts another is a screen a judge catches.
+      status: "definitivo",
     });
 
     setIsSweeping(false);
@@ -211,10 +242,21 @@ export function SatScreen() {
             </p>
           ) : null}
 
-          {sweep === null ? (
+          {/* A sweep that listed nobody gets its own empty state and not a row
+              of zeros: "no hay exposicion" and "no se calculo" are different
+              answers and the screen must never show the second as the first. */}
+          {sweep === null || sweep.newlyListed.length === 0 ? (
             <EmptyBlock
-              title="Sin barrido todavia"
-              description="Corre la simulacion para ver la exposicion de ISR e IVA de lo que ya se pago y se dedujo."
+              title={
+                sweep === null
+                  ? "Sin barrido todavia"
+                  : "La publicacion no alcanzo a ningun proveedor"
+              }
+              description={
+                sweep === null
+                  ? "Corre la simulacion para ver la exposicion de ISR e IVA de lo que ya se pago y se dedujo."
+                  : "Ningun proveedor de esta corrida quedo en la version simulada, asi que no hay nada ya pagado que cuantificar."
+              }
             />
           ) : (
             <>

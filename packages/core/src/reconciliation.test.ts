@@ -186,6 +186,28 @@ describe("detectBankReconciliation", () => {
     ).toEqual([]);
   });
 
+  it("counts the edge of the window on the other side too", () => {
+    // The bank posted before the instruction was written down, which happens
+    // when a payment is made from the portal first. The window is symmetric, so
+    // the same three days have to reach forwards as well as back.
+    const txs = [makeTx("tx-1", "2026-09-01T18:00:00.000Z", 12000)];
+    const inside = [
+      makeInstruction("ins-1", 12000, "2026-09-04T18:00:00.000Z"),
+    ];
+    const outside = [
+      makeInstruction("ins-1", 12000, "2026-09-05T18:00:00.000Z"),
+    ];
+
+    expect(detectBankReconciliation(txs, inside, [], [], { now: NOW })).toEqual(
+      [],
+    );
+    expect(
+      detectBankReconciliation(txs, outside, [], [], {
+        now: NOW,
+      }).map((finding) => finding.evidence.case),
+    ).toEqual(["unbacked_outflow"]);
+  });
+
   it("absorbs a rounded cent inside the tolerance and nothing beyond it", () => {
     const instructions = [
       makeInstruction("ins-1", 12000, "2026-09-10T15:00:00.000Z"),

@@ -24,6 +24,7 @@ import type {
   PaymentInstruction,
   Rfc,
   SatListEntry,
+  SatListStatus,
   Supplier,
   SweepResult,
   VerificationOutcome,
@@ -170,7 +171,8 @@ export interface DecideBody {
 /** `POST /api/v1/sat/publish`. Simulation accepts synthetic RFCs only. */
 export type SatPublishBody =
   | { listVersion: string; entries: SatListEntry[] }
-  | { simulate: true; rfcs: Rfc[] };
+  /** `status` defaults to presunto on the server. See docs/09-api.md. */
+  | { simulate: true; rfcs: Rfc[]; status?: SatListStatus };
 
 /** `POST /api/v1/cep/verify`, either by tracking key or by pasted signed XML. */
 export type CepVerifyBody =

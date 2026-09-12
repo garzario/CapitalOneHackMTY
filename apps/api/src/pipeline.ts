@@ -20,11 +20,12 @@ import type {
   ComposeInput,
   CompositionReport,
   PaymentInstruction,
+  SatListEntry,
   SweepResult,
 } from "@hackmty/core";
 import { decide, supplierModelOf } from "@hackmty/core";
 import { runControls } from "@hackmty/engine";
-import { priceSweep } from "@hackmty/sat";
+import { priceSweep, type SatIndex } from "@hackmty/sat";
 import { type IntakeExtractor, UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
 import type { CreateInstructionBody, NameMatch } from "./schemas";
@@ -59,6 +60,18 @@ export type IntakeOutcome =
   | { ok: false; reason: IntakeFailure; message: string };
 
 /**
+ * What intake needs. `ApiDeps` satisfies it structurally, so the route hands
+ * itself over and this file still names exactly what it reads.
+ */
+export interface IntakeDeps {
+  repo: Repository;
+  clock: PipelineClock;
+  extractor?: IntakeExtractor;
+  /** The official Article 69-B list. See the note in `composeInputFor`. */
+  satList?: () => Promise<SatIndex>;
+}
+
+/**
  * Runs one instruction through intake.
  *
  * `extractor` is issue #97, wired here and implemented in `@hackmty/extract`.
@@ -71,11 +84,11 @@ export type IntakeOutcome =
  * CLABE nobody read.
  */
 export async function runIntake(
-  repo: Repository,
-  clock: PipelineClock,
+  deps: IntakeDeps,
   body: CreateInstructionBody,
-  extractor: IntakeExtractor = UNAVAILABLE_EXTRACTOR,
 ): Promise<IntakeOutcome> {
+  const { repo, clock } = deps;
+  const extractor = deps.extractor ?? UNAVAILABLE_EXTRACTOR;
   const now = clock.now();
   const id = clock.newId("ins");
 
@@ -160,7 +173,7 @@ export async function runIntake(
     instruction.ocrConfidence = ocrConfidence;
   }
 
-  const input = await composeInputFor(repo, instruction, now);
+  const input = await composeInputFor(repo, instruction, now, deps.satList);
   const report = runControls(input);
   // The cost of delaying this payment comes off the supplier record, so the
   // engine weighs the expected loss against a number somebody can point at
@@ -212,8 +225,9 @@ export async function runControlsFor(
   repo: Repository,
   instruction: PaymentInstruction,
   now: string,
+  satList?: () => Promise<SatIndex>,
 ): Promise<CompositionReport> {
-  return runControls(await composeInputFor(repo, instruction, now));
+  return runControls(await composeInputFor(repo, instruction, now, satList));
 }
 
 /** Everything the six controls read, assembled from the repository. */
@@ -221,6 +235,7 @@ async function composeInputFor(
   repo: Repository,
   instruction: PaymentInstruction,
   now: string,
+  satList?: () => Promise<SatIndex>,
 ): Promise<ComposeInput> {
   const supplier = await repo.findSupplier(instruction.supplierRfc);
   const detail =
@@ -237,12 +252,7 @@ async function composeInputFor(
     // ledger as its denominator and the duplicate detector narrows itself.
     cfdis: await repo.allCfdis(),
     complements: await repo.allComplements(),
-    // The list versions this instance holds, and deliberately NOT the
-    // committed download of the real SAT list that `GET /sat/lookup` reads.
-    // ADR-0002: every instruction here carries a synthetic RFC, so joining
-    // the real list to one is exactly what the ADR forbids. Real rows answer
-    // the read-only lookup a person typed into, and nothing else.
-    satEntries: await repo.satLookup(instruction.supplierRfc),
+    satEntries: await satRowsFor(repo, instruction.supplierRfc, satList),
     bankMirror: await repo.bankMirror(),
     now,
   };
@@ -253,6 +263,39 @@ async function composeInputFor(
     input.cep = beneficiary.cep;
   }
   return input;
+}
+
+/**
+ * The Article 69-B rows in force for one supplier, from both lists we hold.
+ *
+ * The versions in the repository are the ones this instance was posted, and
+ * under the demo they carry synthetic RFCs only. The second source is the
+ * committed download of the real SAT list in `@hackmty/sat`, the same rows
+ * `GET /api/v1/sat/lookup` answers from, asked about this one RFC.
+ *
+ * That does not put a real RFC next to fabricated evidence, which is what
+ * ADR-0002 forbids: every supplier in the seeded company is synthetic, and a
+ * synthetic RFC is on no real list, so the official snapshot contributes
+ * nothing to any of them. What it buys is that an instruction naming an RFC
+ * that IS on the official list is caught by the control, instead of the control
+ * quietly knowing less than the lookup box on the next screen.
+ *
+ * A snapshot that cannot be read is not swallowed into an empty list here
+ * either: "not listed" is the one answer this product must never invent, so the
+ * failure propagates and the intake answers with the error envelope.
+ */
+async function satRowsFor(
+  repo: Repository,
+  rfc: string,
+  satList?: () => Promise<SatIndex>,
+): Promise<SatListEntry[]> {
+  const published = await repo.satLookup(rfc);
+  if (satList === undefined) {
+    return published;
+  }
+
+  const official = await satList();
+  return [...published, ...official.lookup(rfc)];
 }
 
 /* -------------------------------------------------------------------------- */

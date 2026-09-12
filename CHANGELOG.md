@@ -12,6 +12,16 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- End-to-end vertical slice. `SEED=ceptinela` now runs the six controls over the generated company
+  at boot, so `GET /api/v1/run/current` serves the engine's own findings and proposed actions
+  instead of an empty alert rail: 7 findings on 92 instructions, 2 held and 5 to verify, and
+  885,658.73 MXN that does not leave. The API boot line prints the seed, the run and the hero ids.
+  `sat_69b` now reads the committed official 69-B snapshot as well as the versions the instance was
+  posted, for that one RFC, so a real listed RFC is caught by the control and not only by the lookup
+  box, while every synthetic supplier still meets no real row. `bun run demo` is a rewrite that
+  drives the five beats of `docs/10-demo-script.md` headless against a freshly seeded in-memory app
+  and exits non-zero on any beat, with `--base <url>` to run the same beats over HTTP against a
+  deployment.
 - `packages/constancia`, the retention artifact as a real PDF (issue #69). A PDF writer with no
   dependency and no headless browser: base-14 Helvetica, WinAnsi bytes so accents and `Ñ` survive,
   exact cross-reference offsets, uncompressed streams so a layout bug is readable with `less`.
@@ -21,7 +31,6 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   and says in as many words that it is not an electronic signature. Served by
   `GET /api/v1/sat/constancia?listVersion=` and `GET /api/v1/run/:id/constancia`, linked from the
   69-B screen and the payment run screen.
-
 - `GET /api/v1/sat/lookup` hardened for the RFCs a judge types (issue #70). The input is
   normalised before validation, so lower case, spaces and a hyphen before the homoclave all
   reach the same taxpayer, and the answer echoes the normalised form back. The response now
@@ -182,6 +191,10 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Changed
 
+- `detectBankReconciliation` buckets the expected payments by the day they are expected on and
+  scans only the days inside the match window, instead of the whole company's documents once per
+  outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from
+  11 seconds to 1.5, which is what makes running the controls at boot possible at all.
 - `docs/01-rubric-mapping.md` carries a real claim sentence and real evidence for all fourteen
   sub-criteria plus the engineering-process row: every evidence cell is a path, a PR number, a CI
   run or a test name that exists on `dev` today. Five rows are yellow and each one names the single
@@ -214,6 +227,10 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   refusal into a live model call. `createTestApp` now pins the repository and the extractor the
   way it already pinned the clock, the seed guard and the voice configuration, and a test asserts
   that it does.
+- The 69-B simulation on the `/sat` screen posted an RFC written into the screen, and that RFC
+  belonged to the hand-written fixture rather than to the seeded company, so the sweep listed
+  nobody and the demo's centrepiece showed a confident 0.00. The supplier is read off the payment
+  run now, and a sweep that lists nobody gets its own empty state instead of a row of zeros.
 
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
