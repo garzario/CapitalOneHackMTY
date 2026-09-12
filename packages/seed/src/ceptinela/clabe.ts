@@ -17,6 +17,8 @@
  * one copy too many, and the one a judge reads should be the one in the engine.
  */
 
+import type { Rng } from "../rng";
+
 /** Repeating 3-7-1, applied to the first seventeen digits. */
 const WEIGHTS = [3, 7, 1] as const;
 
@@ -120,4 +122,95 @@ export const MTY_PLAZA_CODE = "180";
 export function bankNameOf(clabe: string): string | undefined {
   const code = bankCodeOf(clabe);
   return MX_BANKS.find((bank) => bank.code === code)?.name;
+}
+
+/**
+ * The RFC of the bank that holds an account, as a complement's `RfcEmisorCtaBen`
+ * would carry it.
+ *
+ * It is invented, and it has to be: a real bank's RFC printed next to fabricated
+ * payment evidence is exactly what ADR-0002 forbids. The shape is the same
+ * `SYN` plus six digits plus a homoclave every other identifier in this package
+ * uses, and the digits carry the institution code so the row stays greppable.
+ */
+export function syntheticBankRfc(bankCode: string): string {
+  if (bankCode.length !== BANK_CODE_LENGTH || !isDigits(bankCode)) {
+    throw new RangeError(`bank code is 3 digits, got ${bankCode}`);
+  }
+  return `SYN${bankCode}001BCO`;
+}
+
+/** The account body, the eleven digits between the plaza code and the check digit. */
+export function accountOf(clabe: string): string {
+  return clabe.slice(BANK_CODE_LENGTH + PLAZA_CODE_LENGTH, CLABE_BODY_LENGTH);
+}
+
+/**
+ * A CLABE that differs from `known` in exactly two digits and still passes the
+ * check digit.
+ *
+ * This is the shape of the attack the product exists for, and the shape matters: an
+ * account that fails the arithmetic is a typo, and a typo is not what takes 180,000
+ * pesos out of the country. Both changed digits sit inside the account body, so the
+ * bank and the plaza still agree with the supplier's history and the only thing left
+ * to notice is the distance, which is what `clabeDistance` in @hackmty/core measures.
+ *
+ * The search is exhaustive and ordered, so it is deterministic: it walks the account
+ * positions from an offset the RNG chose and returns the first pair of digit
+ * substitutions that leaves the check digit alone. Such a pair always exists,
+ * because the repeating 3-7-1 weights give every position a partner to cancel
+ * against.
+ */
+export function mintNearMissClabe(known: string, rng: Rng): string {
+  if (!isClabeValid(known)) {
+    throw new RangeError(`not a valid clabe to derive from: ${known}`);
+  }
+  const digits = [...known];
+  const first = BANK_CODE_LENGTH + PLAZA_CODE_LENGTH;
+  const span = CLABE_BODY_LENGTH - first;
+  const start = rng.int(0, span - 1);
+
+  for (let leftStep = 0; leftStep < span; leftStep += 1) {
+    const left = first + ((start + leftStep) % span);
+    for (let rightStep = 1; rightStep < span; rightStep += 1) {
+      const right = first + ((left - first + rightStep) % span);
+      for (let leftDelta = 1; leftDelta < 10; leftDelta += 1) {
+        for (let rightDelta = 1; rightDelta < 10; rightDelta += 1) {
+          const candidate = [...digits];
+          candidate[left] = String((Number(digits[left]) + leftDelta) % 10);
+          candidate[right] = String((Number(digits[right]) + rightDelta) % 10);
+          const minted = candidate.join("");
+          if (minted !== known && isClabeValid(minted)) {
+            return minted;
+          }
+        }
+      }
+    }
+  }
+  throw new Error(`no two-digit near miss exists for ${known}`);
+}
+
+function randomAccount(rng: Rng): string {
+  let account = "";
+  for (let index = 0; index < ACCOUNT_LENGTH; index += 1) {
+    account += String(rng.int(0, 9));
+  }
+  return account;
+}
+
+/** A fresh valid account at `bankCode`, for a supplier that really did change bank. */
+export function mintRandomClabe(bankCode: string, rng: Rng): string {
+  return mintClabe(bankCode, MTY_PLAZA_CODE, randomAccount(rng));
+}
+
+/**
+ * A CLABE whose check digit is wrong on purpose, at an account nobody has ever been
+ * paid on. The bank and the plaza are kept, so the only thing wrong with it is the
+ * arithmetic: the case a clerk reading eighteen digits off a photographed PDF cannot
+ * see and a mod-10 sum catches in microseconds.
+ */
+export function mintBrokenClabe(bankCode: string, rng: Rng): string {
+  const valid = mintRandomClabe(bankCode, rng);
+  const wrong = (Number(valid[CLABE_BODY_LENGTH]) + rng.int(1, 9)) % 10;
+  return `${valid.slice(0, CLABE_BODY_LENGTH)}${wrong}`;
 }
