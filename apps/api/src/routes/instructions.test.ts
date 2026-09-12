@@ -51,8 +51,10 @@ describe("GET /api/v1/instructions/:id", () => {
 });
 
 describe("POST /api/v1/instructions", () => {
-  it("stores the instruction and answers with findings and a decision", async () => {
+  it("runs the detectors and answers with the findings and the decision", async () => {
     const { app } = createTestApp();
+    // SYN010101AAA has only ever been paid on a BANREGIO account. This CLABE is
+    // a BBVA one, which is the bank-change case the CLABE detector exists for.
     const res = await app.request(
       "/api/v1/instructions",
       json({
@@ -68,15 +70,45 @@ describe("POST /api/v1/instructions", () => {
 
     expect(intake.instruction.supplierRfc).toBe("SYN010101AAA");
     expect(intake.instruction.receivedAt).toBe(TEST_NOW);
-    // The detectors are not wired yet, so the honest answer is no findings and
-    // a release. The day composeFindings lands in core this assertion changes.
-    expect(intake.findings).toEqual([]);
-    expect(intake.decision.action).toBe("release");
+
+    expect(intake.findings.map((finding) => finding.detector)).toEqual([
+      "clabe_forensics",
+    ]);
+    const [finding] = intake.findings;
+    expect(finding?.state).toBe("requiere_verificacion");
+    expect(finding?.amountAtRisk).toBe(184300);
+
+    // A finding that is not provable asks for a check, it never accuses and it
+    // never releases by itself. The expected loss is the engine's, not a guess
+    // made here, so the assertion is that there is one rather than its value.
+    expect(intake.decision.action).toBe("verify");
+    expect(intake.decision.expectedLoss).toBeGreaterThan(0);
+    expect(intake.decision.findings).toHaveLength(1);
 
     const stored = await app.request(
       `/api/v1/instructions/${intake.instruction.id}`,
     );
     expect(stored.status).toBe(200);
+  });
+
+  it("releases an instruction that pays an account the supplier is known on", async () => {
+    const { app } = createTestApp();
+    const res = await app.request(
+      "/api/v1/instructions",
+      json({
+        supplierRfc: "SYN030303CCC",
+        amount: 1000,
+        clabe: "072580000456123788",
+        source: "portal",
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const intake = intakeResponseSchema.parse(await res.json());
+
+    expect(intake.findings).toEqual([]);
+    expect(intake.decision.action).toBe("release");
+    expect(intake.decision.expectedLoss).toBe(0);
   });
 
   it("appends instruction_received and decision_made to the ledger", async () => {

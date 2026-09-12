@@ -109,6 +109,10 @@ export const paymentComplementSchema = z.object({
   relatedCfdiUuid: uuidSchema,
   paidAt: instantSchema,
   paidAmount: amountSchema,
+  /** Monto of the Pago node: what left the bank in one transfer. */
+  paymentTotal: amountSchema.optional(),
+  /** NumOperacion, the clave de rastreo the CEP is located by. */
+  operationNumber: z.string().min(1).optional(),
   beneficiaryAccount: clabeSchema.optional(),
   beneficiaryBankRfc: z.string().min(1).optional(),
   synthetic: z.boolean(),
@@ -133,6 +137,8 @@ export const paymentInstructionSchema = z.object({
   text: z.string().optional(),
   imageRef: z.string().min(1).optional(),
   ocrConfidence: z.number().min(0).max(1).optional(),
+  /** Set once the company marked the SPEI as sent. Absent while still pending. */
+  sentAt: instantSchema.optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<PaymentInstruction>;
 
@@ -157,10 +163,17 @@ export const cepSchema = z.object({
   amount: amountSchema,
   senderName: z.string().min(1),
   senderBank: z.string().min(1),
+  senderAccount: clabeSchema.optional(),
   beneficiaryName: z.string().min(1),
   beneficiaryAccount: clabeSchema,
   beneficiaryBank: z.string().min(1),
+  /** "NA" when the bank sent none, so this is not the RFC shape. */
+  beneficiaryRfc: z.string().min(1).optional(),
+  concepto: z.string().optional(),
+  numeroCertificado: z.string().min(1).optional(),
   signatureValid: z.boolean(),
+  /** Why `signatureValid` is what it is. `unconfirmed_scheme` reads as not verified. */
+  signatureReason: z.string().min(1).optional(),
   xml: z.string(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cep>;
@@ -188,7 +201,8 @@ export const findingSchema = z.object({
   severity: severitySchema,
   state: findingStateSchema,
   subject: z.object({
-    kind: z.enum(["instruction", "cfdi", "supplier"]),
+    /** `ledger_tx` is a row of the bank mirror, used when money left with no document. */
+    kind: z.enum(["instruction", "cfdi", "supplier", "ledger_tx"]),
     id: z.string().min(1),
   }),
   amountAtRisk: z.number().nonnegative(),

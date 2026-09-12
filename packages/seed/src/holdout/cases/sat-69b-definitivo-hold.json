@@ -1,0 +1,68 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "sat-69b-definitivo-hold",
+  "title": "Supplier appeared on the definitive 69-B list after we deducted eight invoices",
+  "kind": "positive",
+  "notes": "The headline case. The account is the one we always pay and the amount is ordinary, so nothing about the payment itself looks wrong. What is wrong is fiscal and retroactive, which is why the hook is not the impersonation story.",
+  "input": {
+    "instruction": {
+      "id": "INS-EXAMPLE-001",
+      "supplierRfc": "SYN980101S01",
+      "cfdiUuids": ["7f2c1d64-4a1e-4f0b-9d21-2c4a8b6e5f11"],
+      "clabe": "072180100000000007",
+      "amount": 214600.0,
+      "source": "email",
+      "receivedAt": "2026-09-08T15:12:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN980101S01",
+      "legalName": "Aceros y Laminas del Norte SA de CV",
+      "firstInvoiceAt": "2021-05-03T15:00:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "072180100000000007",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2021-06-01T15:00:00.000Z",
+          "timesPaid": 58
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "7f2c1d64-4a1e-4f0b-9d21-2c4a8b6e5f11",
+        "serie": "A",
+        "folio": "184",
+        "issuedAt": "2026-08-11T16:40:00.000Z",
+        "issuerRfc": "SYN980101S01",
+        "issuerName": "Aceros y Laminas del Norte SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 185000.0,
+        "iva": 29600.0,
+        "total": 214600.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "satEntries": [
+      {
+        "rfc": "SYN980101S01",
+        "name": "ACEROS Y LAMINAS DEL NORTE SA DE CV",
+        "status": "definitivo",
+        "publishedAt": "2026-09-04",
+        "listVersion": "2026-09-04"
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "sat_69b",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "The status is definitivo and the publication precedes this payment, so the deduction on this invoice has no fiscal effect. It is provable from the published list, not inferred."
+    }
+  ],
+  "expectedAction": "hold"
+}

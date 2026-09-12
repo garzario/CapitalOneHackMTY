@@ -71,6 +71,13 @@ export interface Repository {
   findSupplier(rfc: string): Promise<Supplier | undefined>;
   /** Used to attach an instruction to a supplier when only the folio is known. */
   cfdisByUuid(uuids: string[]): Promise<Cfdi[]>;
+  /**
+   * Every CFDI the company holds, from every issuer. The supplier-behaviour
+   * detector needs the whole ledger as the denominator of its concentration
+   * signal: handed one supplier's invoices it would read every supplier as 100%
+   * of the spend.
+   */
+  allCfdis(): Promise<Cfdi[]>;
   satLookup(rfc: string): Promise<SatListEntry[]>;
   satVersions(): Promise<SatVersionSummary[]>;
   beneficiaries(): Promise<VerifiedBeneficiary[]>;
@@ -220,6 +227,10 @@ export class MemoryRepository implements Repository {
   async cfdisByUuid(uuids: string[]): Promise<Cfdi[]> {
     const wanted = new Set(uuids);
     return copy(this.data.cfdis.filter((cfdi) => wanted.has(cfdi.uuid)));
+  }
+
+  async allCfdis(): Promise<Cfdi[]> {
+    return copy(this.data.cfdis);
   }
 
   async satLookup(rfc: string): Promise<SatListEntry[]> {

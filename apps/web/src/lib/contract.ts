@@ -1,0 +1,190 @@
+/**
+ * The HTTP contract, typed. Every shape here is a composition of the domain
+ * types in packages/core/src/domain.ts and mirrors a row of the table in
+ * docs/09-api.md. Nothing in this file invents a field: if the API needs a
+ * shape the domain does not have, the domain gets it first.
+ *
+ * TODO(garzario): once apps/api implements these routes, promote this file
+ * into packages/core so the client and the server import one definition
+ * instead of two that drift. It lives here for now because the API scaffold
+ * lands in a separate pull request and neither side should block the other.
+ */
+
+import type {
+  Action,
+  Cep,
+  Cfdi,
+  Clabe,
+  Decision,
+  Finding,
+  InstructionSource,
+  LedgerEvent,
+  Metrics,
+  PaymentComplement,
+  PaymentInstruction,
+  Rfc,
+  SatListEntry,
+  Supplier,
+  SweepResult,
+} from "@hackmty/core";
+
+/** `GET /health`. */
+export interface Health {
+  ok: boolean;
+  service: string;
+  version: string;
+}
+
+/**
+ * Totals of one payment run.
+ *
+ * `instructions` is a count. `amount` is the sum of the run in MXN.
+ *
+ * TODO(fabbyyyy): `held`, `toVerify` and `released` are read here as MXN sums,
+ * because that is what a clerk needs to see next to `amount`. docs/09-api.md
+ * does not say whether they are amounts or counts. Confirm when the route is
+ * implemented and, if they turn out to be counts, change this interface rather
+ * than dividing the meaning across the two sides.
+ */
+export interface PaymentRunTotals {
+  instructions: number;
+  amount: number;
+  held: number;
+  toVerify: number;
+  released: number;
+}
+
+/** One row of the payment-run table. */
+export interface PaymentRunItem {
+  instruction: PaymentInstruction;
+  supplier: Supplier;
+  decision: Decision;
+  findings: Finding[];
+}
+
+/** `GET /api/v1/run/current`. */
+export interface PaymentRun {
+  id: string;
+  weekOf: string;
+  totals: PaymentRunTotals;
+  items: PaymentRunItem[];
+}
+
+/** `GET /api/v1/instructions/:id`. */
+export interface InstructionDetail {
+  instruction: PaymentInstruction;
+  decision: Decision;
+  findings: Finding[];
+  supplier: Supplier;
+}
+
+/** One entry of the per-company registry of beneficiaries verified by CEP. */
+export interface VerifiedBeneficiary {
+  supplierRfc: Rfc;
+  clabe: Clabe;
+  cep: Cep;
+  verifiedAt: string;
+}
+
+/** `GET /api/v1/suppliers/:rfc`. */
+export interface SupplierDetail {
+  supplier: Supplier;
+  cfdis: Cfdi[];
+  complements: PaymentComplement[];
+  findings: Finding[];
+  verifiedBeneficiaries: VerifiedBeneficiary[];
+}
+
+/** `GET /api/v1/sat/lookup?rfc=`. The judge types a real RFC into this one. */
+export interface SatLookup {
+  rfc: Rfc;
+  entries: SatListEntry[];
+}
+
+/** One loaded version of the official Article 69-B list. */
+export interface SatVersion {
+  listVersion: string;
+  publishedAt: string;
+  rows: number;
+}
+
+/** `GET /api/v1/sat/versions`. */
+export interface SatVersions {
+  versions: SatVersion[];
+}
+
+/** `GET /api/v1/beneficiaries`. */
+export interface BeneficiaryRegistry {
+  items: VerifiedBeneficiary[];
+}
+
+/** `GET /api/v1/ledger?since=`. */
+export interface LedgerPage {
+  events: LedgerEvent[];
+}
+
+/** `POST /api/v1/instructions`. `image` is base64, from the QR intake page. */
+export interface CreateInstructionBody {
+  supplierRfc?: Rfc;
+  cfdiUuids?: string[];
+  clabe?: Clabe;
+  amount: number;
+  source: InstructionSource;
+  text?: string;
+  image?: string;
+}
+
+/** `POST /api/v1/instructions/:id/decide`. A person always confirms. */
+export interface DecideBody {
+  action: Action;
+  decidedBy: string;
+}
+
+/** `POST /api/v1/sat/publish`. Simulation accepts synthetic RFCs only. */
+export type SatPublishBody =
+  | { listVersion: string; entries: SatListEntry[] }
+  | { simulate: true; rfcs: Rfc[] };
+
+/** `POST /api/v1/cep/verify`, either by tracking key or by pasted signed XML. */
+export type CepVerifyBody =
+  | {
+      claveRastreo: string;
+      date: string;
+      amount: number;
+      senderBank: string;
+      beneficiaryBank: string;
+      beneficiaryAccount: Clabe;
+      supplierRfc: Rfc;
+    }
+  | { xml: string; supplierRfc: Rfc };
+
+/**
+ * How the account holder name on the CEP compares with the legal name on the
+ * supplier's CFDI. Never an accusation, only a comparison.
+ */
+export type NameMatch = "match" | "partial" | "mismatch";
+
+/** Response of `POST /api/v1/cep/verify`. */
+export interface CepVerification {
+  cep: Cep;
+  nameMatch: NameMatch;
+  finding: Finding;
+}
+
+/** `POST /api/v1/seed`, development only, guarded by ALLOW_SEED=1. */
+export interface SeedBody {
+  seed?: number;
+  reset?: boolean;
+}
+
+/** Re-exported so screens import one module, not two. */
+export type { Metrics, SweepResult };
+
+/** The error envelope every failing route returns, from docs/09-api.md. */
+export interface ApiErrorBody {
+  error: {
+    code: string;
+    message: string;
+    requestId: string;
+  };
+}

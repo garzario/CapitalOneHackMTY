@@ -7,63 +7,47 @@
  * gathers the evidence a detector needs, hands it to @hackmty/core, and shapes
  * what comes back. It decides nothing itself.
  *
- * The detectors do not exist yet, so every call into core is feature-detected
- * rather than imported by name. That is not politeness: importing
- * `composeFindings` before it is written breaks `bun run typecheck` for the
- * whole team, and stubbing it locally means two implementations racing to be
- * the real one. Feature detection lets the API ship today and pick the
- * detectors up the moment they land, with no change on this side.
+ * The detectors and the expected-loss engine now live in @hackmty/core, so
+ * `composeFindings` and `decide` are imported by name and called with the
+ * arguments they actually take, and the detectors are handed in explicitly
+ * through `ComposeOptions.detectors`, which is the seam core documents for this
+ * caller. Core's dynamic registry is a discovery aid for a half-built package,
+ * not a contract: it cannot know that one detector needs `now` and another
+ * needs the UUIDs under review, and a detector it cannot call is skipped in
+ * silence. Silence that reads as "nothing found" is the one failure this
+ * product cannot ship, so the wiring is written down here instead.
+ *
+ * What is still feature-detected is only what core has not exported yet:
  *
  * TODO(garzario): implement and export from @hackmty/core
- *   - composeFindings(input: DetectorInput): Finding[]      issues #34 #36 #39 #38
- *   - decide(input: DecisionInput): Decision                issue #38
  *   - sweepExposure(subjects): per-supplier ISR and IVA     issue #35
  *   - compareLegalNames(a, b): match, partial or mismatch    issue #37
- * The shapes below are the API's proposal, not a contract: if core wants a
- * different input, this file adapts and nothing else moves.
  */
 
 import type {
   Cfdi,
-  Decision,
+  DetectorModule,
   Finding,
   PaymentInstruction,
-  SatListEntry,
-  Supplier,
+  SupplierModel,
   SweepResult,
 } from "@hackmty/core";
 import * as core from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import {
+  composeFindings,
+  decide,
+  detectClabe,
+  detectDuplicateInvoice,
+  detectSupplierBehaviour,
+  sumAmounts,
+} from "@hackmty/core";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
-import type {
-  CreateInstructionBody,
-  NameMatch,
-  VerifiedBeneficiary,
-} from "./schemas";
+import type { CreateInstructionBody, NameMatch } from "./schemas";
 
 /* -------------------------------------------------------------------------- */
 /* Feature detection                                                           */
 /* -------------------------------------------------------------------------- */
 
-/** Everything the detectors need about one instruction, gathered once. */
-export interface DetectorInput {
-  instruction: PaymentInstruction;
-  supplier?: Supplier;
-  /** Every CFDI we hold from this supplier, not only the ones being settled. */
-  cfdis: Cfdi[];
-  satEntries: SatListEntry[];
-  verifiedBeneficiaries: VerifiedBeneficiary[];
-  now: string;
-}
-
-export interface DecisionInput {
-  instruction: PaymentInstruction;
-  findings: Finding[];
-  now: string;
-}
-
-type ComposeFindings = (input: DetectorInput) => Finding[] | Promise<Finding[]>;
-type Decide = (input: DecisionInput) => Decision | Promise<Decision>;
 type CompareLegalNames = (left: string, right: string) => NameMatch;
 
 /**
@@ -75,9 +59,86 @@ function coreFunction<F>(name: string): F | undefined {
   return typeof candidate === "function" ? (candidate as F) : undefined;
 }
 
-/** True once the detectors land. The health payload and the demo script read it. */
-export function detectorsAvailable(): boolean {
-  return coreFunction<ComposeFindings>("composeFindings") !== undefined;
+/* -------------------------------------------------------------------------- */
+/* Detector wiring                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a day of delay costs with this supplier, which is the only thing `decide`
+ * weighs the expected loss against.
+ *
+ * Nothing in the repository stores that number yet, so this file does not invent
+ * one: the cost stays at zero and the weight at one. With a zero delay cost the
+ * engine verifies anything that carries a positive expected loss and releases
+ * only what is clean, which is the conservative reading of the same rule and the
+ * one that never moves money on a guess.
+ *
+ * TODO(fabbyyyy): the delay cost per day and the relationship weight belong on
+ * the supplier record, next to `knownAccounts`. Read them here once they are
+ * stored and this constant goes away.
+ */
+const UNPRICED_SUPPLIER: SupplierModel = {
+  delayCostPerDay: 0,
+  relationshipWeight: 1,
+};
+
+/** A detector that answers with one finding or none, as a list. */
+function listOf(finding: Finding | null): Finding[] {
+  return finding === null ? [] : [finding];
+}
+
+/**
+ * The detectors this API can feed, each called with what it actually takes.
+ *
+ * Three of the six are wired. The other three are named here so that their
+ * absence is a decision on the record rather than an oversight:
+ *
+ * - `bank_reconciliation` compares the bank mirror against payments already
+ *   sent. The API holds no bank mirror yet and an instruction that just arrived
+ *   has not been sent, so running it at intake would report every new payment as
+ *   missing from a statement that does not exist.
+ * - `sat_69b` lives in `packages/sat` and `beneficiary_cep` in `packages/cep`.
+ *   `apps/api` does not depend on either workspace yet, and @hackmty/core is
+ *   forbidden from depending on them, so they reach the engine from here the day
+ *   those dependencies are added.
+ */
+function detectorModules(
+  now: string,
+  allCfdis: readonly Cfdi[],
+): DetectorModule[] {
+  return [
+    {
+      detector: "clabe_forensics",
+      run: (context) =>
+        listOf(detectClabe(context.instruction, context.supplier)),
+    },
+    {
+      detector: "duplicate_invoice",
+      run: (context) =>
+        detectDuplicateInvoice({
+          cfdis: context.cfdis,
+          complements: context.complements,
+          // Only what this instruction claims to settle. An instruction that
+          // names no CFDI settles nothing, and the ledger-wide sweep that an
+          // absent `underReview` would trigger belongs to the nightly replay.
+          underReview: context.instruction.cfdiUuids,
+          now,
+        }),
+    },
+    {
+      detector: "supplier_behaviour",
+      run: (context) =>
+        context.supplier === undefined
+          ? []
+          : listOf(
+              detectSupplierBehaviour({
+                supplier: context.supplier,
+                cfdis: allCfdis,
+                now,
+              }),
+            ),
+    },
+  ];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -189,8 +250,8 @@ export async function runIntake(
     instruction.ocrConfidence = ocrConfidence;
   }
 
-  const findings = await composeFindings(repo, instruction, now);
-  const decision = await decide({ instruction, findings, now });
+  const findings = await detectFindings(repo, instruction, now);
+  const decision = decide(instruction, findings, UNPRICED_SUPPLIER, { now });
 
   return { ok: true, record: { instruction, findings, decision } };
 }
@@ -213,64 +274,36 @@ async function resolveSupplierRfc(
 }
 
 /**
- * Gathers the evidence and delegates. Until `composeFindings` exists in core
- * the answer is an empty list, which is the honest answer: no detector ran, so
- * nothing was found. It is never a fabricated finding, because a screenshot of
- * a fake alert is exactly the Wizard-of-Oz prototype the judges are hunting.
+ * Gathers the evidence one instruction needs and hands it to core, which runs
+ * whichever of the six detectors are built and skips the rest.
+ *
+ * The CEP is the one already fetched for the account this instruction pays to,
+ * if there is one. A CEP verified for a different account proves nothing about
+ * this payment, so it is not offered as if it did.
  */
-async function composeFindings(
+async function detectFindings(
   repo: Repository,
   instruction: PaymentInstruction,
   now: string,
 ): Promise<Finding[]> {
-  const compose = coreFunction<ComposeFindings>("composeFindings");
-  if (compose === undefined) {
-    // TODO(garzario): remove this branch once the detectors land (issues #34 #36 #39).
-    return [];
-  }
-
   const supplier = await repo.findSupplier(instruction.supplierRfc);
   const detail =
     supplier === undefined
       ? undefined
       : await repo.supplierDetail(instruction.supplierRfc);
+  const beneficiary = detail?.verifiedBeneficiaries.find(
+    (row) => row.clabe === instruction.clabe,
+  );
 
-  const input: DetectorInput = {
+  return composeFindings(
     instruction,
-    cfdis: detail?.cfdis ?? [],
-    satEntries: await repo.satLookup(instruction.supplierRfc),
-    verifiedBeneficiaries: detail?.verifiedBeneficiaries ?? [],
-    now,
-  };
-  if (supplier !== undefined) {
-    input.supplier = supplier;
-  }
-
-  return compose(input);
-}
-
-/**
- * The expected-loss decision. Without core's model the fallback is `verify` for
- * anything flagged and `release` for anything clean, and the money numbers stay
- * at zero rather than being guessed. `verify` is the safe default: it costs one
- * phone call and it moves no money.
- */
-async function decide(input: DecisionInput): Promise<Decision> {
-  const model = coreFunction<Decide>("decide");
-  if (model !== undefined) {
-    return model(input);
-  }
-
-  // TODO(garzario): issue #38, the expected-loss model in core, which is
-  // the one place allowed to weigh amountAtRisk against delayCostPerDay.
-  return {
-    instructionId: input.instruction.id,
-    action: input.findings.length === 0 ? "release" : "verify",
-    expectedLoss: 0,
-    delayCostPerDay: 0,
-    findings: input.findings,
-    decidedAt: input.now,
-  };
+    supplier,
+    detail?.cfdis ?? [],
+    detail?.complements ?? [],
+    await repo.satLookup(instruction.supplierRfc),
+    beneficiary?.cep,
+    { detectors: detectorModules(now, await repo.allCfdis()) },
+  );
 }
 
 /* -------------------------------------------------------------------------- */
