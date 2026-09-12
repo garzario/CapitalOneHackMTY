@@ -33,7 +33,7 @@ be backed by a file, a test or a run.
   3 days ago (supply-chain quarantine, enforced by `minimumReleaseAge` in `bunfig.toml`).
   The vetted pin table is in `CONTRIBUTING.md`. Do not edit `minimumReleaseAge`.
 - **This is a TEAM repo: never push to `main` or `dev`.** Branch from `dev`, open the PR against
-  `dev` (`gh pr create --base dev`), one approval, squash merge. `main` only receives release PRs
+  `dev` (`gh pr create --base dev`), squash merge as soon as CI is green (no approval gate during the build night; reviews happen post-merge and still leave comments). `main` only receives release PRs
   from `dev` (merge commit, tagged). The `pre-push` hook enforces it whatever the refspec. This
   overrides any personal-repo habit of pushing to main.
 - **No AI attribution anywhere.** No `Co-Authored-By`, no "Generated with", no tool credit, in
@@ -162,30 +162,13 @@ end-to-end slice by 04:00, cut scope immediately and do not debug. The gate belo
 awake, and waking the lead is the correct action rather than an escalation. **After the 20:00
 feature freeze on the 12th, only `P0-demo-blocker` issues merge.**
 
-## Review flow and stall rule
+## Review flow (build night mode)
 
-1. The author opens the PR through the `pr-flow` skill, with evidence attached and the risky part
-   named under "For the reviewer".
-2. Automated pass: run `/code-review high --comment` on the PR. Inline findings land as the
-   author's own account, with no attribution lines anywhere.
-3. Human pass: the CODEOWNERS owner for the touched paths reviews. Target at least two
-   substantive comments per PR: a question, a suggestion, or a "this will break when X".
-   A bare approve with no comment does not count.
-4. The author replies in the thread, pushes a fixup, and resolves the thread saying what changed.
-   The resolved conversation is the artifact a judge scrolls, and the best three go into
-   `docs/14-process.md`.
-5. Merge: squash, by the reviewer or by the lead. Normally never the author.
-6. Rotation: Patricio is reviewed by Fabian. Fabian by Patricio, or Adan for API-shape questions.
-   Adan by Fabricio, or Patricio for data contracts. Fabricio by Adan, or Patricio for `docs/07`,
-   `docs/08` and the ADRs. Nobody reviews the same area twice in a row.
-7. **Stall rule, because half the team is asleep by design.** A PR waiting 45 minutes gets pinged
-   in the channel. At 90 minutes the lead reviews it regardless of rotation. If nobody with review
-   rights is awake, the author merges their own PR, writes `merged unreviewed at <time>, nobody
-   awake` in the PR body, and raises it at the next standup. The reviewer then leaves a real review
-   comment on the merged PR, which still appears in the history. A stalled PR at hour 20 is worse
-   than an imperfect merge.
-8. Quality target by M5: every PR has one approval or a recorded stall-rule note, at least two
-   review comments, zero direct pushes to `main` or `dev`, and `git log dev --oneline` reads as a story.
+The approval gate is off while the four of us run our assistants overnight: a PR merges itself as soon as
+`bun run typecheck`, `bun test` and `bun run build` are green and the PR body is filled in. Every merged PR
+still gets a real post-merge review from the rotation (Patricio reviews Fabian, Fabian reviews Patricio,
+Fabricio reviews Adan, Adan reviews Fabricio) with at least two comments, because the review threads are
+part of what Capital One reads. Never push to `main` or `dev` directly; `main` only takes release PRs.
 
 ## How to work with AI agents here
 
