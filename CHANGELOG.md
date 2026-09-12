@@ -18,6 +18,22 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   which runs the candidate matrix and reports `unconfirmed_scheme` rather than claiming a seal it
   cannot prove, `fetchCep` against the public portal with an injectable fetch, and `nameMatch` with
   Mexican legal-name normalisation. Synthetic fixture, zero dependencies, no network in the tests.
+- `docs/06-regulatory-privacy.md`: regulatory posture, privacy and LLM boundary for Ceptinela.
+  Legal position, framework map for Mexico, the verified text of CFF articles 69-B and 69-B Bis,
+  the LFPDPPP obligations over CEP holder names and supplier data, the ethics rules the domain
+  types enforce, a cost per verification table priced on 2026-09-12, and the synthetic data
+  posture. Every legal and price claim is traced to a primary source in a sources table.
+- Market and business model: `docs/04-market.md` and `docs/05-business-model.md`, with the competitor
+  map, bottom-up TAM, SAM and SOM, unit economics, payback and the go-to-market plan. Every figure is
+  cited to a public primary source with its access date.
+- Expected-loss decision engine in `packages/core/src/decision.ts`. `decide` turns findings into
+  hold, verify or release by weighing the pesos at risk against what delaying the payment costs
+  with that supplier, and never auto-releases while a critical finding exists. `composeFindings`
+  runs whichever of the six detectors exist in the package and returns their findings in alert
+  rail order, biggest amount at risk first.
+- CLABE forensics detector in `packages/core`: check digit over the 3-7-1 weights, a dated snapshot
+  of the Banxico participant catalogue, plaza parsing, OCR-aware Damerau-Levenshtein against the
+  supplier's paid accounts, and a `Finding` whose evidence names the differing digit positions.
 - `packages/core/src/cfdi.ts`: CFDI 4.0 de ingreso and complemento de recepcion de pagos 2.0 parsed
   into the domain types, on a dependency-free XML tokenizer that never throws. Synthetic SAT
   fixtures in `packages/core/src/fixtures/` and 62 tests covering totals, IVA, the timbre UUID, the
