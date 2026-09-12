@@ -1,35 +1,52 @@
 # 10. Demo script
 
-Four minutes. Every beat has an expected on-screen result and a fallback. Drift between this file
-and the product is how demos die, so whoever changes the demo path updates this file in the same PR.
+Four minutes, five beats. Every beat has an exact click, an expected on-screen result, the one
+sentence said over it, and a fallback. Drift between this file and the product is how demos die, so
+whoever changes the demo path updates this file in the same pull request.
 
-Owner: Fabricio (`FabriBanda`), verified by whoever is presenting. Due M3.
-Presenter: TODO(garzario). Backup presenter: TODO(garzario).
+Owner: Patricio (`garzario`), drafted for the team to validate. Issue #56. Due M3.
+
+Presenter: TODO(garzario) confirm at the first rehearsal. Backup presenter: TODO(garzario).
+The spoken lines below are written in English because this repository is in English. Say them in the
+language the judge opens with. The Spanish rendering of each line goes on the printed judge card
+(#74), not into this file.
 
 ## Beat sheet
 
-TODO(FabriBanda): fill the click, result and sentence columns once the screens exist. Keep five
-beats. The third beat is the one from `docs/03-user-journey.md` that is the product, and it gets the
-most time.
-
-| Time | Who speaks | Exact click or command | Expected on screen | The one sentence said over it | Fallback if it breaks |
+| Time | Beat | Exact click or command | Expected on screen | The one sentence said over it | Fallback if it breaks |
 |---|---|---|---|---|---|
-| 0:00 to 0:35 | | nothing, talking | the persona slide | the persona's ten-second problem, in their words | skip to the product, the problem survives without a slide |
-| 0:35 to 1:10 | | open the live URL, already loaded in tab 1 | the landing state with real seeded data | what they are looking at, and that the data is synthetic | local instance on the second port |
-| 1:10 to 2:30 | | the key interaction | **the moment that is the product** | the mechanism in one sentence, not the feature list | the recorded video, cued to this beat |
-| 2:30 to 3:15 | | open `packages/core/src/<algo>.ts` beside its test file | the function and the test names | why it is deterministic, testable and auditable | `bun test` output captured in the terminal already |
-| 3:15 to 4:00 | | back to tab 1 | the outcome state | the business line and the ask | nothing to break |
+| 0:00 to 0:55 | **1. The payment run** | Tab 1, already loaded: the payment-run screen | This week's run, its totals, rows sorted with the alert rail on the right by pesos at risk, three findings visible, the `datos sinteticos` watermark | "This is Thursday for the person who pays the suppliers of a 28-person metalworking shop in Apodaca. Seventy to a hundred and ten transfers in one sitting, and all of this data is synthetic. Ceptinela has already read every invoice, so the run arrives sorted by how much money is at risk instead of alphabetically." | Local instance on the second port, same screen, same data |
+| 0:55 to 1:50 | **2. The SAT publication replay, and a real RFC** | Click `Simular publicacion 69-B`. Then hand the judge the lookup box and let them type a real RFC | Eight months of ledger replay in under three seconds, newly listed suppliers lighting up, the exposure counters climbing (deducted base, ISR, IVA), a constancia PDF to download. The lookup box answers from the official list | "Here is the part nobody instruments. When the SAT publishes a new Article 69-B list, everything you already paid and already deducted to a supplier on it is exposed retroactively. We replay the ledger and quantify it. The list is the real one, and this box is separate from the simulation on purpose: real RFCs never touch our synthetic invoices." | The lookup box alone, offline from the committed list snapshot. If the replay stalls, the recorded video cued to this beat |
+| 1:50 to 2:35 | **3. An instruction arriving by QR** | Judge scans the QR on the printed card, photographs the CLABE printed on it, submits | The intake page accepts it, the big screen gains a row within two seconds over SSE, with the finding and the two digits that differ from the account we have paid six times | "Send it yourself. That instruction went from your phone to the engine and back to this screen without a reload, and the reason it is flagged is on the chip: this account differs in two digits from the one we have paid this supplier on six times." | Type the CLABE instead of photographing it. If the judge's phone fails, do it from our second phone. If SSE drops, reload once and say the stream dropped |
+| 2:35 to 3:20 | **4. The real CEP and its signature** | Open the CEP viewer on the verified beneficiary | The CEP fields, the clave de rastreo, the signature status, and the holder name next to the CFDI legal name | "Before we release a payment to a new account, a person sends one cent. Banxico signs a receipt for every SPEI. We fetch it, check the signature, and compare the account holder name with the legal name on the invoice. Here is the clave de rastreo. Re-check it on the Banxico site from your own phone, this one is real." | The stored CEP fixture rendered from disk. Never fabricate a CEP on stage |
+| 3:20 to 4:00 | **5. The metrics page, and the business line** | Open the metrics page. For an engineer judge, open the detector beside its test file instead and run `bun test` | Precision, recall and false-positive rate with the case count next to them, per detector, plus the note naming anything we measured and refused to ship | "The cases were written and labelled by someone who does not write the detectors, and the detector author does not read that folder until the code is merged, so these numbers are blind. Nothing here is a language model: the decision is deterministic and you can read it." | `bun test` output already captured in the terminal, or the metrics JSON from `GET /api/v1/metrics` |
+
+Beat 1 and beat 3 are stage 3 of `docs/03-user-journey.md`, the moment that is the product. Beat 3
+is the one to protect if time is lost, because a judge who sent the instruction themselves does not
+need to be convinced that the product runs.
+
+### Walk-up variants, because judging is continuous
+
+| Who walked up | Beats to run | Time |
+|---|---|---|
+| Engineer | 1, 3, then the detector file beside its test with `bun test` | About 3 minutes |
+| Product | 1, 2, then the business line from `docs/11-pitch.md` | About 3 minutes |
+| Anyone, and there are two minutes | 1 and 3 only. Finish on the SSE row appearing | 2 minutes |
 
 ## Seeded IDs used in the demo
 
-Printed by `bun run seed`. These must match `docs/09-api.md` exactly.
+Printed by `bun run seed`. These must match `docs/09-api.md` and the printed card exactly.
 
 | Thing | ID | Note |
 |---|---|---|
-| Hero account | TODO(fabbyyyy) | The one the whole demo runs on |
-| Secondary account | TODO(fabbyyyy) | For the comparison beat |
-| Date range | TODO(fabbyyyy) | Must include the seeded seasonality |
-| Seed value | TODO(fabbyyyy) | Committed, so the IDs are stable |
+| Demo company | TODO(Apanawa) | The metalmecanica from `docs/02-persona.md` |
+| Hero instruction | TODO(Apanawa) | The CLABE two digits off, top of the alert rail |
+| Hero supplier RFC | TODO(Apanawa) | Synthetic, `SYN` prefixed |
+| Supplier for the sweep | TODO(Apanawa) | The one that becomes listed in the simulated publication |
+| Real RFC for the lookup box | TODO(garzario) verify | Taken from the official list at load time. Never attached to a synthetic invoice |
+| Clave de rastreo of the real CEP | TODO(Apanawa) | From issue #57. Goes on the printed card so a judge can re-verify it |
+| Seed value | TODO(Apanawa) | Committed, so every ID above is stable |
+| Instruction count in the run | TODO(garzario) verify | Whatever `bun run seed` prints. Do not say a number on stage that the screen does not show |
 
 ## Pre-demo checklist
 
@@ -38,31 +55,42 @@ the difference between looking real and looking like a prototype.
 
 - [ ] `bun run demo` is green on this machine, right now
 - [ ] `bun run seed` has run and printed the expected counts and IDs
-- [ ] `curl /api/health` returns `ok` and names the live database path
+- [ ] `curl /health` returns ok, and `bun run doctor` names the live database path
+- [ ] The SSE stream is alive: the intake page posts one instruction and the row appears
+- [ ] The SAT list snapshot is loaded and its version and publication date are visible
+- [ ] The real CEP is present and its signature check passes
 - [ ] One browser window, demo tabs in order, every other window closed
+- [ ] The printed card is on the table: QR code, the CLABE to photograph, the clave de rastreo, the real RFC
 - [ ] Notifications off, Do Not Disturb on
 - [ ] Browser zoom at 100 percent, or a deliberate larger value that is the same every time
-- [ ] The local fallback instance is already running on a second port
+- [ ] The local fallback instance is already running on the second port, seeded
 - [ ] Battery above 50 percent or plugged in
 - [ ] The recorded video is on the laptop and on a phone, playable with no network
 - [ ] `docs/12-judge-qa.md` open on a phone
 
 ## Offline fallback
 
-Two layers, in this order.
+Three layers, in this order. Conference Wi-Fi dying is the expected case, not the unlucky one.
 
 1. **Local mode.** A second instance already running against the local Postgres 18 on 5432, seeded,
-   on a second port. Conference Wi-Fi dying is the expected case, not the unlucky one.
-2. **Recorded video.** The backup demo video, on the laptop and on a phone, playable with no
-   network. Capital One confirmed a backup video is allowed.
+   on a second port, with the SAT list snapshot and the CEP fixture on disk. Same SQL, same driver,
+   same migrations, per ADR-0003. The only thing that changes is which host the browser points at.
+2. **Recorded video.** The backup demo video on the laptop and on a phone, playable with no network.
+   Capital One confirmed a backup video is allowed.
+3. **The engine itself.** Open a detector next to its test file and run `bun test` with the Wi-Fi
+   off. That is a demo of the thing they are actually grading, and it is better than apologising.
 
-If both fail, the honest move is to open `packages/core` and its tests and walk the algorithm. That
-is still a demo of the thing they are actually grading, and it is better than apologising.
+If the judge's phone cannot reach the intake page, do beat 3 from our second phone and say why. A
+volunteered reason costs nothing; a silent workaround looks like a trick.
 
 ## Rules
 
 - Nothing in the demo is faked. If a piece is stubbed, say so out loud before they ask. Capital One
-  said explicitly that they are looking for Wizard-of-Oz prototypes, and a volunteered caveat buys
-  more credibility than it costs.
-- The demo runs on seeded synthetic data and we say that sentence every single time.
+  said explicitly they are hunting for Wizard-of-Oz prototypes, and a volunteered caveat buys more
+  credibility than it costs.
+- The demo runs on seeded synthetic data, and we say that sentence every single time, in beat 1.
+- The only real data on screen is the SAT list in the lookup box and the CEP in beat 4, and we name
+  both as real when they appear. Real RFCs never sit next to synthetic invoices, per ADR-0002.
 - Never demo from a branch. Always from what is deployed, or from `main`.
+- Never start a long agent run or a refactor inside the demo window.
+- Never say a number that is not on the screen.
