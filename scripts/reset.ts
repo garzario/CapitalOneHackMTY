@@ -17,6 +17,8 @@ import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 const STATE_FILE = `${ROOT}/.seed/ids.json`;
+/** The bank mirror's ids. Wiping Nessie without it leaves ids pointing at nothing. */
+const NESSIE_STATE_FILE = `${ROOT}/.seed/nessie.json`;
 
 /**
  * Children before parents. Nessie's reset route is not part of the verified surface
@@ -42,7 +44,9 @@ if (args.has("--help")) {
   console.log(
     "Truncates ledger_tx and removes .seed/ids.json. With --nessie, also wipes",
   );
-  console.log("this key's Nessie data. Destructive and not undoable.");
+  console.log(
+    "this key's Nessie data and .seed/nessie.json. Destructive and not undoable.",
+  );
   process.exit(0);
 }
 
@@ -58,6 +62,7 @@ if (!args.has("--keep-ids")) {
 }
 if (wipeNessie) {
   console.log(`  - this Nessie key's data: ${NESSIE_TYPES.join(", ")}`);
+  console.log("  - .seed/nessie.json");
 }
 console.log("");
 
@@ -124,6 +129,17 @@ if (!args.has("--keep-ids")) {
     console.log(".seed/ids.json removed");
   } catch {
     console.log(".seed/ids.json was not there");
+  }
+}
+
+if (wipeNessie) {
+  // The ids in it name a customer and an account that no longer exist, and
+  // `bun run nessie:mirror` would reuse them and push into nothing.
+  try {
+    await unlink(NESSIE_STATE_FILE);
+    console.log(".seed/nessie.json removed");
+  } catch {
+    console.log(".seed/nessie.json was not there");
   }
 }
 

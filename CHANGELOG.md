@@ -18,6 +18,69 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- Two things the deploy of #44 cost to learn, written down next to the commands in
+  `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
+  connection to port 22 and then never delivers the banner, so `refresh.sh` is unreachable from the
+  floor and `bun run deploy:vultr --reinstall --branch <name>` is the path that needs no SSH and
+  keeps the address; and a reinstall discards the `caddy_data` volume, so Caddy asks Let's Encrypt
+  for a new certificate on the next boot, against a limit of five per week for the same name. The
+  script prints the second one before it wipes anything. Also corrects the migration count in the
+  same table: five plain files and three Timescale ones, which is what `packages/db/migrations/`
+  holds.
+
+- The deploy, both halves of it, and the URL a judge can open (issue #44). `apps/web` is a static
+  build on Vercel and `apps/api` runs on one Vultr instance behind Caddy, which terminates HTTPS on
+  `api.<ip>.sslip.io`: sslip.io resolves a name that embeds an IPv4 address to that address, so
+  Let's Encrypt answers the HTTP-01 challenge on a box that has just booted and no domain has to be
+  bought or delegated first. `vercel.json` carries the build (`bun install --frozen-lockfile`, then
+  `bun run --filter '@hackmty/web' build`, output `apps/web/dist`) because the bundle imports
+  `@hackmty/core` from the workspace and a build rooted at `apps/web` cannot resolve it, and it
+  rewrites `/api` and `/health` to the instance so the browser only ever talks to one origin and
+  `apps/web/src/lib/api.ts` keeps its relative paths. `.vercelignore` holds the upload to what the
+  build reads: the SAT snapshot and the judging assets are 7.6 of the repository's 8.6 MB and the
+  web bundle imports neither, which is also why the first upload died mid-flight on the venue Wi-Fi
+  and the trimmed one does not. `scripts/deploy-vultr.ts` creates or reuses the instance labelled
+  `sentryone-api`, sends `deploy/cloud-init.sh` as user data, and ends by calling `/health` and
+  `/api/v1/run/current` over HTTPS, because creating a server is not deploying: it exits non-zero
+  unless the deployed API answers the contract in `docs/09-api.md`. Wiping a reused box is opt in
+  behind `--reinstall`, `--dry-run` prints the user data with the secret block redacted, and the
+  Vultr key being refused for this machine's IP prints the console steps and exits 2 instead of a
+  stack trace. `apps/api/Dockerfile` builds on `oven/bun:1.3.11-slim`, the tag `.bun-version` pins,
+  with the repository root as its context because the API imports eight workspace packages, and
+  ADR-0005's no-`bun:*` rule is untouched: Bun there is packaging, not a dependency of the code.
+  `deploy/Caddyfile` sets `flush_interval -1` and no `encode`, which is what keeps
+  `GET /api/v1/events` streaming instead of arriving in one lump when the connection closes.
+  Deployed and verified on 2026-09-12: <https://sentryone-one.vercel.app> over
+  <https://api.104.238.147.69.sslip.io>, serving `run-2026-09-07` with 92 instructions and
+  2,174,210.76 MXN out of Tiger Data, the same figures `docs/10-demo-script.md` documents.
+
+- The company's bank mirror is seeded into Nessie with our own key, and the key is validated with a
+  write (issue #45). `bun run nessie:mirror` pushes one customer, one Checking account and one
+  merchant per supplier, then the company's bank mirror: one purchase per outflow that has already
+  settled on the account, newest `--limit` first, 200 of 2446 by default on seed 69. Never the
+  pending instructions of the current payment run. Dated, signed outwards, with the beneficiary
+  named, which is what the issue's "withdrawals and transfers" means in substance. Purchases and not
+  bare withdrawals because a purchase carries a payee and a withdrawal does not, and because that is
+  the shape `packages/seed` already builds, so the read-back runs through the same
+  `normalizePurchase` the live import uses and the row that comes home is the row the generator
+  produced. The command reads the mirror back and reconciles it per Monterrey calendar day against
+  the set that was actually pushed, which the state file records, so a later run with a narrower
+  default does not report the rest of the account as differing days. `--import` replaces the
+  generator's `ledger_tx` rows for the company account with what Nessie answered, through the new
+  `deleteLedgerTxBySource` and inside one transaction, and it refuses a push that reported failures,
+  a read-back that threw or was partly rejected, and a reconciliation that did not balance. A later
+  `bun run seed` puts the generator's mirror back, once and never twice, because the loader deletes
+  the account's rows by account id before it inserts. Idempotent from the gitignored
+  `.seed/nessie.json`, which carries `keyValidatedAt` and `keyFingerprint`, twelve hex characters of
+  SHA-256 over the key that made that write and never the key: the POST that created the customer is
+  the only thing that proves the key, because an invalid key answers `200 []` on every read.
+  `bun run doctor` now reports that write, computes the same fingerprint over the key in `.env` and
+  is green only when the two agree, and still writes nothing itself. Three more Nessie quirks were
+  verified while doing it and are in `AGENTS.md` and `docs/09-api.md`: merchant `category` is a bare
+  string on a create (`NewMerchant.category` is typed as one, so the refused array shape does not
+  compile), an address `state` is at most two characters, and a purchase `amount` is stored as a
+  whole number, so the centavos live in our ledger and never in the mirror.
+
 - Real document import path, so the CFDI parser can be validated on a document a PAC actually
   stamped (refs #68). `bun run scripts/import-real-cfdi.ts <file>` reads one real CFDI 4.0, de
   ingreso or complemento de pagos 2.0, and writes a committable fixture: every amount scaled by a
@@ -28,8 +91,50 @@ then the screens, then the narrative, then the plumbing.
   recomputed from the scaled inputs and reverified, and the command refuses to write a file in which
   any replaced value, or any RFC or CLABE shaped token, survived. The redacted copy goes to
   `packages/core/src/fixtures/real/`, the change map to the gitignored `.seed/real/`.
-  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
-  while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
+  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder. Documented in
+  `docs/08-data-model.md`, Real document validation.
+
+- Three real CFDI 4.0 de ingreso, redacted and committed, so the parser is proven on documents we did
+  not write (closes #68). They were received by two taxpayers from three different issuers, stamped by
+  two different PACs, and imported on 2026-09-12 through `scripts/import-real-cfdi.ts` under one
+  shared `REAL_CFDI_SCALE`, so the amounts scale consistently with each other and the same taxpayer
+  carries the same synthetic RFC in the two documents it received. Every amount is the real one times
+  a factor that is not in this repository, and every RFC, legal name, postal code, serie, folio, UUID,
+  certificate serial and stamp is synthetic. The three are deliberately unlike each other:
+  `ingreso-1` has no serie and no folio and uses CRLF line endings, `ingreso-2` carries both and is
+  one single line with no indentation, `ingreso-3` withholds IVA and ISR, opens with a byte order mark
+  and is a document whose concept level tax rounding the issuing PAC did not satisfy exactly, which
+  the importer preserved rather than corrected. `packages/core/src/cfdi-real.test.ts` now runs seven
+  tests per fixture: it parses as the kind it claims, the record is watermarked `synthetic`,
+  `Total` is `SubTotal` less the discount plus the transferred taxes less the withheld ones to within
+  a cent, `iva` is summed from the document level IVA lines rather than read off
+  `TotalImpuestosTrasladados` and the two agree on all three because IVA is the only tax these
+  documents transfer, the UUID and both
+  RFCs are shaped the way SAT writes them, no stamp or certificate is long enough to be a real one,
+  and none of the parser's tolerances was needed to read the document: every element resolved a
+  declared SAT namespace, the issuer name was present, the document level tax block was present, the
+  timbre is a direct child of `cfdi:Complemento`, and the optional serie, folio and forma de pago
+  match the document exactly. The three names are listed in the suite, so losing a fixture fails
+  instead of reverting the folder to a skip. Documented in `docs/08-data-model.md`, Real document
+  validation, and in row 4 of `docs/01-rubric-mapping.md`.
+
+- `supplier_weekly_outflow`, the feed the `supplier_behaviour` detector and the supplier drawer read
+  (issue #72). One name over two definitions: `0007_supplier_outflow.sql` is a plain view that runs
+  on any Postgres 16 or newer, and `0008_timescale_supplier_outflow.sql` drops it and puts a
+  continuous aggregate with the same five columns and the same Monday 00:00 UTC buckets in its
+  place where `timescaledb` exists, so the offline database answers the same numbers and only the
+  cost changes. The source is `ledger_events` and not `cfdis`, which is forced rather than chosen: a
+  foreign key into `cfdis (uuid)` needs a unique index on `uuid` alone and that is exactly what
+  `create_hypertable` refuses, and `instructions` is pinned the same way by `decisions`. Real-time
+  aggregation is on, so a CFDI ingested during the demo reaches the detector without waiting for a
+  refresh. `supplierHistory(rfc, weeks)` in `packages/db/src/queries.ts` returns
+  `SupplierBehaviourInput` from `packages/core/src/behaviour.ts` with the weekly series attached, so
+  `assessSupplierBehaviour(await supplierHistory(sql, rfc))` runs with no mapping step in between,
+  and the window comes from the detector's own defaults so the two cannot drift. Tested three ways:
+  the mapper and the shape without a database in `rows.test.ts`, the two definitions compared column
+  by column in `migrate.test.ts`, and ten cases against a real server in `queries.test.ts`, gated on
+  `TEST_DATABASE_URL` and run against the local PostgreSQL 18.6 where the plain view is what
+  answers. Documented in `docs/08-data-model.md`.
 
 - The API answers every endpoint in `docs/09-api.md` out of Postgres, so the data platform is live
   behind the product rather than beside it (issue #41). `apps/api/src/postgres-repo.ts` implements
@@ -132,8 +237,59 @@ then the screens, then the narrative, then the plumbing.
   those three, plus one database case gated on `TEST_DATABASE_URL`. Only a bun version mismatch still
   fails a plain run; `--strict` exits 1 on any warning.
 
+- The six write endpoints of `docs/09-api.md` are now each covered on both stores (issue #42). The
+  Postgres suite gained the two that only ever ran against `MemoryRepository`: the pasted-CEP half of
+  `POST /api/v1/cep/verify`, and `POST /api/v1/instructions/:id/verify-call`, which asserts that the
+  hand-recorded call reaches `ledger_events` as one `verification_call` and drags no `decision_made`
+  along with it, and that the event carries four digits and never the CLABE. All six were also driven
+  over HTTP against a local PostgreSQL 18, which is what the audit in that issue asked for and is
+  written up on the pull request. `docs/09-api.md` gained "The CEP, and what verify can prove", which
+  states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
+  where the line between "no verificada" and "invalida" is drawn.
+
 ### Fixed
 
+- `POST /api/v1/cep/verify` does what `docs/09-api.md` says it does (issue #42). It had been the one
+  write endpoint still wired to a stub: it only ever answered from the registry of verified
+  beneficiaries, matched a pasted `xml` by exact string equality against a document already stored,
+  which meant a clerk could never paste a new CEP at all, and returned `finding: null` on every
+  request. The TODOs pointed at issue #37, which closed with `packages/cep` holding all four steps.
+  The route now goes through them: `parseCep` reads a pasted document, `fetchCep` retrieves one from
+  the Banxico portal, `verifySignature` checks the seal, and the `beneficiary_cep` finding comes from
+  `packages/engine`, attached to the payment run line that pays the account, or `null` when no
+  pending payment goes to it. `apps/api/src/cep.ts` is the seam and it makes the three decisions a
+  transport layer owns: a pasted CEP is always accepted and needs no key, no certificate and no
+  network; the `claveRastreo` form reads the registry before the portal, so the demo does not depend
+  on a public government service being up; retrieval is off unless `ALLOW_CEP_FETCH=1`, because the
+  portal is an undocumented form behind a CAPTCHA and a per-address rate limit, and its four known
+  failure sentences come back as a `422` a clerk can act on rather than a `500`. The seal is checked
+  only when `BANXICO_CEP_CERT_PEM` is configured, and otherwise the CEP keeps the
+  `signatureReason: "not_checked"` that `parseCep` wrote: a `signatureValid: true` nobody earned is
+  the one lie this endpoint could tell that would cost more than the feature is worth.
+- `not_checked` read as a failed Banxico seal, which is an accusation against a document nobody had
+  checked (issue #42). `sealStateOf` in `packages/engine/src/beneficiary.ts` treated only
+  `unconfirmed_scheme` as unproven and everything else as invalid, so a CEP a clerk had just pasted,
+  which `parseCep` stamps `not_checked`, produced a `critical` finding explaining that "el sello de
+  Banxico no valido contra el certificado". `UNPROVEN_SEAL_REASONS` now names the three reasons that
+  mean the seal could not be proven, `not_checked`, `unconfirmed_scheme` and `invalid_certificate`,
+  the last because this server holding no usable certificate is a fact about our configuration and
+  says nothing about the supplier's document. A missing `sello`, a `sello` that is not base64 or not
+  RSA-2048, a missing `cadenaCDA` and a `signature_mismatch` still read as invalid, because those
+  are defects in the document itself. The distinction was already written down in `domain.ts`, in
+  `packages/cep/README.md` and in that adapter's own header; only the code disagreed.
+- `POST /api/v1/seed` wiped the demo company for a caller who sent `reset: false`. The field was in
+  the contract, in the zod schema and in the web client's type, and the handler read only `seed`, so
+  the one request that asks this endpoint not to be destructive was the one it answered by being
+  destructive. There is no add-without-replace on the repository, so it answers `422` and says why.
+- `bun run migrate` works again on the Tiger Data service, which it had not since the SentryOne
+  rename (issue #157). Renaming `0003`, `0004` and `0005` left every host that had already applied
+  them recording the old filenames, so the runner treated the new names as never applied and sent
+  0003 a second time, where its append-only rules on `ledger_events` are refused by the hypertable
+  0004 made of that table. `RENAMED_MIGRATIONS` in `packages/db/src/migrate.ts` now maps old name
+  to new, and `migrate()` reconciles the `schema_migrations` rows before it applies anything: a
+  renamed file is reported as `renamed` and re-recorded under the new name with the new file's
+  checksum, and a host that already re-ran the file under both names has the stale row dropped.
+  Covered by `packages/db/src/migrate-rename.test.ts` against a real Postgres.
 - The demo script's seeded ids and amounts were correct and unprotected. Every figure in
   `docs/10-demo-script.md` that comes from the generator is now asserted against it by
   `packages/seed/src/sentryone/documented-figures.test.ts`, verified by hand against a seeded API
@@ -510,6 +666,29 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- `docs/07-architecture.md` and `docs/08-data-model.md` are finished against the merged tree
+  (issue #64), and every figure on both pages now comes from a run or from a cited file. 07 carries
+  the four-lane flowchart with the real packages, a sequence diagram of the intake path from the QR
+  photo through `packages/extract` to the SSE update, a second one of the SAT publication replay
+  through `simulatePublication`, `publishSatList` and `priceSweep`, and a justification table that
+  now covers Gemini boxed to extraction, ElevenLabs for the verification call and the hash router,
+  each row with the condition that would make us switch. The deliberately absent pieces are a table
+  with their reversal condition, MongoDB Atlas among them, and the scaling section states the
+  measured cost of a control pass (15.1 ms per line, 1387 ms for a 92-line run on an Apple M3 Pro)
+  and the honest multi-tenancy position: the schema is single-tenant by construction because
+  `0006_company.sql` refuses a second row, and the path to many tenants is one column plus a space
+  dimension. 08 transcribes the ERD from `domain.ts` including `delayCostPerDay`, `paymentTotal`,
+  `operationNumber`, `audioRef`, `sentAt`, the CEP evidence fields, `ledger_tx` as a finding subject
+  and `verification_call`, says which lines are real foreign keys and which are only join keys,
+  explains all six migrations including why `0005` exists, and reports the synthetic-data figures as
+  `summarizeSentryOne` returns them for seed 69 and week 2026-09-07. The blind-evaluation section
+  carries the measured table from `bun run eval` (30 cases, 85.0 precision, 81.0 recall, 1.9 false
+  positive rate, action agreement 28 of 30) and, separately, the false positive rate over the ten
+  hard negatives alone, which is 0 of 60 case-by-detector pairs. The stale parts are gone: the ERD
+  no longer shows a `ceps` table or an `instruction_cfdi` junction that the schema never had, the
+  migration section no longer describes a `supplier_weekly_outflow` aggregate that does not exist,
+  and the threshold TODO is answered rather than left open, by stating that no refusal threshold was
+  pre-registered before the first run and why claiming one would be false.
 - `detectBankReconciliation` buckets the expected payments by the day they are expected on and
   scans only the days inside the match window, instead of the whole company's documents once per
   outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from

@@ -706,3 +706,79 @@ export function ledgerTxFromRow(row: LedgerTxRow): LedgerTx {
   assign(tx, "category", optionalText(row.category));
   return tx;
 }
+
+/* -------------------------------------------------------------------------- */
+/* supplier_weekly_outflow, the behaviour detector feed                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One bucket of `supplier_weekly_outflow`: the view 0007 defines, and the
+ * continuous aggregate 0008 replaces it with on a Timescale server. Both paths
+ * return the same five columns, so this mapper is the only place in the codebase
+ * that knows their names.
+ *
+ * `invoices` is a bigint and postgres.js hands a bigint back as a string, the
+ * same way it hands back a numeric, which is why it is typed as `SqlNumeric`
+ * rather than read as a number.
+ */
+export interface SupplierWeekRow {
+  supplier_rfc: string;
+  week: SqlInstant;
+  invoices: SqlNumeric;
+  outflow: SqlNumeric;
+  max_invoice: SqlNumeric;
+}
+
+/** One week of what a supplier invoiced this company. */
+export interface SupplierWeek {
+  /** Monday 00:00 UTC that opens the bucket, ISO 8601. */
+  week: string;
+  /** Invoices issued inside the bucket. */
+  invoices: number;
+  /** What they totalled, MXN. */
+  outflow: number;
+  /** The largest single invoice in the bucket, MXN. */
+  maxInvoice: number;
+}
+
+export function supplierWeekFromRow(row: SupplierWeekRow): SupplierWeek {
+  return {
+    week: toInstant(row.week),
+    invoices: toCount(row.invoices),
+    outflow: toMoney(row.outflow),
+    maxInvoice: toMoney(row.max_invoice),
+  };
+}
+
+/** A count is whole. A fractional one means the column is not the count. */
+function toCount(value: SqlNumeric): number {
+  const parsed = toMoney(value);
+  if (!Number.isInteger(parsed)) {
+    throw new RangeError(`not a count: ${JSON.stringify(value)}`);
+  }
+  return parsed;
+}
+
+/**
+ * Everything the supplier_behaviour detector reads about one supplier.
+ *
+ * The first three fields are `SupplierBehaviourInput` in
+ * packages/core/src/behaviour.ts, field for field and not an approximation of
+ * it: this object is handed to `assessSupplierBehaviour` unchanged. `weeks`
+ * rides along for the supplier drawer, so the screen renders the series the
+ * detector reasoned over rather than a second one computed its own way.
+ */
+export interface SupplierHistory {
+  supplier: Supplier;
+  /**
+   * Every CFDI the company received inside the window, from every issuer and not
+   * only from this supplier. The concentration signal divides this supplier's
+   * invoiced total by the company's, so one issuer's slice would read every
+   * supplier as 100 percent of the spend.
+   */
+  cfdis: Cfdi[];
+  /** The instant the window ends, ISO 8601. The detector reads it as `now`. */
+  now: string;
+  /** The weekly series for this supplier, oldest first. Empty is a real answer. */
+  weeks: SupplierWeek[];
+}

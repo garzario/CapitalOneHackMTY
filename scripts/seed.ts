@@ -366,9 +366,11 @@ if (flags.has("--nessie")) {
     await attempt(`merchant ${merchant.name}`, async () => {
       const created = await client.createMerchant({
         name: merchant.name,
+        // A bare string, not an array: POST /merchants answers
+        // `400 category str type expected` for the array GET /merchants returns.
         ...(merchant.category === undefined
           ? {}
-          : { category: [merchant.category] }),
+          : { category: merchant.category }),
         address: {
           street_number: String(100 + index),
           street_name: colonia?.streetName ?? "Avenida Constitucion",

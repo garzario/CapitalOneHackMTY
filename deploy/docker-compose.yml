@@ -1,0 +1,92 @@
+# The whole API host, in two services.
+#
+#   docker compose --env-file /srv/sentryone/.env up -d --build
+#
+# run from this folder on the Vultr instance. scripts/deploy-vultr.ts writes
+# that env file through cloud-init and never puts a value in this file.
+#
+# Why Caddy and not the Vultr load balancer: the certificate is the point. The
+# API answers on api.<ip>.sslip.io, sslip.io resolves that name to <ip> with no
+# domain to buy or delegate, and Caddy solves the ACME HTTP-01 challenge on
+# port 80 and serves HTTPS on 443 with no configuration beyond the host name.
+# The web app is served from Vercel over HTTPS, so a plain-HTTP API would be
+# blocked as mixed content by every browser in the room.
+name: sentryone
+
+services:
+  api:
+    build:
+      # The repo root, because apps/api imports eight workspace packages.
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    # Named explicitly rather than through env_file, so this file is the list of
+    # what the API is allowed to see. A variable that is not here is not in the
+    # container, whatever else the env file holds.
+    environment:
+      PORT: "3000"
+      # Tiger Data. With it the API answers every endpoint out of Postgres; with
+      # it missing it would fall back to the in-memory fixture, which is not
+      # what a deployed instance should ever serve.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      NESSIE_API_KEY: ${NESSIE_API_KEY:-}
+      # Without a Gemini key POST /api/v1/instructions answers 422 to a photo or
+      # a voice note and everything else keeps working, by design.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_AGENT_ID: ${ELEVENLABS_AGENT_ID:-}
+      ELEVENLABS_PHONE_NUMBER_ID: ${ELEVENLABS_PHONE_NUMBER_ID:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      # The CEP portal stays off on the deployed box for the reason .env.example
+      # gives: it is an undocumented form behind a CAPTCHA, and the path docs/09
+      # documents is the clerk pasting the XML. Without the Banxico certificate a
+      # CEP keeps signatureReason "not_checked", which is the honest answer.
+      ALLOW_CEP_FETCH: ${ALLOW_CEP_FETCH:-}
+      BANXICO_CEP_CERT_PEM: ${BANXICO_CEP_CERT_PEM:-}
+      # POST /api/v1/seed stays off on a deployed instance: it would rewrite the
+      # demo company under the judges' feet.
+      ALLOW_SEED: ""
+    expose:
+      - "3000"
+    # No ports: mapping. The API is reachable only through Caddy, so there is no
+    # plaintext port 3000 open to the internet answering the same data.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    # Pinned, like every other dependency in this repo.
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    # Started after the API, deliberately not gated on its health: a Caddy that
+    # is up answers 502 and can still be diagnosed from a laptop, while a Caddy
+    # that never starts leaves port 443 dead and says nothing. It also means the
+    # ACME challenge is solved even while the API is still building.
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # api.<public ip>.sslip.io, written by deploy/cloud-init.sh once the
+      # instance knows its own address.
+      SENTRYONE_API_HOST: ${SENTRYONE_API_HOST:?SENTRYONE_API_HOST is required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The issued certificate and the ACME account key. Named volumes, so a
+      # rebuild does not ask Let's Encrypt for a new certificate and walk into
+      # the rate limit an hour before judging.
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

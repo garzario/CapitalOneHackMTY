@@ -16,6 +16,7 @@ import { describe, expect, it } from "bun:test";
 import type { Sql } from "../../packages/db/src/index.ts";
 import { MIGRATIONS } from "../../packages/db/src/migrate.ts";
 import type { SentryOneCounts } from "../../packages/db/src/queries.ts";
+import { keyFingerprint } from "../../packages/nessie/src/mirror.ts";
 import {
   type AppliedMigration,
   type Check,
@@ -24,6 +25,7 @@ import {
   checkDatabase,
   checkEnv,
   checkMigrations,
+  checkNessie,
   checkOfflineDemo,
   checkSatSnapshot,
   type DatabaseDeps,
@@ -460,6 +462,117 @@ describe("offline readiness", () => {
         databaseUrl: "postgres://user:hunter2@tsdb.cloud:5432/sentryone",
       }).detail,
     ).not.toContain("hunter2");
+  });
+});
+
+/**
+ * The Nessie line, in the two states that matter to a demo.
+ *
+ * The distinction it exists for: a read proves reachability and says nothing
+ * about the key, because an invalid key answers 200 [] on every read. Only the
+ * write in `bun run nessie:mirror` proves it, and this check reads what that
+ * command recorded rather than writing anything of its own.
+ */
+describe("the nessie check", () => {
+  const list = async (): Promise<unknown[]> => [{ _id: "acct-1" }];
+  const KEY = "a-key";
+  const FINGERPRINT = keyFingerprint(KEY);
+
+  it("warns when no mirror has run, and says a read cannot prove the key", async () => {
+    const check = await checkNessie({ apiKey: "a-key", list });
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain("A read cannot prove the key");
+    expect(check.detail).toContain("200 []");
+    expect(check.detail).toContain("bun run nessie:mirror");
+    expect(check.detail).not.toContain("a-key");
+  });
+
+  it("is ok once the mirror recorded the write with THIS key, and names it", async () => {
+    const check = await checkNessie({
+      apiKey: KEY,
+      list,
+      mirror: {
+        keyValidatedAt: "2026-09-12T05:41:09.220Z",
+        keyFingerprint: FINGERPRINT,
+        purchases: 92,
+        getPath: "/accounts/acct-9/purchases",
+        ids: { accountId: "acct-9", customerId: "cust-9" },
+      },
+    });
+
+    expect(check.status).toBe("ok");
+    expect(check.detail).toContain(
+      "key validated with a write at 2026-09-12T05:41:09.220Z (POST /customers 201)",
+    );
+    expect(check.detail).toContain("mirror account acct-9");
+    expect(check.detail).toContain("92 purchases pushed");
+    // The read is still reported, as a liveness probe next to the write.
+    expect(check.detail).toContain("GET /accounts returned 1 account");
+  });
+
+  it("keeps the write it can prove when the sandbox is down, and drops to warn", async () => {
+    const check = await checkNessie({
+      apiKey: KEY,
+      list: async () => {
+        throw new Error("fetch failed");
+      },
+      mirror: {
+        keyValidatedAt: "2026-09-12T05:41:09.220Z",
+        keyFingerprint: FINGERPRINT,
+        purchases: 92,
+        ids: { accountId: "acct-9" },
+      },
+    });
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain("key validated with a write");
+    expect(check.detail).toContain("fetch failed");
+  });
+
+  it("warns when the write was made with a different key", async () => {
+    // The case this exists for: a teammate pastes a new NESSIE_API_KEY into
+    // .env and inherits a state file that says a key was validated. It was, and
+    // it was not this one.
+    const check = await checkNessie({
+      apiKey: KEY,
+      list,
+      mirror: {
+        keyValidatedAt: "2026-09-12T05:41:09.220Z",
+        keyFingerprint: keyFingerprint("another-key"),
+        purchases: 92,
+        ids: { accountId: "acct-9" },
+      },
+    });
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain(
+      "validated with a different key, run: bun run nessie:mirror",
+    );
+    expect(check.detail).not.toContain(KEY);
+  });
+
+  it("warns when the state records no key at all, rather than assuming", async () => {
+    const check = await checkNessie({
+      apiKey: KEY,
+      list,
+      mirror: {
+        keyValidatedAt: "2026-09-12T05:41:09.220Z",
+        purchases: 92,
+        ids: { accountId: "acct-9" },
+      },
+    });
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain(
+      "validated with a different key, run: bun run nessie:mirror",
+    );
+  });
+
+  it("skips entirely with no key, rather than reporting a failed call", async () => {
+    const check = await checkNessie({ apiKey: "" });
+    expect(check.status).toBe("warn");
+    expect(check.detail).toBe("NESSIE_API_KEY is not set, skipped");
   });
 });
 

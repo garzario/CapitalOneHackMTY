@@ -30,6 +30,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
+import { SUPPLIER_BEHAVIOUR_DEFAULTS } from "@hackmty/core";
 import type postgres from "postgres";
 import type { Sql } from "./index";
 import {
@@ -57,12 +58,16 @@ import {
   type NameMatchValue,
   type PaymentComplementRow,
   type SatListEntryRow,
+  type SupplierHistory,
   type SupplierRow,
+  type SupplierWeek,
+  type SupplierWeekRow,
   satEntryFromRow,
   satEntryToRow,
   subjectIdForStorage,
   supplierFromRow,
   supplierToRow,
+  supplierWeekFromRow,
   type VerifiedBeneficiaryRecord,
   type VerifiedBeneficiaryRow,
 } from "./rows";
@@ -331,6 +336,29 @@ export async function deleteLedgerTxForAccount(
   return result.count;
 }
 
+/**
+ * Deletes one account's rows from one source, and leaves every other source alone.
+ *
+ * This exists for `bun run nessie:mirror --import`, which replaces the generator's
+ * rows for the company account with the rows Nessie actually answered. Scoped to
+ * the account AND the source on purpose: the alternative, truncating the ledger,
+ * would take the consumer dataset with it, and deleting by account alone would
+ * delete the imported rows on the second import.
+ *
+ * @returns how many rows were deleted.
+ */
+export async function deleteLedgerTxBySource(
+  sql: Db,
+  accountId: string,
+  source: string,
+): Promise<number> {
+  const result = await sql`
+    delete from ledger_tx
+    where account_id = ${accountId} and source = ${source}
+  `;
+  return result.count;
+}
+
 // ---------------------------------------------------------------------------
 // SentryOne. Everything below reads and writes the tables in
 // migrations/0003_sentryone.sql and 0005_sentryone_drift.sql, and every
@@ -368,6 +396,13 @@ export type NameMatch = NameMatchValue;
 
 /** A row of the per-company verified beneficiary registry. */
 export type VerifiedBeneficiary = VerifiedBeneficiaryRecord;
+
+/**
+ * The behaviour detector feed and one bucket of it. Re-exported so a caller
+ * needs one import: `@hackmty/db/queries` is the only entry point the package
+ * publishes for the query layer, and `rows.ts` is an implementation detail.
+ */
+export type { SupplierHistory, SupplierWeek };
 
 /**
  * One line of the payment run. The composite is the one in docs/09-api.md, built out
@@ -784,10 +819,21 @@ export async function listCfdisByIssuer(
  * Every CFDI the company holds, oldest first. The concentration signal of the
  * behaviour detector needs the whole ledger as its denominator, so the API reads
  * all of it rather than one supplier's slice.
+ *
+ * The optional window bounds it to the span the detector can actually read,
+ * which is what `supplierHistory` uses: an unbounded read grows with the age of
+ * the company, and the baseline is 16 weeks whatever that age is.
  */
-export async function listCfdis(sql: Db): Promise<Cfdi[]> {
+export async function listCfdis(
+  sql: Db,
+  window: { from?: string; to?: string } = {},
+): Promise<Cfdi[]> {
   const rows = await sql.unsafe<CfdiRow[]>(
-    `select ${CFDI_COLUMNS} from cfdis order by issued_at asc, uuid asc`,
+    `select ${CFDI_COLUMNS} from cfdis
+     where issued_at >= coalesce($1::timestamptz, '-infinity'::timestamptz)
+       and issued_at <  coalesce($2::timestamptz, 'infinity'::timestamptz)
+     order by issued_at asc, uuid asc`,
+    [window.from ?? null, window.to ?? null],
   );
   return rows.map(cfdiFromRow);
 }
@@ -833,6 +879,109 @@ export async function listPaidCfdisByIssuer(
     [rfc],
   );
   return rows.map(cfdiFromRow);
+}
+
+// --- The supplier_behaviour feed -------------------------------------------
+//
+// `supplier_weekly_outflow` is one name over two definitions: a plain view in
+// 0007_supplier_outflow.sql and, where the extension exists, the continuous
+// aggregate that replaces it in 0008_timescale_supplier_outflow.sql. Same five
+// columns, same Monday 00:00 UTC buckets, so the two queries below are written
+// once and `bun run doctor` is what says which path answered.
+
+const MS_PER_WEEK = 604_800_000;
+
+/**
+ * How much history `supplierHistory` reads by default.
+ *
+ * Taken from the detector's own defaults rather than restated as a number, so a
+ * change to the baseline in packages/core cannot leave this feed handing the
+ * detector a window shorter than the one it is about to measure against.
+ */
+export const DEFAULT_HISTORY_WEEKS =
+  SUPPLIER_BEHAVIOUR_DEFAULTS.baselineWeeks +
+  SUPPLIER_BEHAVIOUR_DEFAULTS.recentWeeks;
+
+/**
+ * The weekly invoiced outflow of one supplier, oldest first.
+ *
+ * The lower bound is snapped to the start of the bucket that contains `from`,
+ * because a week that began before the window still belongs to it: filtering on
+ * the raw instant would drop the partial first bucket and make the series start
+ * a week late. The snap is written the way 0007 cuts the bucket, and on the
+ * Timescale path `time_bucket('7 days', ...)` lands on the same instants, so the
+ * bound is correct on both.
+ */
+export async function supplierWeeklyOutflow(
+  sql: Db,
+  rfc: Rfc,
+  window: { from?: string; to?: string } = {},
+): Promise<SupplierWeek[]> {
+  const rows = await sql.unsafe<SupplierWeekRow[]>(
+    `select supplier_rfc, week, invoices, outflow, max_invoice
+     from supplier_weekly_outflow
+     where supplier_rfc = $1
+       and week >= coalesce(
+             date_trunc('week', $2::timestamptz at time zone 'UTC')
+               at time zone 'UTC',
+             '-infinity'::timestamptz)
+       and week <  coalesce($3::timestamptz, 'infinity'::timestamptz)
+     order by week asc`,
+    [rfc, window.from ?? null, window.to ?? null],
+  );
+  return rows.map(supplierWeekFromRow);
+}
+
+/**
+ * Everything the supplier_behaviour detector reads about one supplier, and the
+ * weekly series the supplier drawer draws, in one round of queries.
+ *
+ * The return value is `SupplierBehaviourInput` with one extra field, so
+ * `assessSupplierBehaviour(await supplierHistory(sql, rfc))` typechecks and runs
+ * with nothing in between. That is the point of the function: a feed that has to
+ * be reshaped before the detector accepts it is a feed that can be reshaped
+ * wrongly.
+ *
+ * The window is open at the top on purpose. The lower bound is what stops the
+ * read from growing with the age of the company, and it is the only bound the
+ * cost depends on; an upper bound would add a boundary the detector does not
+ * share, because it keeps an invoice issued at exactly `now` and drops anything
+ * after it. What comes back is therefore always a superset of what the detector
+ * will count, and the detector does its own cut.
+ *
+ * `undefined` when the RFC is not a supplier we hold, the same answer
+ * `getSupplier` gives, because a behaviour assessment with no supplier row is
+ * not a thin assessment, it is a different question.
+ *
+ * @throws RangeError when `weeks` is not positive or `now` is not an instant.
+ */
+export async function supplierHistory(
+  sql: Db,
+  rfc: Rfc,
+  weeks: number = DEFAULT_HISTORY_WEEKS,
+  options: { now?: string } = {},
+): Promise<SupplierHistory | undefined> {
+  if (!Number.isFinite(weeks) || weeks <= 0) {
+    throw new RangeError(`weeks must be a positive number: ${String(weeks)}`);
+  }
+  const now = options.now ?? new Date().toISOString();
+  const endsAt = Date.parse(now);
+  if (!Number.isFinite(endsAt)) {
+    throw new RangeError(`now is not a parsable instant: ${now}`);
+  }
+  const from = new Date(endsAt - weeks * MS_PER_WEEK).toISOString();
+
+  const supplier = await getSupplier(sql, rfc);
+  if (supplier === undefined) {
+    return undefined;
+  }
+
+  return {
+    supplier,
+    cfdis: await listCfdis(sql, { from }),
+    now: new Date(endsAt).toISOString(),
+    weeks: await supplierWeeklyOutflow(sql, rfc, { from }),
+  };
 }
 
 /**

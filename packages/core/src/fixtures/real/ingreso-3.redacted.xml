@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Redacted copy of a real CFDI 4.0. Every RFC, legal name, address, folio,
+     UUID, bank account, stamp, certificate and amount was replaced by
+     scripts/import-real-cfdi.ts before this file was committed, and the amounts
+     are scaled by a factor that lives outside the repository, so no figure here
+     is a real one. Kept because a parser has to be proven on a document a PAC
+     produced. See docs/08-data-model.md, Real document validation. -->
+<cfdi:Comprobante xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd" Version="4.0" Fecha="2026-09-10T13:41:30" Sello="REDACTED-SELLO-NOT-A-SIGNATURE" FormaPago="03" NoCertificado="45882577920856699205" Certificado="REDACTED-CERTIFICADO-NOT-A-CERTIFICATE" SubTotal="712.53" Moneda="MXN" Total="741.59" TipoDeComprobante="I" Exportacion="01" MetodoPago="PUE" LugarExpedicion="64000" xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cfdi:Emisor Rfc="SYNS770926942" Nombre="JAVIER DEMO CANTU MONTEMAYOR" RegimenFiscal="626" />
+  <cfdi:Receptor Rfc="SYN311203YE7" Nombre="SUMINISTROS DEMO DEL VALLE" DomicilioFiscalReceptor="64000" RegimenFiscalReceptor="601" UsoCFDI="G03" />
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="80141628" NoIdentificacion="1" Cantidad="1.00" ClaveUnidad="ACT" Unidad="Actividad" Descripcion="Comision semanal 01 SEP - 07 SEP 2026" ValorUnitario="712.53" Importe="712.530000" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="712.530000" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="114.005268" />
+        </cfdi:Traslados>
+        <cfdi:Retenciones>
+          <cfdi:Retencion Base="712.530000" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.106667" Importe="76.025664" />
+          <cfdi:Retencion Base="712.530000" Impuesto="001" TipoFactor="Tasa" TasaOCuota="0.012500" Importe="8.905104" />
+        </cfdi:Retenciones>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="114.00" TotalImpuestosRetenidos="84.94">
+    <cfdi:Retenciones>
+      <cfdi:Retencion Impuesto="002" Importe="76.03" />
+      <cfdi:Retencion Impuesto="001" Importe="8.91" />
+    </cfdi:Retenciones>
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="712.53" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="114.00" />
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" xsi:schemaLocation="http://www.sat.gob.mx/TimbreFiscalDigital http://www.sat.gob.mx/sitio_internet/cfd/TimbreFiscalDigital/TimbreFiscalDigitalv11.xsd" Version="1.1" UUID="8AFE0E65-8EBB-48B7-9AD1-6CE77CD5C1AE" FechaTimbrado="2026-09-10T13:42:27" RfcProvCertif="SYN7210206D0" SelloCFD="REDACTED-SELLO-NOT-A-SIGNATURE" NoCertificadoSAT="73744576057848892133" SelloSAT="REDACTED-SELLO-NOT-A-SIGNATURE" />
+  </cfdi:Complemento>
+</cfdi:Comprobante>

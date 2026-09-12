@@ -1,0 +1,35 @@
+# What never enters the API image build context.
+#
+# node_modules is the important line: the host tree holds darwin binaries for
+# biome and postgres, and copying them into a linux image is both slow and
+# wrong. The image installs its own with bun install --frozen-lockfile.
+#
+# packages/sat/src/snapshot/ is deliberately NOT here: the committed Article
+# 69-B download is read off disk by GET /api/v1/sat/lookup.
+**/node_modules
+**/dist
+.git
+.github
+.githooks
+.claude
+.cursor
+.codex
+.vercel
+.seed
+.vultr
+
+# Never build a secret into a layer. The container gets its environment from
+# deploy/docker-compose.yml at run time.
+.env
+.env.*
+!.env.example
+
+# Judged narrative and evidence, none of which the API reads at run time.
+docs
+assets
+apps/web/brand
+apps/web/audit
+CHANGELOG.md
+
+*.log
+.DS_Store
