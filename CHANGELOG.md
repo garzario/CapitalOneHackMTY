@@ -12,6 +12,12 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Every screen is designed and enforced in four states. The QR intake page gained the two it was
+  missing, an instruction that passes all six controls now says so instead of returning a bare
+  decision badge, and `apps/web/src/screens/states.test.ts` fails the build when a screen ships
+  with a happy path and nothing else. The state matrix and the mapping from the five demo beats to
+  the screens they run on are written down in `docs/design.md`.
+
 - Blind evaluation of the six controls (issue #55). Thirty labelled holdout cases in
   `packages/seed/src/holdout/cases`: a true positive for every control, and the hard negatives
   that decide whether a clerk keeps the product switched on, including a bank change backed by
