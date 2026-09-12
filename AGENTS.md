@@ -71,7 +71,9 @@ If the ADR is changed, change this section in the same PR.
   the `timescaledb` extension exists, so a plain local Postgres 18 works as the offline fallback.
 - `apps/api`, thin Hono transport: HTTP, validation, streaming. No business logic.
 - `apps/web`, the judge-facing UI. Vite, React, Tailwind, motion.
-- `scripts/`, `doctor`, `migrate`, `seed`, `reset`, `demo`.
+- `scripts/`, `doctor`, `migrate`, `seed`, `reset`, `demo`, `deploy-vultr`.
+- `deploy/`, what runs on the API instance: the compose file, the Caddyfile and the cloud-init
+  script. The image itself is `apps/api/Dockerfile`, whose build context is the repository root.
 - `docs/`, 00 to 14, the judged narrative. `docs/01-rubric-mapping.md` is the traceability matrix
   and it is the first doc to update when new evidence lands.
 - `docs/adr/`, the decisions. ADRs are the cheapest high-credibility artifact in this repo.
