@@ -9,7 +9,7 @@ check that we thought about the right things. It is not an opinion on compliance
 written by counsel. Any production deployment needs a licensed review.
 
 Every legal claim below was read in the primary source on 2026-09-12 and the source is named in
-section 8. Where a source contradicted something we had assumed, the assumption was changed and the
+section 9. Where a source contradicted something we had assumed, the assumption was changed and the
 change is flagged. Nothing here is quoted from memory.
 
 Owner: Fabricio (`FabriBanda`), with the lead on the LLM boundary. Due M2.
@@ -33,9 +33,12 @@ that did not.
   autorizadas por la CNBV" as IFPE. We perform neither, so no authorisation attaches. This is a
   statement about two named articles, not a general claim that fintech law does not reach us.
 - **We are not a credit bureau.** We do not consult and we do not report. We produce no score about
-  a person or a company, we write to no shared registry, and nothing we compute leaves the client
-  that paid for it. The verified beneficiary registry is per company and lives inside that company's
-  own data, never pooled across clients.
+  a person or a company, and no finding, explanation or decision leaves the client that paid for it.
+  ADR-0006 adds one shared table and it is deliberately not a registry about anyone: salted hashes of
+  a supplier and an account, a bank code, one of four outcomes and a date, with no name, no amount
+  and no identity of the company that wrote the row. Nothing in it is a rating, is derived from a
+  rating, or can be read back as one. Section 8 lists what leaves and what never does. The verified
+  beneficiary registry itself, with its names and its CEPs, stays inside the company that built it.
 - **We are not an Institución Financiera for CONDUSEF purposes.** Article 2, fracción IV of the Ley
   de Protección y Defensa al Usuario de Servicios Financieros enumerates what counts as one, and
   software sold to a payer is not on the list. The complaint path about a transfer stays with the
@@ -192,8 +195,14 @@ assumption. Treating supplier records as protected costs us nothing and is the o
 - **Purpose limitation, art. 11.** Treatment is limited to the purposes stated in the aviso de
   privacidad, and a different purpose requires consent again. Our stated purpose is one sentence:
   screening this company's own outgoing payments before they leave. That sentence forbids selling
-  aggregated supplier behaviour, training a shared model on client ledgers, and pooling verified
-  beneficiaries across clients. All three are attractive and all three are out.
+  aggregated supplier behaviour, training a shared model on client ledgers, and pooling the verified
+  beneficiary registry across clients. All three are attractive and all three are out.
+  **Changed on 2026-09-12, and flagged rather than quietly rewritten.** An earlier version of this
+  bullet forbade pooling across clients in general. ADR-0006 adds a cross-tenant network that pools
+  four facts and no registry: two salted hashes, a public bank code and an outcome, described in
+  section 8. That is narrower than what this bullet ruled out and it is still a second purpose, so it
+  needs the aviso to name it and it is opt-in per tenant rather than on by default. The registry
+  itself, with its names, its CEPs and its amounts, stays inside one tenant and is still out.
 - **Proportionality, art. 12.** Treatment must be necessary, adequate and relevant to that purpose.
   This is the reason `Cep` stores the beneficiary name rather than a full statement, and the reason
   the OCR path keeps the CLABE and the confidence rather than the whole photograph once extraction
@@ -285,6 +294,13 @@ read on the portal on 2026-09-12.
   That is why `Metrics` reports `falsePositiveRate` next to precision and recall, and why ADR-0002
   requires the generator and the labelled holdout to be written by different people from the
   detectors, so the numbers are blind rather than flattering.
+- **The one outcome that outlives the run is a fact, not an allegation.** `fraud_reported` is the
+  only value in the consortium vocabulary that carries anything adverse about a counterparty, and
+  three things hold it in place. It exists only because a person in some tenant decided it, since
+  outcomes come from the registry a clerk signs and not from a detector. It names nobody: what the
+  network holds is a count of reports against a hashed pair. And it is read as what it is, a number of
+  other companies that reported this pair, never as a verdict about a supplier. Section 8.3 carries
+  the retention consequence, because this is the data class art. 10 caps at seventy-two months.
 - **We do not score people.** No function in `packages/core` produces a rating about a person or a
   company that outlives the payment run it was computed for. If a future version ever informs a
   lending decision, the features used and their distributions have to be auditable before it ships,
@@ -435,7 +451,169 @@ date. A wrong price here is worse than an empty cell, because it feeds the margi
   anything leaves the client perimeter, which today reads as counterparty tax IDs, counterparty legal
   names and account identifiers, and place the boundary on the diagram in `docs/07-architecture.md`.
 
-## 8. Sources
+## 8. The consortium network: what leaves the tenant
+
+ADR-0006 adds the one thing in this product that crosses a customer boundary, so it gets its own
+section rather than a clause inside another one. The mechanism is in
+`docs/adr/0006-consortium-snowflake.md` and the data flow is in
+`docs/07-architecture.md#the-third-flow-the-consortium-network`. What follows is only the regulatory and
+privacy half.
+
+The reason the feature exists is control 2 of ADR-0002 and it is worth one sentence here: a
+supplier's first payment has no history in this company and has months of history in every other
+company that already pays it, so the case where control 2 is weakest is the case another tenant has
+already answered.
+
+### 8.1 What leaves the tenant, and what never does
+
+The whole payload is the seven rows below. The list underneath them is the part a judge should read
+first, because what is absent is the argument.
+
+| What leaves | What it is | Why it is the minimum |
+|---|---|---|
+| `tenant_hash` | A salted hash of the tenant identifier | The network counts distinct companies without naming one. A count of zero and a count of twenty are different facts; which twenty is not a fact the network needs |
+| `rfc_hash` | A salted hash of the normalised supplier RFC | The join key for "is this the same supplier". Without it there is no network |
+| `clabe_hash` | A salted hash of the normalised 18-digit CLABE | The join key for "is this the same account". The pair is what the signal is about |
+| `bank_code` | The first three digits of the CLABE | Already public structure, and it is what makes "this supplier changed bank" visible across tenants. It identifies an institution, never a person |
+| `outcome` | One of `verified`, `paid`, `mismatch`, `fraud_reported` | Four values, fixed. It says what happened to a payment, never how much, never to whom, never who decided |
+| `event_date` | A calendar date | First and last sighting are the whole point: an account paid for eleven months is different from one first seen yesterday |
+| `synthetic` | A boolean | Every row in this repository is `true`. The flag travels with the row so a synthetic network can never be read as a real one |
+
+**What never leaves, stated as a list because a list is checkable.** No supplier legal name. No
+company name. No trade name. No amount, subtotal, IVA or total. No CLABE and no RFC in the clear. No
+CFDI, no UUID, no folio, no serie. No CEP and no CEP XML. No beneficiary account holder name. No
+payment instruction, no photograph, no voice note, no transcription. No `Finding`, no `explanation`,
+no `Decision` and no `decidedBy`, so the network never learns what a clerk decided or that a clerk
+exists. The API route that reads the snapshot takes an RFC and a CLABE and answers with counts and
+dates, and there is no shape of request that returns a row.
+
+**The warehouse is not on the decision path.** `packages/core` and `packages/engine` hold no
+Snowflake credential and make no network call of any kind, `apps/api` reads the local
+`consortium_snapshot` through the repository, and the only code that authenticates to Snowflake is a
+script a person runs. `ALLOW_CONSORTIUM` has to be set for even that, and with it unset the finding
+says the network was not consulted instead of silently scoring as if it had been.
+
+### 8.2 The salted hash, and what it does not do
+
+The pair is hashed with HMAC-SHA-256 over the normalised RFC and CLABE, keyed by a network-wide salt
+(`CONSORTIUM_SALT`). Network-wide is the requirement: two tenants paying the same account have to
+produce the same hash or there is no join. That requirement is also the limit, and the limit is
+written here rather than left for a judge to find.
+
+- **It is pseudonymisation, not anonymisation.** An RFC is 12 or 13 structured characters and a CLABE
+  is 18 digits whose first six are a bank and a plaza and whose last one is a check digit. That is not
+  a high-entropy input. Anyone holding the salt and a candidate pair can confirm membership by
+  recomputing the hash, and anyone holding the salt and a supplier list can do it in bulk. So the
+  confidentiality of this table rests on the salt, not on the hash.
+- **We therefore treat the hashes as personal data** and apply section 4 to them, which is the same
+  safe default section 4.1 takes for supplier records. Calling them anonymous would be the convenient
+  reading and it is not the defensible one.
+- **In this repository the salt is a documented constant**, which means the demo network offers no
+  confidentiality at all. It does not need to: every row in it is synthetic and carries
+  `synthetic = true`. Saying this out loud is cheaper than being caught assuming it.
+- **What production requires**, and it is a precondition rather than a backlog item: a salt held by
+  the network operator and never by a tenant or a repository, rotated per period so a leaked salt
+  expires, with the rotation documented alongside the retention schedule section 4.2 already owes.
+- **Reproducible is a requirement and not a side effect.** The hash has to be recomputable from the
+  pair, because that is what makes an ARCO request answerable. See 8.4.
+
+### 8.3 The LFPDPPP argument, and the part that needs counsel
+
+Read against the new law already cited in section 4. Nothing here is a legal opinion.
+
+- **Proportionality, art. 12.** Treatment must be necessary, adequate and relevant to the purpose.
+  The seven columns in 8.1 are the whole payload and each one earns its place there. The outcome
+  vocabulary is four fixed values rather than free text precisely so that a row cannot grow a
+  narrative about a supplier.
+- **Purpose limitation, art. 11.** The consortium is a second purpose, so the aviso de privacidad has
+  to name it in the terms above and the tenant has to opt in. `ALLOW_CONSORTIUM` is the technical
+  expression of that opt-in, and `consortium:push` refuses to run without it.
+- **Consent, art. 7 fifth paragraph.** Financial and patrimonial data require express consent, and a
+  destination CLABE is patrimonial data about whoever holds the account. The art. 9 exceptions that
+  carry our weight inside one tenant, fr. II for the public SAT list and fr. IV for data required by
+  the legal relationship between the titular and the responsable, are thinner once the same data
+  leaves for a network. `TODO(FabriBanda)`: this is the one question counsel has to answer before any
+  pilot, phrased exactly as whether a payer may contribute a keyed hash of its own supplier's account
+  to a shared fraud register under fr. IV, or whether express consent in the supplier contract is
+  required. The product ships with the feature opt-in and off by default until that answer exists.
+- **Transfer or encargado, arts. 35, 36 and 2 fr. XII.** Routing a tenant's own rows to an operator
+  acting on that tenant's behalf is not a transfer, because an encargado is excluded from the
+  definition in art. 2 fr. XX. The genuine question is the read: the aggregate a tenant receives is
+  computed over rows contributed by other responsables. Three design facts narrow it and we do not
+  claim they settle it. The aggregate is counts and dates and never a row. It names no other tenant,
+  because the tenant identifier is itself hashed and is only ever counted. And it is answerable only
+  for a pair the asking tenant already holds, so the network discloses nothing about a supplier the
+  asking tenant is not already paying. `TODO(FabriBanda)`: same review, same deadline.
+- **Retention, art. 10.** The hard seventy-two month limit on data about breach of contractual
+  obligations is the one that bites here, because `fraud_reported` is the outcome closest to that
+  class. The retention schedule section 4.2 already owes has to carry a row per outcome, not one
+  number for the table.
+
+### 8.4 ARCO over a hash, which is why the hash is reproducible
+
+A supplier may ask what the network holds about them. Because the hash is a deterministic function of
+the pair, the answer is computable: the titular supplies their own RFC and the account, the operator
+recomputes the two hashes and reads back the counts, and a cancellation is a delete of the rows
+carrying that pair. Article 31's twenty days to communicate and fifteen to make effective apply
+unchanged.
+
+This is the reason to state plainly why the design is not "hash it so hard nobody can ever look it
+up". A table nobody can query by subject is a table where ARCO cannot be satisfied, which is a
+compliance defect dressed as a privacy feature. What the design removes is the ability to learn a
+supplier's identity *from the table*; what it keeps is the ability to answer a person who already
+knows their own identity.
+
+### 8.5 Data residency
+
+A Snowflake account is hosted in a single region, and Snowflake's own documentation states that it
+"does not move data between accounts, so any data in an account in a region remains in the region
+unless users explicitly choose to copy, move, or replicate the data". A Mexico Central region exists
+in its commercial list, so the network can be kept in Mexico as a procurement answer.
+
+What that does not do is remove the question in 8.3. The transfer rules in arts. 35 and 36 attach to
+communicating personal data to a third party, and where the third party's servers sit does not change
+who receives the data. Residency is worth choosing and it is not a compliance argument, so it is not
+presented as one here or on stage.
+
+### 8.6 Cost per pull
+
+Snowflake bills virtual warehouses per second with a 60-second minimum each time the warehouse
+starts, and an X-Small warehouse is 1 credit per hour. The push and the pull are each one statement
+over a table of seven narrow columns, so the runtime is not what is billed: the warehouse start is.
+
+| Unit of work | What it costs | Why |
+|---|---|---|
+| One `consortium:pull` on a suspended warehouse | 0.017 credits | 60 seconds of an X-Small, the minimum, whatever the statement actually takes |
+| One `consortium:push` straight after it, same session | 0 extra credits | The warehouse is already running, so it bills seconds and not a second minimum |
+| Push and pull far enough apart to suspend in between | 0.033 credits | Two starts, two minimums |
+| One company per month, four payment runs, one push and one pull each | 0.067 credits | Four starts |
+| Every instruction in every run scored against the network | 0 credits | The hot path reads `consortium_snapshot` in Postgres. No statement, no warehouse, no round trip |
+
+`TODO(garzario)`: the per-credit price depends on edition and region and Snowflake's pricing page does
+not publish a figure without selecting both, so no peso and no dollar amount is written in this table
+until it has been read off the consumption table for the account we actually create, stamped with the
+date, and carried into `docs/05-business-model.md#unit-economics`. Do not invent a rate here. Storage
+is one narrow row per registry outcome and is not the cost driver at any volume this product reaches.
+
+The shape of this is the same as section 6.3 and it is the point. Cost scales with how many payment
+runs a company does, which is four a month, and not with how much money moves or how many
+instructions each run carries. A tenfold spike in volume costs zero extra credits because the
+decision path never touches the warehouse.
+
+### 8.7 The honest scope, in the words we are allowed to use
+
+There is one tenant. The other tenants in this repository are generated deterministically by
+`packages/seed` from seed 69, every row carries `synthetic = true`, and the network therefore
+demonstrates a mechanism and not an installed base.
+
+- **May be said:** the network is a synthetic network of other tenants, generated for the demo, and
+  the table it reads is real Snowflake holding real rows we put there.
+- **May not be said, in any form:** that other companies are on it, that the counts come from real
+  firms, that any figure on screen reflects a real payment by a real third party, or anything that
+  lets a listener infer an installed base. `docs/10-demo-script.md` carries the sentence to say and
+  the sentence never to say.
+
+## 9. Sources
 
 All read on 2026-09-12. Statutes are the texto vigente published by the Cámara de Diputados.
 
@@ -449,6 +627,10 @@ All read on 2026-09-12. Statutes are the texto vigente published by the Cámara 
 | Banco de México, CEP validator, `https://www.banxico.org.mx/validador-cep-spei/`, including the 45 business day validation window | Section 4.3 |
 | Gemini API pricing, paid tier, `https://ai.google.dev/gemini-api/docs/pricing` | Section 6.3 |
 | Gemini API token counting, `https://ai.google.dev/gemini-api/docs/tokens` | Section 6.3 |
+| Snowflake, Virtual warehouses, `https://docs.snowflake.com/en/user-guide/warehouses-overview`, for per-second billing with a 60-second minimum each time a warehouse starts and 1 credit per hour for an X-Small | Section 8.6 |
+| Snowflake, Supported cloud regions, `https://docs.snowflake.com/en/user-guide/intro-regions`, including the single-region rule and the Mexico Central region | Section 8.5 |
+| Snowflake, Introduction to Secure Data Sharing, `https://docs.snowflake.com/en/user-guide/data-sharing-intro` | Section 8.1 and ADR-0006 |
+| Snowflake, pricing options, `https://www.snowflake.com/en/data-cloud/pricing-options/`, which publishes no per-credit figure without selecting a platform and a region | Section 8.6, and the reason its table carries credits rather than pesos |
 
 If a judge disputes a line in this document, open the source next to them. That is the point of the
 table.
