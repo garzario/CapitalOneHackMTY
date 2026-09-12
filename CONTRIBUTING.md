@@ -108,7 +108,7 @@ that checked nothing is worse than a red one.
 ## Branches
 
 - Two long-lived branches. `dev` is the integration branch: every feature PR targets `dev` and is
-  squash-merged. `main` is the release branch: it only receives release PRs from `dev`, merged with
+  squash-merged as soon as CI is green (no approval gate during the build night; post-merge reviews are still expected). `main` is the release branch: it only receives release PRs from `dev`, merged with
   a merge commit (`gh pr merge --merge`) and tagged (`v1.0.0` at M4). Vercel production deploys
   from `main`, previews from `dev` and from every PR.
 - Branch names: `feat/<issue#>-<slug>`, `fix/<issue#>-<slug>`, `docs/<issue#>-<slug>`.
@@ -171,7 +171,6 @@ git commit     # write the one real message
    Adan by Fabricio, or Patricio for data contracts. Fabricio by Adan, or Patricio for `docs/07`,
    `docs/08` and the ADRs.
 7. **Stall rule.** Half the team is asleep by design. A PR waiting 45 minutes gets pinged in the
-   channel. At 90 minutes the lead reviews it regardless of rotation. If nobody with review rights
    is awake, the author merges their own PR and writes `merged unreviewed at <time>, nobody awake`
    in the PR body, then raises it at the next standup. The reviewer leaves a real review comment on
    the merged PR afterwards, which still appears in the history. A stalled PR at hour 20 is worse

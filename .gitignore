@@ -13,3 +13,18 @@ CLAUDE.md
 .cursor/
 .codex/
 .github/copilot-instructions.md
+# secrets and local material, any vendor
+*.pem
+*.key
+*.p12
+*.p8
+secrets/
+.secrets/
+packages/sat/src/snapshot/official/
+packages/cep/src/fixtures/real/
+apps/api/.env
+apps/web/.env
+.vultr
+*.local
+credentials.json
+service-account*.json
