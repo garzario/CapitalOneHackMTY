@@ -1,37 +1,67 @@
 /**
  * bun run doctor
  *
- * Answers, in under five seconds, the four questions that cost a team twenty minutes
- * each at the start of a hackathon: am I on the right bun, are my environment
- * variables there, can I reach the database, and can I reach Nessie.
+ * Answers, in a few seconds, the questions that cost a team twenty minutes each
+ * at the start of a hackathon and four minutes each in front of a judge: am I on
+ * the right bun, are my environment variables there, is the SAT list on this
+ * disk, does the CEP fixture still parse, which database is live and what is in
+ * it, can I reach Nessie, has this laptop been seeded, and if the conference
+ * network dies right now can I still run the demo.
  *
- * Exit code contract: a bun version mismatch is the only failure. Everything else is
- * a warning, because a teammate writing documentation on a train legitimately has no
- * database and no key, and a doctor that fails for them is a doctor nobody runs.
+ * The checks themselves are in `doctor/checks.ts`, with tests. This file is the
+ * wiring: it reads the world, calls them in order, prints the table and exits.
+ *
+ * Exit code contract: a bun version mismatch is the only failure. Everything
+ * else is a warning, because a teammate writing documentation on a train
+ * legitimately has no database and no key, and a doctor that fails for them is a
+ * doctor nobody runs. `--strict` inverts that for the release gate and for CI:
+ * any warning exits 1.
  */
 
 import { resolve } from "node:path";
+import {
+  type Check,
+  ceptinelaTables,
+  checkBunVersion,
+  checkCepFixture,
+  checkDatabase,
+  checkEnv,
+  checkNessie,
+  checkOfflineDemo,
+  checkRealCep,
+  checkSatSnapshot,
+  checkSeedState,
+  DATABASE_CHECK,
+  defaultDatabaseDeps,
+  exitCode,
+  isReachable,
+  offlineSatSnapshot,
+  plural,
+  type SatSnapshotFacts,
+} from "./doctor/checks.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
-const DB_TIMEOUT_MS = 2000;
-const NESSIE_TIMEOUT_MS = 4000;
+const CEP_FIXTURE = `${ROOT}/packages/cep/src/fixtures/synthetic-cep.xml`;
+const CEP_REAL_DIR = `${ROOT}/packages/cep/src/fixtures/real`;
 
-type Status = "ok" | "warn" | "fail";
+const argv = Bun.argv.slice(2);
+const strict = argv.includes("--strict");
 
-interface Check {
-  name: string;
-  status: Status;
-  detail: string;
-}
-
-const checks: Check[] = [];
-
-function add(name: string, status: Status, detail: string): void {
-  checks.push({ name, status, detail });
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+if (argv.includes("--help") || argv.includes("-h")) {
+  console.log(
+    [
+      "bun run doctor [--strict]",
+      "",
+      "Checks the bun version, the environment variables, the committed SAT list",
+      "snapshot, the CEP fixture, the live database path and its migrations, Nessie",
+      "reachability, the seed state, and whether this laptop can demo offline.",
+      "",
+      "  --strict   exit 1 on any warning, for the release gate and for CI.",
+      "             Without it only a bun version mismatch fails.",
+      "  --help     this text.",
+    ].join("\n"),
+  );
+  process.exit(0);
 }
 
 async function readText(path: string): Promise<string | undefined> {
@@ -39,227 +69,126 @@ async function readText(path: string): Promise<string | undefined> {
   return (await file.exists()) ? file.text() : undefined;
 }
 
-/** Keeps a password out of the terminal and out of a screen recording. */
-function redactUrl(url: string): string {
+/** The snapshot's own metadata, read through @hackmty/sat rather than the CSV. */
+async function satSnapshotFacts(): Promise<{
+  facts?: SatSnapshotFacts;
+  error?: string;
+}> {
   try {
-    const parsed = new URL(url);
-    const database = parsed.pathname.replace(/^\//, "");
-    return `${parsed.protocol}//${parsed.hostname}:${parsed.port || "5432"}/${database}`;
-  } catch {
-    return "unparsable DATABASE_URL";
+    const sat = await import("../packages/sat/src/official.ts");
+    const snapshot = await sat.loadOfficialSnapshot();
+    return {
+      facts: {
+        filename: sat.OFFICIAL_SNAPSHOT_FILENAME,
+        listVersion: snapshot.listVersion,
+        retrievedAt: sat.OFFICIAL_SNAPSHOT_RETRIEVED_AT,
+        sourceUrl: sat.OFFICIAL_SNAPSHOT_URL,
+        rows: snapshot.rows,
+        taxpayers: new Set(snapshot.entries.map((entry) => entry.rfc)).size,
+        situations: snapshot.entries.length,
+      },
+    };
+  } catch (cause) {
+    return { error: cause instanceof Error ? cause.message : String(cause) };
   }
 }
+
+const checks: Check[] = [];
 
 // 1. bun version, the only check that can fail the command.
-let bunMismatch = false;
-const pinned = (await readText(`${ROOT}/.bun-version`))?.trim();
-if (pinned === undefined) {
-  add(
-    "bun version",
-    "warn",
-    `.bun-version is missing, running bun ${Bun.version}`,
-  );
-} else if (pinned === Bun.version) {
-  add("bun version", "ok", `bun ${Bun.version} matches .bun-version`);
-} else {
-  bunMismatch = true;
-  add(
-    "bun version",
-    "fail",
-    `bun ${Bun.version} but .bun-version pins ${pinned}. Fix it with: curl -fsSL https://bun.sh/install | bash -s "bun-v${pinned}"`,
-  );
-}
+checks.push(
+  checkBunVersion({
+    pinned: (await readText(`${ROOT}/.bun-version`))?.trim(),
+    running: Bun.version,
+  }),
+);
 
-// 2. environment, read from .env.example so this list never drifts.
-const template = await readText(`${ROOT}/.env.example`);
-if (template === undefined) {
-  add(
-    "env template",
-    "warn",
-    ".env.example is missing, cannot tell which variables matter",
-  );
-} else {
-  const hasEnvFile = await Bun.file(`${ROOT}/.env`).exists();
-  add(
-    ".env",
-    hasEnvFile ? "ok" : "warn",
-    hasEnvFile
-      ? "present, bun loads it automatically"
-      : "missing, run: cp .env.example .env",
-  );
+// 2. environment, read from .env.example so the list never drifts.
+checks.push(
+  ...checkEnv({
+    template: await readText(`${ROOT}/.env.example`),
+    envFilePresent: await Bun.file(`${ROOT}/.env`).exists(),
+    env: Bun.env,
+  }),
+);
 
-  const keys = template
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.startsWith("#"))
-    .map((line) => line.split("=")[0]?.trim() ?? "")
-    .filter((key) => key !== "");
+// 3. the SAT list the lookup answers from when the SAT portal is unreachable.
+const today = new Date().toISOString().slice(0, 10);
+const snapshot = await satSnapshotFacts();
+checks.push(checkSatSnapshot({ ...snapshot, today }));
 
-  for (const key of keys) {
-    const value = Bun.env[key];
-    const present = value !== undefined && value !== "";
-    add(
-      `env ${key}`,
-      present ? "ok" : "warn",
-      present
-        ? `set, ${value.length} characters`
-        : "empty, needed only if that integration is in play",
-    );
-  }
-}
+// 4. the CEP fixture, and whether a real one has landed yet.
+const cepCheck = await checkCepFixture({ path: CEP_FIXTURE });
+checks.push(cepCheck, await checkRealCep({ directory: CEP_REAL_DIR }));
 
-// 3. database, with a hard timeout so a dead host cannot hang the command.
+// 5. the database: reachable, which path, migrated, and what is in the tables.
 const databaseUrl = Bun.env.DATABASE_URL;
-if (databaseUrl === undefined || databaseUrl === "") {
-  add("database", "warn", "DATABASE_URL is not set, skipped");
-} else {
-  try {
-    const db = await import("../packages/db/src/index.ts");
-    const sql = db.createSql(databaseUrl);
-    try {
-      const probe = await db.probe(sql, DB_TIMEOUT_MS);
-      if (probe.ok) {
-        add(
-          "database",
-          "ok",
-          `${redactUrl(databaseUrl)} answered in ${probe.ms}ms`,
-        );
+const databaseChecks: Check[] =
+  databaseUrl === undefined || databaseUrl === ""
+    ? [
+        {
+          name: DATABASE_CHECK,
+          status: "warn",
+          detail: "DATABASE_URL is not set, skipped",
+        },
+      ]
+    : await checkDatabase(databaseUrl, await defaultDatabaseDeps());
+checks.push(...databaseChecks);
 
-        const timescale = await db.hasTimescale(sql);
-        if (timescale) {
-          const hypertable = await db.isHypertable(sql);
-          add(
-            "timeseries path",
-            "ok",
-            hypertable
-              ? "timescaledb installed and ledger_tx is a hypertable"
-              : "timescaledb available but ledger_tx is a plain table, run: bun run migrate",
-          );
-        } else {
-          add(
-            "timeseries path",
-            "ok",
-            "plain Postgres, the offline fallback path is live",
-          );
-        }
+// 6. Nessie, through the one client that is allowed to call it.
+checks.push(await checkNessie({ apiKey: Bun.env.NESSIE_API_KEY }));
 
-        try {
-          const queries = await import("../packages/db/src/queries.ts");
-          const rows = await queries.countLedgerTx(sql);
-          const latest = await queries.latestOccurredAt(sql);
-          add(
-            "ledger_tx",
-            rows > 0 ? "ok" : "warn",
-            rows > 0
-              ? `${rows} rows, newest ${latest ?? "unknown"}`
-              : "empty, run: bun run seed",
-          );
-        } catch (cause) {
-          add(
-            "ledger_tx",
-            "warn",
-            `not queryable yet (${cause instanceof Error ? cause.message : String(cause)}), run: bun run migrate`,
-          );
-        }
-      } else {
-        add(
-          "database",
-          "warn",
-          `unreachable: ${probe.error ?? "unknown error"}`,
-        );
-      }
-    } finally {
-      await sql.end({ timeout: 1 });
-    }
-  } catch (cause) {
-    add(
-      "database",
-      "warn",
-      cause instanceof Error ? cause.message : String(cause),
-    );
-  }
-}
+// 7. seed state, so nobody rehearses against an empty screen.
+checks.push(...(await checkSeedState({ root: ROOT })));
 
-// 4. Nessie, through the one client that is allowed to call it.
-const nessieKey = Bun.env.NESSIE_API_KEY;
-if (nessieKey === undefined || nessieKey === "") {
-  add("nessie", "warn", "NESSIE_API_KEY is not set, skipped");
-} else {
-  const { NessieClient, NessiePathError } = await import(
-    "../packages/nessie/src/client.ts"
-  );
-  const client = new NessieClient({
-    apiKey: nessieKey,
-    timeoutMs: NESSIE_TIMEOUT_MS,
-    maxRetries: 0,
-  });
-  const started = Date.now();
-  try {
-    const accounts = await client.listAccounts();
-    add(
-      "nessie",
-      "ok",
-      `GET /accounts returned ${accounts.length} accounts in ${Date.now() - started}ms`,
-    );
-  } catch (cause) {
-    if (cause instanceof NessiePathError) {
-      add(
-        "nessie",
-        "warn",
-        "403 Missing Authentication Token, which means a wrong path, not a bad key",
-      );
-    } else {
-      add(
-        "nessie",
-        "warn",
-        cause instanceof Error ? cause.message : String(cause),
-      );
-    }
-  }
-}
+// 8. the closing question: can this laptop demo with the network unplugged.
+// Each input is the fact the question turns on and not the colour of a row: a
+// snapshot that is merely old is still readable, and an empty schema and an
+// unmigrated one take different commands.
+const offline = checkOfflineDemo({
+  databaseUrl,
+  databaseReachable: isReachable(databaseChecks),
+  tables: ceptinelaTables(databaseChecks),
+  satSnapshot: offlineSatSnapshot({ ...snapshot, today }),
+  cepFixture: cepCheck.status === "ok",
+});
+checks.push(offline);
 
-// 5. seed state, so nobody rehearses against an empty screen.
-const seedFile = `${ROOT}/.seed/ids.json`;
-if (await Bun.file(seedFile).exists()) {
-  try {
-    const state = (await Bun.file(seedFile).json()) as {
-      heroAccountId?: string;
-      window?: unknown;
-    };
-    add(
-      "seed",
-      "ok",
-      `.seed/ids.json present, hero account ${state.heroAccountId ?? "unknown"}`,
-    );
-  } catch {
-    add(
-      "seed",
-      "warn",
-      ".seed/ids.json is unreadable, run: bun run seed --force",
-    );
-  }
-} else {
-  add("seed", "warn", "no .seed/ids.json yet, run: bun run seed");
-}
-
-// Report.
-const width = checks.reduce(
+// Report. The offline line is the conclusion, so it is printed as one, below
+// the table it was computed from.
+const table = checks.filter((check) => check !== offline);
+const width = table.reduce(
   (longest, check) => Math.max(longest, check.name.length),
   0,
 );
+
 console.log(`doctor: bun ${Bun.version} in ${ROOT}`);
 console.log("");
-for (const check of checks) {
+for (const check of table) {
   console.log(
     `[${check.status.padEnd(4)}] ${check.name.padEnd(width)}  ${check.detail}`,
   );
 }
-const warnings = checks.filter((check) => check.status === "warn").length;
 console.log("");
-console.log(
-  bunMismatch
-    ? "FAIL: bun version mismatch. Nothing else in this list can fail the command."
-    : `OK: ${plural(checks.length - warnings, "check")} clean, ${plural(warnings, "warning")}. Only a bun mismatch fails.`,
-);
+console.log(`offline demo: ${offline.detail}`);
 
-process.exit(bunMismatch ? 1 : 0);
+const warnings = checks.filter((check) => check.status === "warn").length;
+const failed = checks.filter((check) => check.status === "fail").length;
+const code = exitCode(checks, strict);
+
+console.log("");
+if (failed > 0) {
+  console.log(
+    "FAIL: bun version mismatch. Nothing else in this list can fail the command.",
+  );
+} else if (code === 0) {
+  console.log(
+    `OK: ${plural(checks.length - warnings, "check")} clean, ${plural(warnings, "warning")}.${strict ? " --strict and nothing warned." : " Only a bun mismatch fails."}`,
+  );
+} else {
+  console.log(
+    `FAIL: ${plural(warnings, "warning")} and --strict. Without --strict this run would have exited 0.`,
+  );
+}
+
+process.exit(code);
