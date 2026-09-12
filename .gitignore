@@ -20,6 +20,10 @@ CLAUDE.md
 *.p8
 secrets/
 .secrets/
+# The dated snapshots of the SAT Article 69-B list, packages/sat/src/snapshot/
+# official-<date>.csv, ARE committed: they are public data the SAT publishes and
+# the lookup a judge types into has to work offline. The folder below stays
+# ignored for ad-hoc downloads that are not the committed snapshot.
 packages/sat/src/snapshot/official/
 packages/cep/src/fixtures/real/
 apps/api/.env

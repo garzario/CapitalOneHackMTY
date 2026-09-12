@@ -78,6 +78,24 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   with that supplier, and never auto-releases while a critical finding exists. `composeFindings`
   runs whichever of the six detectors exist in the package and returns their findings in alert
   rail order, biggest amount at risk first.
+- `packages/sat`, the Article 69-B half of the product. A loader that parses the SAT's published
+  listing by column name (ISO-8859-1, CRLF, records that span lines, RFC 4180 quoting, DOF dates
+  written four different ways) and reports every row it cannot read with its line number instead of
+  dropping it; `matchRfc` and `matchRfcAsOf` over normalised RFCs, which answer "listed today" and
+  "listed on the day we deducted this invoice" separately; `sweep`, a fold over `LedgerEvent[]` that
+  prices what a publication did to invoices already paid, with ISR at 30 percent documented as an
+  assumption and IVA summed from the CFDIs rather than multiplied out of a rate; and
+  `simulatePublication`, which refuses any RFC that is not synthetic.
+- A dated snapshot of the real SAT list, `packages/sat/src/snapshot/official-2026-09-12.csv`: the
+  complete Article 69-B listing as published, 14234 rows current to 2025-12-31, committed as public
+  data with its provenance in the adjacent README so `GET /api/v1/sat/lookup` answers a real RFC
+  with no network. 91 rows the SAT redacted by court order are reported as unreadable, never
+  matched and never silently dropped.
+- `GET /api/v1/sat/lookup` and `POST /api/v1/sat/publish` in `apps/api` are wired to `@hackmty/sat`:
+  the lookup merges the official list with the versions this instance holds, and the publish
+  endpoint builds the demo publication through `simulatePublication` and prices it with the real
+  rates. ADR-0002 holds either side of that line, in code: the real list is read and joined to
+  nothing, and the only publication that meets an invoice is one built from synthetic suppliers.
 - CLABE forensics detector in `packages/core`: check digit over the 3-7-1 weights, a dated snapshot
   of the Banxico participant catalogue, plaza parsing, OCR-aware Damerau-Levenshtein against the
   supplier's paid accounts, and a `Finding` whose evidence names the differing digit positions.
