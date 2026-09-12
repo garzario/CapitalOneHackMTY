@@ -39,7 +39,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 ```bash
 curl -s https://<host>/api/v1/sat/lookup?rfc=<RFC> | jq
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
-  -d '{"supplierRfc":"SYN010101AAA","amount":184300,"clabe":"012180001234567895","source":"whatsapp"}' | jq
+  -d '{"supplierRfc":"SYN010101AAA","amount":184300,"clabe":"012180001234567899","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN010101AAA"]}' | jq
 ```

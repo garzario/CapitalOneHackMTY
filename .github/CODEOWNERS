@@ -9,12 +9,15 @@
 # Data platform, API, integrations.
 /apps/api/               @fabbyyyy
 /packages/nessie/        @fabbyyyy
-/packages/seed/          @fabbyyyy
+/packages/sat/           @garzario
+/packages/cep/           @garzario
+/packages/seed/          @garzario
+/packages/seed/src/holdout/ @Apanawa
 /scripts/                @fabbyyyy
 
 # Frontend and UX.
-/apps/web/               @Apanawa
-/assets/                 @Apanawa
+/apps/web/               @FabriBanda @Apanawa
+/assets/                 @FabriBanda @Apanawa
 
 # Lead keeps the contracts and the plumbing. These MUST come last to win.
 /packages/core/          @garzario
