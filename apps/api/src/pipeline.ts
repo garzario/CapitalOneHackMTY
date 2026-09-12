@@ -41,6 +41,7 @@ import {
   detectSupplierBehaviour,
   sumAmounts,
 } from "@hackmty/core";
+import { type IntakeExtractor, UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
 import type { CreateInstructionBody, NameMatch } from "./schemas";
 
@@ -171,25 +172,22 @@ export type IntakeOutcome =
   | { ok: false; reason: IntakeFailure; message: string };
 
 /**
- * Reads a CLABE out of a photographed or scanned instruction.
+ * Runs one instruction through intake.
  *
- * TODO(garzario): this is issue #97. The model is boxed to OCR: it receives the
- * image and returns digits and a confidence, it never sees the supplier, the
- * amount or the history, and it never decides anything. That boundary is what
- * docs/06-regulatory-privacy.md promises, so it has to hold in the code and not
- * only in the prose. Until it exists, an image-only instruction is refused with
- * a message that says so rather than a CLABE nobody read.
+ * `extractor` is issue #97, wired here and implemented in `@hackmty/extract`.
+ * The model is boxed to transcription: it receives the file the clerk sent and
+ * returns digits, words and a confidence, it never sees the supplier, the
+ * history or the ledger, and it never decides anything. `src/extraction.ts`
+ * holds the adapter and `packages/extract/src/boundary.test.ts` holds the test
+ * that fails if the boundary ever moves. A server with no `GEMINI_API_KEY` gets
+ * `UNAVAILABLE_EXTRACTOR`, which refuses with a message rather than inventing a
+ * CLABE nobody read.
  */
-async function extractClabeFromImage(
-  _image: string,
-): Promise<{ clabe: string; confidence: number } | undefined> {
-  return undefined;
-}
-
 export async function runIntake(
   repo: Repository,
   clock: PipelineClock,
   body: CreateInstructionBody,
+  extractor: IntakeExtractor = UNAVAILABLE_EXTRACTOR,
 ): Promise<IntakeOutcome> {
   const now = clock.now();
   const id = clock.newId("ins");
@@ -197,15 +195,34 @@ export async function runIntake(
   let clabe = body.clabe;
   let ocrConfidence: number | undefined;
   let imageRef: string | undefined;
+  let audioRef: string | undefined;
+  let transcript: string | undefined;
 
   if (body.image !== undefined) {
     // TODO(fabbyyyy): store the bytes in blob storage and keep the reference.
     // The API must not hold a base64 image in memory past this function.
-    imageRef = `intake/${id}`;
-    const read = await extractClabeFromImage(body.image);
-    if (read !== undefined) {
-      clabe = read.clabe;
-      ocrConfidence = read.confidence;
+    imageRef = `intake/${id}/image`;
+    const read = await extractor.image(body.image);
+    if (!read.ok) {
+      return { ok: false, reason: "unreadable_image", message: read.message };
+    }
+    // A CLABE the clerk typed wins over one a model read, always.
+    if (clabe === undefined && read.value.clabe !== undefined) {
+      clabe = read.value.clabe;
+      ocrConfidence = read.value.confidence;
+    }
+  }
+
+  if (body.audio !== undefined) {
+    audioRef = `intake/${id}/audio`;
+    const heard = await extractor.audio(body.audio);
+    if (!heard.ok) {
+      return { ok: false, reason: "unreadable_image", message: heard.message };
+    }
+    transcript = heard.value.transcript;
+    if (clabe === undefined && heard.value.clabe !== undefined) {
+      clabe = heard.value.clabe;
+      ocrConfidence = heard.value.confidence;
     }
   }
 
@@ -214,7 +231,7 @@ export async function runIntake(
       ok: false,
       reason: "unreadable_image",
       message:
-        "The CLABE could not be read from the image. Send it as text in `clabe`.",
+        "The CLABE could not be read from the file. Send it as text in `clabe`.",
     };
   }
 
@@ -240,11 +257,17 @@ export async function runIntake(
     // synthetic store, Postgres is not.
     synthetic: true,
   };
-  if (body.text !== undefined) {
-    instruction.text = body.text;
+  // The transcript of a voice note is context for the clerk and nothing else.
+  // `PaymentInstruction.text` says so in domain.ts and no detector reads it.
+  const text = body.text ?? transcript;
+  if (text !== undefined) {
+    instruction.text = text;
   }
   if (imageRef !== undefined) {
     instruction.imageRef = imageRef;
+  }
+  if (audioRef !== undefined) {
+    instruction.audioRef = audioRef;
   }
   if (ocrConfidence !== undefined) {
     instruction.ocrConfidence = ocrConfidence;

@@ -43,6 +43,17 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 - CLABE forensics detector in `packages/core`: check digit over the 3-7-1 weights, a dated snapshot
   of the Banxico participant catalogue, plaza parsing, OCR-aware Damerau-Levenshtein against the
   supplier's paid accounts, and a `Finding` whose evidence names the differing digit positions.
+- `packages/extract`: the only package that reaches a language model, and it may only transcribe.
+  `extractFromImage` reads the CLABE, the amount and the payee off a photographed instruction and
+  `extractFromAudio` transcribes a voice note, both through the Gemini REST `generateContent`
+  endpoint with the file inline, a fixed JSON response schema, an injectable `fetch` and
+  `GEMINI_API_KEY` from the environment. The post-processor is pure: it scans the transcription for
+  18-digit CLABE candidates tolerating spaces and hyphens, validates the check digit with the 3-7-1
+  rule imported from `packages/core`, and discounts the confidence by named factors when the check
+  digit fails, when candidates are ambiguous or when the model and its own transcription disagree.
+  Wired into `POST /api/v1/instructions` behind the presence of the key, which answers 422 when it is
+  absent. `scripts/extract-demo.ts` runs it over a file, or replays a recorded fixture with no key
+  and no network. The boundary is enforced by a test that reads the package's own source.
 - `packages/core/src/cfdi.ts`: CFDI 4.0 de ingreso and complemento de recepcion de pagos 2.0 parsed
   into the domain types, on a dependency-free XML tokenizer that never throws. Synthetic SAT
   fixtures in `packages/core/src/fixtures/` and 62 tests covering totals, IVA, the timbre UUID, the
