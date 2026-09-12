@@ -1,7 +1,7 @@
 /**
  * CFDI 4.0 and Complemento de recepcion de pagos 2.0, turned into domain records.
  *
- * This is the data foundation of every fiscal control in Ceptinela: the 69-B
+ * This is the data foundation of every fiscal control in SentryOne: the 69-B
  * sweep needs issuer RFCs, the duplicate detector needs UUIDs and totals, and the
  * beneficiary controls need the account a supplier said it was paid on, which
  * only ever appears inside a payment complement.

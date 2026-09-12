@@ -35,8 +35,8 @@ import { migrate } from "./migrate";
 import {
   appendLedgerEvent,
   appendLedgerEvents,
-  countCeptinela,
   countLedgerEvents,
+  countSentryOne,
   currentPaymentRun,
   deleteLedgerTxForAccount,
   findingsFor,
@@ -73,8 +73,8 @@ import {
   type SupplierHistory,
   supplierHistory,
   supplierWeeklyOutflow,
-  truncateCeptinela,
   truncateLedger,
+  truncateSentryOne,
   upsertCompany,
   upsertSupplier,
   upsertVerifiedBeneficiary,
@@ -173,7 +173,7 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
   });
 
   beforeEach(async () => {
-    await truncateCeptinela(sql);
+    await truncateSentryOne(sql);
     await truncateLedger(sql);
   });
 
@@ -530,7 +530,7 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       const latest = await latestDecision(sql, "INS-1");
       expect(latest).toEqual(friday);
       expect(latest?.findings).toEqual([first]);
-      expect((await countCeptinela(sql)).decisions).toBe(2);
+      expect((await countSentryOne(sql)).decisions).toBe(2);
     });
 
     it("answers with the row appended last, even when it was decided earlier", async () => {
@@ -954,7 +954,7 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       );
       expect(replaced?.nameMatch).toBe("match");
       expect(replaced?.cep.signatureValid).toBe(true);
-      expect((await countCeptinela(sql)).beneficiaries).toBe(1);
+      expect((await countSentryOne(sql)).beneficiaries).toBe(1);
     });
   });
 
@@ -1203,8 +1203,8 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       at: "2026-09-08T18:00:00.000Z",
       instructionId: "INS-1",
     });
-    await truncateCeptinela(sql);
-    const counts = await countCeptinela(sql);
+    await truncateSentryOne(sql);
+    const counts = await countSentryOne(sql);
     expect(Object.values(counts).every((count) => count === 0)).toBe(true);
   });
 });

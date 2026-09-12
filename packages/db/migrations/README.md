@@ -7,12 +7,12 @@ between four laptops.
 | File | Runs on | What it adds |
 |---|---|---|
 | `0001_init.sql` | any Postgres 16+ | `ledger_tx`, the bank mirror spine |
-| `0003_ceptinela.sql` | any Postgres 16+ | the Ceptinela schema: suppliers, known accounts, CFDI, complements, instructions, findings, decisions, the SAT list, the verified beneficiary registry and the append-only event ledger |
-| `0005_ceptinela_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003 (`delay_cost_per_day`, `audio_ref`, `sent_at`, `payment_total`, `operation_number`, the CEP evidence fields), `ledger_tx` as a finding subject and `verification_call` as a ledger event type |
+| `0003_sentryone.sql` | any Postgres 16+ | the SentryOne schema: suppliers, known accounts, CFDI, complements, instructions, findings, decisions, the SAT list, the verified beneficiary registry and the append-only event ledger |
+| `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003 (`delay_cost_per_day`, `audio_ref`, `sent_at`, `payment_total`, `operation_number`, the CEP evidence fields), `ledger_tx` as a finding subject and `verification_call` as a ledger event type |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table: who we are on the header of a constancia, and the bank account id the mirror hangs off |
 | `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events: the feed the `supplier_behaviour` detector and the supplier drawer read |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
-| `0004_timescale_ceptinela.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
+| `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
 
 The order in the table is the order they run: the plain files first, then the ones

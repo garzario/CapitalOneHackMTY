@@ -22,10 +22,6 @@
  */
 
 import { createApp } from "../apps/api/src/app.ts";
-import {
-  ceptinelaBootNotes,
-  ceptinelaDataset,
-} from "../apps/api/src/ceptinela.ts";
 import { createDeps } from "../apps/api/src/deps.ts";
 import { UNAVAILABLE_EXTRACTOR } from "../apps/api/src/extraction.ts";
 import { MemoryRepository } from "../apps/api/src/repo.ts";
@@ -35,6 +31,10 @@ import {
   paymentRunSchema,
   sweepResultSchema,
 } from "../apps/api/src/schemas.ts";
+import {
+  sentryoneBootNotes,
+  sentryoneDataset,
+} from "../apps/api/src/sentryone.ts";
 import {
   nameMatch,
   parseCep,
@@ -60,7 +60,7 @@ interface Api {
 function inMemoryApi(): Api {
   const app = createApp(
     createDeps({
-      repo: new MemoryRepository(0, ceptinelaDataset),
+      repo: new MemoryRepository(0, sentryoneDataset),
       // Seeding is a destructive write and the demo never needs it. The
       // extractor is the one a server with no GEMINI_API_KEY gets, so a key in
       // the environment cannot change what this script reports.
@@ -469,7 +469,7 @@ function baseFromArgs(argv: readonly string[]): string | undefined {
 
 const base = baseFromArgs(process.argv.slice(2));
 const api = base === undefined ? inMemoryApi() : remoteApi(base);
-const notes = ceptinelaBootNotes();
+const notes = sentryoneBootNotes();
 
 console.log(`demo: ${api.label}`);
 if (notes !== undefined) {

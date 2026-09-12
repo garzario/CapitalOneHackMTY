@@ -1,6 +1,6 @@
 # @hackmty/sat
 
-The Article 69-B half of Ceptinela. Load a published version of the SAT list, match a
+The Article 69-B half of SentryOne. Load a published version of the SAT list, match a
 supplier RFC against it, and replay the event ledger to price what a new publication
 just did to invoices we already deducted.
 
@@ -98,7 +98,7 @@ will look for it.
 "Is this supplier listed today" and "was this supplier listed on the day we deducted
 their invoice" are different questions, and only the second one sizes the exposure.
 One row of the published file carries a dated history and becomes one entry per
-situation; `sat_list_entries` in `packages/db/migrations/0003_ceptinela.sql` is keyed
+situation; `sat_list_entries` in `packages/db/migrations/0003_sentryone.sql` is keyed
 by `(list_version, rfc, status)` for that reason, and a corrected download is a new
 version rather than an edit to an old one. `matchRfcAsOf` is the function that asks
 the second question.

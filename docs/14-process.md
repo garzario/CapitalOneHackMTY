@@ -125,7 +125,7 @@ The five epics, each with every related issue linked as a sub-issue:
 | [#80](https://github.com/garzario/CapitalOneHackMTY/issues/80) Engine | Patricio | `packages/core`, `packages/cep`, `packages/sat`, `packages/seed`, `packages/engine`, `packages/extract`, `packages/voice` |
 | [#81](https://github.com/garzario/CapitalOneHackMTY/issues/81) Data platform and API | Fabian | `packages/db`, `apps/api`, the ledger, SSE, the Nessie mirror, the evaluation harness |
 | [#82](https://github.com/garzario/CapitalOneHackMTY/issues/82) UI/UX | Fabricio designs, Fabricio and Adan build | `apps/web`, brand and design system, the six screens, persona and journey, the printed judge card |
-| [#83](https://github.com/garzario/CapitalOneHackMTY/issues/83) Infrastructure and release | Fabian | Vercel, Vultr, Tiger Data, `ceptinela.tech`, keys, offline demo mode, the real one-cent CEP, the release to `main` |
+| [#83](https://github.com/garzario/CapitalOneHackMTY/issues/83) Infrastructure and release | Fabian | Vercel, Vultr, Tiger Data, `sentryone.tech`, keys, offline demo mode, the real one-cent CEP, the release to `main` |
 | [#84](https://github.com/garzario/CapitalOneHackMTY/issues/84) Narrative and submission | everyone, Patricio closes | Market, business model, pitch, Devpost, rubric mapping, this file, the video, the rehearsals |
 
 ## Three pull requests worth reading
@@ -208,9 +208,9 @@ engineer is fishing for when they ask what we left out. Three kinds of cut, all 
 ### 1. A whole backlog, replaced once the track was decided
 
 Issues **#7 to #10, #13, #15 to #22** were the generic plan written before the track vote. ADR-0002
-chose Ceptinela at 02:30 and made them wrong rather than merely incomplete: "feat: the aha screen"
+chose SentryOne at 02:30 and made them wrong rather than merely incomplete: "feat: the aha screen"
 and "feat: dirty-data resilience" are not scopeable against a product that did not exist yet. All
-thirteen were closed with `Superseded by the Ceptinela backlog (#33 to #58)` rather than rewritten
+thirteen were closed with `Superseded by the SentryOne backlog (#33 to #58)` rather than rewritten
 in place, so the history shows the pivot instead of hiding it. **#1 to #4, #11, #12 and #14** were
 closed as done in the bootstrap or superseded the same way.
 
@@ -258,7 +258,7 @@ empty directory and a folder that never existed leaves no evidence of the decisi
 | ADR | The decision, stated as the decision | Status in the file | Landed in |
 |---|---|---|---|
 | [0001](adr/0001-stack-and-runtime.md) | Bun and TypeScript monorepo, with the intelligence as a pure package | Accepted, 2026-09-12 02:30. Option A, no Python sidecar | bootstrap |
-| [0002](adr/0002-track-and-thesis.md) | Track 3 and the Ceptinela thesis, the product as six controls | Accepted, team vote 2026-09-12 02:30 | PR #23 |
+| [0002](adr/0002-track-and-thesis.md) | Track 3 and the SentryOne thesis, the product as six controls | Accepted, team vote 2026-09-12 02:30 | PR #23 |
 | [0003](adr/0003-datastore-and-timeseries.md) | One Postgres dialect, Timescale primary, local Postgres 18 as the offline fallback | Proposed | bootstrap |
 | [0004](adr/0004-llm-boundary-and-privacy.md) | No LLM in the per-transaction hot path | Proposed | bootstrap |
 | [0005](adr/0005-deploy-target.md) | Static web on Vercel, API on the Node runtime, amended in PR #104 | Accepted, 2026-09-12 02:30. Option 2 | bootstrap |

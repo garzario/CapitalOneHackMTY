@@ -11,12 +11,12 @@
 import type { LedgerEvent } from "@hackmty/core";
 import { getSql } from "@hackmty/db";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
-import { ceptinelaDataset, wantsCeptinela } from "./ceptinela";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
 import { PostgresRepository } from "./postgres-repo";
 import { MemoryRepository, type Repository } from "./repo";
+import { sentryoneDataset, wantsSentryOne } from "./sentryone";
 
 export interface ApiDeps {
   repo: Repository;
@@ -94,7 +94,7 @@ function describeDatabaseUrl(url: string): string {
  *
  * `DATABASE_URL` wins: the API then answers every endpoint in docs/09-api.md out
  * of Postgres, over the query layer in @hackmty/db, and the event ledger behind
- * it is the one `bun run seed` wrote. With no database, `SEED=ceptinela` serves
+ * it is the one `bun run seed` wrote. With no database, `SEED=sentryone` serves
  * the generated demo company in memory, with `SEED_NUMBER` choosing which one,
  * and anything else keeps the hand-written fixture.
  *
@@ -109,14 +109,14 @@ function bootRepository(): Repository {
     return new PostgresRepository(getSql());
   }
 
-  if (!wantsCeptinela(readEnv("SEED"))) {
+  if (!wantsSentryOne(readEnv("SEED"))) {
     bootNote = "memory (fixture)";
     return new MemoryRepository();
   }
   const parsed = Number(readEnv("SEED_NUMBER"));
   const seed = Number.isInteger(parsed) ? parsed : 0;
-  bootNote = `memory (ceptinela seed ${seed})`;
-  return new MemoryRepository(seed, ceptinelaDataset);
+  bootNote = `memory (sentryone seed ${seed})`;
+  return new MemoryRepository(seed, sentryoneDataset);
 }
 
 export function createDeps(overrides: DepsOverrides = {}): ApiDeps {

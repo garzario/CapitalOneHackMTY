@@ -33,7 +33,7 @@ export interface TestHarness {
  * A test app is hermetic. Every dependency `createDeps` would otherwise read out
  * of the environment is pinned here, so the suite behaves the same on CI, which
  * has no `.env`, and on a laptop that followed the setup in the README and filled
- * one in. That is not hypothetical: `SEED=ceptinela` swaps the hand-written
+ * one in. That is not hypothetical: `SEED=sentryone` swaps the hand-written
  * fixture for the generated company and turns 48 assertions red, and a
  * `GEMINI_API_KEY` turns the intake refusal into a live model call.
  *

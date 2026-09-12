@@ -208,7 +208,7 @@ async function main(): Promise<void> {
       "--disable-gpu",
       "--hide-scrollbars",
       `--remote-debugging-port=${PORT}`,
-      "--user-data-dir=/tmp/ceptinela-shoot",
+      "--user-data-dir=/tmp/sentryone-shoot",
       "about:blank",
     ],
     { stdio: "ignore" },
@@ -302,7 +302,7 @@ async function main(): Promise<void> {
  * is printed. `brew install ffmpeg`, then paste it.
  */
 async function captureTour(devtools: Devtools, base: string): Promise<void> {
-  const dir = "/tmp/ceptinela-frames";
+  const dir = "/tmp/sentryone-frames";
   await mkdir(dir, { recursive: true });
 
   await devtools.send("Emulation.setDeviceMetricsOverride", {

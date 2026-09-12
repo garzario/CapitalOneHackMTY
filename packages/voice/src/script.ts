@@ -33,7 +33,7 @@
 import type { PaymentInstruction, Supplier } from "@hackmty/core";
 
 /** What the company calls itself on the call. Overridable per deployment. */
-export const DEFAULT_COMPANY_NAME = "Ceptinela";
+export const DEFAULT_COMPANY_NAME = "SentryOne";
 
 export interface ScriptInput {
   /** The supplier as its CFDI names it. Never a name this package invented. */

@@ -13,7 +13,7 @@
  *   presumed in 2018, listed definitively later that year and cleared by a court
  *   in 2019 is one row with three dates, and this loader turns it into three
  *   entries. That is what makes "was this supplier listed on the day we deducted
- *   the invoice" answerable, and it is why the key in `0003_ceptinela.sql` is
+ *   the invoice" answerable, and it is why the key in `0003_sentryone.sql` is
  *   `(list_version, rfc, status)`.
  *
  * Two behaviours are deliberate and both are tested:

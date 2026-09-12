@@ -78,7 +78,7 @@ bun run apps/web/brand/shoot.ts http://localhost:4173 --frames
 ```
 
 Walks the five screens of the demo path and writes the frames to
-`/tmp/ceptinela-frames`, then prints the `ffmpeg` command that turns them into
+`/tmp/sentryone-frames`, then prints the `ffmpeg` command that turns them into
 `assets/screenshots/tour.gif`. The frames go to a temp directory on purpose:
 thirty PNGs is not something to carry in git, the 112 KB GIF is.
 

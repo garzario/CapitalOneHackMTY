@@ -1,8 +1,8 @@
--- packages/db/migrations/0004_timescale_ceptinela.sql  applied ONLY when the
+-- packages/db/migrations/0004_timescale_sentryone.sql  applied ONLY when the
 -- extension exists. scripts/migrate.ts checks pg_available_extensions and skips
 -- this file otherwise, exactly as it does for 0002_timescale.sql.
 --
--- Everything Ceptinela needs to work is already in 0003. This file only makes the
+-- Everything SentryOne needs to work is already in 0003. This file only makes the
 -- event ledger cheaper to scan, which is the honest answer to "what happens at ten
 -- times the volume": the same SQL, partitioned by time, with the daily counts the
 -- timeline reads kept as a continuous aggregate instead of recomputed per request.

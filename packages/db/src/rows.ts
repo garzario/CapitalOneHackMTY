@@ -1,5 +1,5 @@
 /**
- * The row shapes of the Ceptinela tables and the mappers between them and the
+ * The row shapes of the SentryOne tables and the mappers between them and the
  * domain types in packages/core/src/domain.ts.
  *
  * Pure: no SQL and no driver, so every mapper is unit tested without a database

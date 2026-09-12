@@ -1,4 +1,4 @@
-# Ceptinela, the last control before an irrevocable SPEI
+# SentryOne, the last control before an irrevocable SPEI
 
 <!-- TODO(garzario) assets/demo.gif here: under 6 MB, looping, 10 to 15 seconds, no cursor jitter. Issue #73 -->
 
@@ -25,7 +25,7 @@ instructions into correct transfers, and she has no tool that looks at a payment
 status at the same time. She is in [`docs/02-persona.md`](docs/02-persona.md), quantified, with the
 two venue interviews we still owe listed as open rather than invented.
 
-Ceptinela runs six explainable controls over the company's own CFDI ledger, the official SAT list
+SentryOne runs six explainable controls over the company's own CFDI ledger, the official SAT list
 and the Banxico-signed CEP at the moment of payment, and holds the transfer with the evidence on
 screen.
 
@@ -43,7 +43,7 @@ The three facts that decide whether a payment is safe are all public and all cur
 never read together at the moment that matters: the 69-B list belongs to a compliance product, the
 CFDI belongs to the accountant, and the CEP belongs to a post-mortem, because Banxico publishes it
 only after the transfer is already irrevocable. The gap stays open because that window, the few
-minutes between approving a payment run and sending it, is nobody's product surface. Ceptinela is
+minutes between approving a payment run and sending it, is nobody's product surface. SentryOne is
 built to sit in exactly that window.
 
 What the alternatives structurally cannot do: the Mexican 69-B checkers run on a list rather than

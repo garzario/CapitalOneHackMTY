@@ -15,11 +15,10 @@
 import { describe, expect, it } from "bun:test";
 import type { Sql } from "../../packages/db/src/index.ts";
 import { MIGRATIONS } from "../../packages/db/src/migrate.ts";
-import type { CeptinelaCounts } from "../../packages/db/src/queries.ts";
+import type { SentryOneCounts } from "../../packages/db/src/queries.ts";
 import {
   type AppliedMigration,
   type Check,
-  ceptinelaTables,
   checkBunVersion,
   checkCepFixture,
   checkDatabase,
@@ -35,6 +34,7 @@ import {
   offlineSatSnapshot,
   redactUrl,
   type SatSnapshotFacts,
+  sentryoneTables,
 } from "./checks.ts";
 
 const ROOT = `${import.meta.dir}/../..`;
@@ -88,7 +88,7 @@ describe("environment", () => {
     const checks = checkEnv({
       template,
       envFilePresent: true,
-      env: { DATABASE_URL: "postgres://localhost:5432/ceptinela" },
+      env: { DATABASE_URL: "postgres://localhost:5432/sentryone" },
     });
 
     expect(statusOf(checks, ".env")).toBe("ok");
@@ -139,7 +139,7 @@ describe("environment", () => {
     const checks = checkEnv({
       template,
       envFilePresent: true,
-      env: { DATABASE_URL: "postgres://localhost:5432/ceptinela" },
+      env: { DATABASE_URL: "postgres://localhost:5432/sentryone" },
     });
     const database = detailOf(checks, "env DATABASE_URL");
     expect(database).toContain("35 characters");
@@ -252,10 +252,10 @@ describe("the CEP fixture", () => {
 describe("migrations", () => {
   const migrations = [
     { file: "0001_init.sql", requiresTimescale: false },
-    { file: "0003_ceptinela.sql", requiresTimescale: false },
-    { file: "0005_ceptinela_drift.sql", requiresTimescale: false },
+    { file: "0003_sentryone.sql", requiresTimescale: false },
+    { file: "0005_sentryone_drift.sql", requiresTimescale: false },
     { file: "0002_timescale.sql", requiresTimescale: true },
-    { file: "0004_timescale_ceptinela.sql", requiresTimescale: true },
+    { file: "0004_timescale_sentryone.sql", requiresTimescale: true },
   ] as const;
 
   function applied(...files: string[]): AppliedMigration[] {
@@ -277,15 +277,15 @@ describe("migrations", () => {
       migrations,
       applied: applied(
         "0001_init.sql",
-        "0003_ceptinela.sql",
-        "0005_ceptinela_drift.sql",
+        "0003_sentryone.sql",
+        "0005_sentryone_drift.sql",
       ),
       timescale: false,
     });
     expect(check.status).toBe("ok");
     expect(check.detail).toContain("3 of 5 applied");
     expect(check.detail).toContain("0002_timescale.sql");
-    expect(check.detail).toContain("0004_timescale_ceptinela.sql");
+    expect(check.detail).toContain("0004_timescale_sentryone.sql");
     expect(check.detail).toContain("working as designed");
     expect(check.detail).not.toContain("run: bun run migrate");
   });
@@ -293,11 +293,11 @@ describe("migrations", () => {
   it("warns when a plain file is missing, whatever the host", () => {
     const check = checkMigrations({
       migrations,
-      applied: applied("0001_init.sql", "0005_ceptinela_drift.sql"),
+      applied: applied("0001_init.sql", "0005_sentryone_drift.sql"),
       timescale: false,
     });
     expect(check.status).toBe("warn");
-    expect(check.detail).toContain("missing 0003_ceptinela.sql");
+    expect(check.detail).toContain("missing 0003_sentryone.sql");
     expect(check.detail).toContain("run: bun run migrate");
   });
 
@@ -306,28 +306,28 @@ describe("migrations", () => {
       migrations,
       applied: applied(
         "0001_init.sql",
-        "0003_ceptinela.sql",
-        "0005_ceptinela_drift.sql",
+        "0003_sentryone.sql",
+        "0005_sentryone_drift.sql",
       ),
-      checksums: { "0003_ceptinela.sql": "bbbbbbbb" },
+      checksums: { "0003_sentryone.sql": "bbbbbbbb" },
       timescale: false,
     });
     expect(check.status).toBe("warn");
-    expect(check.detail).toContain("0003_ceptinela.sql changed");
+    expect(check.detail).toContain("0003_sentryone.sql changed");
     expect(check.detail).toContain("add a new migration");
   });
 });
 
 describe("connection strings", () => {
   it("never prints a password", () => {
-    expect(redactUrl("postgres://user:hunter2@db.example.com:5432/ceptinela")) //
-      .toBe("postgres://db.example.com:5432/ceptinela");
+    expect(redactUrl("postgres://user:hunter2@db.example.com:5432/sentryone")) //
+      .toBe("postgres://db.example.com:5432/sentryone");
   });
 
   it("knows a local database from a hosted one", () => {
-    expect(isLocalDatabase("postgres://localhost:5432/ceptinela")).toBe(true);
-    expect(isLocalDatabase("postgres://127.0.0.1:5432/ceptinela")).toBe(true);
-    expect(isLocalDatabase("postgres://user:p@tsdb.cloud:5432/ceptinela")).toBe(
+    expect(isLocalDatabase("postgres://localhost:5432/sentryone")).toBe(true);
+    expect(isLocalDatabase("postgres://127.0.0.1:5432/sentryone")).toBe(true);
+    expect(isLocalDatabase("postgres://user:p@tsdb.cloud:5432/sentryone")).toBe(
       false,
     );
   });
@@ -335,7 +335,7 @@ describe("connection strings", () => {
 
 describe("offline readiness", () => {
   const ready = {
-    databaseUrl: "postgres://localhost:5432/ceptinela",
+    databaseUrl: "postgres://localhost:5432/sentryone",
     databaseReachable: true,
     tables: "populated" as const,
     satSnapshot: { readable: true, ageDays: 0 },
@@ -355,7 +355,7 @@ describe("offline readiness", () => {
     expect(
       checkOfflineDemo({
         ...ready,
-        databaseUrl: "postgres://user:p@tsdb.cloud:5432/ceptinela",
+        databaseUrl: "postgres://user:p@tsdb.cloud:5432/sentryone",
       }).detail,
     ).toContain("needs a network");
     expect(
@@ -430,14 +430,14 @@ describe("offline readiness", () => {
     const absent = checkOfflineDemo({ ...ready, tables: "missing" });
     expect(absent.status).toBe("warn");
     expect(absent.detail).toContain(
-      "the Ceptinela tables do not exist, run: bun run migrate",
+      "the SentryOne tables do not exist, run: bun run migrate",
     );
     expect(absent.detail).not.toContain("bun run seed");
 
     const empty = checkOfflineDemo({ ...ready, tables: "empty" });
     expect(empty.status).toBe("warn");
     expect(empty.detail).toContain(
-      "the Ceptinela tables are empty, run: bun run seed",
+      "the SentryOne tables are empty, run: bun run seed",
     );
     expect(empty.detail).not.toContain("bun run migrate");
   });
@@ -457,7 +457,7 @@ describe("offline readiness", () => {
     expect(
       checkOfflineDemo({
         ...ready,
-        databaseUrl: "postgres://user:hunter2@tsdb.cloud:5432/ceptinela",
+        databaseUrl: "postgres://user:hunter2@tsdb.cloud:5432/sentryone",
       }).detail,
     ).not.toContain("hunter2");
   });
@@ -498,7 +498,7 @@ describe("the exit code", () => {
  * that was never migrated.
  */
 describe("the database check, over injected dependencies", () => {
-  const zeroCounts: CeptinelaCounts = {
+  const zeroCounts: SentryOneCounts = {
     suppliers: 0,
     knownAccounts: 0,
     cfdis: 0,
@@ -521,7 +521,7 @@ describe("the database check, over injected dependencies", () => {
       appliedMigrations: async () => [],
       migrations: [],
       checksums: async () => ({}),
-      countCeptinela: async () => zeroCounts,
+      countSentryOne: async () => zeroCounts,
       countLedgerTx: async () => 0,
       latestOccurredAt: async () => undefined,
       close: async () => undefined,
@@ -537,13 +537,13 @@ describe("the database check, over injected dependencies", () => {
    */
   it("gives a reason when the driver gives none, which is what a stopped Postgres does", async () => {
     const checks = await checkDatabase(
-      "postgres://localhost:5432/ceptinela",
+      "postgres://localhost:5432/sentryone",
       deps({ probe: async () => ({ ok: false, ms: 12, error: "" }) }),
     );
 
     expect(statusOf(checks, "database")).toBe("warn");
     expect(detailOf(checks, "database")).toBe(
-      `postgres://localhost:5432/ceptinela unreachable: ${NO_LISTENER_REASON}`,
+      `postgres://localhost:5432/sentryone unreachable: ${NO_LISTENER_REASON}`,
     );
     expect(detailOf(checks, "database")).not.toContain("unknown error");
   });
@@ -564,39 +564,39 @@ describe("the database check, over injected dependencies", () => {
 
   it("tells tables that are not there from tables that are merely empty", async () => {
     const unmigrated = await checkDatabase(
-      "postgres://localhost:5432/ceptinela",
+      "postgres://localhost:5432/sentryone",
       deps({
-        countCeptinela: async () => {
+        countSentryOne: async () => {
           throw new Error('relation "suppliers" does not exist');
         },
       }),
     );
-    expect(ceptinelaTables(unmigrated)).toBe("missing");
-    expect(detailOf(unmigrated, "ceptinela")).toContain("bun run migrate");
+    expect(sentryoneTables(unmigrated)).toBe("missing");
+    expect(detailOf(unmigrated, "sentryone")).toContain("bun run migrate");
 
     const empty = await checkDatabase(
-      "postgres://localhost:5432/ceptinela",
+      "postgres://localhost:5432/sentryone",
       deps(),
     );
-    expect(ceptinelaTables(empty)).toBe("empty");
-    expect(detailOf(empty, "ceptinela")).toBe("empty, run: bun run seed");
+    expect(sentryoneTables(empty)).toBe("empty");
+    expect(detailOf(empty, "sentryone")).toBe("empty, run: bun run seed");
 
     const seeded = await checkDatabase(
-      "postgres://localhost:5432/ceptinela",
+      "postgres://localhost:5432/sentryone",
       deps({
-        countCeptinela: async () => ({ ...zeroCounts, suppliers: 12 }),
+        countSentryOne: async () => ({ ...zeroCounts, suppliers: 12 }),
       }),
     );
-    expect(ceptinelaTables(seeded)).toBe("populated");
-    expect(statusOf(seeded, "ceptinela")).toBe("ok");
+    expect(sentryoneTables(seeded)).toBe("populated");
+    expect(statusOf(seeded, "sentryone")).toBe("ok");
   });
 
   it("reads missing off a database that never answered, so no command is guessed", async () => {
     const checks = await checkDatabase(
-      "postgres://localhost:5432/ceptinela",
+      "postgres://localhost:5432/sentryone",
       deps({ probe: async () => ({ ok: false, ms: 12, error: "" }) }),
     );
-    expect(ceptinelaTables(checks)).toBe("missing");
+    expect(sentryoneTables(checks)).toBe("missing");
   });
 });
 
@@ -633,14 +633,14 @@ describe("the database check, against a real Postgres", () => {
       );
       expect(detailOf(checks, "migrations")).toContain("0002_timescale.sql");
       expect(detailOf(checks, "migrations")).toContain(
-        "0004_timescale_ceptinela.sql",
+        "0004_timescale_sentryone.sql",
       );
 
-      expect(statusOf(checks, "ceptinela")).toBe("warn");
-      expect(detailOf(checks, "ceptinela")).toBe("empty, run: bun run seed");
+      expect(statusOf(checks, "sentryone")).toBe("warn");
+      expect(detailOf(checks, "sentryone")).toBe("empty, run: bun run seed");
       // Empty and not absent, which is the difference between the two commands
       // the closing line can print.
-      expect(ceptinelaTables(checks)).toBe("empty");
+      expect(sentryoneTables(checks)).toBe("empty");
     },
   );
 });

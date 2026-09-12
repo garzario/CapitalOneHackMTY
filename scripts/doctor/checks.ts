@@ -21,27 +21,27 @@
 
 import type { ProbeResult, Sql } from "../../packages/db/src/index.ts";
 import type { MigrationSpec } from "../../packages/db/src/migrate.ts";
-import type { CeptinelaCounts } from "../../packages/db/src/queries.ts";
+import type { SentryOneCounts } from "../../packages/db/src/queries.ts";
 
 export type Status = "ok" | "warn" | "fail";
 
 /**
- * What the Ceptinela tables are. Three states and not two, because "the tables
+ * What the SentryOne tables are. Three states and not two, because "the tables
  * are empty" and "the tables are not there" take different commands and
  * `bun run seed` does not migrate.
  */
-export type CeptinelaTables = "missing" | "empty" | "populated";
+export type SentryOneTables = "missing" | "empty" | "populated";
 
 export interface Check {
   name: string;
   status: Status;
   detail: string;
   /**
-   * Only on the `ceptinela` line. The closing line has to tell an empty schema
+   * Only on the `sentryone` line. The closing line has to tell an empty schema
    * from an absent one, and a status of "warn" says both; this is that
    * distinction in a form the last check can read without parsing English.
    */
-  tables?: CeptinelaTables;
+  tables?: SentryOneTables;
 }
 
 /** A dead host must not hang the command; the probe is bounded and so is the rest. */
@@ -51,7 +51,7 @@ export const NESSIE_TIMEOUT_MS = 4000;
 
 /** Names the offline-readiness line reads back off the table. */
 export const DATABASE_CHECK = "database";
-export const CEPTINELA_CHECK = "ceptinela";
+export const SENTRYONE_CHECK = "sentryone";
 
 /* -------------------------------------------------------------------------- */
 /* Shared helpers                                                              */
@@ -593,7 +593,7 @@ export interface DatabaseDeps {
   migrations: readonly MigrationSpec[];
   /** Current fingerprint per migration file, read from disk. */
   checksums(): Promise<Record<string, string>>;
-  countCeptinela(sql: Sql): Promise<CeptinelaCounts>;
+  countSentryOne(sql: Sql): Promise<SentryOneCounts>;
   countLedgerTx(sql: Sql): Promise<number>;
   latestOccurredAt(sql: Sql): Promise<string | undefined>;
   close(sql: Sql): Promise<void>;
@@ -627,7 +627,7 @@ export async function defaultDatabaseDeps(): Promise<DatabaseDeps> {
       }
       return entries;
     },
-    countCeptinela: (sql) => queries.countCeptinela(sql),
+    countSentryOne: (sql) => queries.countSentryOne(sql),
     countLedgerTx: (sql) => queries.countLedgerTx(sql),
     latestOccurredAt: (sql) => queries.latestOccurredAt(sql),
     close: (sql) => sql.end({ timeout: 1 }),
@@ -741,9 +741,9 @@ export async function checkDatabase(
 
     try {
       const counts = await withTimeout(
-        deps.countCeptinela(sql),
+        deps.countSentryOne(sql),
         DB_QUERY_TIMEOUT_MS,
-        "the Ceptinela counts",
+        "the SentryOne counts",
       );
       const populated =
         counts.suppliers +
@@ -754,7 +754,7 @@ export async function checkDatabase(
           counts.events >
         0;
       checks.push({
-        name: CEPTINELA_CHECK,
+        name: SENTRYONE_CHECK,
         status: populated ? "ok" : "warn",
         detail: populated
           ? `${counts.suppliers} suppliers, ${counts.cfdis} cfdis, ${counts.instructions} instructions, ${counts.findings} findings, ${counts.decisions} decisions, ${counts.events} events`
@@ -762,10 +762,10 @@ export async function checkDatabase(
         tables: populated ? "populated" : "empty",
       });
     } catch (cause) {
-      // The count query names every Ceptinela table, so a failure here is
+      // The count query names every SentryOne table, so a failure here is
       // overwhelmingly an unmigrated database rather than an empty one.
       checks.push({
-        name: CEPTINELA_CHECK,
+        name: SENTRYONE_CHECK,
         status: "warn",
         detail: `not queryable yet (${messageOf(cause)}), run: bun run migrate`,
         tables: "missing",
@@ -824,14 +824,14 @@ export function isReachable(checks: readonly Check[]): boolean {
 }
 
 /**
- * What the Ceptinela tables are, read back off the line the table printed.
+ * What the SentryOne tables are, read back off the line the table printed.
  *
  * Not a boolean: the closing line has to send a person to `bun run migrate` or
  * to `bun run seed`, and telling someone with no tables at all to seed them is
  * telling them to run a command that cannot work.
  */
-export function ceptinelaTables(checks: readonly Check[]): CeptinelaTables {
-  const check = checks.find((candidate) => candidate.name === CEPTINELA_CHECK);
+export function sentryoneTables(checks: readonly Check[]): SentryOneTables {
+  const check = checks.find((candidate) => candidate.name === SENTRYONE_CHECK);
   return check?.tables ?? "missing";
 }
 
@@ -896,7 +896,7 @@ export async function checkNessie(input: {
 /* 7. seed state                                                               */
 /* -------------------------------------------------------------------------- */
 
-interface CeptinelaSeedState {
+interface SentryOneSeedState {
   seed?: number;
   weekOf?: string;
   runId?: string;
@@ -922,27 +922,27 @@ export async function checkSeedState(input: {
   const checks: Check[] = [];
 
   try {
-    const state = (await readJson(`${input.root}/.seed/ceptinela.json`)) as
-      | CeptinelaSeedState
+    const state = (await readJson(`${input.root}/.seed/sentryone.json`)) as
+      | SentryOneSeedState
       | undefined;
     checks.push(
       state === undefined
         ? {
-            name: "seed ceptinela",
+            name: "seed sentryone",
             status: "warn",
-            detail: "no .seed/ceptinela.json yet, run: bun run seed",
+            detail: "no .seed/sentryone.json yet, run: bun run seed",
           }
         : {
-            name: "seed ceptinela",
+            name: "seed sentryone",
             status: "ok",
             detail: `seed ${state.seed ?? "unknown"}, week of ${state.weekOf ?? "unknown"}, run ${state.runId ?? "unknown"}, hero ${listNames(state.heroInstructionIds ?? []) || "none recorded"}`,
           },
     );
   } catch (cause) {
     checks.push({
-      name: "seed ceptinela",
+      name: "seed sentryone",
       status: "warn",
-      detail: `.seed/ceptinela.json is unreadable (${messageOf(cause)}), run: bun run seed --force`,
+      detail: `.seed/sentryone.json is unreadable (${messageOf(cause)}), run: bun run seed --force`,
     });
   }
 
@@ -981,7 +981,7 @@ export async function checkSeedState(input: {
 export interface OfflineInputs {
   databaseUrl?: string;
   databaseReachable: boolean;
-  tables: CeptinelaTables;
+  tables: SentryOneTables;
   satSnapshot: OfflineSatSnapshot;
   cepFixture: boolean;
 }
@@ -1018,8 +1018,8 @@ export function checkOfflineDemo(input: OfflineInputs): Check {
   if (database && input.tables !== "populated") {
     missing.push(
       input.tables === "missing"
-        ? "the Ceptinela tables do not exist, run: bun run migrate"
-        : "the Ceptinela tables are empty, run: bun run seed",
+        ? "the SentryOne tables do not exist, run: bun run migrate"
+        : "the SentryOne tables are empty, run: bun run seed",
     );
   }
   const age = input.satSnapshot.ageDays;
