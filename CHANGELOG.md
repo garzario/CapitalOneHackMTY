@@ -14,6 +14,9 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 - Repository bootstrap: bun workspace monorepo, shared TypeScript and lint configuration, the agent
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
+- CLABE forensics detector in `packages/core`: check digit over the 3-7-1 weights, a dated snapshot
+  of the Banxico participant catalogue, plaza parsing, OCR-aware Damerau-Levenshtein against the
+  supplier's paid accounts, and a `Finding` whose evidence names the differing digit positions.
 
 ### Changed
 
