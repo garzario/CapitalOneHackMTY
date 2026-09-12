@@ -151,6 +151,40 @@ stream drops, the run screen says the stream is closed and offers to reconnect
 rather than showing a stale table, which is the difference between a recoverable
 beat and a lost one.
 
+## The accessibility pass, measured
+
+`apps/web/audit/audit.ts` runs the four checks issue #96 asks for against the
+built app, and exits non-zero when one fails. Run it with the app served:
+
+```
+bun run apps/web/audit/audit.ts http://localhost:4173
+```
+
+It reports clean on all four as of the run that closed #96: no horizontal
+overflow at 390, 768, 1440 or 1920 on any of the six screens; every focusable
+control named, reached by a real Tab press and showing a focus ring; reduced
+motion collapsing all three duration tokens to 1 ms with nothing on the page
+still transitioning; and every colour pairing at or above WCAG AA in both
+themes.
+
+Four token values moved to get there, and they were not close calls:
+
+| Token | Was | Is | Why |
+|---|---|---|---|
+| `--c-ink-subtle` light | `#7c838f` | `#676d77` | 3.34 on a sunken panel, against a floor of 4.5 |
+| `--c-ink-subtle` dark | `#79828f` | `#7f8794` | 4.25 on a sunken panel |
+| `--c-watermark-ink` | tracked ink-subtle | tracks it still | the sentence that says the data is synthetic has to be readable |
+| `--c-border-strong` | `#c8cdd6` / `#39404c` | `#878b91` / `#646973` | 1.60 and 1.72 against a floor of 3. This is the border of `.btn` and `.input`, and `.btn` has the same background as the panel behind it, so the border is the only thing that says a button is there |
+
+The border change is the one with a visible cost: buttons and inputs read
+heavier than they did. That is the correct trade. A control whose boundary
+measures 1.6 against its own background is not a subtle control, it is an
+invisible one, and this is a screen where people move money.
+
+Contrast is measured in the browser rather than read out of `tokens.css`,
+because half the values are `rgba` over a surface and what matters is the
+composited pixel, not the declaration.
+
 ## What this is not
 
 No purple gradient. No emoji, in the interface or in the docs. No illustration.
@@ -164,5 +198,4 @@ down.
 - The type scale is set in a system font stack. A licensed face would be better
   and is not worth a network request before the demo. TODO(FabriBanda) after the
   hackathon.
-- Contrast is checked by eye in both themes so far. The measured pass over every
-  pairing is issue #96.
+- Nothing. The measured contrast pass landed with #96; see below.

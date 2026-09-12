@@ -57,7 +57,7 @@ score and they only exist if the thing works and we can talk about it.
 - Feature PRs are squash-merged into `dev`. The squash title is `<type>(<scope>): <summary> (#<issue>)`.
 - One review from a different role owner, per the rotation below. Since 03:30 on the 12th that
   review is post-merge rather than blocking, which is build night mode in point 7 of the review flow.
-- Few, meaningful commits. One logical commit per PR. Of the 39 merged so far, 36 went into `dev`
+- Few, meaningful commits. One logical commit per PR. Of the 45 merged so far, 42 went into `dev`
   and 3 were release PRs into `main`.
 - No required status checks, deliberately. A runner queue must never strand a PR at 04:00. CI is
   advisory and the reviewer reads it.
@@ -89,7 +89,7 @@ score and they only exist if the thing works and we can talk about it.
    The trade was made on purpose. Four people running assistants in parallel on a shared monorepo
    produce PRs faster than four people can read them, and a PR waiting three hours for an approval
    at 04:00 blocks the branch behind it rather than improving it. What we bought is throughput:
-   39 merged PRs, zero direct pushes to `main` or `dev`, and no branch stranded overnight.
+   45 merged PRs, zero direct pushes to `main` or `dev`, and no branch stranded overnight.
 
    What it cost is visible and we state it rather than dress it up: **as of this writing no merged
    PR carries a post-merge review thread.** The rotation below is owed on every one of them and the
@@ -142,16 +142,62 @@ three the PR body is the artifact and the post-merge review is still owed.
 
 ## Evidence you can check without us
 
-Counts are a snapshot, taken 2026-09-12 04:54 CST against `dev` at `8487841`. Re-read them off the
+Counts are a snapshot, taken 2026-09-12 05:30 CST against `dev` at `4e9e2eb`. Re-read them off the
 commands rather than off this table if the hour matters.
 
 | Artifact | Where | Why this one |
 |---|---|---|
-| CI run | Run `34689622851` on `dev`, `verify` green in 33 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
-| Test suite | `bun test`: 1023 pass, 0 fail, 59 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
+| CI run | Run `34690867244` on `dev`, `verify` green in 36 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
+| Test suite | `bun test`: 1116 pass, 0 fail, 65 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
 | Blind evaluation | `bun run eval`: 30 labelled cases, 85.0 percent precision, 81.0 percent recall, 1.9 percent false positive rate | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
 | Rubric score trend | `docs/01-rubric-mapping.md#self-score` | M1, 2026-09-12 04:54 CST: **85 of 100** under the stated G/Y/R rule. M2, M3 and M4 go here as they are scored |
 | Changelog | `CHANGELOG.md`, `[Unreleased]` | Appended by whoever merges, in the same commit |
+
+## Live integrations verified
+
+Three parts of this product leave the repository and reach somebody else's production system. Each
+was exercised against the real provider on 2026-09-12, and the ids below are what turns "the code
+path is merged and tested against a stub" into "we ran it". A judge can ask us to open any of them.
+
+### The verification call, ElevenLabs over Twilio
+
+| | |
+|---|---|
+| What ran | Two real outbound calls, 2026-09-12 |
+| Agent | `agent_3501m2ah6erkf46rxdmhy4xtsexw` |
+| Dialled from | The team's own imported Twilio number, +52 81 2188 8380 |
+| Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product |
+| Conversation ids | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
+| The first call | 18 seconds, ended by the remote party, transcript captured |
+| Cost | USD 0.016, as the provider reports it |
+
+This is the evidence the gate table in `docs/11-pitch.md` was waiting for, so the live-call row there
+is ticked and points at this section: "ya llamamos" is now a sentence about something that happened.
+It ticks nothing else. Both open items on this integration are still in the cut list below, the voice
+id that is not pinned and the `verification_call` event that reaches the ledger and the SSE stream
+without being rendered in the instruction panel.
+
+### The extraction, Gemini
+
+| | |
+|---|---|
+| What ran | One handwritten-style image of a payment instruction, through `packages/extract`, 2026-09-12 |
+| Model | `gemini-3.6-flash`, the default in `packages/extract/src/gemini.ts` and the value `.env.example` configures |
+| What came back | The supplier, the amount and the CLABE, in one call, about 1,200 tokens |
+| What did not move | The boundary. One instruction string and the bytes of one image is the whole transfer, and `packages/extract/src/boundary.test.ts` fails if a shipped module of that package so much as names `decide`, `Finding` or `score` |
+
+That token count is the measurement to re-price `docs/06-regulatory-privacy.md` section 6.3 with,
+because the table there prices two models this product does not configure. Issue #54 carries it.
+
+### The bank mirror, Nessie
+
+| | |
+|---|---|
+| What ran | `POST /customers` with the team key, answered `201`, 2026-09-12 |
+| Why a write and not a read | On Nessie a `403 {"message":"Missing Authentication Token"}` means the path is wrong rather than the key, so a read proves nothing about a key and only a write the API accepts does. That quirk is in `AGENTS.md` because it cost us the guess once |
+
+The key is in each local `.env` and in no file here: `.env` and `.env.*` are ignored and
+`.env.example` carries the names with empty values.
 
 ## What we cut, and why
 
@@ -183,7 +229,7 @@ and would have cost the demo.
 | Cut | Where it is recorded | Why |
 |---|---|---|
 | The composition report does not reach the HTTP contract | PR #117, "Deliberately not done" | Adding `controls: { ran, skipped }` to the intake response would have changed `docs/09-api.md` and `apps/web` while three people were editing those files. It is additive and it is its own PR |
-| The `sat_69b` detector is not fed the real committed SAT list | PR #119, and in `apps/api/src/pipeline.ts` next to the wiring | ADR-0002 forbids a real RFC sitting next to fabricated evidence. The real list is read-only, in the lookup box a judge types into. The comment exists so the next person does not "fix" it |
+| The `sat_69b` detector was not fed the real committed SAT list, a cut PR #133 then reversed | PR #119 made the cut, PR #133 undid it, and the reasoning sits in `apps/api/src/pipeline.ts` next to the wiring | ADR-0002 forbids a real RFC sitting next to fabricated evidence, which is why #119 left the real list read-only behind the lookup box. #133 wired it in once the argument was written down: every seeded supplier RFC is synthetic, so a real row cannot meet a fabricated invoice, and what it buys is a control that knows what the lookup box on the next screen knows. `simulatePublication` still refuses any RFC without the `SYN` prefix, so the publication the demo replays stays invented |
 | The `verification_call` event is not rendered in the instruction panel | PR #118, "Deliberately not done" | `InstructionScreen.tsx` and `Findings.tsx` belong to the UI front and were being edited at that hour. The event is already on `GET /api/v1/ledger` and on the SSE stream, so the panel needs no API change when it is built |
 | No ElevenLabs voice id is pinned | PR #118 | Nobody on the team had listened to a Mexican Spanish voice and chosen one, so `ELEVENLABS_VOICE_ID` is empty and the provider default applies rather than an id this repo invented |
 | Per-transaction basis points, and lead generation to a lender | `docs/05-business-model.md#revenue-lines` | The first makes a subscriber pay twice for one payment run. The second turns a control into an origination channel and invites the credit regime ADR-0002 deliberately stayed outside of |

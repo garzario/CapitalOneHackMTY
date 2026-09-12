@@ -77,6 +77,7 @@ event. Use these, and do not bump them during the event.
 | `@tailwindcss/vite` | 4.3.3 | keep both tailwind pins identical |
 | `motion` | 13.2.0 | animation, first-class and not a polish task |
 | `recharts` | 3.10.1 | charts over our own ledger |
+| `uqr` | 0.1.3 | QR encoder for the intake code, zero dependencies, published 2026-04-03 |
 
 Anything not on this list, including sponsor SDKs, a Python sidecar, an ORM, a second database and
 any deploy CLI, is out of scope unless an ADR in `docs/adr/` argues it in. Four infrastructure
@@ -110,7 +111,9 @@ that checked nothing is worse than a red one.
 - Two long-lived branches. `dev` is the integration branch: every feature PR targets `dev` and is
   squash-merged as soon as CI is green (no approval gate during the build night; post-merge reviews are still expected). `main` is the release branch: it only receives release PRs from `dev`, merged with
   a merge commit (`gh pr merge --merge`) and tagged (`v1.0.0` at M4). Vercel production deploys
-  from `main`, previews from `dev` and from every PR.
+  from `main`, previews from `dev` and from every PR. The exact commands for that release, in
+  order, are in `docs/playbooks/release.md`, and `bun run release-check` is the gate that runs
+  before it.
 - Branch names: `feat/<issue#>-<slug>`, `fix/<issue#>-<slug>`, `docs/<issue#>-<slug>`.
 - Branch from a freshly pulled `dev`. Merge within four hours or split the issue.
 - **Never push to `main` or `dev`.** This is a team repo and the pull requests are the judged

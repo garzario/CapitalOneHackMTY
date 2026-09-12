@@ -8,7 +8,7 @@ every choice lives in `docs/design.md`.
 |---|---|---|
 | `og.html` | `../public/og.png` | 1200 x 630 |
 | the mark inlined below | `../public/apple-touch-icon.png` | 180 x 180 |
-| `shoot.ts` | `../../../assets/screenshots/*.png` | 1600 and 900 wide |
+| `shoot.ts` | `../../../assets/screenshots/*.png` | 1440, 1200, 768 and 390 wide |
 
 `../public/favicon.svg` is hand-written and has no source step. It is the one
 copy of the mark that ships as vector; `src/components/Wordmark.tsx` holds the
@@ -58,5 +58,34 @@ alert rail heading and no cards under it, because `motion/react` was still
 running. The script asks for `prefers-reduced-motion: reduce`, the design
 tokens collapse every duration to 1 ms, and the capture is the same every time.
 
+Captures are clipped to the frame they declare. Without a clip,
+`captureBeyondViewport` expands horizontally as well as vertically, so a 390
+wide phone shot came back 751 wide with the run table's own horizontal scroll
+unrolled into it, which is the opposite of what a responsive screenshot shows.
+
+Both themes are captured for the payment run and the finding panel, light only
+for the rest. Every one of these files is carried in git, so the set is the
+smallest one that covers the README, the Devpost gallery and the responsive
+claim in #96.
+
 Re-run it whenever the payment run changes shape. A stale screenshot in the
 README is a claim that stopped being true.
+
+## The README loop
+
+```
+bun run apps/web/brand/shoot.ts http://localhost:4173 --frames
+```
+
+Walks the five screens of the demo path and writes the frames to
+`/tmp/ceptinela-frames`, then prints the `ffmpeg` command that turns them into
+`assets/screenshots/tour.gif`. The frames go to a temp directory on purpose:
+thirty PNGs is not something to carry in git, the 112 KB GIF is.
+
+`ffmpeg` is not a repository dependency and does not belong in `bun.lock`. If
+you do not have it, `brew install ffmpeg`. The script prints the command rather
+than running it, so a missing encoder costs you a paste and not a failed run.
+
+Navigation only, no clicking. An interaction script is one more thing to go
+stale, and the loop exists to show what the product looks like. Proving that it
+works is what `bun run demo` is for.

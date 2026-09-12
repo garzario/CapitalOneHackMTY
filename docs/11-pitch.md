@@ -46,18 +46,17 @@ Refresh this table at every milestone.
 | "Six controls, all six accounted for" | `runControls` in `packages/engine`, every control in `ran` or `skipped` with a reason | Ticked |
 | "There is no model in the decision" | `packages/extract/src/boundary.test.ts`, ADR-0004, `docs/06` section 6 | Ticked |
 | "The retroactive sweep replays the ledger" | `sweep` in `packages/sat/src/sweep.ts`, `POST /api/v1/sat/publish`, and the 7,997 events the committed seed produces | Ticked |
-| "The verification call rings the supplier through ElevenLabs and Twilio" | `packages/voice`, `POST /api/v1/instructions/:id/verify-call` | Ticked for the code path. **Not ticked for a live call**: see the gate below before saying "la probamos" |
+| "The verification call rings the supplier through ElevenLabs and Twilio" | `packages/voice`, `POST /api/v1/instructions/:id/verify-call`, and two real outbound calls placed on 2026-09-12, `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` | Ticked, code path and live call, with the ids in `docs/14-process.md#live-integrations-verified`. Say who was dialled: a teammate's own phone, never a supplier |
 | "This CEP is real, re-verify the clave de rastreo on your phone" | `packages/cep` reads, checks and compares a CEP; the committed fixture is synthetic | **Not ticked.** Issue #57 supplies the real one-cent CEP. Until it lands, say what the parser does and that the CEP on screen is the synthetic fixture |
 | "Precision, recall and false-positive rate, blind" | Thirty labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
 | "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
 
-**`TODO(garzario)` verify before the first rehearsal:** the live verification call. The code path is
-merged and tested against stubs, and issue #60 recorded that the rehearsal against a real mobile was
-still pending at merge time. If a call has since been placed, paste its `conversation_id`, the date,
-the number class dialled (a teammate's own phone, never a supplier's) and the outcome into
-`docs/14-process.md` and tick the row. Until that line exists, the honest sentence is "el agente de
-voz marca por telefono a traves de ElevenLabs y Twilio, y aqui esta el codigo y el guion", not "ya
-llamamos".
+**The live call happened, so the row above is ticked.** Two outbound calls went out on 2026-09-12
+through the imported Twilio number to a teammate's own mobile, the first of them 18 seconds and
+ended by the remote party, with the transcript captured. The conversation ids, the agent id and the
+cost are in `docs/14-process.md#live-integrations-verified`, which is the line issue #60 asked for.
+"Ya llamamos" may now be said. What may never be said is that we called a supplier, because we did
+not and will not: the only number this product has ever dialled is one of ours.
 
 ## The numbers you are allowed to say
 
@@ -82,18 +81,19 @@ than being corrected.
 | The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/ceptinela`, printed by `bun run seed` |
 | This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeCeptinela` |
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted across 31 invoices to the supplier the simulated publication names | same, `notes.scenarios` |
-| The blind evaluation | 30 labelled cases, 180 case-by-detector pairs. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval` at `5d4d506`. **Re-run it before quoting it** |
-| Tests | 1,039 tests across 60 files, green on 2026-09-12 at `5d4d506` | `bun test` |
+| The blind evaluation | 30 labelled cases, 180 case-by-detector pairs. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval` at `4e9e2eb`, unchanged since `5d4d506`. **Re-run it before quoting it** |
+| Tests | 1,116 tests across 65 files, green on 2026-09-12 at `4e9e2eb` | `bun test` |
 
 `TODO(FabriBanda)`: `docs/02-persona.md` still carries MXN 673,460.27 as the reference run amount.
 The finished generator produces MXN 2,174,210.76 for the same week. Refresh that cell, or the pitch
 and the persona doc contradict each other in front of a judge who reads both.
 
-`TODO(garzario)` verify: the committed snapshot is current to 2025-12-31, while source [3] in
-`docs/04-market.md` is the SAT open-data file current to 2026-07-31 with 14,761 rows. Two different
-SAT endpoints, two different vintages, and the counts differ for that reason and no other. Either
-refresh the snapshot from the open-data URL before the demo, or be ready to say that sentence. Do
-not quote the 14,761 number while the product answers from the 14,234-row file.
+The two SAT vintages are reconciled in
+`docs/04-market.md#two-sat-files-and-the-one-the-product-ships`, with both files, both dates and
+both row counts in one table. The short version for the stage: the product answers from the
+committed 14,234-row snapshot current to 2025-12-31, and the 14,761-row open-data file current to
+2026-07-31 is where the publication-frequency counts come from. Say either number with its date, or
+say neither. Never quote 14,761 as the size of the list the lookup box answers from.
 
 ## The six controls, in the words used at the table
 
@@ -263,8 +263,9 @@ they are looking for prototypes that only pretend to work.
   account are ever spoken, nothing is promised, nobody is accused, and no data is requested. The
   outcome is appended to the ledger as evidence and **it never releases a payment**: every response
   carries `releasesPayment: false`. With no keys the endpoint answers 422 carrying the script, so
-  the clerk calls from their own telephone and the control still works, slower. See the live-call
-  gate above before claiming a call was placed.
+  the clerk calls from their own telephone and the control still works, slower. Two of these calls
+  were placed for real on 2026-09-12, to a teammate's own phone, and the ids are in
+  `docs/14-process.md#live-integrations-verified`.
 - **Everything else is synthetic and watermarked.** One deterministic company from seed 69, every
   object carrying `synthetic: true`, every RFC prefixed `SYN`, and the UI watermark driven by the
   flag and never by a name. Real RFCs never sit next to fabricated evidence: `simulatePublication`
@@ -362,10 +363,13 @@ cheaper per-transaction model, because there is no per-transaction model to make
 provider's pricing page, stamp the date, and update `docs/06` section 6.3 before quoting a per-image
 figure on stage. Until then say "fracciones de un centavo de dolar por fotografia" and leave it.
 
-`TODO(garzario)` verify: one verification call has a real cost, ElevenLabs conversational minutes
-plus Twilio termination to a Mexican mobile, and no page in this repository prices it yet. Read both
-price pages, stamp the date, and add a row. Do not say "casi cero" about the call until that row
-exists; the zero-marginal-cost claim is about the six controls and it should not be stretched.
+`TODO(garzario)` verify: the only figure this repository has for a verification call is the USD 0.016
+the provider reported for the two calls of 2026-09-12, recorded in
+`docs/14-process.md#live-integrations-verified`. That is one observation, not a price: the ElevenLabs
+per-minute rate and the Twilio termination rate to a Mexican mobile are still unread, and a call that
+runs longer than 18 seconds costs more. Read both price pages, stamp the date, and add a row before
+quoting a per-call cost. Do not say "casi cero" about the call either; the zero-marginal-cost claim is
+about the six controls and it should not be stretched.
 
 ## The business, in the three sentences that get asked
 
