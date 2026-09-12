@@ -142,12 +142,25 @@ function ratio(numerator: number, denominator: number): number {
   return denominator === 0 ? 0 : numerator / denominator;
 }
 
+/** How a repository gets its data. The seed is what `POST /api/v1/seed` passes. */
+export type DatasetFactory = (seed: number) => SyntheticDataset;
+
 export class MemoryRepository implements Repository {
   private data: SyntheticDataset;
   private seed: number;
+  private readonly build: DatasetFactory;
 
-  constructor(seed = 0) {
-    this.data = createSyntheticDataset();
+  /**
+   * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
+   * the seed. `SEED=ceptinela` hands in the generated company from @hackmty/seed
+   * instead, and then the seed number actually changes the data.
+   */
+  constructor(
+    seed = 0,
+    build: DatasetFactory = () => createSyntheticDataset(),
+  ) {
+    this.build = build;
+    this.data = build(seed);
     this.seed = seed;
   }
 
@@ -483,12 +496,13 @@ export class MemoryRepository implements Repository {
   }
 
   /**
-   * TODO(garzario): issue #43, drive this from @hackmty/seed so the seed number
-   * changes the data. Today it rebuilds the same fixture and only records the
-   * number, which is honest but not yet useful.
+   * Rebuilds the company from the factory this repository was constructed with.
+   * Under `SEED=ceptinela` the seed number really does change the data; under the
+   * hand-written fixture it rebuilds the same rows and only records the number,
+   * which is honest but not useful, and is why the ceptinela path exists.
    */
   async reset(seed: number): Promise<ResetSummary> {
-    this.data = createSyntheticDataset();
+    this.data = this.build(seed);
     this.seed = seed;
 
     return {

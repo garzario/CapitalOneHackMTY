@@ -81,7 +81,30 @@ export interface CeptinelaSupplierSpec {
   tenureMonths: number;
   /** The account we have historically paid. Valid check digit. */
   clabe: Clabe;
+  /**
+   * Overrides the date the relationship started, for a supplier that did not exist
+   * when the window opened. No row of the catalogue sets it; the ramping-supplier
+   * hard negative does, because "they were not here four months ago" is the whole
+   * point of that case and it cannot be expressed as tenure before the window.
+   */
+  firstInvoiceDay?: string;
 }
+
+/**
+ * What a plant buys more of during a shutdown: consumables, fasteners, protective
+ * equipment, freight. Tooling and castings are ordered months ahead and do not move,
+ * which is exactly why a seasonal spike is not a behaviour change: it moves one half
+ * of the catalogue and leaves the other half flat.
+ */
+export const CONSUMABLE_SEGMENTS: readonly SupplierSegment[] = [
+  "empaque",
+  "epp",
+  "insumos",
+  "mantenimiento",
+  "soldadura",
+  "tornilleria",
+  "transporte",
+];
 
 /**
  * Forty-two suppliers. The count is the brief's, and it is also roughly what a

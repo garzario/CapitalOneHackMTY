@@ -10,6 +10,7 @@
 
 import type { LedgerEvent } from "@hackmty/core";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
+import { ceptinelaDataset, wantsCeptinela } from "./ceptinela";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
 import { createClock, type PipelineClock } from "./pipeline";
@@ -60,8 +61,25 @@ function readEnv(name: string): string | undefined {
   return holder.process?.env?.[name];
 }
 
+/**
+ * The repository the process boots with.
+ *
+ * `SEED=ceptinela` serves the generated demo company from @hackmty/seed, with
+ * `SEED_NUMBER` choosing which one; anything else keeps the hand-written fixture,
+ * which is what every test runs against. A test that wants the generated company
+ * passes its own repository rather than setting an environment variable.
+ */
+function bootRepository(): Repository {
+  if (!wantsCeptinela(readEnv("SEED"))) {
+    return new MemoryRepository();
+  }
+  const parsed = Number(readEnv("SEED_NUMBER"));
+  const seed = Number.isInteger(parsed) ? parsed : 0;
+  return new MemoryRepository(seed, ceptinelaDataset);
+}
+
 export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
-  const repo = overrides.repo ?? new MemoryRepository();
+  const repo = overrides.repo ?? bootRepository();
   const events = overrides.events ?? createBroadcaster();
   const clock = overrides.clock ?? createClock();
   const allowSeed = overrides.allowSeed ?? readEnv("ALLOW_SEED") === "1";

@@ -12,6 +12,16 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
+  28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
+  and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
+  paid them, this week's payment run of 70 to 110 instructions arriving by email, WhatsApp, PDF and
+  portal, and the Nessie-shaped bank mirror of every peso that already left, normalised through the
+  same importer the live Nessie read uses. The four hard negatives are applied and measured rather
+  than described, and four demo scenarios land on named hero instructions. Deterministic from one
+  seed, with invariants covering reproducibility, reconciliation to the cent, every reference
+  resolving and no date after the run day. `bun run seed` prints the hero instruction ids and the
+  demo RFCs, and `SEED=ceptinela` serves the same company from the API.
 - Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
   back, and explicit blockers for the live URL and real CEP tracking key.
 - `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
