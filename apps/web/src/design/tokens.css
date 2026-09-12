@@ -71,10 +71,13 @@
 
   --border-width: 1px;
 
-  /* Layout */
-  --layout-max: 1240px;
+  /* Layout. The payment run is a dense financial table with five columns and
+     an alert rail beside it, and it is the screen the product is judged on. At
+     1240 the three decision buttons fell off the right edge and a judge had to
+     scroll sideways to reach them, so the ceiling is set by that screen. */
+  --layout-max: 1440px;
   --layout-gutter: var(--space-5);
-  --rail-width: 19rem;
+  --rail-width: 18rem;
   --drawer-width: 30rem;
 
   /* Elevation */

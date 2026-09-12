@@ -25,6 +25,12 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   network and no key in the tests.
 - A quantified composite payment-clerk persona, explicit corporate-treasury anti-persona, and a
   screen-mapped journey covering false positives, partial name matches and legitimate bank changes.
+- Payment-run screen rebuilt around the ten-second read: one hero figure for the money that is
+  not leaving, the worst finding named and linked, and the table ordered exceptions first and then
+  by amount. `apps/web/src/lib/run-view.ts` holds both answers as pure functions with tests, and
+  they read the items rather than `run.totals` so the headline cannot contradict the table after a
+  decision applied with no API. Screenshots in `assets/screenshots`, captured reproducibly by
+  `apps/web/brand/shoot.ts`.
 - Ceptinela brand layer and the rationale behind the design system: the name lockup in
   `apps/web/src/components/Wordmark.tsx`, the favicon, touch icon and social card in
   `apps/web/public/` with their sources in `apps/web/brand/`, and `docs/design.md`. The token
