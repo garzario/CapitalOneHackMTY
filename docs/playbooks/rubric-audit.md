@@ -1,7 +1,3 @@
----
-name: rubric-audit
-description: Use when a milestone is reached, before any judge visit, and when the user asks how we are scoring, what is missing, where we are losing points, or what to work on next. Scores the repository against the confirmed Capital One rubric from real evidence and opens issues for the gaps.
----
 
 # rubric-audit
 

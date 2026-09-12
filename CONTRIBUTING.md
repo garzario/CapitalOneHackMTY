@@ -91,7 +91,7 @@ git checkout --theirs bun.lock && bun install && git add bun.lock
 ```
 
 Never run `bun pm trust --all`. Trust postinstall scripts per package, deliberately.
-npm, npx, yarn and pnpm are denied in `.claude/settings.json`. Do not reintroduce them.
+npm, npx, yarn and pnpm are denied in the local assistant permission template (`docs/playbooks/assistant-permissions.json`). Do not reintroduce them.
 
 ## Workspaces
 
@@ -138,7 +138,7 @@ git commit     # write the one real message
 
 - **No AI attribution, anywhere.** No `Co-Authored-By` trailers, no "Generated with" lines, no tool
   credit in commit messages, pull request bodies, issues, review comments, docs or code comments.
-  `.claude/settings.json` sets `includeCoAuthoredBy` to false so the trailer is never generated in
+  your local assistant config switches attribution off so the trailer is never generated in
   the first place, and `.githooks/commit-msg` rejects any commit whose message still contains an
   attribution line. If the hook fires, rewrite the message. Do not bypass it with `--no-verify`.
 - No em dashes in prose. No emoji in commits, docs, YAML or UI copy. Plain ASCII punctuation.

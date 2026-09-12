@@ -1,7 +1,3 @@
----
-name: pr-flow
-description: Use when opening a pull request in this repository, when work on an issue is complete, or when the user says ship it, open the PR, push this up, or let's merge this. Handles the branch, the single squashed commit, the changelog entry, evidence attachment and the reviewer request.
----
 
 # pr-flow
 
@@ -22,12 +18,12 @@ from any step below.
 4. Collapse local work in progress into one logical commit:
    `git reset --soft $(git merge-base HEAD origin/dev)` followed by a single `git commit`.
    Do not use interactive rebase, it is unavailable here and `git rebase` is denied in
-   `.claude/settings.json`. Message format is
+   your assistant's local config (see `docs/playbooks/agent-setup.md`). Message format is
    `<type>(<scope>): <imperative summary> (#<issue>)`, with a body of what and why in three lines
    maximum.
 5. Scan the message and the body for attribution: `Co-Authored-By` trailers, "Generated with"
    lines, any tool or vendor credit, and the robot emoji. Strip every hit. Never add attribution.
-   `includeCoAuthoredBy` is already false in `.claude/settings.json`, and `.githooks/commit-msg`
+   attribution is switched off in your assistant's local config (see `docs/playbooks/agent-setup.md`), and `.githooks/commit-msg`
    will reject the commit anyway, so a hit here only costs a round trip.
 6. Add the `CHANGELOG.md` `[Unreleased]` entry in the same commit, under Added, Changed, Fixed or
    Removed. One line, outcome-shaped.

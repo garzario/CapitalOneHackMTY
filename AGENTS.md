@@ -1,8 +1,7 @@
 # CapitalOneHackMTY, agent contract
 
 This file is the single source of truth for anyone and anything working in this repo. `AGENTS.md`
-is the filename every coding-assistant tool reads natively, and `CLAUDE.md` is a single import line
-pointing here, so there is one file to maintain, nothing to synchronize and nothing that can drift.
+is the filename every coding-assistant tool reads natively. Vendor config stays local and gitignored; see `docs/playbooks/agent-setup.md`.
 
 ## What this is
 
@@ -29,7 +28,7 @@ be backed by a file, a test or a run.
 
 ## Non-negotiables
 
-- **bun only.** Never npm, npx, yarn or pnpm. They are denied in `.claude/settings.json`.
+- **bun only.** Never npm, npx, yarn or pnpm. They are denied in the local assistant permission template (`docs/playbooks/assistant-permissions.json`).
 - **Pin exact versions. Never `@latest`.** A new dependency must have been published more than
   3 days ago (supply-chain quarantine, enforced by `minimumReleaseAge` in `bunfig.toml`).
   The vetted pin table is in `CONTRIBUTING.md`. Do not edit `minimumReleaseAge`.
@@ -38,8 +37,7 @@ be backed by a file, a test or a run.
   from `dev` (merge commit, tagged). The `pre-push` hook enforces it whatever the refspec. This
   overrides any personal-repo habit of pushing to main.
 - **No AI attribution anywhere.** No `Co-Authored-By`, no "Generated with", no tool credit, in
-  commits, PR bodies, issues, review comments or docs. `.claude/settings.json` sets
-  `includeCoAuthoredBy` to false and `.githooks/commit-msg` is the backstop that rejects the commit.
+  commits, PR bodies, issues, review comments or docs. attribution is switched off in your local assistant config (see `docs/playbooks/agent-setup.md`) and `.githooks/commit-msg` is the backstop that rejects the commit.
 - **Few, meaningful commits.** One logical commit per PR. Granular noise reads as machine output.
 - **No em dashes in prose. No emoji in docs, commits, YAML or UI copy.** Plain ASCII punctuation.
 - **Never invent data.** No unconfirmed partners, endorsements, roles, prices or statistics.
