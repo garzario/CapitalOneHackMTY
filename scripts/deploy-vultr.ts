@@ -34,7 +34,7 @@
  *                               boot on the in-memory fixture and a deployed
  *                               instance must never serve that.
  *   NESSIE_API_KEY              optional, the bank mirror
- *   NESSIE_BASE_URL             optional, defaults to the public host
+ *   ALLOW_CEP_FETCH, BANXICO_CEP_CERT_PEM       optional, the CEP portal and seal
  *   GEMINI_API_KEY, GEMINI_MODEL                optional, photo and voice note
  *   ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID,
  *   ELEVENLABS_PHONE_NUMBER_ID, ELEVENLABS_VOICE_ID   optional, the call
@@ -63,13 +63,14 @@ const DEFAULTS = {
 const FORWARDED_ENV = [
   "DATABASE_URL",
   "NESSIE_API_KEY",
-  "NESSIE_BASE_URL",
   "GEMINI_API_KEY",
   "GEMINI_MODEL",
   "ELEVENLABS_API_KEY",
   "ELEVENLABS_AGENT_ID",
   "ELEVENLABS_PHONE_NUMBER_ID",
   "ELEVENLABS_VOICE_ID",
+  "ALLOW_CEP_FETCH",
+  "BANXICO_CEP_CERT_PEM",
 ] as const;
 
 /** cloud-init has to install Docker and build the image before anything answers. */

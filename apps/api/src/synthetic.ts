@@ -763,8 +763,11 @@ type DecisionRow = {
  * `expectedLoss` for a 69-B supplier is the deduction actually at risk: 30
  * percent ISR over the subtotal plus the IVA that stops being creditable. For
  * the account-swap cases it is the whole transfer, because a SPEI does not come
- * back. `delayCostPerDay` is the cost of holding the payment one more day and
- * comes from the supplier relationship model, TODO(garzario) in issue #38.
+ * back. `delayCostPerDay` is the cost of holding the payment one more day, and it
+ * is read off `Supplier.delayCostPerDay` by `supplierModelOf` now that issue #38
+ * has landed; these rows are the fixture's own copy of what the engine computes
+ * for the hand-written company, which is why `sentryone.test.ts` asserts the
+ * generated company's decisions against the engine rather than against a table.
  */
 const DECISION_ROWS: readonly DecisionRow[] = [
   { n: 1, action: "hold", expectedLoss: 184300, delayCostPerDay: 920 },

@@ -32,8 +32,28 @@ import type {
 } from "@hackmty/core";
 import { detectorRan, detectorSkipped } from "@hackmty/core";
 
-/** `unconfirmed_scheme` is "we could not check", not "the seal is bad". */
-const UNCONFIRMED_SCHEME = "unconfirmed_scheme";
+/**
+ * The reasons that mean "we could not check the seal", as opposed to "the seal
+ * is bad". Reading any of these as invalid would put an accusation on a document
+ * whose only problem is on our side of the wire.
+ *
+ * - `not_checked` is what `parseCep` sets: the document was read and no
+ *   verification was attempted. A CEP a clerk has just pasted arrives this way,
+ *   so this is the common case and not an edge one.
+ * - `unconfirmed_scheme` is the candidate matrix having run with Banxico
+ *   publishing no specification of which one is right.
+ * - `invalid_certificate` is this server holding no usable Banxico certificate,
+ *   which is a fact about our configuration and says nothing about the seal.
+ *
+ * Everything else `verifySignature` can answer is a defect in the document
+ * itself (no sello, a sello that is not base64 or not RSA-2048, no cadenaCDA, a
+ * malformed root) or an outright `signature_mismatch`, and those are invalid.
+ */
+const UNPROVEN_SEAL_REASONS: readonly string[] = [
+  "not_checked",
+  "unconfirmed_scheme",
+  "invalid_certificate",
+];
 
 /** Digits only, so a CLABE typed with spaces still compares. */
 function accountKey(value: string): string {
@@ -46,7 +66,10 @@ function sealStateOf(cep: Cep): SealState {
   if (cep.signatureValid) {
     return "valid";
   }
-  return cep.signatureReason === UNCONFIRMED_SCHEME ? "unconfirmed" : "invalid";
+  return cep.signatureReason !== undefined &&
+    UNPROVEN_SEAL_REASONS.includes(cep.signatureReason)
+    ? "unconfirmed"
+    : "invalid";
 }
 
 /**

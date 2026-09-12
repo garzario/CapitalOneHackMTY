@@ -81,8 +81,32 @@ then the screens, then the narrative, then the plumbing.
   recomputed from the scaled inputs and reverified, and the command refuses to write a file in which
   any replaced value, or any RFC or CLABE shaped token, survived. The redacted copy goes to
   `packages/core/src/fixtures/real/`, the change map to the gitignored `.seed/real/`.
-  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
-  while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
+  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder. Documented in
+  `docs/08-data-model.md`, Real document validation.
+
+- Three real CFDI 4.0 de ingreso, redacted and committed, so the parser is proven on documents we did
+  not write (closes #68). They were received by two taxpayers from three different issuers, stamped by
+  two different PACs, and imported on 2026-09-12 through `scripts/import-real-cfdi.ts` under one
+  shared `REAL_CFDI_SCALE`, so the amounts scale consistently with each other and the same taxpayer
+  carries the same synthetic RFC in the two documents it received. Every amount is the real one times
+  a factor that is not in this repository, and every RFC, legal name, postal code, serie, folio, UUID,
+  certificate serial and stamp is synthetic. The three are deliberately unlike each other:
+  `ingreso-1` has no serie and no folio and uses CRLF line endings, `ingreso-2` carries both and is
+  one single line with no indentation, `ingreso-3` withholds IVA and ISR, opens with a byte order mark
+  and is a document whose concept level tax rounding the issuing PAC did not satisfy exactly, which
+  the importer preserved rather than corrected. `packages/core/src/cfdi-real.test.ts` now runs seven
+  tests per fixture: it parses as the kind it claims, the record is watermarked `synthetic`,
+  `Total` is `SubTotal` less the discount plus the transferred taxes less the withheld ones to within
+  a cent, `iva` is summed from the document level IVA lines rather than read off
+  `TotalImpuestosTrasladados` and the two agree on all three because IVA is the only tax these
+  documents transfer, the UUID and both
+  RFCs are shaped the way SAT writes them, no stamp or certificate is long enough to be a real one,
+  and none of the parser's tolerances was needed to read the document: every element resolved a
+  declared SAT namespace, the issuer name was present, the document level tax block was present, the
+  timbre is a direct child of `cfdi:Complemento`, and the optional serie, folio and forma de pago
+  match the document exactly. The three names are listed in the suite, so losing a fixture fails
+  instead of reverting the folder to a skip. Documented in `docs/08-data-model.md`, Real document
+  validation, and in row 4 of `docs/01-rubric-mapping.md`.
 
 - `supplier_weekly_outflow`, the feed the `supplier_behaviour` detector and the supplier drawer read
   (issue #72). One name over two definitions: `0007_supplier_outflow.sql` is a plain view that runs
@@ -203,8 +227,50 @@ then the screens, then the narrative, then the plumbing.
   those three, plus one database case gated on `TEST_DATABASE_URL`. Only a bun version mismatch still
   fails a plain run; `--strict` exits 1 on any warning.
 
+- The six write endpoints of `docs/09-api.md` are now each covered on both stores (issue #42). The
+  Postgres suite gained the two that only ever ran against `MemoryRepository`: the pasted-CEP half of
+  `POST /api/v1/cep/verify`, and `POST /api/v1/instructions/:id/verify-call`, which asserts that the
+  hand-recorded call reaches `ledger_events` as one `verification_call` and drags no `decision_made`
+  along with it, and that the event carries four digits and never the CLABE. All six were also driven
+  over HTTP against a local PostgreSQL 18, which is what the audit in that issue asked for and is
+  written up on the pull request. `docs/09-api.md` gained "The CEP, and what verify can prove", which
+  states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
+  where the line between "no verificada" and "invalida" is drawn.
+
 ### Fixed
 
+- `POST /api/v1/cep/verify` does what `docs/09-api.md` says it does (issue #42). It had been the one
+  write endpoint still wired to a stub: it only ever answered from the registry of verified
+  beneficiaries, matched a pasted `xml` by exact string equality against a document already stored,
+  which meant a clerk could never paste a new CEP at all, and returned `finding: null` on every
+  request. The TODOs pointed at issue #37, which closed with `packages/cep` holding all four steps.
+  The route now goes through them: `parseCep` reads a pasted document, `fetchCep` retrieves one from
+  the Banxico portal, `verifySignature` checks the seal, and the `beneficiary_cep` finding comes from
+  `packages/engine`, attached to the payment run line that pays the account, or `null` when no
+  pending payment goes to it. `apps/api/src/cep.ts` is the seam and it makes the three decisions a
+  transport layer owns: a pasted CEP is always accepted and needs no key, no certificate and no
+  network; the `claveRastreo` form reads the registry before the portal, so the demo does not depend
+  on a public government service being up; retrieval is off unless `ALLOW_CEP_FETCH=1`, because the
+  portal is an undocumented form behind a CAPTCHA and a per-address rate limit, and its four known
+  failure sentences come back as a `422` a clerk can act on rather than a `500`. The seal is checked
+  only when `BANXICO_CEP_CERT_PEM` is configured, and otherwise the CEP keeps the
+  `signatureReason: "not_checked"` that `parseCep` wrote: a `signatureValid: true` nobody earned is
+  the one lie this endpoint could tell that would cost more than the feature is worth.
+- `not_checked` read as a failed Banxico seal, which is an accusation against a document nobody had
+  checked (issue #42). `sealStateOf` in `packages/engine/src/beneficiary.ts` treated only
+  `unconfirmed_scheme` as unproven and everything else as invalid, so a CEP a clerk had just pasted,
+  which `parseCep` stamps `not_checked`, produced a `critical` finding explaining that "el sello de
+  Banxico no valido contra el certificado". `UNPROVEN_SEAL_REASONS` now names the three reasons that
+  mean the seal could not be proven, `not_checked`, `unconfirmed_scheme` and `invalid_certificate`,
+  the last because this server holding no usable certificate is a fact about our configuration and
+  says nothing about the supplier's document. A missing `sello`, a `sello` that is not base64 or not
+  RSA-2048, a missing `cadenaCDA` and a `signature_mismatch` still read as invalid, because those
+  are defects in the document itself. The distinction was already written down in `domain.ts`, in
+  `packages/cep/README.md` and in that adapter's own header; only the code disagreed.
+- `POST /api/v1/seed` wiped the demo company for a caller who sent `reset: false`. The field was in
+  the contract, in the zod schema and in the web client's type, and the handler read only `seed`, so
+  the one request that asks this endpoint not to be destructive was the one it answered by being
+  destructive. There is no add-without-replace on the repository, so it answers `422` and says why.
 - `bun run migrate` works again on the Tiger Data service, which it had not since the SentryOne
   rename (issue #157). Renaming `0003`, `0004` and `0005` left every host that had already applied
   them recording the old filenames, so the runner treated the new names as never applied and sent
