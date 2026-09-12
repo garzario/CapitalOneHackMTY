@@ -20,7 +20,7 @@ import {
   SectionHeader,
   SyntheticMark,
 } from "../components/Primitives";
-import { ErrorBlock } from "../components/States";
+import { EmptyBlock, ErrorBlock } from "../components/States";
 import { createInstruction } from "../lib/api";
 import type { InstructionDetail } from "../lib/contract";
 import { formatMoney } from "../lib/format";
@@ -265,6 +265,12 @@ export function IntakeScreen() {
         </button>
       </form>
 
+      {submission.status === "sending" ? (
+        <p role="status" className="panel-sunken muted px-4 py-2 t-sm">
+          Corriendo los seis controles sobre esta instruccion.
+        </p>
+      ) : null}
+
       {submission.status === "failed" ? (
         <div className="panel">
           <ErrorBlock
@@ -285,9 +291,22 @@ export function IntakeScreen() {
             <Amount value={submission.detail.instruction.amount} size="xl" />
             <SyntheticMark when={submission.detail.instruction.synthetic} />
           </div>
-          {submission.detail.findings.map((finding) => (
-            <FindingPanel key={finding.id} finding={finding} />
-          ))}
+          {submission.detail.findings.length === 0 ? (
+            <div className="panel">
+              <EmptyBlock
+                title="Sin hallazgos"
+                description="Los seis controles corrieron sobre esta instruccion y ninguno encontro nada que revisar. Ya aparece en la corrida de esta semana."
+              />
+            </div>
+          ) : (
+            submission.detail.findings.map((finding) => (
+              <FindingPanel
+                key={finding.id}
+                finding={finding}
+                proposedClabe={submission.detail.instruction.clabe}
+              />
+            ))
+          )}
         </section>
       ) : null}
 
@@ -308,7 +327,11 @@ export function IntakeScreen() {
                 formulario.
               </p>
               {example.findings.map((finding) => (
-                <FindingPanel key={finding.id} finding={finding} />
+                <FindingPanel
+                  key={finding.id}
+                  finding={finding}
+                  proposedClabe={example.instruction.clabe}
+                />
               ))}
             </div>
           ) : null}

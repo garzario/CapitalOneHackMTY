@@ -10,34 +10,33 @@ rows first, not the easiest ones.
 Status legend: **G** claim written and evidence exists, **Y** evidence partially exists,
 **R** not built yet.
 
-Last scored **2026-09-12 04:48 CST**, just past the M1 gate, against `dev` at `477d2a0`.
+Last scored **2026-09-12 05:20 CST**, just past the M1 gate, against `dev` at `885c5f9`.
 
 | # | Sub-criterion (pts) | Our claim, one line | Evidence in this repo | Status |
 |---|---|---|---|---|
 | 1 | Substantiated competitive differentiation (10) | Every named competitor reads one of the three sources, and we are the only one that joins the CFDI ledger, the SAT 69-B list and the Banxico CEP while the payment can still be stopped | `docs/04-market.md#competitor-map`, `docs/00-challenge.md#prior-year-winners-we-are-deliberately-not-rebuilding`, `docs/adr/0002-track-and-thesis.md` (PR #23, PR #93) | G |
 | 2 | Identification of market gap (10) | The three facts that decide whether a payment is safe are all public and all current, they belong to three different tools and three different people, and nothing sits in the few minutes between approving a payment run and sending it | `docs/04-market.md#the-gap`, `docs/04-market.md#problem-sizing` (PR #93) | G |
 | 3 | Non trivial solution (10) | Six explainable controls over one event log: the 3-7-1 check digit plus OCR-aware Damerau-Levenshtein against the accounts this supplier was actually paid on, XMLDSig verification of a Banxico seal, and a retroactive sweep that is a fold over `LedgerEvent[]` with no clock and no network | `packages/core/src/clabe.ts`, `packages/cep/src/signature.ts`, `packages/sat/src/sweep.ts`, `packages/engine/src/index.ts` (PR #117, PR #119) | G |
-| 4 | Data foundation (6) | One synthetic company, eight months of CFDI and payment complements plus a Nessie-shaped bank mirror that reconciles to the cent, four hard negatives applied and measured, deterministic from one seed, and the real 4.5 MB SAT listing committed with its provenance | `packages/seed/src/ceptinela/`, test `reconciles to the cent against the complements and the transfers`, `packages/sat/src/snapshot/README.md`, test `reconciles: 14234 rows, 91 of them unreadable, 28935 situations` (PR #119, PR #123) | Y |
-| 5 | Algorithmic logic and intelligence (9) | All six controls run over one typed `ComposeInput` and every one of them lands in `ran` or `skipped` with a named reason, so a silent control is a test failure instead of an empty screen | `packages/engine/src/engine.test.ts` test `accounts for all six whatever the evidence, and never loses one`, `apps/api/src/routes/instructions.test.ts` test `accounts for every one of the six controls, with no silent slot` (PR #117) | G |
+| 4 | Data foundation (6) | One synthetic company, eight months of CFDI and payment complements plus a Nessie-shaped bank mirror that reconciles to the cent, deterministic from one seed; the real 4.5 MB SAT listing committed with its provenance; and 30 labelled holdout cases, 11 of them hard negatives, whose labels come from ADR-0002 and the domain types rather than from the control source | `packages/seed/src/ceptinela/`, test `reconciles to the cent against the complements and the transfers`, `packages/sat/src/snapshot/README.md`, test `reconciles: 14234 rows, 91 of them unreadable, 28935 situations`, `packages/seed/src/holdout/cases/`, `packages/seed/src/holdout/README.md` (PR #119, PR #122, PR #123) | G |
+| 5 | Algorithmic logic and intelligence (9) | All six controls run over one typed `ComposeInput` and every one lands in `ran` or `skipped` with a named reason, and the same entry point scores 30 labelled cases at 85.0 percent precision, 81.0 percent recall and a 1.9 percent false positive rate, with the four labels that disagree with the engine left in the table rather than edited out | `bun run eval`, `GET /api/v1/metrics`, `packages/seed/src/holdout/engine.ts`, `packages/engine/src/engine.test.ts` test `accounts for all six whatever the evidence, and never loses one`, `apps/api/src/routes/instructions.test.ts` test `accounts for every one of the six controls, with no silent slot` (PR #117, PR #122) | G |
 | 6 | System design (5) | One runtime, one SQL dialect, an explicit dependency direction (`packages/engine` exists so that `packages/core` never imports `sat` or `cep`), and every choice recorded as an ADR | `docs/07-architecture.md`, `docs/adr/`, `packages/engine/README.md` (PR #117) | Y |
-| 7 | Quality and functional demo (5) | `bun run demo` drives the path headless, and 982 tests across 55 files pass with no network, no database and no key | `scripts/demo.ts`, `.github/workflows/ci.yml`, CI run `34688689598` on `dev`, verify green in 31 s | Y |
+| 7 | Quality and functional demo (5) | `bun run demo` drives the path headless, and 1020 tests across 58 files pass with no network, no database and no key | `scripts/demo.ts`, `.github/workflows/ci.yml`, CI run `34689374002` on `dev`, verify green in 29 s | Y |
 | 8 | Substantiated business model (10) | MXN 899 per company per month, anchored against two published competitor prices and one published wage floor, breaking even at one stopped invoice of MXN 23,452 of subtotal per year | `docs/05-business-model.md#who-pays-and-why-that-number`, `docs/05-business-model.md#unit-economics` (PR #93) | G |
 | 9 | Market size, TAM/SAM/SOM (5) | Bottom-up only, entities times price, every input cited to INEGI CE 2024 or to the SAT open-data file a judge can download and count themselves | `docs/04-market.md#sizing`, `docs/04-market.md#sources` (PR #93) | G |
 | 10 | Regulatory and operational feasibility (5) | Payer-side software, not a regulated entity, with the framework map, the verified text of CFF 69-B, and the LLM boundary enforced by a test that reads the package's own source | `docs/06-regulatory-privacy.md#1-our-legal-position`, `docs/06-regulatory-privacy.md#2-framework-map-mexico`, `packages/extract/src/boundary.test.ts` test `names nothing from the decision layer in its code` (PR #87, PR #116) | G |
 | 11 | Adoption strategy, GTM (5) | Three steps from a named beachhead category, accounting firms serving 11 to 250 person companies in the Monterrey corridor, opened with a free supplier-register sweep, and no company named that has not agreed to anything | `docs/05-business-model.md#gtm-in-three-steps` (PR #93) | G |
 | 12 | Specific user persona (7) | One named quantified composite, Lupita Elizondo, plus a corporate-treasury anti-persona, with the two venue interviews carried as open tasks rather than invented quotes | `docs/02-persona.md`, `docs/02-persona.md#pending-human-validation`, `assets/persona/lupita-elizondo.png` (PR #114) | Y |
-| 13 | Structured user journey map (7) | Six stages from XML receipt to archived evidence, each mapped to the screen and the ledger event that carry it, with three human-decision branches including the false positive | `docs/03-user-journey.md#stage-by-stage-map`, `apps/web/src/screens/` (PR #114, PR #115) | Y |
+| 13 | Structured user journey map (7) | Six stages from XML receipt to archived evidence, each mapped to the screen and the ledger event that carry it, with three human-decision branches including the false positive, and every one of those screens designed in four states rather than a happy path | `docs/03-user-journey.md#stage-by-stage-map`, `apps/web/src/screens/`, `apps/web/src/screens/states.test.ts` (PR #114, PR #115, PR #124, PR #127) | Y |
 | 14 | Pitch (6) | Three timed variants, the eight hardest questions answered, a per-person answer sheet and a printable A5 judge card with a repository QR that was decoded before it was committed | `docs/11-pitch.md`, `docs/12-judge-qa.md`, `docs/print/judge-card.html`, `docs/print/README.md` (PR #98, PR #120) | Y |
-| plus | Engineering process (not scored directly) | 35 merged PRs on a board with nine views, every PR body naming what it deliberately did not do, five ADRs, and a written cut list | `docs/14-process.md`, `docs/adr/`, the project board, PR #117, PR #118, PR #119 | Y |
+| plus | Engineering process (not scored directly) | 38 merged PRs on a board with nine views, every PR body naming what it deliberately did not do, five ADRs, and a written cut list | `docs/14-process.md`, `docs/adr/`, the project board, PR #117, PR #118, PR #119 | Y |
 
 ## Why the yellow rows are yellow
 
-Six of the fourteen scored rows, plus the process row. Each one names the single thing that would
+Five of the fourteen scored rows, plus the process row. Each one names the single thing that would
 turn it green. Nothing else belongs in this list.
 
 | # | What is missing | Tracked in |
 |---|---|---|
-| 4 | The blind holdout is still the three scaffolding cases in `packages/seed/src/holdout/cases/`, and `GET /api/v1/metrics` is not wired to the detectors. The test that says so out loud is `reports recall 0 for the example cases while the detectors are unwired` | #55 |
 | 6 | ADR-0003 and ADR-0004 still read `Proposed`, and the two-host topology ADR-0005 decided is not deployed anywhere yet | #44 for the deploy. The two ADR statuses have no issue of their own, which is itself the thing to fix |
 | 7 | `scripts/demo.ts` still drives the pre-Ceptinela generator rather than the payment run, and there is no live URL for a judge to open on their own phone | #63, #44 |
 | 12 | The two venue conversations in `docs/02-persona.md#pending-human-validation` have not happened, so the workload numbers are synthetic and are labelled as such | #52, closed with those two acceptance criteria deliberately left unchecked rather than ticked |
@@ -48,19 +47,20 @@ turn it green. Nothing else belongs in this list.
 ## Self-score
 
 Under one stated rule, so that the number is reproducible rather than a feeling: **G scores the
-full points, Y scores half, R scores zero.** M1, 2026-09-12 04:48 CST:
+full points, Y scores half, R scores zero.** M1, 2026-09-12 05:20 CST:
 
 | Criterion | Available | Ours |
 |---|---|---|
 | Originality | 30 | 30 |
-| Technical Depth | 25 | 17 |
+| Technical Depth | 25 | 20 |
 | Impact and Feasibility | 25 | 25 |
 | Design and Experience | 20 | 10 |
-| **Total** | **100** | **82** |
+| **Total** | **100** | **85** |
 
 Read it as what it is: our own score, computed from our own status letters. Its only real use is
 the trend and the ranking of what to fix next, which right now is Design and Experience, where ten
-of the twenty available points are sitting behind two conversations, one rehearsal and one video.
+of the twenty available points are sitting behind two conversations, one rehearsal and one video,
+and none of them behind a line of code.
 
 ## How to use this at a walk-up
 

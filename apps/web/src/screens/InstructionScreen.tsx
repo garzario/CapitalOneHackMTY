@@ -237,7 +237,11 @@ export function InstructionScreen({ id }: { id: string }) {
               </div>
             ) : (
               resource.data.findings.map((finding) => (
-                <FindingPanel key={finding.id} finding={finding} />
+                <FindingPanel
+                  key={finding.id}
+                  finding={finding}
+                  proposedClabe={resource.data.instruction.clabe}
+                />
               ))
             )}
           </section>

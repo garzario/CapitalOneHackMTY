@@ -1,0 +1,82 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "thin-history-has-no-baseline-to-test",
+  "title": "A supplier with three invoices doubles its amount, and there is no baseline to say that is odd",
+  "kind": "negative",
+  "notes": "The validity gate is the point of this case. Three invoices cannot support a distribution, and a detector that fires anyway is reporting noise with a confident face. Silence here is a result, not a gap.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-122",
+      "supplierRfc": "SYN242626S26",
+      "cfdiUuids": ["00000000-0084-4d00-8a00-000000000084"],
+      "clabe": "030180400099988872",
+      "amount": 54520,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN242626S26",
+      "legalName": "Instalaciones Neumaticas Guadalupe SA de CV",
+      "firstInvoiceAt": "2026-07-09T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "030180400099988872",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2026-07-16T15:30:00.000Z",
+          "timesPaid": 2
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0082-4d00-8a00-000000000082",
+        "serie": "A",
+        "folio": "3",
+        "issuedAt": "2026-07-09T15:30:00.000Z",
+        "issuerRfc": "SYN242626S26",
+        "issuerName": "Instalaciones Neumaticas Guadalupe SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 21000,
+        "iva": 3360,
+        "total": 24360,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "00000000-0083-4d00-8a00-000000000083",
+        "serie": "A",
+        "folio": "4",
+        "issuedAt": "2026-08-06T15:30:00.000Z",
+        "issuerRfc": "SYN242626S26",
+        "issuerName": "Instalaciones Neumaticas Guadalupe SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 26500,
+        "iva": 4240,
+        "total": 30740,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "00000000-0084-4d00-8a00-000000000084",
+        "serie": "A",
+        "folio": "5",
+        "issuedAt": "2026-09-07T15:30:00.000Z",
+        "issuerRfc": "SYN242626S26",
+        "issuerName": "Instalaciones Neumaticas Guadalupe SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 47000,
+        "iva": 7520,
+        "total": 54520,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}

@@ -12,6 +12,24 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 ### Added
 
+- Every screen is designed and enforced in four states. The QR intake page gained the two it was
+  missing, an instruction that passes all six controls now says so instead of returning a bare
+  decision badge, and `apps/web/src/screens/states.test.ts` fails the build when a screen ships
+  with a happy path and nothing else. The state matrix and the mapping from the five demo beats to
+  the screens they run on are written down in `docs/design.md`.
+
+- Blind evaluation of the six controls (issue #55). Thirty labelled holdout cases in
+  `packages/seed/src/holdout/cases`: a true positive for every control, and the hard negatives
+  that decide whether a clerk keeps the product switched on, including a bank change backed by
+  the supplier's own payment complement, a new supplier ramping, a round-number retainer, a
+  quarterly invoice that repeats an amount, a thin history with no baseline to test, a status
+  that moved to desvirtuado before the payment, and a photographed CLABE that transcribes badly
+  onto the right account. `runEngine` scores them through `runControls`, the same entry point
+  intake uses, `bun run eval` prints the table and `GET /api/v1/metrics` serves the same
+  `Metrics`. An `info` row is scored as context and never as a false positive. Four labels
+  disagree with the engine today and all four are left in the table with the argument written
+  down, because a set edited until it agrees measures nothing.
+
 - Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
@@ -24,6 +42,12 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   demo RFCs, and `SEED=ceptinela` serves the same company from the API.
 - Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
   back, and explicit blockers for the live URL and real CEP tracking key.
+- Finding panel reads all three evidence vocabularies in the repository through
+  `apps/web/src/lib/evidence.ts`, and gives the four facts that decide a payment their own
+  rendering: the account comparison with the differing digits painted, the change of bank named
+  rather than shown as codes, the Article 69-B row badged by status, and the invoice a duplicate
+  copies. Chips are labelled in Spanish, and a test fails the build when a producer grows a key
+  nobody translated.
 - `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
   says from the payment instruction and never speaks more than the last four digits of the account,
   promises no payment and accuses nobody; `VoiceClient` creates or updates the agent, places the
@@ -129,9 +153,9 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
 
 - `docs/01-rubric-mapping.md` carries a real claim sentence and real evidence for all fourteen
   sub-criteria plus the engineering-process row: every evidence cell is a path, a PR number, a CI
-  run or a test name that exists on `dev` today. Six rows are yellow and each one names the single
+  run or a test name that exists on `dev` today. Five rows are yellow and each one names the single
   thing that would turn it green, with the issue that tracks it. A self-score section states the
-  scoring rule (G full, Y half, R zero) and records M1 at 82 of 100, so the number is reproducible
+  scoring rule (G full, Y half, R zero) and records M1 at 85 of 100, so the number is reproducible
   instead of asserted. The scoring discipline now checks `dev` rather than `main`, which is where
   the evidence actually lands.
 - `docs/14-process.md` replaces its M3 placeholders with the artifacts themselves: the board and

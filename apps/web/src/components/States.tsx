@@ -1,7 +1,12 @@
 /**
  * Loading, empty and error, as three components instead of three ad hoc blocks
- * per screen. Every screen in the app renders all three, so none of them can
- * blank out on a judge.
+ * per screen, so no screen can blank out on a judge.
+ *
+ * That every screen renders them is enforced in `screens/states.test.ts` rather
+ * than asserted here. A screen that fetches uses `LoadingBlock`; a screen that
+ * submits uses `aria-busy` on its control instead, because a form does not need
+ * a skeleton, it needs a button that admits it is working. The exemption list
+ * for the empty state lives in that test, and each entry carries its reason.
  */
 
 import type { ReactNode } from "react";

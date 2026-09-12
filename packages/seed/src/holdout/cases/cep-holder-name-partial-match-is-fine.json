@@ -1,0 +1,65 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "cep-holder-name-partial-match-is-fine",
+  "title": "The CEP prints the legal name with punctuation and the bank's own abbreviation",
+  "kind": "negative",
+  "notes": "Banks truncate, upper case and abbreviate the legal form, so a byte comparison reports a mismatch on a perfectly ordinary payment. The comparison has to be over the name core after the legal form is stripped, or this control is unusable.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-120",
+      "supplierRfc": "SYN222424S24",
+      "cfdiUuids": ["00000000-0080-4d00-8a00-000000000080"],
+      "clabe": "014180004551203983",
+      "amount": 62640,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN222424S24",
+      "legalName": "Maquinados Industriales Regios SA de CV",
+      "firstInvoiceAt": "2022-11-10T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "014180004551203983",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2026-08-13T15:30:00.000Z",
+          "timesPaid": 3
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0080-4d00-8a00-000000000080",
+        "serie": "A",
+        "folio": "990",
+        "issuedAt": "2026-08-27T15:30:00.000Z",
+        "issuerRfc": "SYN222424S24",
+        "issuerName": "Maquinados Industriales Regios SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 54000,
+        "iva": 8640,
+        "total": 62640,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "cep": {
+      "claveRastreo": "SYN2026090900000044",
+      "transferredAt": "2026-09-09T15:30:00.000Z",
+      "amount": 0.01,
+      "senderName": "Distribuidora Sintetica del Norte SA de CV",
+      "senderBank": "BANORTE",
+      "beneficiaryName": "MAQUINADOS INDUSTRIALES REGIOS, S.A. DE C.V.",
+      "beneficiaryAccount": "014180004551203983",
+      "beneficiaryBank": "SANTANDER",
+      "signatureValid": true,
+      "xml": "<SPEI_Tercero synthetic=\"true\"/>",
+      "synthetic": true
+    }
+  },
+  "expectedFindings": [],
+  "expectedAction": "release"
+}
