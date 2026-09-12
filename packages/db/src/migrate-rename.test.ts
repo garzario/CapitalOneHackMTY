@@ -36,7 +36,6 @@ import {
   SENTRYONE_DRIFT_MIGRATION,
   SENTRYONE_MIGRATION,
   SENTRYONE_TIMESCALE_MIGRATION,
-  SUPPLIER_OUTFLOW_MIGRATION,
   TIMESCALE_MIGRATION,
 } from "./migrate";
 
@@ -217,21 +216,25 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
       ),
     );
 
-    /* Every file the plain-Postgres path applies, plus the one Timescale file
-       whose row `recordOldNames` wrote so the rename pairs are complete. A new
-       migration has to be added here, which is the point: the list is what
-       notices a file that stopped being applied. */
-    expect([...(await recordedFiles())].sort()).toEqual(
-      [
-        INIT_MIGRATION,
-        SENTRYONE_MIGRATION,
-        SENTRYONE_TIMESCALE_MIGRATION,
-        SENTRYONE_DRIFT_MIGRATION,
-        COMPANY_MIGRATION,
-        SUPPLIER_OUTFLOW_MIGRATION,
-        CONSORTIUM_SNAPSHOT_MIGRATION,
-      ].sort(),
+    /* Every file the plain-Postgres path applies, plus the one Timescale file whose
+       row `recordOldNames` wrote so the rename pairs are complete. The expected set
+       is derived from MIGRATIONS rather than written out again: an exact comparison
+       still notices a file that stopped being applied or a row nobody expected,
+       which is the point of this assertion, and it no longer goes stale the moment
+       somebody adds a plain migration and fails for a reason that has nothing to do
+       with the rename this test covers. */
+    const plainFiles = MIGRATIONS.filter((spec) => !spec.requiresTimescale).map(
+      (spec) => spec.file,
     );
+
+    expect([...(await recordedFiles())].sort()).toEqual(
+      [...plainFiles, SENTRYONE_TIMESCALE_MIGRATION].sort(),
+    );
+    // And no pre-rename name survived the reconciliation.
+    const recorded = new Set(await recordedFiles());
+    for (const pair of RENAMED_MIGRATIONS) {
+      expect(recorded.has(pair.from)).toBe(false);
+    }
     await appendOnlyStillGuards();
   });
 

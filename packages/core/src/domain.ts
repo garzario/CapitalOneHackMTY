@@ -166,6 +166,93 @@ export interface Cep {
   synthetic: boolean;
 }
 
+/**
+ * How the account holder name on a CEP compares with the legal name on the CFDI.
+ *
+ * Three states and never two: `partial` is deliberately over-inclusive, because
+ * Mexican banks abbreviate and truncate a razon social routinely, so "share a
+ * word" is a question a clerk answers in a second and not an accusation.
+ * `nameMatch` in `@hackmty/cep` is the comparison and this is its vocabulary; the
+ * package re-exports this type rather than declaring a second one.
+ */
+export type NameMatch = "match" | "partial" | "mismatch";
+
+/**
+ * What can be proven about the Banxico seal on a CEP.
+ *
+ * `valid` is only ever set when the sello actually validated against a configured
+ * Banxico certificate. Everything that means "we could not check it" is
+ * `not_checked`, which the UI renders as "firma no verificada": the reasons behind
+ * it (`not_checked` from the parser, `unconfirmed_scheme`, `invalid_certificate`)
+ * are facts about our configuration, not about the document. Only a defect in the
+ * document itself is `invalid`. Collapsing the middle state into either of the
+ * others is how a demo becomes a lie, so it is a state of its own here, in
+ * `UNPROVEN_SEAL_REASONS` in `@hackmty/engine`, and in the badge the web renders.
+ */
+export type SealState = "valid" | "not_checked" | "invalid";
+
+/**
+ * The rails the one-cent verification can leave on.
+ *
+ * `nessie` is the company's bank mirror, which is a sandbox and not a bank: it
+ * proves the flow and produces no CEP. `stp` is the SPEI participant a small
+ * company can contract, which is the rail that produces a Banxico-signed CEP.
+ * `@hackmty/rail` holds both adapters and says which one has run live.
+ */
+export type RailId = "nessie" | "stp";
+
+/**
+ * Where one instruction stands in the beneficiary verification.
+ *
+ * The order is the order it happens in: nothing yet, the cent has left, Banxico has
+ * published no CEP for its clave yet, the CEP is in hand, and then the two ends. A
+ * state machine and not a pair of booleans, because the clerk watching the screen
+ * needs to know which of "no lo hemos mandado" and "ya salio y estamos esperando"
+ * is true, and those are the two that a boolean would fold together.
+ *
+ * `released` and `blocked` are what the engine did with the CEP in hand.
+ * `cep_signed` is where an instruction stays when the CEP arrived and the payment
+ * is held for some other reason. Neither `released` nor `blocked` ever means
+ * SentryOne moved money: the SPEI still leaves from the company's own portal.
+ */
+export type VerificationStateName =
+  | "not_started"
+  | "cent_sent"
+  | "awaiting_cep"
+  | "cep_signed"
+  | "released"
+  | "blocked";
+
+/**
+ * The verification of one instruction, folded out of the event ledger.
+ *
+ * It is a projection and never a stored row: every field comes from a `cent_sent`,
+ * `cep_awaited`, `cep_verified` or `decision_made` event, so the screen and the
+ * constancia read the same history and there is no second copy of the truth to
+ * drift. `GET /api/v1/instructions/:id/verification` answers exactly this.
+ */
+export interface VerificationState {
+  instructionId: string;
+  state: VerificationStateName;
+  /** Which rail sent the cent. Null until one has. */
+  rail: RailId | null;
+  /** The clave de rastreo the rail filed the transfer under. */
+  claveRastreo: string | null;
+  centSentAt: string | null;
+  /** When the CEP for this account was read and stored. */
+  cepAt: string | null;
+  sealState: SealState | null;
+  /** Account holder as the CEP reports it. */
+  holderName: string | null;
+  /** Legal name on the supplier's CFDI, the other side of the comparison. */
+  legalName: string | null;
+  nameMatch: NameMatch | null;
+  /** The engine's decision once the CEP was in hand. */
+  decision: Decision | null;
+  /** Instant of the newest event behind this state, or when it was asked. */
+  updatedAt: string;
+}
+
 export type Detector =
   | "sat_69b"
   | "clabe_forensics"
@@ -310,6 +397,18 @@ export interface VerificationTurn {
 
 export type Action = "hold" | "verify" | "release";
 
+/**
+ * `Decision.decidedBy` of a decision the engine signed itself.
+ *
+ * There is exactly one of those: the beneficiary verification, where the CEP
+ * arrives from the bank and the expected-loss rule reads it with no person in the
+ * loop. It is named rather than left as a bare string so a screen, a constancia and
+ * the ledger can all tell an automatic decision from one a clerk signed. It still
+ * moves no money: `release` means nothing stops this payment, and the SPEI leaves
+ * from the company's own banking portal.
+ */
+export const SYSTEM_DECIDER = "system";
+
 export interface Decision {
   instructionId: string;
   action: Action;
@@ -318,7 +417,10 @@ export interface Decision {
   delayCostPerDay: number;
   findings: Finding[];
   decidedAt: string;
-  /** Who confirmed the action. Absent until a person decides. */
+  /**
+   * Who confirmed the action. Absent until a person decides, and `SYSTEM_DECIDER`
+   * on the one decision the engine signs itself.
+   */
   decidedBy?: string;
 }
 
@@ -342,6 +444,52 @@ export type LedgerEvent =
       at: string;
       listVersion: string;
       entries: SatListEntry[];
+    }
+  | {
+      /**
+       * The one-cent probe left the company's account through a payment rail.
+       *
+       * It is the event that makes the beneficiary control self-serve: the clave de
+       * rastreo comes back from the rail rather than from a keyboard, which is also
+       * why it is on the event. The account is recorded as four digits, like the
+       * verification call: the full CLABE is already on the instruction and does not
+       * need a second home in the ledger.
+       */
+      type: "cent_sent";
+      at: string;
+      instructionId: string;
+      rail: RailId;
+      claveRastreo: string;
+      /** Always 0.01 MXN. Stored so the ledger states it rather than implying it. */
+      amount: number;
+      /** Last four digits of the account that was probed. */
+      clabeLast4: string;
+      /**
+       * True when no real rail moved money: the in-process rail of a test or of
+       * `bun run demo`. Nothing downstream may read a simulated probe as a transfer
+       * that settled, and this is the flag that makes that impossible.
+       */
+      simulated: boolean;
+    }
+  | {
+      /**
+       * The cent is out and no signed CEP has been found for its clave yet.
+       *
+       * A CEP is published once the transfer settles, so this is the ordinary state
+       * for minutes rather than an error. The event exists so the screen can say
+       * "ya salio, esperando el CEP" instead of showing nothing, and so the wait is
+       * auditable: how long the pipeline looked and how many times it asked.
+       */
+      type: "cep_awaited";
+      at: string;
+      instructionId: string;
+      claveRastreo: string;
+      /** How many times the CEP seam was asked before giving the clave back. */
+      attempts: number;
+      /** Milliseconds waited across those attempts. */
+      waitedMs: number;
+      /** Why nothing was found, in one sentence a clerk can act on. */
+      reason: string;
     }
   | { type: "cep_verified"; at: string; cep: Cep; supplierRfc: Rfc }
   | {

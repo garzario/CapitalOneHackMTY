@@ -50,6 +50,7 @@ import type {
   NetworkAssessment,
   NetworkSignal,
   PaymentInstruction,
+  SealState,
   SkipReason,
   Supplier,
 } from "@hackmty/core";
@@ -78,7 +79,7 @@ import {
  * itself (no sello, a sello that is not base64 or not RSA-2048, no cadenaCDA, a
  * malformed root) or an outright `signature_mismatch`, and those are invalid.
  */
-const UNPROVEN_SEAL_REASONS: readonly string[] = [
+export const UNPROVEN_SEAL_REASONS: readonly string[] = [
   "not_checked",
   "unconfirmed_scheme",
   "invalid_certificate",
@@ -89,15 +90,20 @@ function accountKey(value: string): string {
   return value.replace(/\D+/g, "");
 }
 
-type SealState = "valid" | "unconfirmed" | "invalid";
-
-function sealStateOf(cep: Cep): SealState {
+/**
+ * The three words of `SealState`, read off one CEP.
+ *
+ * Exported because `apps/api` reports the same verdict on
+ * `GET /api/v1/instructions/:id/verification`, and two copies of this mapping is
+ * how one of them eventually calls an unchecked seal valid.
+ */
+export function sealStateOf(cep: Cep): SealState {
   if (cep.signatureValid) {
     return "valid";
   }
   return cep.signatureReason !== undefined &&
     UNPROVEN_SEAL_REASONS.includes(cep.signatureReason)
-    ? "unconfirmed"
+    ? "not_checked"
     : "invalid";
 }
 
@@ -323,7 +329,7 @@ function explain(
   const sealSentence =
     seal === "valid"
       ? "El sello de Banxico esta validado."
-      : seal === "unconfirmed"
+      : seal === "not_checked"
         ? "El sello de Banxico no se ha podido verificar todavia, lo cual no quiere decir que sea invalido."
         : "El sello de Banxico no valido contra el certificado.";
 

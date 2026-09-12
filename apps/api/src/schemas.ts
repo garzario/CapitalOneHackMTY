@@ -28,15 +28,25 @@ import type {
   KnownAccount,
   LedgerEvent,
   Metrics,
+  NameMatch,
   NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
+  RailId,
   SatListEntry,
+  SealState,
   Supplier,
   SweepResult,
   VerificationOutcome,
+  VerificationState,
+  VerificationStateName,
   VerificationTurn,
 } from "@hackmty/core";
+import {
+  CENT_AMOUNT,
+  CLAVE_RASTREO_MAX_LENGTH,
+  CLAVE_RASTREO_PATTERN,
+} from "@hackmty/rail";
 import { normalizeRfc } from "@hackmty/sat";
 import { z } from "zod";
 
@@ -56,6 +66,16 @@ export const rfcSchema = z.string().regex(RFC_PATTERN, "RFC shape");
 /** 18 digits. The check digit itself is verified by the detector, not here. */
 export const CLABE_PATTERN = /^\d{18}$/;
 export const clabeSchema = z.string().regex(CLABE_PATTERN, "18-digit CLABE");
+
+/**
+ * A clave de rastreo, the SPEI field the CEP is filed under: letters and digits,
+ * up to 30. The pattern is `@hackmty/rail`'s, so the shape the rails mint and the
+ * shape the API accepts are one definition.
+ */
+export const claveRastreoSchema = z
+  .string()
+  .max(CLAVE_RASTREO_MAX_LENGTH)
+  .regex(CLAVE_RASTREO_PATTERN, "clave de rastreo");
 
 /** CFDI folios fiscales are UUIDs, written uppercase by the PAC. */
 export const UUID_PATTERN =
@@ -186,6 +206,30 @@ export const cepSchema = z.object({
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cep>;
 
+/** How close the CEP holder name is to the legal name on the CFDI. */
+export const nameMatchSchema = z.enum([
+  "match",
+  "partial",
+  "mismatch",
+]) satisfies z.ZodType<NameMatch>;
+
+/** The rails the cent can leave on. Nessie is the mirror, STP is production. */
+export const railIdSchema = z.enum([
+  "nessie",
+  "stp",
+]) satisfies z.ZodType<RailId>;
+
+/**
+ * What can be proven about the Banxico seal. `valid` is only ever the answer when
+ * a configured certificate verified it; `not_checked` is the UI's "firma no
+ * verificada" and is never rendered or described as valid.
+ */
+export const sealStateSchema = z.enum([
+  "valid",
+  "not_checked",
+  "invalid",
+]) satisfies z.ZodType<SealState>;
+
 export const detectorSchema = z.enum([
   "sat_69b",
   "clabe_forensics",
@@ -311,6 +355,26 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     entries: z.array(satListEntrySchema),
   }),
   z.object({
+    type: z.literal("cent_sent"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    rail: railIdSchema,
+    claveRastreo: claveRastreoSchema,
+    /** The probe and nothing else. An amount is the one field nobody takes back. */
+    amount: z.literal(CENT_AMOUNT),
+    clabeLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+    simulated: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("cep_awaited"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    claveRastreo: claveRastreoSchema,
+    attempts: z.number().int().positive(),
+    waitedMs: z.number().nonnegative(),
+    reason: z.string().min(1).max(1000),
+  }),
+  z.object({
     type: z.literal("cep_verified"),
     at: instantSchema,
     cep: cepSchema,
@@ -409,6 +473,39 @@ export const verifiedBeneficiarySchema = z.object({
   verifiedAt: instantSchema,
 });
 
+/** The states of the one-cent verification, in the order they happen. */
+export const verificationStateNameSchema = z.enum([
+  "not_started",
+  "cent_sent",
+  "awaiting_cep",
+  "cep_signed",
+  "released",
+  "blocked",
+]) satisfies z.ZodType<VerificationStateName>;
+
+/**
+ * `GET /api/v1/instructions/:id/verification`, and the body of the `202` the
+ * verify-account endpoint answers with.
+ *
+ * Every field is folded out of the event ledger, so this payload is a view of a
+ * history and not a row somebody could update. `sealState` is the one field that
+ * carries a claim, and it is `valid` only when a certificate verified the sello.
+ */
+export const verificationStateSchema = z.object({
+  instructionId: z.string().min(1),
+  state: verificationStateNameSchema,
+  rail: railIdSchema.nullable(),
+  claveRastreo: claveRastreoSchema.nullable(),
+  centSentAt: instantSchema.nullable(),
+  cepAt: instantSchema.nullable(),
+  sealState: sealStateSchema.nullable(),
+  holderName: z.string().min(1).nullable(),
+  legalName: z.string().min(1).nullable(),
+  nameMatch: nameMatchSchema.nullable(),
+  decision: decisionSchema.nullable(),
+  updatedAt: instantSchema,
+}) satisfies z.ZodType<VerificationState>;
+
 export const supplierDetailSchema = z.object({
   supplier: supplierSchema,
   cfdis: z.array(cfdiSchema),
@@ -452,9 +549,6 @@ export const beneficiariesResponseSchema = z.object({
 export const ledgerResponseSchema = z.object({
   events: z.array(ledgerEventSchema),
 });
-
-/** How close the CEP holder name is to the legal name on the CFDI. */
-export const nameMatchSchema = z.enum(["match", "partial", "mismatch"]);
 
 export const cepVerifyResponseSchema = z.object({
   cep: cepSchema,
@@ -700,7 +794,13 @@ export type InstructionDetail = z.infer<typeof instructionDetailSchema>;
 export type SupplierDetail = z.infer<typeof supplierDetailSchema>;
 export type VerifiedBeneficiary = z.infer<typeof verifiedBeneficiarySchema>;
 export type SatVersionSummary = z.infer<typeof satVersionSummarySchema>;
-export type NameMatch = z.infer<typeof nameMatchSchema>;
+/**
+ * The name comparison verdict, re-exported from the domain rather than inferred
+ * from the schema above. It moved into `packages/core/src/domain.ts` with
+ * `VerificationState`, which carries one, and three declarations of the same three
+ * words was two too many.
+ */
+export type { NameMatch };
 export type CepVerifyResponse = z.infer<typeof cepVerifyResponseSchema>;
 export type IntakeResponse = z.infer<typeof intakeResponseSchema>;
 export type CreateInstructionBody = z.infer<typeof createInstructionBodySchema>;
@@ -713,3 +813,4 @@ export type VerifyCallScriptResponse = z.infer<
   typeof verifyCallScriptResponseSchema
 >;
 export type SeedBody = z.infer<typeof seedBodySchema>;
+export type VerificationStateResponse = z.infer<typeof verificationStateSchema>;
