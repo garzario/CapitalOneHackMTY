@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Redacted copy of a real CFDI 4.0. Every RFC, legal name, address, folio,
+     UUID, bank account, stamp, certificate and amount was replaced by
+     scripts/import-real-cfdi.ts before this file was committed, and the amounts
+     are scaled by a factor that lives outside the repository, so no figure here
+     is a real one. Kept because a parser has to be proven on a document a PAC
+     produced. See docs/08-data-model.md, Real document validation. -->
+<cfdi:Comprobante xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd" Version="4.0" Fecha="2026-09-11T16:33:38" Sello="REDACTED-SELLO-NOT-A-SIGNATURE" FormaPago="28" NoCertificado="44652714701569630432" Certificado="REDACTED-CERTIFICADO-NOT-A-CERTIFICATE" SubTotal="6636.05" Moneda="MXN" Total="7697.82" TipoDeComprobante="I" Exportacion="01" MetodoPago="PUE" LugarExpedicion="64000" xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cfdi:Emisor Rfc="SYNO341027Y84" Nombre="JOSE DEMO ELIZONDO SALAZAR" RegimenFiscal="625" />
+  <cfdi:Receptor Rfc="SYNG6309284P4" Nombre="MARIA DEMO ELIZONDO LOZANO" DomicilioFiscalReceptor="64000" RegimenFiscalReceptor="612" UsoCFDI="G01" />
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="32151705" Cantidad="1.00" ClaveUnidad="H87" Unidad="Pieza" Descripcion="ALLEN BRADLEY 1769-IT6 MODULO DE ENTRADA THERMOCUPLE" ValorUnitario="6636.051724" Importe="6636.051724" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="6636.051724" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="1061.768276" />
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="1061.77">
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="6636.05" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="1061.77" />
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" xsi:schemaLocation="http://www.sat.gob.mx/TimbreFiscalDigital http://www.sat.gob.mx/sitio_internet/cfd/TimbreFiscalDigital/TimbreFiscalDigitalv11.xsd" Version="1.1" UUID="784B43BF-9AFC-4F0E-96AC-C69DBB30D822" FechaTimbrado="2026-09-11T16:34:03" RfcProvCertif="SYN7210206D0" SelloCFD="REDACTED-SELLO-NOT-A-SIGNATURE" NoCertificadoSAT="73744576057848892133" SelloSAT="REDACTED-SELLO-NOT-A-SIGNATURE" />
+  </cfdi:Complemento>
+</cfdi:Comprobante>

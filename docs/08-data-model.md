@@ -710,15 +710,26 @@ armed on no case at all, so a zero row can never quietly mean "never ran".
 Every fixture above is invented, and a parser proven only on documents we wrote ourselves is a
 parser proven on our own assumptions. So exactly one thing in this repository is allowed to come
 from outside it: a small number of CFDIs that a PAC actually stamped, redacted before they are
-committed. That is what lets us say on stage that the parser was validated on a real document, and
-the sentence is only worth saying because the file is in the repository and the command that
-produced it is too.
+committed. That is what lets us say on stage that the parser was validated on real documents, and
+the sentence is only worth saying because the files are in the repository and the command that
+produced them is too.
 
-**Status, issue #68.** The importer, the tests and this section are merged.
-`packages/core/src/fixtures/real/` currently holds only its `README.md` and its nested `.gitignore`,
-and the test that reads it skips with a message that says so rather than passing on nothing. Until a
-file is in that folder, the claim above is not one to make on stage. TODO(garzario) import the
-document and update this line.
+**Status, issue #68. Closed.** Three real CFDI 4.0 de ingreso, invoices received by two taxpayers
+from three different issuers and stamped by two different PACs, were imported on **2026-09-12** and
+are committed as `ingreso-1.redacted.xml`, `ingreso-2.redacted.xml` and `ingreso-3.redacted.xml` in
+`packages/core/src/fixtures/real/`. Every amount in them is the real one multiplied by one factor
+that is not in this repository, and every RFC, legal name, postal code, serie, folio, UUID,
+certificate serial and stamp is synthetic. The three were imported under the same factor, so they
+scale consistently with each other and the pseudonyms agree: the taxpayer that received two of them
+carries the same synthetic RFC in both. The sentence this buys on stage is narrow and literal, which
+is the only kind worth saying: the parser in `packages/core/src/cfdi.ts` has been run against three
+documents we did not write, and the files are in the repository.
+
+| Fixture | What the real document was | What it proves about the parser |
+|---|---|---|
+| `ingreso-1.redacted.xml` | An industrial supply invoice with no serie and no folio, CRLF line endings throughout, one concept, IVA at 16 percent | The optional attributes are read and never invented: `serie` and `folio` are absent from the record because they are absent from the document, which is the case the folio rule in `duplicates.ts` has to fall back from |
+| `ingreso-2.redacted.xml` | A manufacturing invoice carrying both a serie and a folio, written on a single line with no indentation at all and a `standalone` declaration | The tokenizer does not depend on whitespace or on attribute order, and a folio that carries letters and hyphens stays a string instead of becoming a number |
+| `ingreso-3.redacted.xml` | A weekly commission invoice that withholds IVA and ISR, opens with a byte order mark, and whose concept level tax rounding the issuing PAC did not satisfy exactly | The retention path: `Total` is `SubTotal` less the discount, plus the transferred taxes, less the withheld ones, which on the other two documents is indistinguishable from `SubTotal` plus IVA, and `iva` stays the IVA the document transferred rather than the net of the retentions |
 
 **The rule.** The real document never enters the repository. It is read from outside it, or from
 `.seed/real/`, which is gitignored, and only the redacted copy reaches
@@ -759,6 +770,17 @@ because a secret that is worth keeping does not belong in a file everyone copies
 | Bank accounts | A synthetic CLABE with a correct control digit, keeping the three digit institution code | The CLABE control reads the bank code, and an invented one would exercise that control against nothing. The eleven digits that identify the company are replaced |
 | Sello, SelloCFD, SelloSAT, Certificado | Obvious placeholders | A CSD certificate carries the taxpayer name and RFC inside it. This is the attribute that leaks a real identity while looking like noise |
 
+**What was read by eye before the three were committed.** The importer keeps free text verbatim and
+prints every value it kept, because a free text description is where an RFC, a street or a contact
+name arrives when a human typed it. Across the three documents that is a product description, two
+units of measure, a payment condition of CONTADO, a line identifier and a weekly period. None of them
+names a party to the invoice, an address or a taxpayer, so all of them stayed: a document with its
+descriptions blanked is a document no PAC issued, and the point of this folder is that the parser sees
+what a PAC actually sends. One residual worth stating rather than hiding: two of the three documents
+already carried 64000 as the receiver's postal code, so for those two the replacement is
+indistinguishable from the original. Since the importer writes 64000 into that attribute on every
+document whatever it held, the value carries no information about the original either way.
+
 **What is kept, and why.** The structure, the namespaces, the attribute order and the whitespace,
 because the output is the input with attribute values rewritten in place rather than a
 reserialisation: a diff of the two is a diff of values and never of shape. The catalogue codes, the
@@ -782,10 +804,32 @@ a CLABE typed into a free text description by whoever issued the invoice. Second
 document is parsed again by the same parser, as the same kind of document, and every identity that
 held before still holds. The importer refuses to write a file that fails either one.
 
-**The tests.** `packages/core/src/cfdi-real.test.ts` parses every file in the folder and asserts
-again, over the committed bytes, that every RFC is synthetic and that no stamp or certificate
-survived. With the folder empty it skips with a message that names the script, so the repository is
-green before the first document arrives.
+**The tests.** `packages/core/src/cfdi-real.test.ts` parses every file in the folder and asserts,
+over the committed bytes: the comprobante is a kind the parser reads, the record comes back
+watermarked `synthetic`, `Total` equals `SubTotal` less the discount plus the transferred taxes less
+the withheld ones to within a cent, the UUID and both RFCs are shaped the way SAT writes them and
+both RFCs start with SYN, every RFC shaped attribute anywhere in the document is synthetic, every
+`Nombre` carries the word DEMO, and no stamp or certificate is long enough to be a real one. The name
+check matters as much as the RFC one: an RFC is what a detector reads, a legal name is what a judge
+reads off a screenshot.
+
+One of those tests is worth its own sentence, because without it a real document proves less than it
+looks like it does. `cfdi.ts` carries tolerances: an element that resolved no namespace matches
+whichever one was asked for, `issuerName` falls back to the empty string when `Emisor` has no
+`Nombre`, the IVA sum returns zero when the document level `cfdi:Impuestos/cfdi:Traslados` block is
+missing, and the timbre is found by a depth first search. A document read through any of those was
+read on a path production does not take. So `needed none of the parser's tolerances to be read`
+asserts, per fixture, that every element resolved a declared SAT namespace, that the issuer name was
+there, that the transferred tax block was there and the IVA is a sum of values actually read, that
+the timbre is a direct child of `cfdi:Complemento`, and that the optional serie, folio and forma de
+pago on the record match the document exactly. All three fixtures pass it. Four mutations of a fixture
+were run against the suite to check that the assertions bite rather than decorate, and each one was
+caught: a `Total` off by one peso by the arithmetic test, a missing `Nombre`, a deleted document level
+`cfdi:Impuestos` block and an undeclared `cfdi` namespace prefix by this one.
+
+The three imported names are listed in the suite, so a fixture that leaves the repository fails
+instead of turning the folder back into the skip it was before #68. Adding a fourth document needs no
+change to the test.
 `scripts/import-real-cfdi.test.ts` runs the importer over the synthetic fixtures, which are
 CFDI 4.0 documents with the same structure, and asserts the properties that matter: the shape is
 unchanged with every value stripped, the amounts moved by the factor, the tax breakdown still adds

@@ -55,8 +55,32 @@ then the screens, then the narrative, then the plumbing.
   recomputed from the scaled inputs and reverified, and the command refuses to write a file in which
   any replaced value, or any RFC or CLABE shaped token, survived. The redacted copy goes to
   `packages/core/src/fixtures/real/`, the change map to the gitignored `.seed/real/`.
-  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder and skips with a message
-  while it is empty. Documented in `docs/08-data-model.md`, Real document validation.
+  `packages/core/src/cfdi-real.test.ts` parses every fixture in that folder. Documented in
+  `docs/08-data-model.md`, Real document validation.
+
+- Three real CFDI 4.0 de ingreso, redacted and committed, so the parser is proven on documents we did
+  not write (closes #68). They were received by two taxpayers from three different issuers, stamped by
+  two different PACs, and imported on 2026-09-12 through `scripts/import-real-cfdi.ts` under one
+  shared `REAL_CFDI_SCALE`, so the amounts scale consistently with each other and the same taxpayer
+  carries the same synthetic RFC in the two documents it received. Every amount is the real one times
+  a factor that is not in this repository, and every RFC, legal name, postal code, serie, folio, UUID,
+  certificate serial and stamp is synthetic. The three are deliberately unlike each other:
+  `ingreso-1` has no serie and no folio and uses CRLF line endings, `ingreso-2` carries both and is
+  one single line with no indentation, `ingreso-3` withholds IVA and ISR, opens with a byte order mark
+  and is a document whose concept level tax rounding the issuing PAC did not satisfy exactly, which
+  the importer preserved rather than corrected. `packages/core/src/cfdi-real.test.ts` now runs seven
+  tests per fixture: it parses as the kind it claims, the record is watermarked `synthetic`,
+  `Total` is `SubTotal` less the discount plus the transferred taxes less the withheld ones to within
+  a cent, `iva` is summed from the document level IVA lines rather than read off
+  `TotalImpuestosTrasladados` and the two agree on all three because IVA is the only tax these
+  documents transfer, the UUID and both
+  RFCs are shaped the way SAT writes them, no stamp or certificate is long enough to be a real one,
+  and none of the parser's tolerances was needed to read the document: every element resolved a
+  declared SAT namespace, the issuer name was present, the document level tax block was present, the
+  timbre is a direct child of `cfdi:Complemento`, and the optional serie, folio and forma de pago
+  match the document exactly. The three names are listed in the suite, so losing a fixture fails
+  instead of reverting the folder to a skip. Documented in `docs/08-data-model.md`, Real document
+  validation, and in row 4 of `docs/01-rubric-mapping.md`.
 
 - `supplier_weekly_outflow`, the feed the `supplier_behaviour` detector and the supplier drawer read
   (issue #72). One name over two definitions: `0007_supplier_outflow.sql` is a plain view that runs
