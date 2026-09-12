@@ -330,10 +330,17 @@ by name or leave the column empty. An empty cell is honest; a plausible number i
 ## Real document validation
 
 Every fixture above is invented, and a parser proven only on documents we wrote ourselves is a
-parser proven on our own assumptions. So exactly one thing in this repository comes from outside it:
-a small number of CFDIs that a PAC actually stamped, redacted before they were committed. That is
-what lets us say on stage that the parser was validated on a real document, and the sentence is only
-worth saying because the file is in the repository and the command that produced it is too.
+parser proven on our own assumptions. So exactly one thing in this repository is allowed to come
+from outside it: a small number of CFDIs that a PAC actually stamped, redacted before they are
+committed. That is what lets us say on stage that the parser was validated on a real document, and
+the sentence is only worth saying because the file is in the repository and the command that
+produced it is too.
+
+**Status, issue #68.** The importer, the tests and this section are merged.
+`packages/core/src/fixtures/real/` is empty until the real document is in hand, and the test that
+reads it skips with a message that says so rather than passing on nothing. Until a file is in that
+folder, the claim above is not one to make on stage. TODO(garzario) import the document and update
+this line.
 
 **The rule.** The real document never enters the repository. It is read from outside it, or from
 `.seed/real/`, which is gitignored, and only the redacted copy reaches
