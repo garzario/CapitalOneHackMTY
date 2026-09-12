@@ -30,28 +30,24 @@ export interface TestHarness {
 }
 
 /**
- * Every dependency that `createDeps` would otherwise read out of the process
- * environment is constructed here instead, so the suite gives the same answers
- * on CI and on a laptop whose `.env` bun has already auto-loaded:
+ * A test app is hermetic. Every dependency `createDeps` would otherwise read out
+ * of the environment is pinned here, so the suite behaves the same on CI, which
+ * has no `.env`, and on a laptop that followed the setup in the README and filled
+ * one in. That is not hypothetical: `SEED=ceptinela` swaps the hand-written
+ * fixture for the generated company and turns 48 assertions red, and a
+ * `GEMINI_API_KEY` turns the intake refusal into a live model call.
  *
- * - `repo` is a fresh `MemoryRepository` over the hand-written fixture, never
- *   the generated company `SEED=ceptinela` boots the server on.
- * - `extractor` is the one a server with no `GEMINI_API_KEY` gets. A developer
- *   with a real key used to make the two "refuses an image or a voice note"
- *   tests fail, and the voice-note one reached the model over the network,
- *   which is a test suite that is neither offline nor repeatable.
- * - `voice` is a configuration that is deliberately absent, for the same reason.
- *
- * A test that wants any of the three passes its own.
+ * A test that wants one of those passes it explicitly. Ambient environment is
+ * never allowed to decide what a test is testing.
  */
 export function createTestApp(
   overrides: DepsOverrides = {},
   voice: VoiceDeps = { readConfig: () => undefined },
 ): TestHarness {
   const deps = createDeps({
-    repo: new MemoryRepository(),
     clock: createTestClock(),
     allowSeed: false,
+    repo: new MemoryRepository(),
     extractor: UNAVAILABLE_EXTRACTOR,
     ...overrides,
   });

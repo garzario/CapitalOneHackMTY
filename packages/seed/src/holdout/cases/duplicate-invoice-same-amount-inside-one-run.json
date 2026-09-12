@@ -1,0 +1,74 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "duplicate-invoice-same-amount-inside-one-run",
+  "title": "Two invoices from one issuer for exactly the same amount, four days apart",
+  "kind": "positive",
+  "notes": "Different UUID and different folio, so nothing is provable from the documents. It is the weakest of the duplicate rules on purpose: a supplier can legitimately bill the same amount twice, and the clerk is asked, not told.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-111",
+      "supplierRfc": "SYN111313S13",
+      "cfdiUuids": ["00000000-000c-4d00-8a00-00000000000c"],
+      "clabe": "137180500010101017",
+      "amount": 32480,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN111313S13",
+      "legalName": "Herrajes y Perfiles Santa Rosa SA de CV",
+      "firstInvoiceAt": "2024-08-01T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "137180500010101017",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2024-08-15T15:30:00.000Z",
+          "timesPaid": 37
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-000b-4d00-8a00-00000000000b",
+        "serie": "A",
+        "folio": "331",
+        "issuedAt": "2026-09-04T15:30:00.000Z",
+        "issuerRfc": "SYN111313S13",
+        "issuerName": "Herrajes y Perfiles Santa Rosa SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 28000,
+        "iva": 4480,
+        "total": 32480,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "00000000-000c-4d00-8a00-00000000000c",
+        "serie": "A",
+        "folio": "339",
+        "issuedAt": "2026-09-08T15:30:00.000Z",
+        "issuerRfc": "SYN111313S13",
+        "issuerName": "Herrajes y Perfiles Santa Rosa SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 28000,
+        "iva": 4480,
+        "total": 32480,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "duplicate_invoice",
+      "state": "requiere_verificacion",
+      "severity": "warning",
+      "because": "Same issuer and the same total inside one payment run is the shape of a payable about to leave twice, and nothing in the documents settles it either way."
+    }
+  ],
+  "expectedAction": "verify"
+}

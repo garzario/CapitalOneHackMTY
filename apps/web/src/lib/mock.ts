@@ -69,8 +69,15 @@ export const BANK_NAMES: Record<string, string> = {
 };
 
 export function bankName(clabe: Clabe): string {
-  const code = clabe.slice(0, 3);
+  return bankNameFromCode(clabe.slice(0, 3));
+}
 
+/**
+ * The same catalogue, addressed by the three-digit institution code on its own.
+ * The API reports a change of bank as a pair of codes rather than a pair of
+ * names, and "012 a 014" is not a sentence a clerk can act on.
+ */
+export function bankNameFromCode(code: string): string {
   return BANK_NAMES[code] ?? `Banco ${code}`;
 }
 

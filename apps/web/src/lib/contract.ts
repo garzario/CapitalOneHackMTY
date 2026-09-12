@@ -98,10 +98,35 @@ export interface SupplierDetail {
   verifiedBeneficiaries: VerifiedBeneficiary[];
 }
 
-/** `GET /api/v1/sat/lookup?rfc=`. The judge types a real RFC into this one. */
+/** Which download of the official list the answer came out of. */
+export interface SatLookupSource {
+  /** DOF publication date of the snapshot. */
+  listVersion: string;
+  /** The day we retrieved it, which is what a judge asks next. */
+  retrievedAt: string;
+  url: string;
+  /** Distinct taxpayers in the snapshot. */
+  taxpayers: number;
+  /** Rows, larger because one taxpayer carries one row per situation. */
+  rows: number;
+}
+
+/**
+ * `GET /api/v1/sat/lookup?rfc=`. The judge types a real RFC into this one.
+ *
+ * `rfc` comes back normalised, so the screen echoes what was actually searched.
+ * `listed` is the newest situation and not "any row exists": a taxpayer who was
+ * presunto and is now desvirtuado is not listed. `source` is always present,
+ * including on an empty answer, so "not listed" can never be read as "no list
+ * was loaded".
+ */
 export interface SatLookup {
   rfc: Rfc;
   entries: SatListEntry[];
+  listed: boolean;
+  /** The row that decides, which is the newest one. Absent when not listed at all. */
+  effective?: SatListEntry;
+  source: SatLookupSource;
 }
 
 /** One loaded version of the official Article 69-B list. */

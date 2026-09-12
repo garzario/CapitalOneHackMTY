@@ -318,7 +318,9 @@ export async function lookupSatRfc(
       shaped<SatLookup>(
         value,
         (lookup) =>
-          typeof lookup.rfc === "string" && Array.isArray(lookup.entries),
+          typeof lookup.rfc === "string" &&
+          Array.isArray(lookup.entries) &&
+          typeof lookup.listed === "boolean",
         "SAT lookup",
       ),
   );

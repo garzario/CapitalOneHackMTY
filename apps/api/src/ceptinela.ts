@@ -105,7 +105,6 @@ export function ceptinelaDataset(seed: number): SyntheticDataset {
     beneficiaries: [],
     bankMirror: snapshot.bankMirror,
     ledger: snapshot.ledger,
-    labelledCases: [],
   };
 }
 

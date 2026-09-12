@@ -1,6 +1,7 @@
 # 09. API contract
 
 Base path `/api/v1`. JSON in and out. Errors use one envelope: `{ "error": { "code": string, "message": string, "requestId": string } }`.
+Codes: `bad_request` 400, `forbidden` 403, `not_found` 404, `unprocessable` 422, `rate_limited` 429, `internal_error` 500.
 All amounts in MXN. All timestamps ISO 8601. Every synthetic object carries `synthetic: true`.
 Types are the ones in `packages/core/src/domain.ts`; the API never invents a second shape.
 
@@ -12,7 +13,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=ceptinela` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier }` | detail panel |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
-| GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[] }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted |
+| GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. Rate limited per client |
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
 | GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand |
@@ -20,6 +21,17 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/instructions/:id/verify-call` | `{ script, voiceConfigured, releasesPayment: false }` | the words the voice agent reads, or the clerk does. Side effect free: no call is placed and nothing is appended |
 
 `PaymentRun` = `{ id, weekOf, totals: { instructions, amount, held, toVerify, released }, items: Array<{ instruction, supplier, decision, findings }> }`.
+
+### The lookup box, in detail
+
+`GET /api/v1/sat/lookup?rfc=` is the only endpoint that reads real data, so it is specified here rather than left to the table.
+
+- The RFC is normalised before validation: upper-cased and stripped of spaces, dots, slashes, underscores and hyphens. `&` and `Ñ` are kept, because both are legitimate in the name portion of a moral person's RFC. `rfc` in the response is the normalised form, so the screen echoes what was searched.
+- `listed` is true only when the newest situation is `presunto` or `definitivo`. A taxpayer who was published and then cleared their name is not listed, and `entries` still carries the whole history so a clerk can see both rows.
+- `effective` is the newest row, absent when the RFC appears on no version we hold.
+- `source` names the snapshot that answered: `{ listVersion, retrievedAt, url, taxpayers, rows }`. It is present on an empty answer too, so "not listed" can never be read as "no list was loaded".
+- Rate limited per client: 30 requests per minute, answered with `429 rate_limited` plus `Retry-After`. Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. The counter is per process and keyed on the forwarded client address, which is caller-controlled: it stops one machine enumerating the list, and it is not a defence against a distributed client.
+- Nothing on this path touches a synthetic invoice. ADR-0002 keeps a real RFC to this box and to nothing else.
 
 ## Write
 

@@ -22,6 +22,45 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   drives the five beats of `docs/10-demo-script.md` headless against a freshly seeded in-memory app
   and exits non-zero on any beat, with `--base <url>` to run the same beats over HTTP against a
   deployment.
+- `GET /api/v1/sat/lookup` hardened for the RFCs a judge types (issue #70). The input is
+  normalised before validation, so lower case, spaces and a hyphen before the homoclave all
+  reach the same taxpayer, and the answer echoes the normalised form back. The response now
+  carries `listed`, which is the newest situation and not "any row exists", the `effective` row,
+  and the `source` of the snapshot that answered, present even on an empty result so that "not
+  listed" can never be read as "no list loaded". The endpoint is rate limited to 30 requests per
+  minute per client with the shared error envelope, `Retry-After` and the `RateLimit-*` headers.
+
+- Every screen is designed and enforced in four states. The QR intake page gained the two it was
+  missing, an instruction that passes all six controls now says so instead of returning a bare
+  decision badge, and `apps/web/src/screens/states.test.ts` fails the build when a screen ships
+  with a happy path and nothing else. The state matrix and the mapping from the five demo beats to
+  the screens they run on are written down in `docs/design.md`.
+
+- Blind evaluation of the six controls (issue #55). Thirty labelled holdout cases in
+  `packages/seed/src/holdout/cases`: a true positive for every control, and the hard negatives
+  that decide whether a clerk keeps the product switched on, including a bank change backed by
+  the supplier's own payment complement, a new supplier ramping, a round-number retainer, a
+  quarterly invoice that repeats an amount, a thin history with no baseline to test, a status
+  that moved to desvirtuado before the payment, and a photographed CLABE that transcribes badly
+  onto the right account. `runEngine` scores them through `runControls`, the same entry point
+  intake uses, `bun run eval` prints the table and `GET /api/v1/metrics` serves the same
+  `Metrics`. An `info` row is scored as context and never as a false positive. Four labels
+  disagree with the engine today and all four are left in the table with the argument written
+  down, because a set edited until it agrees measures nothing.
+- `docs/11-pitch.md` and `docs/13-devpost.md`, finished against the product that is actually in
+  `dev`. The pitch carries the 60, 90 and 240 second versions in Mexican Spanish, all three opening
+  with the fiscal hook, whose two halves are now cited at their primary sources (CFF article 69-B for
+  the retroactive effect and the thirty-day window, Ley de Sistemas de Pagos article 11 for the
+  finality of an accepted transfer order), plus the six controls in the words used at the table, a
+  gate table saying which lines may be spoken today and which are still blocked on issues #44 and
+  #57, a table of the only numbers we are allowed to say with the source of each, the blind
+  evaluation read off `bun run eval` including the four labels that disagree with the engine, and
+  the eight hardest judge questions answered in one breath each. The Devpost copy is submission ready with an
+  English and a Spanish block per field, the six prize categories each carrying the gate that has to
+  be true before it is selected, and `TODO(garzario)` placeholders for the live URL and the video.
+  Two discrepancies found while verifying and recorded rather than smoothed over: the reference run
+  amount in `docs/02-persona.md` predates the finished generator, and the committed SAT snapshot is a
+  different vintage from the open-data file cited in `docs/04-market.md`.
 - Ceptinela synthetic company in `packages/seed/src/ceptinela`: Metalicos del Norte SA de CV, a
   28-person metalmecanica shop in Apodaca with 44 suppliers, eight months of CFDI de ingreso in PUE
   and PPD, payment complements carrying CtaBeneficiario and the clave de rastreo of the SPEI that
@@ -34,6 +73,12 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   demo RFCs, and `SEED=ceptinela` serves the same company from the API.
 - Printable A5 judge card and A4 one-pager layouts with a verified repository QR, an architecture
   back, and explicit blockers for the live URL and real CEP tracking key.
+- Finding panel reads all three evidence vocabularies in the repository through
+  `apps/web/src/lib/evidence.ts`, and gives the four facts that decide a payment their own
+  rendering: the account comparison with the differing digits painted, the change of bank named
+  rather than shown as codes, the Article 69-B row badged by status, and the invoice a duplicate
+  copies. Chips are labelled in Spanish, and a test fails the build when a producer grows a key
+  nobody translated.
 - `packages/voice`: the ElevenLabs verification call. `buildVerificationScript` writes what the agent
   says from the payment instruction and never speaks more than the last four digits of the account,
   promises no payment and accuses nobody; `VoiceClient` creates or updates the agent, places the
@@ -141,17 +186,43 @@ version is cut for this event, `[1.0.0]` at M4, and tagged.
   scans only the days inside the match window, instead of the whole company's documents once per
   outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from
   11 seconds to 1.5, which is what makes running the controls at boot possible at all.
+- `docs/01-rubric-mapping.md` carries a real claim sentence and real evidence for all fourteen
+  sub-criteria plus the engineering-process row: every evidence cell is a path, a PR number, a CI
+  run or a test name that exists on `dev` today. Five rows are yellow and each one names the single
+  thing that would turn it green, with the issue that tracks it. A self-score section states the
+  scoring rule (G full, Y half, R zero) and records M1 at 85 of 100, so the number is reproducible
+  instead of asserted. The scoring discipline now checks `dev` rather than `main`, which is where
+  the evidence actually lands.
+- `docs/14-process.md` replaces its M3 placeholders with the artifacts themselves: the board and
+  its nine views, the five epics, three pull requests worth reading with what each body argues
+  (#117 the detector registry that made every control silent, #119 what the real 4.5 MB SAT file
+  does to a parser, #118 why the call outcome is parsed deterministically), the CI run and the test
+  count, the rubric score trend, and the ADR index with each ADR's real status instead of the
+  placeholder ones. Build night mode now states what it bought and what it cost, including that no
+  merged PR carries a post-merge review thread yet. The cut list is written: the fourteen issues
+  superseded by the Ceptinela backlog after ADR-0002, the nine closed as duplicates, six deliberate
+  descopes each traced to the PR or doc that made the call, and the four surfaces decided out of
+  scope before the first commit.
+- `README.md` replaces its `TODO(product)` placeholders with what is true now: the problem stated
+  with the cited SAT, ISR, IVA and irrevocability figures and the named persona, the differentiator
+  and the gap, the four-lane architecture rule and three sentences on the algorithm, the real
+  screenshots, and stack rows for `packages/engine`, `packages/sat`, `packages/cep`, Gemini and
+  ElevenLabs. The GIF, the demo video and the live URL stay `TODO(garzario)` with their issue
+  numbers until they exist.
 
 ### Fixed
 
+- The API tests read the ambient environment, so a laptop that followed the setup in the README
+  and filled in `.env` saw 48 failures that CI never sees: `SEED=ceptinela` swapped the
+  hand-written fixture for the generated company, and a `GEMINI_API_KEY` turned the intake
+  refusal into a live model call. `createTestApp` now pins the repository and the extractor the
+  way it already pinned the clock, the seed guard and the voice configuration, and a test asserts
+  that it does.
 - The 69-B simulation on the `/sat` screen posted an RFC written into the screen, and that RFC
   belonged to the hand-written fixture rather than to the seeded company, so the sweep listed
   nobody and the demo's centrepiece showed a confident 0.00. The supplier is read off the payment
   run now, and a sweep that lists nobody gets its own empty state instead of a row of zeros.
-- The two `apps/api` tests that refuse an image or a voice note read `GEMINI_API_KEY` out of the
-  environment, so they failed on a developer machine that had one, and the voice-note one reached
-  the model over the network. `createTestApp` constructs the repository, the extractor and the voice
-  configuration explicitly, so the suite no longer depends on `process.env` or on a local `.env`.
+
 - The detector registry in `packages/core/src/decision.ts`. It discovered detector modules by
   dynamic import and guessed each one's argument tuple from its arity, so once the real detectors
   landed it called none of them and `composeFindings` returned an empty array for all six slots

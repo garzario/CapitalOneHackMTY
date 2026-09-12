@@ -1,0 +1,59 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-check-digit-invalid",
+  "title": "The CLABE fails its own check digit, so no such account can exist",
+  "kind": "positive",
+  "notes": "The only signal in the whole product that accuses the document rather than a person. It needs no history and no catalogue: the last digit is a closed calculation over the other seventeen.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-104",
+      "supplierRfc": "SYN040606S06",
+      "cfdiUuids": ["00000000-0004-4d00-8a00-000000000004"],
+      "clabe": "021180600045678901",
+      "amount": 28188,
+      "source": "manual",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN040606S06",
+      "legalName": "Tornilleria y Sujetadores Guadalupe SA de CV",
+      "firstInvoiceAt": "2023-10-26T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "021180600045678903",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-11-09T15:30:00.000Z",
+          "timesPaid": 33
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0004-4d00-8a00-000000000004",
+        "serie": "A",
+        "folio": "1180",
+        "issuedAt": "2026-09-03T15:30:00.000Z",
+        "issuerRfc": "SYN040606S06",
+        "issuerName": "Tornilleria y Sujetadores Guadalupe SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 24300,
+        "iva": 3888,
+        "total": 28188,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "The 3-7-1 calculation over the first seventeen digits does not produce the eighteenth, which is provable with no external data at all."
+    }
+  ],
+  "expectedAction": "hold"
+}

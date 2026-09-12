@@ -1,0 +1,88 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "payment-marked-sent-is-not-in-the-bank-mirror",
+  "title": "The run says this SPEI went out and the bank statement has no such outflow",
+  "kind": "positive",
+  "notes": "The control nobody demos because it needs the bank mirror to exist. The clerk marked the payment sent five days ago, the statement covers those days and carries other outflows, and this amount is not among them. It is a question about the record, never a statement that somebody took the money: the transfer may simply have been rejected and never re-sent.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-127",
+      "supplierRfc": "SYN282020S30",
+      "cfdiUuids": ["000000ca-0000-4d00-8a00-0000000000ca"],
+      "clabe": "044180200011122239",
+      "amount": 92800.0,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "sentAt": "2026-09-05T16:00:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN282020S30",
+      "legalName": "Estructuras Metalicas Pesqueria SA de CV",
+      "firstInvoiceAt": "2023-04-11T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "044180200011122239",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-05-02T15:30:00.000Z",
+          "timesPaid": 26
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "000000ca-0000-4d00-8a00-0000000000ca",
+        "serie": "A",
+        "folio": "318",
+        "issuedAt": "2026-08-24T15:30:00.000Z",
+        "issuerRfc": "SYN282020S30",
+        "issuerName": "Estructuras Metalicas Pesqueria SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 80000.0,
+        "iva": 12800.0,
+        "total": 92800.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "bankMirror": [
+      {
+        "id": "11111111-0000-4d00-8a00-000000000001",
+        "accountId": "SYN-CUENTA-01",
+        "occurredAt": "2026-09-04T18:00:00.000Z",
+        "amount": 41800.0,
+        "direction": "debit",
+        "source": "seed",
+        "raw": { "synthetic": true }
+      },
+      {
+        "id": "11111111-0000-4d00-8a00-000000000002",
+        "accountId": "SYN-CUENTA-01",
+        "occurredAt": "2026-09-05T18:00:00.000Z",
+        "amount": 17250.0,
+        "direction": "debit",
+        "source": "seed",
+        "raw": { "synthetic": true }
+      },
+      {
+        "id": "11111111-0000-4d00-8a00-000000000003",
+        "accountId": "SYN-CUENTA-01",
+        "occurredAt": "2026-09-06T18:00:00.000Z",
+        "amount": 233900.0,
+        "direction": "credit",
+        "source": "seed",
+        "raw": { "synthetic": true }
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "bank_reconciliation",
+      "state": "requiere_verificacion",
+      "because": "The payment is marked sent and no outflow inside the matching window carries its amount, so either the transfer never left or the mirror is stale, and only a person can say which."
+    }
+  ],
+  "expectedAction": "verify"
+}

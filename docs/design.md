@@ -107,6 +107,50 @@ The lockup lives in `apps/web/src/components/Wordmark.tsx` and is the only place
 the logo is drawn in the app. The header is small on purpose. What a judge
 should be reading is the payment run.
 
+## Screen states
+
+Every screen is designed in four states, not one. The default is the state that
+gets drawn in a mockup; the other three are the states a judge actually hits,
+because the venue wifi is shared with four hundred people and the API is one
+process on one box.
+
+| Screen | Default | Loading | Empty | Error |
+|---|---|---|---|---|
+| Payment run | The week's run, exceptions first, alert rail beside it | Skeleton rows | No instructions this week, with a link to the intake page | Error block with retry, or the synthetic run with the fallback stated on screen |
+| Instruction detail | The instruction, its findings, the decision | Skeleton rows | No findings: the six controls ran and found nothing | Not found, quoting the identifier that was asked for |
+| QR intake | The form | The submit button reports itself busy, and a line says the controls are running | Submitted and clean: the six controls ran, nothing to review | The write failed, with the form still filled in so it can be retried |
+| Article 69-B | The lookup box and the replay control | Busy on both controls | Nothing found for that RFC | The list could not be read |
+| CEP viewer | The CEP, its signature and the name comparison | Skeleton for the registry | No beneficiary verified yet | The CEP could not be fetched or parsed |
+| Metrics | Precision, recall and the false-positive rate per detector | Skeleton | No labelled cases loaded yet | The evaluation could not be computed |
+
+Two rules behind that table. A screen that falls back to synthetic data says so
+on the screen, every time, because a demo that quietly falls back is a demo that
+lies. And an error state always names what failed and offers the retry, because
+"algo salio mal" tells the clerk nothing and tells a judge less.
+
+The empty states are not filler. Three of them are the good outcome: an
+instruction with no findings, a run with nothing held, a supplier with no
+verified beneficiary yet. They are written as answers, not as absences.
+
+## The demo path
+
+The five beats in `docs/10-demo-script.md` map onto these screens with nothing
+left to improvise:
+
+| Beat | Screen | The state it must be in |
+|---|---|---|
+| 1. The payment run | Payment run | Default, with the run loaded and the rail populated |
+| 2. The 69-B replay and a real RFC | Article 69-B | Default, then busy during the replay, then the lookup answering |
+| 3. An instruction arriving by QR | QR intake on the judge's phone, payment run on the projector | Intake busy then answered; the run gains the row over the event stream |
+| 4. The real CEP | CEP viewer | Default, with the signature checked and the names side by side |
+| 5. The metrics | Metrics | Default, with the case count next to every figure |
+
+Beat 3 is the one to protect: it is the only beat where the judge's own action
+produces the change, and it crosses two screens and the event stream. If the
+stream drops, the run screen says the stream is closed and offers to reconnect
+rather than showing a stale table, which is the difference between a recoverable
+beat and a lost one.
+
 ## What this is not
 
 No purple gradient. No emoji, in the interface or in the docs. No illustration.

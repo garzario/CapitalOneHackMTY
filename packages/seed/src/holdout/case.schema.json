@@ -54,7 +54,12 @@
           "items": { "$ref": "#/$defs/satListEntry" },
           "description": "The list rows in force for this case, as if a version had just been published."
         },
-        "cep": { "$ref": "#/$defs/cep" }
+        "cep": { "$ref": "#/$defs/cep" },
+        "bankMirror": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ledgerTx" },
+          "description": "The company's own statement as the bank posted it. Absent means the mirror was not loaded and the reconciliation control says so instead of reading every payment as missing."
+        }
       }
     },
     "expectedFindings": {
@@ -135,8 +140,13 @@
         "amount": { "$ref": "#/$defs/money" },
         "source": { "enum": ["email", "whatsapp", "pdf", "portal", "manual"] },
         "receivedAt": { "$ref": "#/$defs/instant" },
+        "sentAt": {
+          "$ref": "#/$defs/instant",
+          "description": "When the company marked the SPEI as sent. Absent while the payment is still pending, which is what separates not paid yet from paid and missing from the bank mirror."
+        },
         "text": { "type": "string" },
         "imageRef": { "type": "string" },
+        "audioRef": { "type": "string" },
         "ocrConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "synthetic": { "$ref": "#/$defs/synthetic" }
       }
@@ -228,6 +238,14 @@
         "relatedCfdiUuid": { "type": "string" },
         "paidAt": { "$ref": "#/$defs/instant" },
         "paidAmount": { "$ref": "#/$defs/money" },
+        "paymentTotal": {
+          "$ref": "#/$defs/money",
+          "description": "Monto of the Pago node: what left the bank in one transfer. paidAmount is this row's share of it."
+        },
+        "operationNumber": {
+          "type": "string",
+          "description": "NumOperacion. For a SPEI this is the clave de rastreo, which is how the CEP is located at Banxico."
+        },
         "beneficiaryAccount": { "$ref": "#/$defs/clabe" },
         "beneficiaryBankRfc": { "type": "string" },
         "synthetic": { "$ref": "#/$defs/synthetic" }
@@ -252,6 +270,36 @@
         "listVersion": { "type": "string" }
       }
     },
+    "ledgerTx": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "accountId",
+        "occurredAt",
+        "amount",
+        "direction",
+        "source",
+        "raw"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "accountId": { "type": "string" },
+        "occurredAt": { "$ref": "#/$defs/instant" },
+        "amount": {
+          "$ref": "#/$defs/money",
+          "description": "Always positive. direction carries the sign."
+        },
+        "direction": { "enum": ["debit", "credit"] },
+        "merchantId": { "type": "string" },
+        "category": { "type": "string" },
+        "source": { "type": "string" },
+        "raw": {
+          "type": "object",
+          "description": "The original payload, kept verbatim so nothing is lost in normalisation."
+        }
+      }
+    },
     "cep": {
       "type": "object",
       "additionalProperties": false,
@@ -274,12 +322,26 @@
         "amount": { "$ref": "#/$defs/money" },
         "senderName": { "type": "string" },
         "senderBank": { "type": "string" },
+        "senderAccount": { "$ref": "#/$defs/clabe" },
         "beneficiaryName": { "type": "string" },
         "beneficiaryAccount": { "$ref": "#/$defs/clabe" },
         "beneficiaryBank": { "type": "string" },
+        "beneficiaryRfc": {
+          "type": "string",
+          "description": "Beneficiary RFC as the CEP reports it. Banks send NA when they have none."
+        },
+        "concepto": { "type": "string" },
+        "numeroCertificado": {
+          "type": "string",
+          "description": "Serial of the Banxico certificate the sello claims."
+        },
         "signatureValid": {
           "type": "boolean",
           "description": "True only when the XML signature validated against the Banxico certificate."
+        },
+        "signatureReason": {
+          "type": "string",
+          "description": "Why signatureValid is what it is. unconfirmed_scheme reads as not verified in the UI, never as invalid."
         },
         "xml": {
           "type": "string",

@@ -1,0 +1,67 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "sat-69b-presunto-verify",
+  "title": "The supplier was published as presunto nine days before this payment run",
+  "kind": "positive",
+  "notes": "Presunto is a published fact, not a verdict: the taxpayer still has the legal window to answer. The payment is stopped for a person to look, not held as if the deduction were already void.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-101",
+      "supplierRfc": "SYN010303S03",
+      "cfdiUuids": ["00000000-0001-4d00-8a00-000000000001"],
+      "clabe": "030180400099988872",
+      "amount": 111360,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN010303S03",
+      "legalName": "Empaques Flexibles del Bajio SA de CV",
+      "firstInvoiceAt": "2023-03-30T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "030180400099988872",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-06-08T15:30:00.000Z",
+          "timesPaid": 41
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "00000000-0001-4d00-8a00-000000000001",
+        "serie": "A",
+        "folio": "551",
+        "issuedAt": "2026-08-20T15:30:00.000Z",
+        "issuerRfc": "SYN010303S03",
+        "issuerName": "Empaques Flexibles del Bajio SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 96000,
+        "iva": 15360,
+        "total": 111360,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "satEntries": [
+      {
+        "rfc": "SYN010303S03",
+        "name": "EMPAQUES FLEXIBLES DEL BAJIO SA DE CV",
+        "status": "presunto",
+        "publishedAt": "2026-09-01",
+        "listVersion": "2026-09-01"
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "sat_69b",
+      "severity": "warning",
+      "because": "The RFC is on the published list as presunto, which is provable from the DOF, but the fiscal effect of the invoices is not settled until the status is definitivo."
+    }
+  ],
+  "expectedAction": "verify"
+}
