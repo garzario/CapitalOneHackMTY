@@ -165,7 +165,7 @@ path is merged and tested against a stub" into "we ran it". A judge can ask us t
 |---|---|
 | What ran | Two real outbound calls, 2026-09-12 |
 | Agent | `agent_3501m2ah6erkf46rxdmhy4xtsexw` |
-| Dialled from | The team's own imported Twilio number, +52 81 2188 8380 |
+| Dialled from | The team's own imported Twilio number, the imported Twilio number (Monterrey local, kept out of the repository) |
 | Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product |
 | Conversation ids | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
 | The first call | 18 seconds, ended by the remote party, transcript captured |
