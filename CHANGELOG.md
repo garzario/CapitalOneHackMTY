@@ -746,6 +746,16 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- `docs/10-demo-script.md` is true against the app again (issue #79). Beat 2 says seven months of
+  replay because that is what the seeded ledger holds and what the screen shows; beat 5 carries the
+  thirty-five case numbers and stops claiming the labels were written by someone who had not read
+  the controls. The four-minute question is answered by counting rather than by asserting: 405
+  spoken words, 2:42 of talking at 150 words a minute, and a per-beat table showing that beats 3 and
+  4 have under five seconds of slack each and are the two that need a human to physically do
+  something. The checklist gains the boot line to read, because `bun run dev` from the repository
+  root does not hand `SEED` to the API and the fixture it serves instead makes every figure in the
+  file wrong. The same counts were stale in `docs/01`, `07`, `08`, `13`, `14` and the README.
+
 - `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
   read the controls. The controls were merged first, `packages/seed/src/holdout/README.md` has said
   so since #122, and a judge who reads the repository and then hears the stronger claim out loud has
