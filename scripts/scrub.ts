@@ -159,11 +159,6 @@ const ALLOW: Allow[] = [
     why: "the files that state and enforce the no-attribution rule have to name the trailer they block, including the playbook copies that PR #61 moved out of .claude",
   },
   {
-    rule: "attribution",
-    path: /^2b8bbea0212e32d339f5d9ef18e1868a64526d0b$/,
-    why: 'the squash message of PR #224, merged to dev on 2026-09-12 before the commit-msg hook covered the merge path. It carries a "Generated with" line and a Co-authored-by trailer, GitHub wrote it rather than the author, and it is on dev: it cannot be amended without rewriting shared history, which is not a trade worth making during the build night. Recorded here so a NEW violation still fails this gate; the hook in .githooks/commit-msg is what stops the next one',
-  },
-  {
     rule: "hex32",
     /* Spelled with a trailing character class rather than as the literal id, for the
        reason the rules above are: an allow entry written out in full is 32 hex digits
