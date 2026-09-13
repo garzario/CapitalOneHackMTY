@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createExtractor } from "./extraction";
-import { createTestApp } from "./test-app";
+import { createTestApp, writeHeaders } from "./test-app";
 
 /**
  * The test harness protects the whole suite from the environment it runs in, so
@@ -45,7 +45,7 @@ describe("createTestApp", () => {
       const { app } = createTestApp();
       return app.request("/api/v1/seed", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: writeHeaders(),
         body: "{}",
       });
     });

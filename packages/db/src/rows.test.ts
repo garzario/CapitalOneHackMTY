@@ -368,6 +368,28 @@ describe("finding and decision rows", () => {
     expect(subjectIdForStorage("instruction", "INS-Abc")).toBe("INS-Abc");
   });
 
+  it("carries the name and the role of whoever signed the decision", () => {
+    /* Both or neither: the engine's own decision is signed `system` and has no
+       role, and a person's carries the capacity the header said they were acting
+       in, which is what a constancia prints next to the name. */
+    const signed = decisionFromRow({
+      id: "43",
+      instruction_id: "ins-2026w37-08",
+      action: "release",
+      expected_loss: "0.00",
+      delay_cost_per_day: "665.00",
+      decided_at: new Date("2026-09-11T17:00:00.000Z"),
+      decided_by: "Gerardo Villarreal",
+      decided_by_role: "owner",
+      reason:
+        "El proveedor confirmo la cuenta por telefono y la nomina sale hoy.",
+      findings: null,
+    });
+
+    expect(signed.decidedBy).toBe("Gerardo Villarreal");
+    expect(signed.decidedByRole).toBe("owner");
+  });
+
   it("rehydrates a decision with the findings json_agg attached to it", () => {
     const decision = decisionFromRow({
       id: "42",
@@ -377,6 +399,7 @@ describe("finding and decision rows", () => {
       delay_cost_per_day: "665.00",
       decided_at: new Date("2026-09-11T16:30:00.000Z"),
       decided_by: null,
+      decided_by_role: null,
       reason: null,
       findings: [
         {

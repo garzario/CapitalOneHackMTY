@@ -1,4 +1,4 @@
--- packages/db/migrations/0013_cfdi_issue_place.sql  runs on ANY Postgres 16+
+-- packages/db/migrations/0014_cfdi_issue_place.sql  runs on ANY Postgres 16+
 --
 -- `LugarExpedicion`, the postal code a CFDI 4.0 was issued from, which is the only
 -- geography an invoice carries.
