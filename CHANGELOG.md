@@ -593,6 +593,102 @@ then the screens, then the narrative, then the plumbing.
   the statute provides for has not been filed, so the caps and the word guarantee stay out of any
   contract, price list and screen until both have happened.
 
+- The rest of the guarantee menu, eight options with a precedent and a weakness each, and the three we
+  would defend on stage (issue #194, second pass). The team asked for more alternatives than the four
+  layers above, stronger and better defended, so `docs/05-business-model.md` gains "The options, and the
+  one we would defend" inside the same section, written as a menu a judge can push on: every option
+  carries what it costs us, what it needs legally, the precedent with somebody else's document behind it,
+  and the honest weakness, in that order. (a) Guarantee by evidence depth rather than by price, so cover
+  attaches to payments that carried the full chain and the gate is the incentive to use the controls;
+  the precedent is Eftsure, which indemnifies only where its own engine matched the account to the
+  vendor's name and gave the payment a "green thumb" of approval, and the contrast is Ramp, which uses
+  the same audit log to place the loss on the customer. (b) A parametric trigger, with the finding that
+  kills the naive version: the FSI and IAIS paper defines the index as an objective measure "reported by
+  an independent third party (neither the insured nor insurer)", so our own append-only ledger cannot be
+  the index and the Banxico-signed CEP can, which makes the defensible design a two-part trigger, a CEP
+  holder mismatch as the index and the ledger as the audit record, with basis risk named out loud as the
+  known limitation. (c) The reserve, sized, and this is the arithmetic the earlier pass asserted instead
+  of showing: the per-event cap is exactly ten times what one company accrues to the reserve in a year,
+  because one is twelve months of fees and the other is a tenth of twelve months of fees, so the
+  break-even claim rate is 10.0 events per 100 companies a year at every tier and therefore at every
+  mix, against the 5.22 fraud events per 100 economic units INEGI publishes, 1.92 times of headroom,
+  with the whole table at 300, 1,000 and 3,000 companies pricing every ENVE event as if it qualified.
+  The same option names where it breaks, which is severity and not frequency: the direct cap is 4.61
+  times the channel cap, so in an adverse mix the break-even falls to 3.74 per 100, below the published
+  incidence, an overrun of MXN 48,052 at 300 companies and MXN 480,521 at 3,000, and three unexpected
+  direct events empty a 300-company reserve against twenty-nine at 3,000, which is why the tail matters
+  in year one and not in year three. It also refuses the word reinsurance, because reinsurance is cover
+  an insurer buys and we are not one. (d) The insurance layer done right, with the product class named,
+  funds transfer fraud and social engineering, and the pitch that writes itself: in Abraham Linc Corp.
+  v. Spinnaker Ins. Co. a claim went to discovery over whether the insured had followed an "established
+  and documented verification procedure" and it had "no documented procedure or protocol", only an
+  "unwritten protocol" of email, so we do not compete with the endorsement, we are the condition
+  precedent that makes it payable, and we hand the client the sublimit problem in writing, USD 100,000
+  against a USD 2,000,000 endorsement on a real policy and a published market range of USD 25,000 to
+  USD 250,000. Travelers' own coverage highlights admit the control the market demands is spoofable,
+  that a fraudster can amend the phone number in the email panel so the callback reaches them, which is
+  the setup for the one-centavo CEP probe, since the attacker does not hold Banxico's signing key. The
+  same option corrects how this route had been described internally: under article 102 LISF we are
+  **not** a licensed promoter, because that article is precisely the route that needs no agente de
+  seguros licence, and it comes with a services contract registered with the CNSF beforehand, CNSF
+  inspection of those operations, and article 104 making the insurer liable for our conduct in the
+  channel, which is a reason an insurer may refuse it. (e) The bank-embedded route, where the precedent
+  is a mandate rather than a product: the United Kingdom has required capped reimbursement for
+  authorised push payment fraud since 7 October 2024, split 50/50 between sending and receiving firm,
+  two exceptions only, five business days, GBP 100 maximum excess, no minimum claim, a 13-month window
+  and a GBP 85,000 cap, covering microenterprises and charities as well as individuals, and the
+  published returns are 88 percent of in-scope money lost reimbursed over eighteen months with 3 percent
+  of claims rejected for the customer not taking enough care. The moral hazard objection is answered with
+  a regulator's independent evaluation rather than intuition: APP fraud losses fell by about GBP 73
+  million a year with nearly 35,000 fewer scams, a short-term net benefit of GBP 17 million to GBP 29
+  million the evaluators call conservative, and "no evidence of market exits or reckless consumer
+  behaviour". The honest caveat rides in the same breath, that the regime's microenterprise is fewer than
+  ten employees and EUR 2 million so our 11 to 250 person persona sits outside its scope, and that Mexico
+  has no equivalent duty at all. (f) Claim assistance, which promises effort and evidence and never
+  recovery, and it rests on a finding that makes it urgent: Condusef's electronic channel is closed to
+  exactly this loss by its own published rules, because it cannot take a complaint involving more than
+  one financial institution or one where no contractual relationship with the institution is shown, so a
+  company discovers on the worst day that it needs an in-person appointment and, as a persona moral, a
+  notarial instrument, with the LPDUSF's procedural deadlines behind it and no deadline to pay anything.
+  The packet is the `carta`, the two constancias and the CEP, the window is short because the first 48
+  hours often decide whether stolen funds come back, and the baseline is stated rather than improved on
+  paper: one peso in four comes back today and we have no measurement of what a better file changes
+  about that. (g) Priority verification for the opposite error, the cent and the call attempted first
+  inside a published window for a line the owner marks urgent, with the month credited when we miss,
+  on top of the bound and the named release that already exist, and the weakness volunteered, that no
+  urgent field exists in the domain today, the queue behind it is a founder and not a rota, and no SLA
+  makes a supplier answer the telephone. (h) The legal floor, liability capped at the fees paid in the
+  preceding twelve months with the person's decision as the last act, which is above the Mexican
+  market's own floor rather than a retreat from it, and where the one thing nobody read is routed rather
+  than guessed: what a Mexican court would look at when asked to enforce or set aside such a cap in a
+  business-to-business contract of adhesion is not answered anywhere in this repository. The closing
+  ranking is explicit: (a), (b), (c) and (g) today with (f) shipping alongside and (h) underneath, (d)
+  as the partnership within twelve months of paying customers, (e) as the bank route we ask for and have
+  not got, and (d) named as the strongest option while (c) is the one we can do this week. Seventeen
+  sources, 75 to 91, all opened 2026-09-12 in the evening, and two of them correct earlier entries in
+  the same list rather than arguing with them: Eftsure's guarantee page opened after the afternoon's
+  redirect loop turned out to be a region cookie, so [60]'s sentence that nothing could be attributed to
+  Eftsure is superseded by [79] and the comparables table now reads that one vendor does publish a capped
+  indemnity; and Howden México is the first Mexican page found that offers cover for this loss, a broker
+  and not an insurer, saying in its own words that many policies will not cover it "porque el pago se ha
+  realizado legítimamente: a ojos del banco, es real". `docs/12-judge-qa.md` subsection 8 is rewritten
+  around it: a thirty-second spoken answer naming the three things that pay today and the precedent, two
+  follow-on blocks for the opposite error and for the reserve arithmetic, thirteen rows of what may be
+  said with the source against each, and a "do not say" list whose first two entries are the two things
+  the team had been saying loosely, that we would be a licensed promoter of insurance and that we would
+  reinsure the tail. Neither is true and both are corrected here rather than on stage. Nothing in the
+  menu has been reviewed by counsel, the article 20 consultation is still unfiled, and two of the eight
+  options end in a routed question instead of an answer. One consequence of merging #201 into this branch
+  is restated rather than left stale, because it lands inside this same section: the blind evaluation grew
+  from thirty labelled cases to thirty-five, so the false-finding share is 3 of the 23 findings it raised
+  and not 3 of 20, 13.0 percent and not 15, which moves the layer 4 projection to about 41 wrongly
+  stopped payments a year, about 68 days of wrong delay, MXN 24,000 at the median supplier price and MXN
+  46,900 at the mean, 2.2 to 4.3 times the annual subscription rather than two and a half to five, and
+  MXN 44 per event rather than MXN 38 for a company wrongly stopped every time. The credibility bullet
+  now carries the run's own figures, 87.0 percent precision, 83.3 percent recall, 1.6 percent false
+  positives and 33 of 35 on action agreement, and points at the level matrix that arrived with it,
+  because `confiable` right on twelve of twelve is the row a guarantee actually rides on.
+
 ### Changed
 
 - `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
