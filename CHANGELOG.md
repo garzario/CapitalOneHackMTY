@@ -531,12 +531,12 @@ then the screens, then the narrative, then the plumbing.
   is the rule, keyed on the instant the CEP landed so it fires once per document rather than on every
   step the machine takes afterwards, and never for the offline run, where no row reached any registry.
 - Stale counts that a judge checks in five seconds. `README.md` claimed 1023 tests across 59 files and
-  `docs/01-rubric-mapping.md` claimed 1,467 across 87; the suite is 1,623 tests across 95 files with no
-  network, no database and no key, with 109 database cases that skip. `apps/api/README.md` told the
-  reader to run the Postgres half as `TEST_DATABASE_URL=... bun test` over the whole tree: six files
-  share that one database and each migrates and empties it in its own `beforeAll`, so a whole-tree run
-  fails somewhere different every time. It now says one workspace at a time, which is what was
-  verified: `bun test apps/api` against local PostgreSQL 18.6 is 237 tests green.
+  `apps/api/README.md` claimed 163 in its workspace; the suite is 1,670 tests across 97 files with no
+  network, no database and no key, with 111 database cases that skip. `apps/api/README.md` also told
+  the reader to run the Postgres half as `TEST_DATABASE_URL=... bun test` over the whole tree: six
+  files share that one database and each migrates and empties it in its own `beforeAll`, so a
+  whole-tree run fails somewhere different every time. It now says one workspace at a time, which is
+  what was verified: `bun test apps/api` against local PostgreSQL 18.6 is 246 tests green.
 
 - The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
   synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the

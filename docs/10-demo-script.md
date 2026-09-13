@@ -25,10 +25,12 @@ Beat 1 and beat 3 are stage 3 of `docs/03-user-journey.md`, the moment that is t
 is the one to protect if time is lost, because a judge who sent the instruction themselves does not
 need to be convinced that the product runs.
 
-`bun run demo` checks six things rather than these five, and the extra one is a split and not a
-sixth beat: it asserts the CEP parser and the name comparison on their own before it runs the cent
-through the pipeline, because a document that fails to parse and an account that fails to match are
-two different failures and the headless check says which. On stage they are one screen.
+`bun run demo` checks seven things rather than these five, and neither extra one is a beat this
+sheet is missing. It asserts the CEP parser and the name comparison on their own before it runs the
+cent through the pipeline, because a document that fails to parse and an account that fails to match
+are two different failures and the headless check says which, while on stage they are one screen;
+and it puts the consortium network into a decision offline, which on stage is the chip inside beat
+3 rather than a stop of its own.
 
 ### Walk-up variants, because judging is continuous
 

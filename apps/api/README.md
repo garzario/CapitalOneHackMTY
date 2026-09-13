@@ -135,7 +135,7 @@ wrong and it is cheaper to fix it than to work around it.
 ```
 bun install --frozen-lockfile
 bun run --filter '@hackmty/api' dev      # http://localhost:3000
-bun test                                 # 200 tests, no socket, no database
+bun test                                 # 209 tests, no socket, no database
 bun run typecheck
 
 TEST_DATABASE_URL=postgres://localhost:5432/sentryone_test bun test apps/api   # and the Postgres suite
