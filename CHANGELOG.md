@@ -457,6 +457,70 @@ then the screens, then the narrative, then the plumbing.
   states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
   where the line between "no verificada" and "invalida" is drawn.
 
+- What a client gets when the product is wrong, on both sides of the error, and the law that decides
+  how any of it may be written (issue #194). A second Capital One panel asked on the evening of
+  2026-09-12 whether the subscription should include an insurance policy covering losses up to an
+  amount per tier, phrased as "you mark a payment as safe and it turns out to be fraud".
+  `docs/05-business-model.md` gains "When a released payment is fraud: what the client gets", four
+  layers at four stages of maturity, and the premise is corrected before anything is promised: `Action`
+  in `packages/core/src/domain.ts` is `hold`, `verify` or `release` and there is no fourth value
+  meaning safe. Layer 1 exists today and is evidence rather than safety: the six controls and their
+  findings from `runControls`, the CEP holder name when it was obtained with `not_checked` never
+  dressed up as a pass, and the append-only `LedgerEvent`, which together are the file a client takes
+  to its bank, to an insurer or to the SAT inside the thirty-day window article 69-B opens. Layer 2 is
+  the commitment we can fund ourselves and it is labelled a proposal: four weeks of shadow mode at no
+  charge, a service credit, and a make-whole capped at the lower of twelve months of the tier and the
+  fees actually paid, MXN 10,788 direct and MXN 2,340 per client company through a firm, funded by
+  reserving 10 percent of collected subscription revenue. That reserve costs ten points of gross
+  margin, accrues one full cap per ten paying companies per year, and therefore stays solvent only
+  while qualifying events run at or below 10 percent of accounts a year, which is why the contract has
+  to cap the make-whole by the reserve balance as well as per company. It attaches only when all six
+  controls ran, the seal was `valid` and `nameMatch` was `match`, and the release was signed
+  `SYSTEM_DECIDER`, never after a person's override, so today almost nothing would qualify:
+  `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal reads `not_checked` until
+  the real Banxico certificate lands. Layer 3 is the insurance layer, which only an authorised insurer
+  may write and where our asset is the underwriting input nobody else brings. Layer 4 answers the error
+  the panel did not ask about and a payables desk meets every week, a legitimate payment held: the
+  delay is bounded by `HOLD_WINDOW_DAYS` in `packages/core/src/hold.ts`, which is the same
+  `EXPECTED_DELAY_DAYS` the expected loss was weighed against, three days for a hold and one for a
+  verification, the owner ends it whenever they want under their own name and written reason through
+  `POST /api/v1/instructions/:id/decide`, and the day already carries a price per supplier,
+  `Supplier.delayCostPerDay` from `packages/seed/src/sentryone/delay-cost.ts`, MXN 101.98 to MXN
+  4,611.27 across the 44 suppliers with a median of MXN 353.13. The proposed remedy is a service credit
+  against the next invoice at that price, capped at one month of the tier per event and two months per
+  rolling twelve months, MXN 1,798 direct and MXN 390 through a firm, leaving 66 percent gross margin
+  direct and 41 percent through a firm in the worst case where every account claims the whole cap every
+  year. What makes that layer worth reading is the arithmetic that rules out the obvious version of it:
+  6 of 92 lines stopped on the seeded run, 3 of the 20 findings the blind evaluation raised were false,
+  so about 78 days of wrong delay a year, MXN 27,500 at the median supplier price and MXN 53,800 at the
+  mean, against MXN 10,788 of annual subscription. Paying the full priced delay is two and a half to
+  five times the price, so it is not a commitment, it is an arithmetic error, and the cap is stated
+  with what it does not reach: on the most expensive line of the run it pays 8.8 percent of a three-day
+  hold. `docs/06-regulatory-privacy.md` gains section 2.2 with the law behind all four layers, read in
+  the texto vigente of the Ley de Instituciones de Seguros y de Fianzas on 2026-09-12. Article 20
+  reserves any operación activa de seguros to authorised Instituciones and Sociedades Mutualistas and
+  defines one as obliging oneself, against the payment of a sum of money, to repair a damage or pay a
+  sum of money should a future and uncertain event occur, which is what a payout on fraud would be;
+  article 24 makes a contract concluded against it produce no legal effect at all; article 495,
+  fracción I attaches three to fifteen years of prison and a fine; articles 91 and 93 reserve
+  intermediation to authorised agentes de seguros; and article 102 is the one lawful channel, a
+  contrato de adhesión contracted through a persona moral whose service contract is registered with the
+  Comisión in advance and which is then subject to its inspection. That is why every commitment here is
+  a price remedy against our own fees rather than an indemnity, why the delay credit is applied against
+  the next invoice, and why no proof of loss is asked: paying against evidence of a lost sale would be
+  resarcir un daño, the verb article 20 uses. Ten more sources, all opened 2026-09-12, are quoted
+  rather than characterised: Trustpair indemnifies with no amount, condition or exclusion on the page
+  and sells to the largest corporations in the world, nsKnox publishes only website terms that cap
+  liability at what the user paid it, Eftsure answered a redirect loop so nothing is attributed to it,
+  Verificamex takes "el más amplio deslinde de responsabilidad que en derecho proceda", and of the
+  three Mexican policies we opened the closest wording, BBVA's `Fraude Digital` for PyME, excludes our
+  loss twice, because our transfer is authorised by the client's own clerk from the bank's own portal.
+  `docs/12-judge-qa.md` gains subsection 8 of "Second table of 12 September" with the thirty-second
+  spoken answer and the five gaps to volunteer, and the ten sources this work opened are numbered 57 to
+  66, continuing the sequence `docs/04-market.md` and `docs/05-business-model.md` share. Nothing here has been reviewed by counsel and the article 20 consultation
+  the statute provides for has not been filed, so the caps and the word guarantee stay out of any
+  contract, price list and screen until both have happened.
+
 ### Changed
 
 - A second Capital One panel came to the table on the evening of 2026-09-12, said the project was

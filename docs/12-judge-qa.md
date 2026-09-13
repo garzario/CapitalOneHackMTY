@@ -591,13 +591,17 @@ the thing that measures it.
 ## Second table of 12 September
 
 A second Capital One panel came to the table on the evening of 2026-09-12. They said the project was
-interesting, which the first table had not, and then asked the one thing the section above answers in
-categories instead of in counts: **narrow the market, and say exactly who sells this and through which
-channel.** Issue #193. The rule of the section above applies here unchanged, and this answer is written
-to it: the counts are counted and reproducible, the two conversion rates behind the plan are labelled as
-assumptions with nothing behind them, and nothing anybody has not agreed to is described as agreed.
+interesting, which the first table had not, and then asked more than one thing. The rule of the
+section above applies here unchanged and every answer is written to it: the counts are counted and
+reproducible, every rate that is not a count is labelled as an assumption, nothing anybody has not
+agreed to is described as agreed, and the honest gap is volunteered in the same breath rather than
+defended when it is found. The issue number is on each subsection, and a bracketed source above 48 is
+owned by `docs/05-business-model.md#sources`, which continues the same sequence as
+`docs/04-market.md#sources` so that one number means one document everywhere.
 
 ### 7. "Esta interesante. Ahora acota el mercado, y dinos exactamente quien lo vende y por cual canal"
+
+Issue #193.
 
 **Thirty seconds.**
 
@@ -645,6 +649,74 @@ ENAFIN tabulados render as a JavaScript shell, so it is a hypothesis with a meas
 sweep and 1 in 4 exposed sweeps becoming a paying company, have no benchmark behind them at all. They are
 the first two things the first ten accounts will falsify, which is why the stop condition is written
 against the hit rate instead: a month of work can measure that one.
+
+### 8. "You mark a payment as safe and it turns out to be fraud. What does the client get?" (#194)
+
+Asked with a second half: should the subscription include an insurance policy covering losses up to an
+amount per tier.
+
+> El producto nunca dice seguro. Retiene, verifica o libera, y cada liberacion lleva la evidencia de
+> los seis controles, el nombre de quien decidio y su razon, en una bitacora que solo crece. Eso es lo
+> primero que tiene el cliente cuando nos equivocamos, y es el expediente que lleva a su banco, a un
+> asegurador o al SAT dentro de los treinta dias del 69-B. Encima va lo que si podemos fondear: cuatro
+> semanas en modo sombra sin cobrar, credito de servicio, y un make whole con tope de doce meses de
+> suscripcion, 10,788 pesos, nunca mas de lo que nos pago y solo si corrieron los seis controles y la
+> liberacion fue del motor. La poliza de verdad la escribe una aseguradora autorizada, porque la ley
+> de seguros nos prohibe suscribirla y lo castiga con prision. Nuestro papel ahi es el insumo de
+> suscripcion que hoy ninguna aseguradora recibe de una empresa de veintiocho personas.
+>
+> Y el error contrario, que es el que se siente cada semana: si retenemos un pago bueno, el retraso ya
+> esta acotado, tres dias de retencion y uno de verificacion, que es exactamente el retraso que la
+> decision cobro. El responsable del pago libera cuando quiera, con su nombre y su razon escrita. Y el
+> dia ya tiene precio por proveedor, de 101.98 a 4,611.27 pesos, asi que sobre ese precio proponemos
+> credito de servicio con tope de un mes por evento. Las capas dos, tres y cuatro son propuestas por
+> validar con abogado. La primera ya existe en el producto.
+
+Correct the premise in one sentence and then answer anyway, because the question under it is real.
+`Action` in `packages/core/src/domain.ts` is `hold`, `verify` or `release` and there is no fourth value
+meaning safe. The four layers and their arithmetic are in
+`docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets` and the law is in
+`docs/06-regulatory-privacy.md#22-what-we-may-promise-when-a-released-payment-turns-out-to-be-fraud`.
+
+Rests on: the evidence layer is `runControls` in `packages/engine/src/index.ts` and the append-only
+`LedgerEvent` in `domain.ts`, where `decision_made` carries the action, the expected loss, the
+findings, `decidedBy` and `reason`. The prohibition is article 20 of the Ley de Instituciones de
+Seguros y de Fianzas, which reserves any operación activa de seguros to authorised insurers, with
+article 24 voiding a contract written against it and article 495, fracción I attaching prison, read in
+the texto vigente on 2026-09-12. The lawful distribution channel is article 102, a contrato de
+adhesión contracted through a persona moral with the service contract registered with the CNSF. The
+bound on a false positive is `holdWindow` in `packages/core/src/hold.ts`, whose `HOLD_WINDOW_DAYS` is
+the same `EXPECTED_DELAY_DAYS` the expected loss was weighed against, and the way out is
+`POST /api/v1/instructions/:id/decide` with `decidedBy` and `reason`. The price of a day is
+`Supplier.delayCostPerDay` from `packages/seed/src/sentryone/delay-cost.ts`, MXN 101.98 to MXN
+4,611.27 across the 44 suppliers, median MXN 353.13, read off `bun run demo`.
+
+Five gaps to volunteer, in this order, because each one is cheaper said than found.
+
+- **Nothing here has been reviewed by counsel and the statute says who decides the question.** Article
+  20, last paragraph, has the Secretaría, hearing the Comisión, resolve consultations on whether an
+  operation is an operación activa de seguros. That consultation has not been filed, so the cap and the
+  word guarantee stay out of any contract, price list or screen, and every figure is said as a
+  proposal. `TODO(FabriBanda)`.
+- **Almost nothing would qualify for the make-whole today, and that is deliberate.** It turns on a
+  complete control set with a CEP whose holder name matched under a seal that validated, and
+  `beneficiary_cep` reads 0.0 percent in the blind evaluation while the seal reads `not_checked` until
+  the real Banxico certificate lands (#57). The commitment turns on when the evidence is complete and
+  not a day earlier.
+- **The market answer is specific and it is not "nobody does this".** Trustpair publishes an indemnity
+  with no amount, no condition and no exclusion on the page, and sells it to "over 400 of the world's
+  largest corporations" [57]. Verificamex, the Mexican comparable, takes the opposite position and has
+  the user grant it "el más amplio deslinde de responsabilidad que en derecho proceda" [61]. A capped
+  commitment at this price is therefore a differentiator and not table stakes.
+- **No Mexican insurer page we opened prices this loss.** The closest wording, BBVA's `Fraude Digital`
+  for PyME, excludes it twice: our loss is a transfer the client's own clerk authorised from the bank's
+  own portal with no OTP handed to anybody, and the cover requires the opposite of both [65]. Say the
+  policy does not exist off the shelf yet.
+- **The false-positive cap is priced on synthetic data and the screen is not ready for it.** Six of 92
+  lines stopped on one generated run and three of twenty findings were false over thirty labelled
+  cases, which is what shadow mode replaces. And the screens still send a fixed `clerk@demo` without
+  asking for the reason before an override, so a release under a named person is an API fact and not
+  yet a screen fact (#174).
 
 ## Rules for this sheet
 

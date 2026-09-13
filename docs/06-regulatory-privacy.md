@@ -43,6 +43,11 @@ that did not.
   de Protección y Defensa al Usuario de Servicios Financieros enumerates what counts as one, and
   software sold to a payer is not on the list. The complaint path about a transfer stays with the
   user's bank.
+- **We are not an insurer and we do not intermediate insurance.** The make-whole and the delay credit
+  proposed in `docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets` are
+  capped against our own fees, never indemnity of the client's loss, and the insurance layer above
+  them is written by an authorised insurer. Section 2.2 carries the four articles that make that
+  distinction the whole design rather than a preference.
 - **No automated adverse action.** Nothing declines, blocks, scores down or reports anyone without a
   person deciding. That one design rule removes most of the regime we would otherwise be inside, and
   section 5 shows it is enforced by the domain types rather than by a promise.
@@ -65,6 +70,7 @@ for them.
 | CONDUSEF, Ley de Protección y Defensa al Usuario de Servicios Financieros (DOF 18-01-1999, last reform DOF 14-11-2025) | Protection of users of financial services, transparency, and the complaint process | Not as built. Art. 2, fr. IV does not list software vendors among Instituciones Financieras | Clear terms, no misleading claims, and a named path for a user who disagrees. The disclaimer in the README and the UI footer carries this in the prototype |
 | LFPDPPP (nueva ley DOF 20-03-2025, last reform DOF 14-11-2025) | Personal data held by private parties: aviso de privacidad, consent, purpose limitation, retention, ARCO, transfers | Yes, in production. Not in the prototype, which holds no real personal data | The whole of section 4. Note the regulator changed: art. 2, fr. XV defines Secretaría as the Secretaría Anticorrupción y Buen Gobierno, not INAI |
 | Ley para Regular las Sociedades de Información Crediticia | Consultation and reporting of credit behaviour, and the consent a consultation needs | No. We are not a SIC, we consult none and we report to none | If a lending partner ever consults a bureau, the consent and the decision are theirs, and that boundary is written into the referral flow rather than assumed |
+| Ley de Instituciones de Seguros y de Fianzas (nueva ley DOF 04-04-2013, last reform DOF 14-11-2025) | Who may underwrite insurance in Mexico, who may intermediate it, and what counts as an operación activa de seguros | Not as built, and it would the moment we promised money on an uncertain event. The commitment in `docs/05` is a credit and a refund of our own fees, and the loss layer belongs to an authorised insurer | Art. 20 reserves the practice to authorised Instituciones and Sociedades Mutualistas, art. 23 also prohibits offering or intermediating one, art. 93 makes an intermediary need a CNSF authorisation, and art. 495 fr. I attaches three to fifteen years of prison. Section 2.2 |
 | Código Fiscal de la Federación, arts. 69, 69-B and 69-B Bis (last reform DOF 09-04-2026) | Fiscal confidentiality and its exceptions, presumption of non-existent operations, and improper transfer of tax losses | Yes, as the data source and as the risk we quantify | Sections 2.1 and 3. The list is published by order of the statute, which is what makes reading it lawful and what makes the exposure real |
 | Código Fiscal de la Federación, arts. 49 Bis, 17-H Bis fr. XIV, 29-A fr. IX and 113 Bis, all added or reformed by the decree DOF 07-11-2025 and in force from 1 January 2026 | The express visit that determines a taxpayer's CFDI are false, the publication of that taxpayer, the buyer's thirty natural days to correct, the restriction of the buyer's own digital seal when they do not, and the two-to-nine-year penalty for giving fiscal effect to a false CFDI | Yes, as a second data source and a second clock | Section 3.3. It is the newest half of the fiscal hook and the one that points at our own user rather than at the supplier |
 | PCI DSS | Card data handling | Not applicable as built, and we behave as if it were | Never store a PAN. Nessie's `account_number` is synthetic and is still treated as sensitive: never logged, never in a screenshot, never in an issue |
@@ -96,6 +102,89 @@ The chain is four steps and every step is in a statute.
 So checking a supplier RFC against the 69-B list needs no consent from the supplier. What that chain
 does not authorise is anything else: it is a licence to read a published fact, not a licence to
 publish a conclusion about the person named in it. Section 7 is the operational consequence.
+
+### 2.2 What we may promise when a released payment turns out to be fraud
+
+A second Capital One panel asked on the evening of 2026-09-12 whether the subscription should include
+an insurance policy covering losses up to an amount per tier. The commercial answer, in four layers,
+is in `docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets`, the fourth of
+them for the opposite error, a legitimate payment the product held. This is the
+legal half of it, read in the Ley de Instituciones de Seguros y de Fianzas, texto vigente, nueva ley
+DOF 04-04-2013, last reform DOF 14-11-2025, on 2026-09-12. The articles are the statute's own
+numbering.
+
+**Only an authorised insurer may underwrite.** Article 20, first paragraph: "Se prohíbe a toda persona
+física o moral distinta a las Instituciones de Seguros y Sociedades Mutualistas autorizadas en los
+términos de esta Ley, la práctica de cualquier operación activa de seguros en territorio nacional."
+That authorisation comes from the Federal Government and article 11 gives it to the Comisión to grant
+discretionally, with prior agreement of its Junta de Gobierno, and says the authorisations are
+intransmissible. Article 2, fracción VI defines Comisión as the Comisión Nacional de Seguros y
+Fianzas. So there is no version of this where we borrow, rent or buy somebody's authorisation.
+
+**What counts as the reserved activity, which is the sentence that shapes our commitment.** Article
+20, second paragraph: "se considera que se realiza una operación activa de seguros cuando, en caso de
+que se presente un acontecimiento futuro e incierto previsto por las partes, una persona, contra el
+pago de una cantidad de dinero, se obliga a resarcir a otra un daño, de manera directa o indirecta o a
+pagar una suma de dinero." Read that against a subscription that pays out when a released payment
+turns out to be fraud and the resemblance is the point rather than a technicality. The third paragraph
+carves out selling goods or services forward, but only "cuando el cumplimiento de la obligación
+convenida, no obstante que dependa de la realización de un acontecimiento futuro e incierto, se
+satisfaga con recursos e instalaciones propias de quien ofrece el bien o el servicio y sin que se
+comprometa a resarcir algún daño o a pagar una prestación en dinero". The exception therefore holds
+while we stay inside our own service and stops the moment we commit to indemnify a damage or to pay a
+sum of money.
+
+**The product rule that follows, and it is a design rule and not a disclaimer.** The early-phase
+commitment is written as shadow mode, a service credit and a refund capped at the fees the client
+actually paid us, because returning our own consideration is a price remedy. It is never written as a
+payment sized to the client's loss. The difference is not cosmetic: article 24 says contracts
+concluded against article 20 "no producirán efecto legal alguno", so a guarantee drafted the wrong way
+is worth nothing to the client who relied on it, and article 495, fracción I punishes practising an
+operación activa de seguros, or acting as an intermediary in one, with "prisión de tres a quince años
+y multa de 5,000 a 20,000 Días de Salario". A promise that voids itself and criminalises the promiser
+is not a commercial risk we are willing to run for a nicer slide.
+
+**The same boundary draws the credit for a delay we caused.** The fourth layer in `docs/05` pays a
+service credit when the product held a payment that was fine, and it is written the same way round for
+the same reason. The credit is the days the payment sat times a price we published ourselves,
+`Supplier.delayCostPerDay`, capped at the subscription, and it is applied against the next invoice
+rather than paid out. No proof of loss is asked, and that is a legal design choice before it is a
+commercial courtesy: asking the client to evidence a lost sale and then paying against that evidence is
+resarcir un daño, which is the verb article 20 uses, and it would turn a discount on our own price into
+the reserved activity. The third paragraph of article 20 holds while the obligation is satisfied "con
+recursos e instalaciones propias de quien ofrece el bien o el servicio", and a credit against our own
+invoice is exactly that.
+
+**The question is answerable rather than a matter of opinion, and the statute says who answers it.**
+Article 20, last paragraph: "La Secretaría, oyendo la opinión de la Comisión, podrá establecer
+criterios de aplicación general conforme a los cuales se precise si una operación, para efectos de
+este artículo, se considera operación activa de seguros, y deberá resolver las consultas que al efecto
+se le formulen." `TODO(FabriBanda)`: the make-whole is labelled a proposal in `docs/05` precisely
+because this consultation has not been filed and counsel has not reviewed the wording. Neither the
+cap nor the word guarantee goes into a contract, a price list or the UI before both have happened.
+
+**Intermediating somebody else's policy is also reserved.** Article 91, second paragraph, reserves the
+intermediation of insurance contracts that are not contratos de adhesión "exclusivamente a los agentes
+de seguros", and article 93 requires the Comisión's authorisation to act as one, intransferible by its
+own terms. So SentryOne cannot sell, quote or advise on a policy either.
+
+**The one lawful channel, and it comes with a filing and a supervisor.** Article 102 allows insurance
+formalised through contratos de adhesión, other than social-security pensions and caución, to be
+contracted "a través de una persona moral, sin la intervención de un agente de seguros". The insurer
+may pay that persona moral for services other than the ones the law reserves to agents, the text of
+that service contract must be registered with the Comisión beforehand, which has fifteen business days
+to refuse it and may order corrections, and the persona moral is then "sujeta a la inspección y
+vigilancia de la Comisión" for those operations. That is the shape of the year-two insurance layer:
+an authorised insurer underwrites, SentryOne's evidence is the underwriting input, the distribution
+contract is registered with the CNSF, and we accept being inspected for that part. It is a real path,
+it is not a hackathon path, and saying so is the honest version of the answer.
+
+**What we did not verify.** Whether any Mexican insurer underwrites the specific loss, a transfer the
+client's own clerk authorised from the client's own banking portal to an account that turned out to
+belong to somebody else. The three Mexican wordings we opened are listed in `docs/05`, and the one
+that comes closest excludes both halves of it. We also did not read the Ley sobre el Contrato de
+Seguro today, so nothing here is asserted about what may be insured or about the insurable interest.
+`TODO(FabriBanda)`: read it with counsel in the same session as the article 20 consultation.
 
 ## 3. What Articles 69-B, 69-B Bis and 49 Bis actually say
 
@@ -702,6 +791,7 @@ All read on 2026-09-12. Statutes are the texto vigente published by the Cámara 
 | Ley Federal de Protección de Datos Personales en Posesión de los Particulares, nueva ley DOF 20-03-2025, last reform DOF 14-11-2025, arts. 2, 5 to 12, 15, 21 to 33, 35, 36 | Sections 2, 2.1 and 4 |
 | Ley para Regular las Instituciones de Tecnología Financiera, DOF 09-03-2018, last reform DOF 14-11-2025, arts. 1, 3, 15, 22, 76, 77 | Sections 1 and 2 |
 | Ley de Protección y Defensa al Usuario de Servicios Financieros, DOF 18-01-1999, last reform DOF 14-11-2025, art. 2 | Sections 1 and 2 |
+| Ley de Instituciones de Seguros y de Fianzas, nueva ley DOF 04-04-2013, last reform DOF 14-11-2025, arts. 2 fr. VI, 11, 20, 23, 24, 91, 93, 102 and 495. `https://www.diputados.gob.mx/LeyesBiblio/pdf/LISF.pdf`, retrieved 2026-09-12 at 19:38 local, 2,184,319 bytes | Sections 1, 2 and 2.2 |
 | Banco de México, CEP consultation portal, `https://www.banxico.org.mx/cep/`, including its exención de responsabilidad and its consultation hours | Section 4.3 |
 | Banco de México, CEP validator, `https://www.banxico.org.mx/validador-cep-spei/`, including the 45 business day validation window | Section 4.3 |
 | Gemini API pricing, paid tier, `https://ai.google.dev/gemini-api/docs/pricing` | Section 6.3 |
