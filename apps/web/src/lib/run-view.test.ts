@@ -78,6 +78,13 @@ function run(items: PaymentRunItem[]): PaymentRun {
       held: 999,
       toVerify: 999,
       released: 999,
+      heldAmount: 999,
+      toVerifyAmount: 999,
+      releasedAmount: 999,
+      stoppedAmount: 999,
+      amountAtRisk: 999,
+      retroactive69bBase: 999,
+      retroactive69bExposure: 999,
     },
     items,
   };

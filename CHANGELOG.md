@@ -550,6 +550,57 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- The API and the offline fallback of the web app were two different companies, so one RFC could carry
+  two legal names on one screen (issue #125). `apps/web/src/lib/mock.ts` held a hand-written run of
+  eight suppliers while the API booted the generated company from `@hackmty/seed`, and the two
+  disagreed about the legal name of every RFC they shared. The supplier drawer is where it showed: the
+  table row renders from the run payload and the drawer fetches `GET /api/v1/suppliers/:rfc`
+  separately, so when one of the two calls fell back and the other did not, one RFC named two companies
+  at the same time. The expensive version of the same bug is the API dropping mid-demo, when every name
+  on the projector changes at once. There is one dataset now. `bun run web:mock`
+  (`scripts/web-mock.ts`) writes `apps/web/src/lib/mock-data.ts` out of `loadSentryOne` at seed 69 for
+  the week of 2026-09-07, runs the same `assessRun` the API runs at boot at `runInstant(runDay)`, and
+  composes what a repository composes rather than stores through `MemoryRepository` itself: the run
+  totals through `runMoney`, the SAT version summaries, the blind holdout metrics and the priced
+  retroactive sweep. The three things the run does not carry are each built with the package that owns
+  it and marked in the output: the consortium signal, the CEP of a one-cent probe, and the five
+  one-cent verification states the API folds out of its ledger. `mock.ts` keeps the three jobs a
+  generated file should not do, which is composing the endpoint payloads, deriving the totals again
+  through `totalsFor` after a decision is applied with no API, and saying what is deliberately not one
+  for one with the API. The data is generated ahead of time and committed because the browser bundle
+  cannot import `@hackmty/seed`: it reaches `node:fs` through `@hackmty/sat` and `node:crypto` through
+  `@hackmty/consortium`, so a build-time import would either break the browser build or add a
+  dependency `apps/web` must not have. `scripts/web-mock.test.ts` is what makes "generated" mean
+  something. It regenerates the file and compares it byte for byte, and it boots a `MemoryRepository`
+  on the same company to assert that both sides answer the same legal name for all 44 suppliers, the
+  same amount, CLABE, action and findings on all 92 lines, the same totals, the same list versions and
+  the same metrics, which is the acceptance criteria of the issue written as assertions: 15 tests and
+  1,433 checks over the two sides. Three things in the offline copy are deliberately narrower than the
+  API's, and the narrowing is asserted rather than assumed. The invoices are the 156 of the company's
+  4,103 that a screen of this app can reach, which is the ones this run settles, the ones the
+  retroactive sweep prices and the ones a finding names, 8.8 KB gzipped against 208 KB for the whole
+  eight-month history. The payment complements are the 2 that settle those, because
+  `SupplierDetail.complements` is read by no component in `apps/web`. The verified-beneficiary registry
+  starts empty, which is what `sentryoneDataset` hands the API, because a browser with no API has
+  verified nothing. Every row the offline file does carry is the API's own row, every invoice a screen
+  can open is carried, and no supplier of the run answers with an empty file. That takes the web bundle
+  from 1,757 KB and 359 KB gzipped to 565 KB and 160 KB, and `chunkSizeWarningLimit` from 2000 to 700.
+  The one number the narrowing moves is the invoice count in the supplier drawer, which is the API's
+  whenever the API answered; offline the field is labelled "facturas de esta corrida" and says in one
+  line which invoices travelled, because printing 3 for an issuer that has 23 under the label
+  "facturas en el expediente" is issue #125 again. `docs/07-architecture.md` carries the difference and
+  the sizes. Four smaller things the one dataset exposed went with it. `PaymentRunTotals` in
+  `apps/web/src/lib/contract.ts` carried a TODO reading `held`, `toVerify` and `released` as peso sums
+  while `paymentRunTotalsSchema` in `apps/api/src/schemas.ts` had answered counts all along, and it now
+  reads counts and carries the seven peso fields `runMoney` puts on the run. `not_checked` was missing
+  from the unconfirmed set in `apps/web/src/lib/cep-seal.ts`, so every CEP this build has shown read as
+  "Firma no valida", which is the accusation that module exists to prevent. The CEP screen's example
+  was a hand-written `CepVerification` claiming `comprobable` over a seal nobody had checked, and is
+  now the answer `POST /api/v1/cep/verify` gives for the probe on the released line of the run. And the
+  folios written into the intake placeholder, the verification placeholder, `apps/web/audit/audit.ts`
+  and `apps/web/brand/shoot.ts` belonged to the dataset that is gone, so they are read off the run:
+  an audit or a README screenshot of the error state is no longer possible.
+
 - The demo company priced no supplier relationship, so the expected-loss trade-off weighed the pesos
   at risk against zero and the field the instruction screen calls "Costo de retrasar un dia" read
   MXN 0.00 on all 92 payments (issue #182). `packages/seed/src/sentryone/delay-cost.ts` now prices

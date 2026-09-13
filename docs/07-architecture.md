@@ -365,6 +365,7 @@ carries no base URL and there is no CORS configuration anywhere in `apps/api`.
 | Database | Tiger Data managed Timescale | `bun run migrate` applies the five plain files always and the three Timescale files only when the extension exists. Live there: `timescaledb 2.30.0` on PostgreSQL 18.6, `ledger_events` and `ledger_tx` as hypertables, `ledger_daily`, `ledger_events_daily` and `supplier_weekly_outflow` as continuous aggregates | `bun run doctor` names the live path |
 | Offline fallback | Local Postgres 18 on 5432, second API port | Same SQL, same driver, same migrations | `docs/10-demo-script.md`, offline section |
 | No database at all | Any laptop | `SEED=sentryone bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
+| No API at all | The browser | `apps/web` falls back to `src/lib/mock-data.ts`, which is the SAME generated company, written ahead of time by `bun run web:mock`. `?data=mock` renders it with no request leaving the page | `scripts/web-mock.test.ts`, which asks the API's repository and the browser's fallback the same questions |
 
 **The web.** `apps/web` is a hash-routed static bundle, so there is no rewrite rule to keep and no
 deep link that can 404 on a static host: `#/intake` is an anchor, which is also why the QR code on
@@ -372,6 +373,48 @@ the printed card survives a change of deploy target. What `vercel.json` does car
 because the bundle imports `@hackmty/core` from the workspace and a build rooted at `apps/web`
 cannot resolve it. `.vercelignore` keeps the upload to what the build reads: the SAT snapshot and
 the judging assets are 7.6 of the repository's 8.6 MB and the web bundle imports neither.
+
+**The offline fallback of the web, and why it is generated.** The app has to be demonstrable on a
+phone with no server behind it, so every screen falls back to a synthetic run and says on screen that
+it is doing so. There used to be two datasets: the API booted on the generated company and
+`apps/web/src/lib/mock.ts` carried a hand-written run of eight suppliers, and the two disagreed about
+the legal name of every RFC they shared, which is issue #125. Now there is one. `bun run web:mock`
+writes `apps/web/src/lib/mock-data.ts` from `loadSentryOne` at seed 69 for the week the judged
+documents cite, runs the same `assessRun` the API runs at boot, and composes the rest through
+`MemoryRepository`, so the findings, the decisions, the totals and the blind holdout numbers are the
+API's own answers rather than a second opinion. Three consequences worth knowing:
+
+- **It is generated ahead of time, not at build time.** `@hackmty/seed` reaches `node:fs` through
+  `@hackmty/sat` and the consortium hashes with `node:crypto`, so importing the generator into the
+  bundle would either break the browser build or add a dependency `apps/web` must not have.
+- **It rides in the main chunk, 160 KB gzipped of a 565 KB bundle.** A dynamic import would move the
+  run out of the chunk-size warning and into a second HTTP request, and this is the data the app uses
+  when there is no network to make a request on, so the split would remove it exactly when it is
+  needed. `chunkSizeWarningLimit` is 700 KB for that reason and says so.
+- **Three things are deliberately narrower, all three written down in `mock.ts`.** The invoices are
+  the 156 of the company's 4103 that a screen can reach: the ones this run settles, the ones the
+  retroactive sweep prices and the ones a finding names. The payment complements are the ones that
+  settle those, because no component renders a complement. The verified-beneficiary registry starts
+  empty, which is what `sentryoneDataset` hands the API: a row appears when a one-cent probe is
+  verified, and a browser with no API has verified nothing.
+
+**The one number the narrowing moves, and what the screen does about it.** Carrying all 4103 invoices
+cost 208 KB gzipped against 8.8 for the 156, which is the difference between a 359 KB bundle and a
+160 KB one on a phone in a corridor. The price is that `CFDIS` is no longer the company's whole
+invoice history, and one field reads its length: "facturas en el expediente" in the supplier drawer.
+`GET /api/v1/suppliers/:rfc` still answers with the issuer's whole file, so whenever the API answered
+that count is the API's and nothing changed. When the drawer fell back, the same field would print 3
+for an issuer that has 23, and a count that changes with who answered is issue #125 itself. So the
+offline drawer labels the field "facturas de esta corrida", says in one line that only the invoices
+this run pays, the sweep prices or a finding names travel without the API, and for an issuer this
+week's run never touched it says that rather than "sin facturas".
+
+`scripts/web-mock.test.ts` is the guard. It regenerates the file and compares it byte for byte, and
+it boots a `MemoryRepository` on the same company to assert that both sides answer the same legal
+name for all 44 suppliers, the same amount, CLABE, action and findings on all 92 lines, the same
+totals, the same list versions and the same metrics. It holds the narrowing to what it is allowed to
+be: every invoice and every complement the offline file carries is the API's own row, every invoice a
+screen can open is carried, and no supplier of the run answers with an empty file.
 
 **The API, in four moving parts.**
 

@@ -8,9 +8,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { VerificationStateName } from "./contract";
+import type { VerificationState, VerificationStateName } from "./contract";
 import { VERIFICATION_HELP, VERIFICATION_LABEL } from "./labels";
-import { mockVerification, VERIFICATIONS } from "./mock";
+import { MOCK_RUN, mockVerification, VERIFICATIONS } from "./mock";
 import {
   advanceMockVerification,
   eventNamesInstruction,
@@ -292,15 +292,17 @@ describe("the offline beat", () => {
   });
 
   test("leaves a settled payment exactly as it was", () => {
-    const released = VERIFICATIONS["ins-2026w37-007"];
+    /* Read off the offline run rather than named by folio: the ids come from the
+       seeded company now, so a literal here would be a folio from the fixture
+       this app no longer carries. */
+    const released = Object.values(VERIFICATIONS).find(
+      (state) => state.state === "released",
+    ) as VerificationState;
 
     expect(released).toBeDefined();
-    expect(
-      advanceMockVerification(
-        released as NonNullable<typeof released>,
-        "2026-09-12T18:00:00-06:00",
-      ),
-    ).toBe(released);
+    expect(advanceMockVerification(released, "2026-09-12T18:00:00-06:00")).toBe(
+      released,
+    );
   });
 
   test("derives a clave nobody can mistake for a bank's", () => {
@@ -327,14 +329,20 @@ describe("the synthetic run", () => {
   });
 
   test("answers not_started for an instruction of the run nobody probed", () => {
-    const state = mockVerification("ins-2026w37-001");
+    const unprobed = MOCK_RUN.items.find(
+      (item) => VERIFICATIONS[item.instruction.id] === undefined,
+    );
+
+    expect(unprobed).toBeDefined();
+
+    const state = mockVerification(unprobed?.instruction.id ?? "");
 
     expect(state?.state).toBe("not_started");
-    expect(state?.instructionId).toBe("ins-2026w37-001");
+    expect(state?.instructionId).toBe(unprobed?.instruction.id);
   });
 
   test("answers nothing for a folio this run does not have", () => {
-    expect(mockVerification("ins-2026w37-999")).toBeNull();
+    expect(mockVerification("INS-2026-09-07-999")).toBeNull();
   });
 
   test("keys every row by the instruction it is about", () => {
