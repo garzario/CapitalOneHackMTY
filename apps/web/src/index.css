@@ -7,6 +7,10 @@
  * Order matters. Tokens have to be defined before anything reads them, and the
  * design system files declare their own `@layer`, so a Tailwind utility always
  * wins over a primitive on the same element.
+ *
+ * `print.css` is last and is the one file that declares no layer, because a
+ * print override has to beat the utility that would otherwise keep an element
+ * sticky or scrollable on paper.
  */
 
 @import "tailwindcss";
@@ -14,3 +18,4 @@
 @import "./design/tokens.css";
 @import "./design/base.css";
 @import "./design/primitives.css";
+@import "./design/print.css";

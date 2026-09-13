@@ -6,8 +6,16 @@ import { defineConfig } from "vite";
  * The API runs as a separate process on 3000. Proxying /api and /health here
  * means the browser only ever talks to one origin, so there is no CORS story
  * to debug in development and no base URL to configure in the client.
+ *
+ * `API_ORIGIN` in the environment points that proxy somewhere else, and the one
+ * job it has is the screenshots. `bun run shoot:web` renders whatever the dev
+ * server answers, and a local API with no `DATABASE_URL` serves the small
+ * in-memory run rather than the seeded company, so a README shot against it
+ * shows twelve instructions where the demo shows ninety-two. Pointing this at
+ * the deployed API puts the real run in the frame. It changes nothing about the
+ * client, which still talks to one origin and still knows no base URL.
  */
-const API_ORIGIN = "http://localhost:3000";
+const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:3000";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

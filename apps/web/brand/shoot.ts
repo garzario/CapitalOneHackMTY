@@ -24,7 +24,11 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { HERO_INSTRUCTION_IDS } from "../src/lib/mock-data";
+import {
+  HERO_INSTRUCTION_IDS,
+  LISTED_SUPPLIER_RFC,
+  VERIFICATIONS,
+} from "../src/lib/mock-data";
 
 const CHROME =
   process.env.CHROME_PATH ??
@@ -49,6 +53,67 @@ const PORT = Number(process.env.SHOOT_PORT ?? 9333);
  * moves, and `assets/screenshots` is what the README shows a judge.
  */
 const DETAIL_PATH = `#/instructions/${HERO_INSTRUCTION_IDS[0] ?? ""}`;
+
+/**
+ * The CEP screenshot is of the cent's six states, not of an empty form.
+ *
+ * The screen only draws the track when the instruction in the query has a
+ * verification, and the seeded API has none: nothing on it has been verified, and
+ * starting one to take a screenshot would send a real cent down the rail. So this
+ * frame is the offline run, where `VERIFICATIONS` carries one instruction per
+ * state by construction.
+ *
+ * `blocked` rather than `released`, because it is the ending that draws the whole
+ * machine: the four common steps, both endings, and the one that was taken. The
+ * folio is read off the generated mock for the same reason `DETAIL_PATH` is: a
+ * folio written down here is a screenshot of an empty state the day the seed
+ * moves.
+ */
+const CEP_PATH = `?data=mock#/cep?instruction=${
+  VERIFICATIONS.find((verification) => verification.state === "blocked")
+    ?.instructionId ?? ""
+}`;
+/**
+ * The SAT frame is of both articles answering, which is what issue #214 added and
+ * what no URL can reach.
+ *
+ * `#/sat?rfc=` fills the box and stops there: the lookup runs when a person
+ * presses Consultar, so a screenshot taken from the URL alone is of an empty
+ * panel next to a filled input. This types and presses exactly what a judge at
+ * the table types and presses, and then waits for the answer to land.
+ *
+ * The RFC is the synthetic listed supplier and never a real one. ADR-0002 is the
+ * reason: this screen is the one place in the product that touches the real
+ * published list, and a real RFC sitting in a committed screenshot beside a
+ * generated run is the pairing that ADR says this repository does not ship.
+ *
+ * React owns the input, so the value goes in through the native setter and an
+ * `input` event. Assigning `.value` directly sets the DOM property and leaves
+ * React's state on the old value, so the button reads an empty RFC and refuses.
+ */
+const SAT_LOOKUP = `(async () => {
+  const field = document.querySelector("#sat-rfc");
+  const press = [...document.querySelectorAll("button")].find(
+    (button) => button.textContent.trim() === "Consultar",
+  );
+
+  if (field === null || press === undefined) {
+    return "no lookup form";
+  }
+
+  const setValue = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value",
+  ).set;
+  setValue.call(field, ${JSON.stringify(LISTED_SUPPLIER_RFC)});
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+
+  press.click();
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+
+  return "ok";
+})()`;
+
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
 const OUT_DIR = join(REPO_ROOT, "assets", "screenshots");
 
@@ -63,6 +128,16 @@ interface Shot {
   height: number;
   /** Capture both themes. Light only when absent, to keep the repo small. */
   both?: boolean;
+  /**
+   * JavaScript run in the page after it loads and before the shutter opens, for
+   * a screen whose interesting state is behind a press rather than behind a URL.
+   *
+   * One screen needs it and the rule is that it stays that way: this presses
+   * what a person would press and never writes state the app would not have
+   * produced itself. It is awaited, so it may resolve once the screen has
+   * settled.
+   */
+  prepare?: string;
 }
 
 /**
@@ -125,8 +200,14 @@ const SHOTS: Shot[] = [
     width: 390,
     height: 3760,
   },
-  { path: "#/sat", name: "sat", width: 1440, height: 1000 },
-  { path: "#/cep", name: "cep", width: 1440, height: 1000 },
+  {
+    path: "#/sat",
+    name: "sat",
+    width: 1440,
+    height: 1100,
+    prepare: SAT_LOOKUP,
+  },
+  { path: CEP_PATH, name: "cep", width: 1440, height: 1000 },
   { path: "#/metrics", name: "metrics", width: 1440, height: 1000 },
   /* The token sheet, in both themes, because the sheet's whole claim is that the
      system holds up in whichever one the browser is in. It is the tall capture
@@ -141,7 +222,7 @@ const SHOTS: Shot[] = [
  * That is what `bun run demo` is for.
  */
 /** Same rule as SHOTS: the app is a hash router, so the fragment travels. */
-const TOUR = ["#/run", DETAIL_PATH, "#/sat", "#/cep", "#/metrics"];
+const TOUR = ["#/run", DETAIL_PATH, "#/sat", CEP_PATH, "#/metrics"];
 
 /** Frames per stop. Six at 8 fps reads as a deliberate pause, not a stutter. */
 const FRAMES_PER_STOP = 6;
@@ -321,6 +402,13 @@ async function main(): Promise<void> {
            that fallback is a failed fetch with a timeout behind it. */
         await wait(2500);
 
+        if (shot.prepare !== undefined) {
+          await devtools.send("Runtime.evaluate", {
+            expression: shot.prepare,
+            awaitPromise: true,
+          });
+        }
+
         /* Clipped to exactly the declared frame. `captureBeyondViewport` on
            its own expands horizontally as well as vertically, so a 390 wide
            phone shot came back 751 wide with the run table's own horizontal
@@ -363,9 +451,9 @@ async function main(): Promise<void> {
  * repository: forty PNGs is not something to carry in git, and the GIF is the
  * artefact worth committing.
  *
- * The muxing is left to ffmpeg, which this machine does not have. Rather than
- * ship an encoder nobody can run tonight, the frames are real and the command
- * is printed. `brew install ffmpeg`, then paste it.
+ * The muxing is left to ffmpeg and the command is printed rather than run, so the
+ * script has no dependency it cannot satisfy on a machine that does not have it.
+ * `brew install ffmpeg`, then paste it.
  */
 async function captureTour(devtools: Devtools, base: string): Promise<void> {
   const dir = "/tmp/sentryone-frames";
