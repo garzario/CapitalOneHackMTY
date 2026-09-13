@@ -61,6 +61,7 @@ const deps = createDeps({
   model: switching,
   extractor: UNAVAILABLE_EXTRACTOR,
   allowSeed: false,
+  log: () => {},
 });
 const app = createApp(deps);
 

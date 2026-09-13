@@ -17,6 +17,7 @@ import { MetricsScreen } from "./screens/MetricsScreen";
 import { PaymentsScreen } from "./screens/PaymentsScreen";
 import { RunScreen } from "./screens/RunScreen";
 import { SatScreen } from "./screens/SatScreen";
+import { SupplierScreen } from "./screens/SupplierScreen";
 import { VerifyCallScreen } from "./screens/VerifyCallScreen";
 
 const TITLES: Record<Route["name"], string> = {
@@ -24,6 +25,7 @@ const TITLES: Record<Route["name"], string> = {
   run: "Corrida de pagos",
   payments: "Salida de la corrida",
   instruction: "Instruccion de pago",
+  supplier: "Expediente del proveedor",
   intake: "Alta de una instruccion",
   sat: "Lista del articulo 69-B",
   cep: "Comprobante Electronico de Pago",
@@ -43,6 +45,8 @@ function screenFor(route: Route) {
       return <PaymentsScreen />;
     case "instruction":
       return <InstructionScreen id={route.id} />;
+    case "supplier":
+      return <SupplierScreen rfc={route.rfc} />;
     case "intake":
       return <IntakeScreen />;
     case "sat":

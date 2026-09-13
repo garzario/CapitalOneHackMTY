@@ -6,6 +6,8 @@ import { assistantRoutes } from "./assistant/routes";
 import type { ApiCaller } from "./assistant/tools";
 import { type ApiDeps, createDeps } from "./deps";
 import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
+import { createRequestLog } from "./middleware/log";
+import { createRateLimit, WRITE_LIMIT } from "./middleware/rate-limit";
 import { requestId } from "./middleware/request-id";
 import { beneficiaryRoutes } from "./routes/beneficiaries";
 import { cartaRoutes } from "./routes/carta";
@@ -14,7 +16,7 @@ import { consortiumRoutes } from "./routes/consortium";
 import { constanciaRoutes } from "./routes/constancia";
 import { eventRoutes } from "./routes/events";
 import { executeRoutes } from "./routes/execute";
-import { health } from "./routes/health";
+import { healthRoutes } from "./routes/health";
 import { instructionRoutes } from "./routes/instructions";
 import { ledgerRoutes } from "./routes/ledger";
 import { metricsRoutes } from "./routes/metrics";
@@ -54,23 +56,40 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   const app = new Hono();
 
   app.use("*", requestId);
+  /* After the id and before everything else, so every line carries the id the
+     response carries and no route can be added that logs nothing. */
+  app.use("*", createRequestLog(deps.log));
 
-  app.route("/health", health);
+  app.route("/health", healthRoutes(deps));
 
-  const v1 = new Hono().get(
-    "/ping",
-    zValidator("query", pingQuery, rejectInvalid),
-    (c) => {
-      const { echo } = c.req.valid("query");
+  const v1 = new Hono();
 
-      return c.json({
-        pong: true,
-        echo: echo ?? null,
-        requestId: c.get("requestId"),
-        at: new Date().toISOString(),
-      });
-    },
+  /**
+   * Every write in `docs/09-api.md`, rate limited per client, in one line.
+   *
+   * It is mounted here rather than on ten route files because the thing being
+   * protected is the ledger and not any one endpoint: a write appends an event, and
+   * three of them cost real money. Mounted at the tree, a write endpoint somebody
+   * adds next week is covered by default, which is the opposite of the usual
+   * outcome. `writesOnly` is what keeps a screen reading the run for free, and the
+   * assistant panel keeps its own tighter bucket on top of this one because a turn
+   * costs tokens rather than a row.
+   */
+  v1.use(
+    "*",
+    createRateLimit({ limit: WRITE_LIMIT, label: "writes", writesOnly: true }),
   );
+
+  v1.get("/ping", zValidator("query", pingQuery, rejectInvalid), (c) => {
+    const { echo } = c.req.valid("query");
+
+    return c.json({
+      pong: true,
+      echo: echo ?? null,
+      requestId: c.get("requestId"),
+      at: new Date().toISOString(),
+    });
+  });
 
   v1.route("/run", runRoutes(deps));
   /* A second router on `/run`, for the reason `/instructions` has three: the payment

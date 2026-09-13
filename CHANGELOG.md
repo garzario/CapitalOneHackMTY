@@ -401,6 +401,46 @@ then the screens, then the narrative, then the plumbing.
   clerk's identity is personal data about an employee and is treated under the obligations of 4.2
   like everything else on that page.
 
+- The supplier profile, which is the expediente the drawer never had room for (issue #213).
+  `#/suppliers/:rfc` in `apps/web` answers the four questions a clerk asks about a counterparty before
+  a payment leaves, on one screen: the history, every account with its plaza, what the supplier
+  invoiced week by week, and where it stands on both SAT lists. It is reachable from the RFC under the
+  legal name in the run table and from "Ver expediente del proveedor" on the instruction detail, and
+  it works under `?data=api` and `?data=mock`. The drawer is gone rather than kept beside it: two
+  renderings of one expediente is the failure of issue 125 with a slower fuse, and a sheet sliding
+  over the payment run had space for the invoice table and nothing else.
+
+  The part worth reading is `apps/web/src/lib/supplier-profile.ts`, and the reason it is a module with
+  its own tests rather than markup is that four of the sentences on this screen would be wrong in a
+  way nobody notices. The weekly series is cut on a Monday 00:00 UTC boundary, because that is what
+  `date_trunc('week', at at time zone 'UTC')` in `0007_supplier_outflow.sql` lands on and what
+  `time_bucket('7 days', at)` in `0008` counts from its 2000-01-03 origin: a week cut in Monterrey
+  would put every bar one day off the row the database holds. A week with no invoice is a filled zero
+  rather than an omitted bucket, because silence is the signal in half of these cases and closing the
+  gap draws four quiet months as four adjacent bars. A plaza is three digits with a name beside it or
+  three digits alone, `lookupPlaza` is the only table consulted, and the panel prints who published
+  the catalogue, because `packages/core/src/snapshot/README.md` answers "is this Banxico's file?" with
+  "no" in its first paragraph. And both SAT lists always answer, the way `ControlsPanel` always draws
+  six bars.
+
+  Where each number comes from is on the screen, and one of those sentences is an admission.
+  `supplier_weekly_outflow` is in the database twice and has no endpoint in `docs/09-api.md`, so
+  `GET /api/v1/suppliers/:rfc` answers `cfdis` and never `weeks`, and the chart says in as many words
+  that the series is grouped in the browser out of the invoices that endpoint did answer. The dashed
+  reference line is `baselineRatePerWeek` off the `supplier_behaviour` finding and appears only when
+  that detector raised one: with no finding there is no baseline the arithmetic ran, and a threshold
+  drawn from the chart's own mean would be this screen inventing one. The consortium is one line read
+  off the finding that carries the signal rather than a second call to
+  `GET /api/v1/consortium/signal`, so the line is the one the decision was made with, it renders under
+  `?data=mock` where nothing reaches the network, and "no consultada" is printed rather than hidden.
+
+  Nothing on it is a verdict about the company. There is no level over the legal name, because
+  `confiable`, `precaucion` and `alerta` are about one payment under ADR-0009 and a badge over an RFC
+  would be a rating this product has no business issuing. The two SAT rows are worded the same way:
+  an absent 69-B row says the RFC is not in the corte this build has loaded and that this is not a
+  constancia of anything, and an absent 49 Bis row says the article publishes one resolution and
+  provides for no published clearing, so no row is not a desvirtuamiento. The official list stays
+  behind a press, so the panel links to `#/sat?rfc=` and asks the SAT nothing on arrival.
 - The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
   `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
   level and their state, "Enviar corrida" behind a second press and a name, the progress line by line
@@ -1138,6 +1178,77 @@ then the screens, then the narrative, then the plumbing.
   now carries the run's own figures, 87.0 percent precision, 83.3 percent recall, 1.6 percent false
   positives and 33 of 35 on action agreement, and points at the level matrix that arrived with it,
   because `confiable` right on twelve of twelve is the row a guarantee actually rides on.
+
+- **The deployment answers for itself: `/health` per dependency, a request id on every log line, a token
+  bucket on every write** (issue #200). Until this landed, the question "is the deployed API serving the
+  ledger you seeded" took an ssh and a guess, and the request id that was already on every response was
+  only findable in a log for the requests that had already failed.
+
+  `GET /health` keeps `ok`, `service` and `version` and grows `dependencies`, seven ordered rows:
+  `database`, `nessie`, `rail`, `consortium`, `cep`, `extraction` and `voice`, each
+  `{ name, configured, state, detail, checkedAt }` with `state` one of `up`, `down` and
+  `not_configured`. Every sentence comes from `dependencyReport` in `apps/api/src/dependencies.ts` and
+  `bun run doctor` prints the same rows as `dep <name>` out of the same function, so the laptop and the
+  box cannot answer differently about why a screen is empty. Three rules are in the code rather than in
+  a promise, and each has a test. It reaches no third party: exactly two things are probed, a `select 1`
+  bounded at 2000 ms and building the payment rail, and the five configuration rows say "Not probed from
+  here" in those words rather than implying a check nobody ran. No secret is in the payload: `configured`
+  is a boolean, every detail names variables and never values, and a suite of fake keys goes in and is
+  asserted absent from the rendered JSON. And a failed probe is classified into one of five sentences, so
+  a driver message never reaches the wire and the raw one is logged against the request id instead.
+  `ok` stays `true` with every dependency down, because a load balancer that restarts the container when
+  the ledger is slow takes the demo down for a reason that has nothing to do with the demo.
+
+  Every request now writes one line, `[<id>] <method> <path> <status> <ms>ms`, with the sink injected
+  through `ApiDeps.log` so the suite asserts the shape and `bun run demo` prints its own beat sheet
+  instead of a thousand request lines. The query string is deliberately dropped:
+  `GET /api/v1/sat/lookup?rfc=` is the one endpoint in this API that reads real data and it takes a real
+  taxpayer's RFC in the query, so a logged URL would be the one thing `docs/06-regulatory-privacy.md`
+  forbids, pasted into an issue. Path parameters stay, because those are synthetic ids of our own company.
+
+  The rate limit is now a token bucket and it covers every write, 120 a minute per client, mounted once
+  on the `/api/v1` tree and skipping `GET`, `HEAD` and `OPTIONS`, so a write endpoint added next week is
+  covered without anybody remembering to cover it and a screen reading the run is never charged for it.
+  The lookup box keeps 30 and an assistant turn keeps 20, tighter because a turn costs tokens. The bucket
+  replaces the fixed window for the reason a window cannot fix: a client that exhausts it gets the whole
+  allowance back at an edge and can burst twice the limit across it, while a bucket refills continuously,
+  so the clerk confirming eight lines in a row is never refused, a loop is throttled to the refill rate,
+  and `Retry-After` becomes the seconds until one token exists rather than the seconds until an invisible
+  window rolls over.
+
+  `vercel.json` gains `cache-control: no-store` on `/api/(.*)` and `/health`, and
+  `scripts/vercel-rewrites.test.ts` is the guard that matters: it reads the route tree off the app and
+  the rewrite sources off `vercel.json` and fails when the API serves a path the web origin cannot
+  reach. The bundle ships with no base URL, so that failure is a 404 on the deployed product and a green
+  test suite, which is the most expensive shape a bug can have on a judging day. `docs/07-architecture.md`
+  carries the final topology and how the box was moved onto this code, and `--smoke-only` on the deploy
+  script now prints the live dependency rows next to the run totals.
+
+  **And the redeploy found something worse than anything the new endpoint reports.** `apps/api/Dockerfile`
+  copies the workspace manifests one by one before `bun install --frozen-lockfile`, and `packages/rail`
+  and `packages/consortium` arrived with issues #164 and #198 without being added to that list. So the
+  image could not be built from this tree at all: `bun install` inside it answered
+  "Workspace dependency @hackmty/rail not found" and the build stopped there. The instance went on
+  serving the container from before either package existed, which means the deployed API had no payment
+  run and no consortium endpoint while the repository had both, and nothing in `bun test`,
+  `bun run typecheck` or `bun run build` could have said so because none of them reads a Dockerfile. The
+  two lines are added and `scripts/docker-image.test.ts` is the guard, reading the workspace directories
+  off disk rather than trusting the list, so a package added next week fails on a pull request instead of
+  on the one deploy that matters.
+
+  **Then the request id paid for itself inside a minute.** With the new image running, `/health` said
+  `database: up` and the first assistant turn over HTTPS still came back as the failure sentence. One grep
+  for the id the caller sent found the line and then the cause: `ledger_events_type_check` refused
+  `assistant_message`, because migrations `0010` through `0014` had never been applied to Tiger Data. The
+  deployed ledger was five behind, which means the payment run of ADR-0008 could not have been executed
+  against it either, since `payment_sent` and `payment_cancelled` would have been refused the same way.
+  `bun run migrate` applied the five and `bun run doctor` reports 14 of 14. The third finding was
+  `consortium: not_configured` on the live `/health`: `ALLOW_CONSORTIUM` had never been forwarded to the
+  instance, so the cross-tenant signal of #164 was off in production while the snapshot sat filled in the
+  warehouse. `FORWARDED_ENV` now carries it and `NESSIE_BASE_URL`, which `docs/07` had been claiming all
+  along, and the box the judges will use keeps the configuration it was provisioned with, because a
+  refresh rebuilds code and does not rewrite `/srv/sentryone/.env`. The verified state, every line of it
+  through the Vercel rewrite, is the table in `docs/07-architecture.md`.
 
 ### Changed
 

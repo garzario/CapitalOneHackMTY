@@ -20,8 +20,10 @@ import {
   createCepSource,
 } from "./cep";
 import { type ConsortiumSource, createConsortiumSource } from "./consortium";
+import { createDependencySource, type DependencySource } from "./dependencies";
 import { createBroadcaster, type LedgerBroadcaster } from "./events";
 import { createExtractor, type IntakeExtractor } from "./extraction";
+import type { LogSink } from "./middleware/log";
 import { createClock, type PipelineClock } from "./pipeline";
 import { PostgresRepository } from "./postgres-repo";
 import { MemoryRepository, type Repository } from "./repo";
@@ -96,6 +98,21 @@ export interface ApiDeps {
    */
   consortium: ConsortiumSource;
   /**
+   * What this instance was configured with, and the one probe `GET /health` is
+   * allowed to run. Injected for the same reason the extractor is: a test asserts
+   * the whole payload with no `DATABASE_URL` and no socket, and a laptop holding a
+   * live connection string does not turn a health test into a network call.
+   */
+  dependencies: DependencySource;
+  /**
+   * Where a log line goes. One line per request carries the request id, so the id
+   * on a response and the id in the container log are the same string.
+   *
+   * It is injected rather than called as `console.log` so the suite can assert the
+   * shape of a line, and so 1341 tests do not print 1341 of them.
+   */
+  log: LogSink;
+  /**
    * Append to the ledger and push to every open SSE connection, in that order.
    * The ledger is the record; the stream is a view of it, so a subscriber can
    * never see an event that was not stored.
@@ -116,6 +133,8 @@ export interface DepsOverrides {
   rail?: () => Promise<RailResolution>;
   verification?: VerificationOptions;
   consortium?: ConsortiumSource;
+  dependencies?: DependencySource;
+  log?: LogSink;
 }
 
 function readEnv(name: string): string | undefined {
@@ -197,6 +216,10 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   /* Bound to the repository this process booted with, so the snapshot it reads is
      the one the live store holds rather than a second connection's. */
   const consortium = overrides.consortium ?? createConsortiumSource(repo);
+  /* Read once, so a request is never what discovers the configuration, which is the
+     same argument `rail` makes two lines up. */
+  const dependencies = overrides.dependencies ?? createDependencySource();
+  const log = overrides.log ?? ((line: string) => console.log(line));
 
   return {
     repo,
@@ -211,6 +234,8 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
     rail,
     verification,
     consortium,
+    dependencies,
+    log,
     async emit(event) {
       await repo.appendEvent(event);
       events.publish(event);

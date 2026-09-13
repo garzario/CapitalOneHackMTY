@@ -1,6 +1,6 @@
 # apps/web
 
-The judge-facing UI. Vite, React, Tailwind, motion. Eight screens, one design system,
+The judge-facing UI. Vite, React, Tailwind, motion. Nine screens, one design system,
 no state manager and no router dependency.
 
 The visual design is done and is documented in `docs/design.md`, which is the file to read
@@ -59,7 +59,7 @@ Three things in the offline copy are deliberately narrower than the API's, all f
 all explained where they live in `src/lib/mock.ts`: the invoices are the ones this run settles, the
 retroactive sweep prices or a finding names, the payment complements are the ones that settle those,
 and the verified-beneficiary registry starts empty, which is what the API starts with too. The
-invoices are the one narrowing a screen can see, because the supplier drawer counts them, so that
+invoices are the one narrowing a screen can see, because the supplier profile counts them, so that
 field is read off the API whenever the API answered and labelled for this run when it was not.
 `docs/07-architecture.md` carries the numbers.
 
@@ -93,6 +93,8 @@ src/
     router.tsx        hash router, ~120 lines, no dependency
     run-view.ts       how the run screen reads the run: order and verdict
     payments.ts       which lines leave, which do not and why, and the bank layout
+    supplier-profile.ts  the expediente: the weekly buckets, the accounts with their
+                      plazas, both SAT lists and the consortium line
     format.ts         money, dates, CLABE blocks, digit diffs
     labels.ts         every Spanish word the clerk reads, in one dictionary
     sse.ts            the event-stream decoder, chunk boundaries included
@@ -104,11 +106,12 @@ src/
                       once per section change),
                       RunVerdict (the one figure), RunDonut (how the run splits),
                       RunFilter, Controls (the six controls),
-                      States, Primitives, Evidence, Decision, Findings, SupplierDrawer,
+                      States, Primitives, Evidence, Decision, Findings,
+                      BehaviourChart (what a supplier invoiced, week by week),
                       StatusCard, OfflineBanner, IntakeQr, QrCode, Receipt,
                       AssistantDock, AssistantPanel, AssistantCards
-  screens/            EntryScreen, RunScreen, PaymentsScreen, InstructionScreen, IntakeScreen,
-                      SatScreen, CepScreen, MetricsScreen, VerifyCallScreen
+  screens/            EntryScreen, RunScreen, PaymentsScreen, InstructionScreen, SupplierScreen,
+                      IntakeScreen, SatScreen, CepScreen, MetricsScreen, VerifyCallScreen
 ```
 
 The base components, which every screen is built from: `Button`, the `ConfidenceBadge` and
@@ -118,8 +121,8 @@ The base components, which every screen is built from: `Button`, the `Confidence
 object, it belongs there rather than inside one screen.
 
 Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
-change of host: `#/entrada`, `#/run`, `#/payments`, `#/instructions/:id`, `#/intake`, `#/sat`,
-`#/cep`, `#/metrics`, `#/verify-call`.
+change of host: `#/entrada`, `#/run`, `#/payments`, `#/instructions/:id`, `#/suppliers/:rfc`,
+`#/intake`, `#/sat`, `#/cep`, `#/metrics`, `#/verify-call`.
 
 `#/design` is the token sheet: every token and every base component on one page. It is a
 reference rather than a screen, so it is not in the rail and nothing in the product links
@@ -128,9 +131,9 @@ to it.
 The rail holds seven of them, in four groups: the run, the payments and the intake, then
 `Evidencia` with the 69-B list and the CEP, then the metrics, then `Entrada` on its own at the
 foot, because who is acting and how this instance is configured is not a section of the run.
-`#/verify-call` is not one of them
-and is reached from the instruction it is about, because a call is a step in a decision and not a
-place; the rail keeps `Corrida` lit while you are on it.
+`#/verify-call` and `#/suppliers/:rfc` are not in it and are reached from the line they are about,
+because a call is a step in a decision and an expediente is opened from a payment, and neither is a
+place you go; the rail keeps `Corrida` lit while you are on either.
 
 A finding links to the screen that proves it: a 69-B finding to `#/sat?rfc=...` with the lookup box
 filled but not run, a beneficiary finding to `#/cep?rfc=...`, a CLABE or behaviour finding to the
