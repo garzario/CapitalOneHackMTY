@@ -813,19 +813,22 @@
     width: var(--rail-width-collapsed);
   }
 
-  /* The lockup and the collapse control share the rail's first row. When the
-     rail is collapsed the mark stays and the word goes, which is the whole
-     point of a mark. */
+  /* The rail's first row is the lockup and nothing else; the control that
+     collapses the rail is in the top bar, where it survives the collapse.
+     When the rail is collapsed the mark stays and the word goes, which is the
+     whole point of a mark. */
   .rail-top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-2) var(--space-4);
+    /* Top padding is a step rather than three, so the mark rides as high as
+       the top bar's title beside it: collapsed, the icon's centre lands within
+       three pixels of the bar's own. The air the head lost at the top is given
+       back below it, where it separates the lockup from the first section. */
+    padding: var(--space-1) var(--space-2) var(--space-5);
   }
 
-  /* The lockup takes whatever width the toggle leaves it and scales down to
-     fit, so it is never clipped on the right. */
+  /* The lockup scales down to fit the rail's own width, so it is never clipped
+     on the right. */
   .rail-brand {
     flex: 1 1 auto;
     min-width: 0;
@@ -840,28 +843,6 @@
   .rail[data-collapsed="true"] .rail-top {
     flex-direction: column;
     padding-inline: 0;
-  }
-
-  .rail-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 1.75rem;
-    height: 1.75rem;
-    border: var(--border-width) solid transparent;
-    border-radius: var(--radius-md);
-    background-color: transparent;
-    color: var(--c-rail-ink-muted);
-    cursor: pointer;
-    transition:
-      background-color var(--motion-fast) var(--ease-standard),
-      color var(--motion-fast) var(--ease-standard);
-  }
-
-  .rail-toggle:hover {
-    background-color: var(--c-rail-active);
-    color: var(--c-rail-ink);
   }
 
   .rail-nav {
@@ -1171,26 +1152,52 @@
     margin-inline-start: auto;
   }
 
-  .rail-open {
-    display: none;
+  /* The frame's one control, left of the title at every width. Bare at rest:
+     the reference puts nothing around it, and a box here would read as a
+     fourth kind of button on a bar that already has a border of its own. */
+  .topbar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--c-ink-muted);
+    cursor: pointer;
     transition:
       background-color var(--motion-fast) var(--ease-standard),
-      color var(--motion-fast) var(--ease-standard);
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard);
+  }
+
+  .topbar-toggle:hover {
+    background-color: var(--c-surface-sunken);
+    color: var(--c-ink);
+  }
+
+  .topbar-toggle:active {
+    transform: scale(0.97);
+  }
+
+  /* Which of the button's two names a screen reader gets. The control opens
+     the overlay below 60rem and collapses the rail above it, and that is a
+     question about the width, which is CSS's to answer: React would have to
+     hold the width in state and keep it honest across every resize. A span
+     that is not displayed is not in the accessibility tree. */
+  .topbar-toggle-narrow {
+    display: none;
   }
 
   @media (max-width: 60rem) {
-    .rail-open {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: none;
-      width: 2rem;
-      height: 2rem;
-      border: var(--border-width) solid var(--c-border);
-      border-radius: var(--radius-md);
-      background-color: var(--c-surface);
-      color: var(--c-ink);
-      cursor: pointer;
+    .topbar-toggle-narrow {
+      display: inline;
+    }
+
+    .topbar-toggle-wide {
+      display: none;
     }
   }
 

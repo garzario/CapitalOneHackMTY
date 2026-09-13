@@ -24,6 +24,12 @@
  * that column is the one that falls off. Collapsing is a preference and not a
  * breakpoint, so it is stored rather than inferred.
  *
+ * The control that changes the frame sits in the top bar and not in the rail,
+ * because what it changes is the frame: below 60rem it opens the rail as an
+ * overlay, above it collapses the rail to icons, and the top bar is the one
+ * piece of furniture on screen at every width. A control parked inside the
+ * thing it hides cannot bring that thing back.
+ *
  * The header above the screen holds one line: where you are. Everything the old
  * header carried -- the tagline, the data-source line, the synthetic mark --
  * either moved into the rail's foot, where it is available and quiet, or was
@@ -139,6 +145,15 @@ export function AppShell({
     });
   }, []);
 
+  /* One control, two meanings, because the frame has two shapes. The width is
+     read at the click instead of being kept in state: the answer only matters
+     in the instant the button is pressed, and state would have to be
+     subscribed, torn down and kept honest across every resize in between. */
+  const toggleFrame = useCallback(() => {
+    if (window.matchMedia("(max-width: 60rem)").matches) setOpen(true);
+    else toggleCollapsed();
+  }, [toggleCollapsed]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -193,18 +208,6 @@ export function AppShell({
               />
             )}
           </a>
-          <button
-            type="button"
-            className="rail-toggle"
-            onClick={toggleCollapsed}
-            aria-pressed={collapsed}
-            title={collapsed ? "Expandir el menu" : "Contraer el menu"}
-          >
-            <IconPanel size={17} />
-            <span className="sr-only">
-              {collapsed ? "Expandir el menu" : "Contraer el menu"}
-            </span>
-          </button>
         </div>
 
         {/* The group labels are furniture and not links, so they are hidden
@@ -277,11 +280,23 @@ export function AppShell({
         <header className="topbar">
           <button
             type="button"
-            className="rail-open"
-            onClick={() => setOpen(true)}
-            aria-label="Abrir el menu"
+            className="topbar-toggle"
+            onClick={toggleFrame}
+            /* Above 60rem this is a two-state control and says so. Below it,
+               it opens an overlay, which is not a toggle -- but the width is
+               not in state, so the attribute is rendered at both widths and
+               the overlay simply does not read it. */
+            aria-pressed={collapsed}
+            title={collapsed ? "Expandir el menu" : "Contraer el menu"}
           >
             <IconPanel size={17} />
+            {/* The name follows the width, and the width is CSS's to know:
+                one of these two is display:none on each side of 60rem, and a
+                span that is not displayed is not in the accessibility tree. */}
+            <span className="sr-only topbar-toggle-narrow">Abrir el menu</span>
+            <span className="sr-only topbar-toggle-wide">
+              {collapsed ? "Expandir el menu" : "Contraer el menu"}
+            </span>
           </button>
           <h1 className="topbar-title">{title}</h1>
 
