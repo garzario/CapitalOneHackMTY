@@ -13,12 +13,14 @@ import {
   parsePath,
   pathOf,
   queryOf,
+  runPath,
   satPath,
   supplierPath,
   targetFromHash,
   verifyAccountPath,
   verifyCallPath,
 } from "./router";
+import { parseRunFacets } from "./run-view";
 
 describe("parsePath", () => {
   test("maps each known path to its route", () => {
@@ -101,6 +103,37 @@ describe("supplierPath", () => {
       name: "notFound",
       path: "/suppliers",
     });
+  });
+});
+
+describe("runPath", () => {
+  test("is the bare run route when nothing is filtered", () => {
+    /* No trailing `?`: `/run?` and `/run` are two spellings of one screen, and
+       the second one is the one that goes in the rail. */
+    expect(runPath()).toBe("/run");
+    expect(runPath({})).toBe("/run");
+  });
+
+  test("carries the facets it was given", () => {
+    expect(runPath({ level: "alerta" })).toBe("/run?level=alerta");
+    expect(
+      runPath({ state: "cancelado", level: "alerta", control: "sat_69b" }),
+    ).toBe("/run?state=cancelado&level=alerta&control=sat_69b");
+  });
+
+  test("is still the run route, because the matcher ignores the query", () => {
+    /* Same as the intake, which reads `rfc` and `amount` out of its own query:
+       the query is the screen's, not the router's. */
+    expect(parsePath(runPath({ state: "rojo" }))).toEqual({ name: "run" });
+    expect(
+      parsePath(runPath({ state: "rojo", level: "alerta", control: "none" })),
+    ).toEqual({ name: "run" });
+  });
+
+  test("round trips through the parser the screen reads it with", () => {
+    const facets = { state: "enviado", level: "confiable" } as const;
+
+    expect(parseRunFacets(queryOf(runPath(facets)))).toEqual(facets);
   });
 });
 

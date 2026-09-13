@@ -49,6 +49,16 @@ function everyLabel(): Array<{ where: string; text: string }> {
         if (typeof entry === "string") {
           found.push({ where: `${name}.${key}`, text: entry });
         }
+
+        /* EVIDENCE_ACTION holds an object per detector, so its words are one
+           level further down and would otherwise go unchecked. */
+        if (typeof entry === "object" && entry !== null) {
+          for (const [inner, text] of Object.entries(entry)) {
+            if (typeof text === "string") {
+              found.push({ where: `${name}.${key}.${inner}`, text });
+            }
+          }
+        }
       }
     }
   }
@@ -75,6 +85,21 @@ function sourceFiles(dir: string): string[] {
 
 const all = everyLabel();
 
+/**
+ * The verdict this product may not print, matched as a word and never as a
+ * substring: "aseguro" and "asegurado" are ordinary Spanish rather than a
+ * promise about a transfer, and a check that fired on them is a check somebody
+ * turns off. Plain ASCII, because every value in this dictionary is written
+ * without accents, and declared once so the two tests that read it cannot
+ * drift apart.
+ */
+const NEVER_SEGURO = /\b(seguro|segura|seguros|seguras)\b/i;
+
+/* The same verdict in English, kept apart from the one above because the source
+   scan may not read it: `env(safe-area-inset-bottom)` is a CSS function name in
+   a quoted style, not a claim about a payment. */
+const NEVER_SAFE = /\bsafe\b/i;
+
 describe("the words the clerk reads", () => {
   test("there is a dictionary to check", () => {
     /* A guard on the guard: an empty list passes every assertion below. */
@@ -84,10 +109,22 @@ describe("the words the clerk reads", () => {
   test("nothing promises that a payment is safe", () => {
     /* Word boundaries, so "asegurar" and "seguramente" are not false hits: the
        forbidden thing is the verdict, in Spanish or in English. */
-    const forbidden = /\b(seguro|segura|seguros|seguras|safe)\b/i;
-    const offenders = all.filter((entry) => forbidden.test(entry.text));
+    const offenders = all.filter(
+      (entry) => NEVER_SEGURO.test(entry.text) || NEVER_SAFE.test(entry.text),
+    );
 
     expect(offenders).toEqual([]);
+  });
+
+  test("the boundary is a word and not a substring", () => {
+    /* The check above must not fire on ordinary Spanish, or the next person
+       deletes it instead of the word it exists for. */
+    expect(
+      NEVER_SEGURO.test("el proveedor me aseguro que cambio de banco"),
+    ).toBe(false);
+    expect(NEVER_SEGURO.test("quedo asegurado el envio")).toBe(false);
+    expect(NEVER_SEGURO.test("este pago es seguro")).toBe(true);
+    expect(NEVER_SEGURO.test("la cuenta es segura")).toBe(true);
   });
 
   test("no label carries a probability, a percentage or a score", () => {
@@ -117,7 +154,6 @@ describe("the words the clerk reads", () => {
     /* The dictionary is the rule, and this is the backstop for copy written
        straight into a component. It reads the sources rather than the rendered
        DOM, which is the limitation worth stating: it proves no source says it. */
-    const forbidden = /\b(seguro|segura|seguros|seguras)\b/i;
     const offenders: string[] = [];
 
     for (const file of sourceFiles(SRC_DIR)) {
@@ -142,7 +178,7 @@ describe("the words the clerk reads", () => {
         const quoted = line.match(/"[^"]*"|'[^']*'/g) ?? [];
 
         for (const text of quoted) {
-          if (forbidden.test(text)) offenders.push(`${file}: ${text}`);
+          if (NEVER_SEGURO.test(text)) offenders.push(`${file}: ${text}`);
         }
       }
     }
@@ -193,5 +229,60 @@ describe("ADR-0009 vocabulary", () => {
       expect(labels.STATE_LABEL[state].length).toBeGreaterThan(0);
       expect(labels.STATE_HELP[state].length).toBeGreaterThan(20);
     }
+  });
+
+  test("no level or state label carries a digit or a percent sign", () => {
+    /* The other half of ADR-0009: three words and never a number. A percentage
+       next to a supplier's name is a precision nobody earned, because the
+       expected-loss arithmetic says in its own comment that it is an upper
+       bound on the evidence and not a calibrated probability. */
+    const numeric = /[0-9%]/;
+    const offenders = [
+      ...Object.entries(labels.CONFIDENCE_LABEL),
+      ...Object.entries(labels.CONFIDENCE_HELP),
+      ...Object.entries(labels.STATE_LABEL),
+      ...Object.entries(labels.STATE_HELP),
+    ]
+      .filter(([, text]) => numeric.test(text))
+      .map(([key, text]) => `${key}: ${text}`);
+
+    expect(offenders).toEqual([]);
+  });
+
+  test("every level and every state has a non-empty label, badge and help sentence", () => {
+    /* The badge class is the one of the three the tests above do not reach, and
+       an empty one renders an unstyled word next to five styled ones. A
+       dictionary written with an empty string does not fail the type checker. */
+    const missing: string[] = [];
+
+    for (const level of levels) {
+      for (const [name, value] of [
+        ["CONFIDENCE_LABEL", labels.CONFIDENCE_LABEL[level]],
+        ["CONFIDENCE_BADGE", labels.CONFIDENCE_BADGE[level]],
+        ["CONFIDENCE_HELP", labels.CONFIDENCE_HELP[level]],
+      ]) {
+        if ((value ?? "").trim() === "") missing.push(`${name}.${level}`);
+      }
+    }
+
+    for (const state of states) {
+      for (const [name, value] of [
+        ["STATE_LABEL", labels.STATE_LABEL[state]],
+        ["STATE_BADGE", labels.STATE_BADGE[state]],
+        ["STATE_HELP", labels.STATE_HELP[state]],
+      ]) {
+        if ((value ?? "").trim() === "") missing.push(`${name}.${state}`);
+      }
+    }
+
+    expect(missing).toEqual([]);
+    /* And the orders a facet select offers are the whole set rather than a
+       subset somebody trimmed. */
+    expect(labels.CONFIDENCE_ORDER).toHaveLength(
+      Object.keys(labels.CONFIDENCE_LABEL).length,
+    );
+    expect(labels.STATE_ORDER).toHaveLength(
+      Object.keys(labels.STATE_LABEL).length,
+    );
   });
 });

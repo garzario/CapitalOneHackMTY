@@ -807,6 +807,21 @@
     color: var(--c-ink-subtle);
   }
 
+  /* The same field, at the size a toolbar needs.
+
+     `.input` is sized for a form: full width, 16px of type so iOS Safari does
+     not zoom the intake page, and enough padding that a thumb can hit it. The
+     three facets on the run's table are not a form, they are furniture in a
+     well head next to a segmented control, and a full-width field there would
+     be three fields stacked down the side of the table. Everything else about
+     the field is unchanged, which is the point of it being the same class plus
+     one. */
+  .input-inline {
+    width: auto;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+  }
+
   /* --------------------------------------------------------------- overlays */
 
   .scrim {
@@ -1864,6 +1879,75 @@
   .row-tile-release {
     background-color: var(--c-release-soft);
     color: var(--c-release-ink);
+  }
+
+  /* The three facets, under the slice control and above the table they narrow.
+
+     A row that wraps rather than a grid: on a phone it is three labelled
+     fields, a button and a count in 390px, and every one of them is a
+     different width. `flex-end` so the labels sit above their own field and
+     the button and the count line up with the fields and not with the
+     labels. */
+  .run-facets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    padding: 0 var(--space-3) var(--space-3);
+  }
+
+  .run-facet {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* The label of a facet is above a field that is one line tall, so the eight
+     pixels the form label carries would be a third of the control's height. */
+  .run-facet .label {
+    margin-bottom: var(--space-1);
+  }
+
+  /*
+   * The row a refresh moved, lit and then let go.
+   *
+   * The run re-scores itself when the SAT publishes: a line changes its action
+   * and its state with nobody touching the keyboard, and a table that quietly
+   * differs from the one somebody was reading a second ago has told them
+   * nothing. The tint is the brand accent and not a decision colour, for the
+   * same reason the arrived-at row uses it: it says "this one just moved", not
+   * "this one is bad", and the decision colours are already in the row.
+   *
+   * A keyframe here rather than an animation in the component, for one
+   * concrete reason: the JavaScript animation would leave `background-color`
+   * as an inline style when it finished, and an inline background beats the
+   * table's own hover rule for the rest of the session. Reduced motion is
+   * handled the way every other duration in this file is, by the token, plus
+   * the explicit switch-off below so the row never flashes at all.
+   */
+  .row-moved {
+    /* Three times the slow token: long enough to be seen by somebody who was
+       looking at the figures rather than at the table, short enough to be gone
+       before they read the row. It holds for the first third and fades for the
+       rest, because a tint that starts fading immediately reads as a rendering
+       artifact rather than as a mark. */
+    animation: row-moved calc(var(--motion-slow) * 3) var(--ease-exit);
+  }
+
+  @keyframes row-moved {
+    0%,
+    35% {
+      background-color: var(--c-accent-soft);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .row-moved {
+      animation: none;
+    }
   }
 
   /* --------------------------------------------------------------- charts */

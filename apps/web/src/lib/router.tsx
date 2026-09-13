@@ -13,6 +13,7 @@
 
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { useMemo, useSyncExternalStore } from "react";
+import { type RunFacets, runFacetsQuery } from "./run-view";
 
 export type Route =
   /** The front door: who is acting, and what this build is configured with. */
@@ -62,6 +63,20 @@ export function instructionPath(id: string): string {
  */
 export function supplierPath(rfc: string): string {
   return `/suppliers/${encodeURIComponent(rfc)}`;
+}
+
+/**
+ * The payment run, filtered.
+ *
+ * The facets are in the URL rather than in the screen's own state so a filtered
+ * table is a link: the three lines a clerk found are sendable, and a reload lands
+ * on the same table. `parsePath` ignores the query, as it already does for the
+ * intake, so every one of these is still the run route.
+ */
+export function runPath(facets: RunFacets = {}): string {
+  const query = runFacetsQuery(facets);
+
+  return query === "" ? PATHS.run : `${PATHS.run}?${query}`;
 }
 
 /** The verification call page, carrying the instruction it is about. */
