@@ -28,8 +28,17 @@ export interface SealVerdict {
   detail: string;
 }
 
-/** Reasons that mean "we could not check", as opposed to "it did not hold". */
-const UNCONFIRMED = new Set(["unconfirmed_scheme"]);
+/**
+ * Reasons that mean "we could not check", as opposed to "it did not hold".
+ *
+ * `not_checked` is the one `parseCep` writes, and it is the ordinary case rather
+ * than an edge one: a deployment with no `BANXICO_CEP_CERT_PEM` read the whole
+ * document and verified nothing. It was missing here, so every CEP this build
+ * has ever shown read as "Firma no valida", which is the accusation this module
+ * exists to prevent. `sealVerdictOf` in `verification.ts` already read it the
+ * right way, and two answers to one question is how one of them ends up wrong.
+ */
+const UNCONFIRMED = new Set(["unconfirmed_scheme", "not_checked"]);
 
 export function sealVerdict(
   signatureValid: boolean,

@@ -36,7 +36,12 @@ import { sealVerdict } from "../lib/cep-seal";
 import type { CepVerification, VerifiedBeneficiary } from "../lib/contract";
 import { readLegalName } from "../lib/evidence";
 import { formatClabe, formatDate, formatDateTime } from "../lib/format";
-import { BENEFICIARIES, MOCK_CEP, SUPPLIERS } from "../lib/mock";
+import {
+  BENEFICIARIES,
+  CEP_EXAMPLE_RFC,
+  mockCepVerification,
+  SUPPLIERS,
+} from "../lib/mock";
 import { useResource } from "../lib/resource";
 import { useRouteQuery } from "../lib/router";
 
@@ -64,26 +69,17 @@ type VerifyState =
   | { status: "done"; result: CepVerification; rfc: string }
   | { status: "failed"; message: string };
 
-/** The example the screen shows before anything has been verified. */
-const EXAMPLE: CepVerification = {
-  cep: MOCK_CEP,
-  nameMatch: "match",
-  finding: {
-    id: "fnd-example-cep",
-    detector: "beneficiary_cep",
-    severity: "info",
-    state: "comprobable",
-    subject: { kind: "supplier", id: "SYN070707GGG" },
-    amountAtRisk: 0,
-    explanation:
-      "El titular de la cuenta en el CEP firmado coincide con la razon social del CFDI.",
-    evidence: {
-      razon_social_cfdi: MOCK_CEP.beneficiaryName,
-      firma_valida: MOCK_CEP.signatureValid,
-    },
-    createdAt: MOCK_CEP.transferredAt,
-  },
-};
+/**
+ * The example the screen shows before anything has been verified.
+ *
+ * It is the answer `POST /api/v1/cep/verify` gives for the one-cent probe on the
+ * released line of the synthetic run, finding and all, rather than a
+ * `CepVerification` written here. The one this screen used to carry claimed
+ * `comprobable` over a seal nobody had checked, which is the single claim the
+ * sixth control refuses to make: `buildFinding` in `@hackmty/engine` is only
+ * allowed to say `comprobable` when the seal validated.
+ */
+const EXAMPLE: CepVerification = mockCepVerification();
 
 export function CepScreen() {
   /* A link from the instruction detail carries the folio, so the verification
@@ -141,7 +137,7 @@ export function CepScreen() {
   }, [claveRastreo, supplierRfc, xml]);
 
   const shown = state.status === "done" ? state.result : EXAMPLE;
-  const shownRfc = state.status === "done" ? state.rfc : "SYN070707GGG";
+  const shownRfc = state.status === "done" ? state.rfc : CEP_EXAMPLE_RFC;
   const isExample = state.status !== "done";
   const legalName = legalNameFor(shownRfc, shown.finding);
   const seal = sealVerdict(shown.cep.signatureValid, shown.cep.signatureReason);
@@ -194,7 +190,7 @@ export function CepScreen() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  placeholder="SYN070707GGG"
+                  placeholder={CEP_EXAMPLE_RFC}
                   value={supplierRfc}
                   onChange={(event) => setSupplierRfc(event.target.value)}
                 />

@@ -20,12 +20,21 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { HERO_INSTRUCTION_IDS } from "../src/lib/mock-data";
 
 const CHROME =
   process.env.CHROME_PATH ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 const PORT = 9333;
+
+/**
+ * The line the finding screenshot is of, read off the synthetic run.
+ *
+ * A folio written down here is a screenshot of the error state the day the seed
+ * moves, and `assets/screenshots` is what the README shows a judge.
+ */
+const DETAIL_PATH = `#/instructions/${HERO_INSTRUCTION_IDS[0] ?? ""}`;
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
 const OUT_DIR = join(REPO_ROOT, "assets", "screenshots");
 
@@ -61,7 +70,7 @@ interface Shot {
 const SHOTS: Shot[] = [
   { path: "#/run", name: "run", width: 1440, height: 1000, both: true },
   {
-    path: "#/instructions/ins-2026w37-002",
+    path: DETAIL_PATH,
     name: "finding",
     width: 1200,
     height: 1100,
@@ -82,13 +91,7 @@ const SHOTS: Shot[] = [
  * That is what `bun run demo` is for.
  */
 /** Same rule as SHOTS: the app is a hash router, so the fragment travels. */
-const TOUR = [
-  "#/run",
-  "#/instructions/ins-2026w37-002",
-  "#/sat",
-  "#/cep",
-  "#/metrics",
-];
+const TOUR = ["#/run", DETAIL_PATH, "#/sat", "#/cep", "#/metrics"];
 
 /** Frames per stop. Six at 8 fps reads as a deliberate pause, not a stutter. */
 const FRAMES_PER_STOP = 6;
