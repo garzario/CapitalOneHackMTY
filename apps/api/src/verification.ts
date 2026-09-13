@@ -44,6 +44,7 @@
  */
 
 import type {
+  Actor,
   Cep,
   Decision,
   Finding,
@@ -189,6 +190,7 @@ export function alreadyResolved(state: VerificationState): string {
 export async function verifyAccount(
   deps: VerificationDeps,
   instructionId: string,
+  actor?: Actor,
 ): Promise<VerifyAccountOutcome> {
   const detail = await deps.repo.instructionDetail(instructionId);
   if (detail === undefined) {
@@ -237,6 +239,10 @@ export async function verifyAccount(
     };
   }
 
+  /* The actor is on the `cent_sent` and on nothing downstream of it. The person
+     pressed one button and spent one centavo; the CEP that follows, the wait for
+     it and the decision the engine signs `system` are consequences of that click
+     and not second actions somebody took. */
   await deps.emit({
     type: "cent_sent",
     at: sent.sentAt,
@@ -246,6 +252,7 @@ export async function verifyAccount(
     amount: sent.amount,
     clabeLast4: detail.instruction.clabe.slice(-4),
     simulated: sent.simulated,
+    ...(actor === undefined ? {} : { actor }),
   });
 
   const found = await lookForCep(deps, detail, sent);

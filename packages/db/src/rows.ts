@@ -522,6 +522,8 @@ export interface DecisionRow {
   delay_cost_per_day: SqlNumeric;
   decided_at: SqlInstant;
   decided_by: string | null;
+  /** The role they were acting in. Null on the engine's own decision. */
+  decided_by_role: Decision["decidedByRole"] | null;
   /** What the person wrote about it. Null on the engine's own proposal. */
   reason: string | null;
   /** The findings that justified it, through decision_findings. `[]` when none. */
@@ -538,6 +540,7 @@ export function decisionFromRow(row: DecisionRow): Decision {
     decidedAt: toInstant(row.decided_at),
   };
   assign(decision, "decidedBy", optionalText(row.decided_by));
+  assign(decision, "decidedByRole", row.decided_by_role ?? undefined);
   assign(decision, "reason", optionalText(row.reason));
   return decision;
 }

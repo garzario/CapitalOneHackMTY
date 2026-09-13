@@ -2,6 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { fail, rejectInvalid } from "../http";
+import { requireActor } from "../middleware/actor";
 import { seedBodySchema } from "../schemas";
 
 /**
@@ -20,10 +21,17 @@ import { seedBodySchema } from "../schemas";
  * is why `reset: false` is refused rather than ignored. Silently wiping a store
  * for a caller who asked us not to is the one failure mode this endpoint can
  * cause that nobody could undo.
+ *
+ * It carries `X-Actor` like every other write, before the `ALLOW_SEED` check and
+ * not after it: the most destructive endpoint in the product is the last one that
+ * should be reachable without a name, and the 403 about the flag is no reason to
+ * skip the 400 about the header. Nothing about the regenerated company is
+ * attributed to that name, because a rebuilt company has no history to attribute.
  */
 export function seedRoutes(deps: ApiDeps) {
   return new Hono().post(
     "/",
+    requireActor,
     zValidator("json", seedBodySchema, rejectInvalid),
     async (c) => {
       if (!deps.allowSeed) {
