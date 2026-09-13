@@ -590,14 +590,67 @@ the thing that measures it.
 
 ## Second table of 12 September
 
-A second Capital One panel, different people, came to the table on the evening of the same day and
-asked four things. The rule for this section is the rule for the one above: about thirty seconds each,
-every claim resting on a file or an endpoint that exists today, and the honest gap volunteered in the
-same breath rather than defended when it is found. The issue number is on each subsection, and a
-bracketed source above 48 is owned by `docs/05-business-model.md#sources`, which continues the same
-sequence as `docs/04-market.md#sources` so that one number means one document everywhere.
+A second Capital One panel came to the table on the evening of 2026-09-12. They said the project was
+interesting, which the first table had not, and then asked more than one thing. The rule of the
+section above applies here unchanged and every answer is written to it: the counts are counted and
+reproducible, every rate that is not a count is labelled as an assumption, nothing anybody has not
+agreed to is described as agreed, and the honest gap is volunteered in the same breath rather than
+defended when it is found. The issue number is on each subsection, and a bracketed source above 48 is
+owned by `docs/05-business-model.md#sources`, which continues the same sequence as
+`docs/04-market.md#sources` so that one number means one document everywhere.
 
-### 1. "You mark a payment as safe and it turns out to be fraud. What does the client get?" (#194)
+### 7. "Esta interesante. Ahora acota el mercado, y dinos exactamente quien lo vende y por cual canal"
+
+Issue #193.
+
+**Thirty seconds.**
+
+> Seis mil cuatrocientas setenta y seis empresas de once a doscientos cincuenta personas en Nuevo Leon,
+> en manufactura, mayoreo y construccion, contadas una por una en el directorio de unidades economicas
+> del INEGI, y seis mil ciento catorce estan en el area metropolitana. Los primeros seis meses lo
+> vendemos nosotros, a compras y a finanzas, nunca a la auxiliar: ella lo opera, no lo firma. El canal es
+> el despacho contable como revendedor, y son ciento cuarenta y tres de once personas o mas en el estado,
+> no setecientos treinta y siete. Y la ruta larga es el banco: que el control viva dentro de la banca
+> empresarial, donde el pago ya se ejecuta. Nessie es el banco de nuestra demo, y nadie ha firmado nada.
+
+| Allowed to say | Source |
+|---|---|
+| 6,476 establishments of 11 to 250 people in Nuevo Leon in manufacturing, wholesale trade and construction: 3,240, 2,445 and 791 | [48] |
+| 6,114 of those 6,476, 94.4 percent, in the metropolitan municipalities, led by Monterrey 2,261 and Apodaca 857 | [48] |
+| About 2,312 of them formal, after INEGI's blunt all-size national rate of 35.7 percent, which is too low for this band and is used anyway | [1] and [48] |
+| 143 of the 737 accounting and audit units in Nuevo Leon employ 11 to 250 people, 140 of them metropolitan, and 424 of the 737 employ five people or fewer | [48] |
+| 25 firms in year one is 17.5 percent of those 143, and 25 firms carry 500 client slots against the 400 companies in the plan, 80 percent fill | [48] and `docs/05-business-model.md` |
+| 69b.mx sells a `Corporativo` tier at MXN 1,999 a month for "equipos grandes y despachos", and our firm plan at MXN 3,900 is 1.95 times it | [7] |
+| Tesio publishes "+2,400 contadores automatizan con Tesio" on its own home page, self-reported and unaudited | [8] |
+| 200 free sweeps over six months, about 8 a week, and the stop condition is a 5 percent hit rate | `docs/05-business-model.md` |
+| 60.4 percent of firms with six or more employed persons operate through the institution's own web page, against 35.0 percent on a mobile app | [28] |
+| HSBCnet sells beneficiary-name validation for "unicamente cuentas HSBC" in files of up to 5,000 accounts, 07:00 to 22:00; BBVA Net Cash has the payer type the holder's name itself | [42] and [43] |
+| Banxico's own Regla 51a Bis has the Administrador generate a one-centavo order to read the holder out of the CEP, and Regla 72a obliges participants generally | [29] |
+
+**Do not say.** That a bank, Capital One included, has agreed to anything, is piloting anything or is
+talking to us: the bank route is an ask, Nessie is the sandbox our code writes to, and the whole of what
+may be said is "es el tipo de banco que lo haria". That despachos resell this already, because neither
+published competitor runs a reseller programme and ours is a bet. The 246,000 national figure as the
+segment, because the segment is 6,476 and the 246,000 is the TAM; say the small one first. Any number of
+Mexican banks, because we did not open the CNBV register. And no share of Tesio's 2,400 as ours.
+
+Rests on: `docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel` for all four
+routes with their arithmetic, `docs/04-market.md#where-the-segment-actually-is` for the two counts, which
+a judge reproduces by downloading the DENUE Nuevo Leon file and filtering four `per_ocu` strata over
+SCIAN 31-33, 43 and 23, `docs/02-persona.md` section 3 for why the despacho is the reseller and never the
+operator, and
+`docs/05-business-model.md#the-third-route-a-bank-embeds-the-control-where-the-payment-executes` for the
+intermediation dilemma.
+
+**The honest gap, volunteered in the same breath.** The supplier-count filter that makes this segment the
+right one, 30 or more suppliers a week, **is published nowhere**: DENUE carries no payment data and the
+ENAFIN tabulados render as a JavaScript shell, so it is a hypothesis with a measurement attached and the
+200 sweeps are the measurement. And the two conversion rates in the plan, 1 in 3 owners agreeing to a
+sweep and 1 in 4 exposed sweeps becoming a paying company, have no benchmark behind them at all. They are
+the first two things the first ten accounts will falsify, which is why the stop condition is written
+against the hit rate instead: a month of work can measure that one.
+
+### 8. "You mark a payment as safe and it turns out to be fraud. What does the client get?" (#194)
 
 Asked with a second half: should the subscription include an insurance policy covering losses up to an
 amount per tier.

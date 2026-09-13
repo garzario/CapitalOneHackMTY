@@ -43,22 +43,42 @@ export interface Health {
 }
 
 /**
- * Totals of one payment run.
+ * Totals of one payment run, as `GET /api/v1/run/current` answers them.
  *
- * `instructions` is a count. `amount` is the sum of the run in MXN.
+ * The three bare names are COUNTS of lines and the three `Amount` ones are
+ * pesos. That was a TODO here and it was guessed the other way round: this
+ * interface read `held` as a peso sum, which is what a clerk needs to see, and
+ * `paymentRunTotalsSchema` in `apps/api/src/schemas.ts` has answered a count all
+ * along. Nothing rendered it, so nothing was visibly wrong, and the offline run
+ * still filled the field with money while the API filled it with a count. Issue
+ * 125 is the same bug in the rows, so it is fixed here too.
  *
- * TODO(fabbyyyy): `held`, `toVerify` and `released` are read here as MXN sums,
- * because that is what a clerk needs to see next to `amount`. docs/09-api.md
- * does not say whether they are amounts or counts. Confirm when the route is
- * implemented and, if they turn out to be counts, change this interface rather
- * than dividing the meaning across the two sides.
+ * The pesos come from `runMoney` in `@hackmty/core`, which is also what the
+ * constancia prices, so the screen and the document read one arithmetic.
+ *
+ * Screens read the ITEMS rather than these, per the rule in `run-view.ts`: the
+ * totals come from the API and go stale the moment a decision is applied
+ * locally, which is exactly what the offline path does.
  */
 export interface PaymentRunTotals {
   instructions: number;
+  /** The sum of the run in MXN. */
   amount: number;
+  /** Lines the engine proposes to hold. */
   held: number;
   toVerify: number;
   released: number;
+  heldAmount: number;
+  toVerifyAmount: number;
+  releasedAmount: number;
+  /** `heldAmount` plus `toVerifyAmount`: the pesos that have not left. */
+  stoppedAmount: number;
+  /** The largest single amount at risk on each line, added across lines. */
+  amountAtRisk: number;
+  /** Subtotal already deducted to the suppliers a 69-B finding names. */
+  retroactive69bBase: number;
+  /** ISR plus IVA that reverses on that subtotal. No fraud is needed for it. */
+  retroactive69bExposure: number;
 }
 
 /** One row of the payment-run table. */

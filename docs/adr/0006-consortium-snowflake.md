@@ -160,7 +160,7 @@ could find on their sites, which is the row `docs/04-market.md` already carries.
   nobody has seen, and the decision says which one it is.
 - Positive: the business model gains the one mechanism it did not have. Every tenant that joins makes
   the signal better for every other tenant, and an accounting firm holding thirty companies joins
-  thirty tenants at once, which is the distribution path `docs/05-business-model.md#gtm-in-three-steps`
+  thirty tenants at once, which is the distribution path `docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel`
   already sells.
 - Positive: the privacy position is stronger than the feature. A network that needs no name, no amount
   and no raw account number to work is a better answer to the product judge than a network with a

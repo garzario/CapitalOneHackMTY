@@ -157,8 +157,13 @@ describe("the bank change", () => {
       finding({ previousBankCode: "012", bankCode: "014" }),
     );
 
-    expect(view.bankChange?.from).toBe("BBVA Mexico");
-    expect(view.bankChange?.to).toBe("Santander");
+    /* The casing is the catalogue's own, because the catalogue IS the one in
+       `@hackmty/core` that the CLABE control names an institution from. A
+       hand-written table in `mock.ts` used to answer this, it held five banks,
+       and the run table read "Banco 044" for an account the seeded company pays
+       every week. */
+    expect(view.bankChange?.from).toBe("BBVA MEXICO");
+    expect(view.bankChange?.to).toBe("SANTANDER");
   });
 
   test("is not claimed when there is no previous bank to compare", () => {

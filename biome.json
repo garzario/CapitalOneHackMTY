@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/node_modules", "!**/dist", "!bun.lock", "!assets"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!bun.lock",
+      "!assets",
+      "!apps/web/src/lib/mock-data.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

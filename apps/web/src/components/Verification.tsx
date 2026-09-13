@@ -35,7 +35,7 @@ import {
   VERIFICATION_HELP,
   VERIFICATION_LABEL,
 } from "../lib/labels";
-import { mockVerification } from "../lib/mock";
+import { EXAMPLE_INSTRUCTION_ID, mockVerification } from "../lib/mock";
 import { useResource } from "../lib/resource";
 import {
   advanceMockVerification,
@@ -270,7 +270,7 @@ export function VerifyAccountPanel({
             className="input code"
             autoComplete="off"
             spellCheck={false}
-            placeholder="ins-2026w37-002"
+            placeholder={EXAMPLE_INSTRUCTION_ID}
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
           />

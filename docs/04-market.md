@@ -161,16 +161,21 @@ condition tied to the observed hit rate.
 | Nuevo Leon, the venue | **about 18,500** economic units at 11 to 250 people, 10.2 percent of the state's 181,791, and that band employs 35.6 percent of its 1,925,137 workers, roughly 685,000 people | INEGI CE 2024 definitive for the state. Micro units are 89.3 percent of units and 21.7 percent of employment; large units are 0.6 percent of units, 42.7 percent of employment and 55.7 percent of value added. The percentages are published to one decimal, so the count is 18,452 to 18,634 and the absolutes are ours, not INEGI's | [25] |
 | The four sectors with the longest supplier lists | **89,523 establishments** at 11 to 250 people nationally: manufacturing 34,697, wholesale trade 27,786, transport and warehousing 16,531, construction 10,509. **54,555 of them, 60.9 percent, sit in the 11-to-30 sub-band** | DENUE, counted by us from the bulk sector files by filtering the personal-ocupado strata. Reproducible in one command, and the sub-band is the product point: too small for an ERP payment module, large enough for a weekly run | [26] |
 | The channel | **16,356** accounting and audit units nationally, SCIAN 541211, **737 in Nuevo Leon**, and 12,130 of the 16,356 employ five people or fewer | DENUE, same method. The 120 firms in the SOM below are 0.7 percent of that denominator, which is why the channel plan is an ask rather than an assertion | [26] |
+| **The first segment, the one the GTM actually attacks** | **6,476 establishments** at 11 to 250 people in Nuevo Leon in the three sectors we sell to first: manufacturing 3,240, wholesale trade 2,445, construction 791. **6,114 of them, 94.4 percent, sit in the thirteen metropolitan municipalities**, led by Monterrey 2,261, Apodaca 857, Guadalupe 730, San Nicolas de los Garza 601 and Santa Catarina 531 | DENUE 05_2026, counted by us from the Nuevo Leon state file by the same strata filter as the row above, over SCIAN 31-33, 43 and 23. The same count over SCIAN 541211 returns 737, identical to the row above, which is the cross-check that the method is the one [26] used. Transport and warehousing adds 1,413 and is the fourth sector, not the first | [48] |
 
 DENUE counts establishments and carries no formality flag, while the Censos Economicos count
 economic units, so 89,523 and 246,068 come from different instruments and do not add. Neither can be
 crossed with formality either: CE 2024 publishes size and formality as separate charts and never
-crosses them, which is why the SAM filter below stays a blunt national rate.
+crosses them, which is why the SAM filter below stays a blunt national rate. The same split shows up
+inside the state: DENUE puts **24,599** Nuevo Leon establishments in the 11-to-250 band [48] against
+the about 18,500 economic units CE 2024 implies [25], so the two instruments disagree by about a
+third on the same band in the same state and neither number is wrong.
 
-**What we did not verify:** the municipality-level DENUE count for Apodaca, where the synthetic
-company in `packages/seed` sits, and any count of firms in this band from the ENAFIN frame, whose
-tabulados render as a JavaScript shell. TODO(FabriBanda) before the pitch, or drop both from the
-narrative.
+**Apodaca is now counted**, which closes the gap this section carried: **2,511** establishments at 11
+to 250 people across all sectors, **857** of them in the three sectors of the first segment, which is
+the municipality where the synthetic company in `packages/seed` sits [48]. **What is still not
+verified:** any count of firms in this band from the ENAFIN frame, whose tabulados render as a
+JavaScript shell. TODO(FabriBanda) before the pitch, or drop ENAFIN from the narrative.
 
 ### Two SAT files, and the one the product ships
 
@@ -387,13 +392,32 @@ per month direct (MXN 10,788 per year), MXN 195 per company per month through an
    20 client companies each, plus 600 companies sold direct. That is 3,000 companies, 1.2 percent of
    the TAM universe and 3.4 percent of the SAM universe. The channel now has a denominator, 16,356
    accounting and audit units nationally of which 12,130 employ five people or fewer [26], so 120
-   firms is 0.7 percent of it. Both direct competitors [7] [8] already sell through that channel
-   behind a free single-RFC check, which is the evidence it exists. Neither publishes a customer
-   count, so we quote none.
+   firms is 0.7 percent of it, and in Nuevo Leon only 143 of the 737 employ 11 or more people [48],
+   which is the denominator the firm-by-firm plan in `docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel` actually works
+   against. **A correction, because the first version of this line claimed too much.** Both direct
+   competitors sell *to* accounting firms, not *through* them: Tesio's own home page reads "Software
+   fiscal con IA para contadores y despachos" and publishes "+2,400 contadores automatizan con Tesio"
+   [8], and 69b.mx sells a `Corporativo` tier at MXN 1,999 per month "Para equipos grandes y
+   despachos" [7]. **Neither publishes a reseller, partner or affiliate programme.** So what is
+   evidenced is that firms of this kind buy software of this shape, and Tesio's 2,400 is the only
+   customer count either of them publishes, self-reported and unaudited. The firm as a reseller is
+   our bet and it is labelled as one, not as an observed pattern. **And a third route the channel list
+   did not have.** A bank that embeds the control inside its own business banking is the route with the
+   largest surface and the longest cycle, argued in
+   `docs/05-business-model.md#the-third-route-a-bank-embeds-the-control-where-the-payment-executes` from
+   three facts already in this file: 60.4 percent of firms with six or more employed persons operate
+   through the institution's own web page [28], HSBCnet already sells beneficiary-name validation for
+   HSBC accounts only [42], and BBVA Net Cash has the payer type the holder's name itself [43]. **No
+   count of Mexican banks is quoted here**, because we did not open the CNBV register on this pass and a
+   denominator nobody on this team has read is worse than none.
 5. **The beachhead is Nuevo Leon**, about 18,500 firms in the band [25], and the order of attack is
    manufacturing, wholesale trade, transport and warehousing, then construction, which hold 89,523
    establishments in the band nationally [26]. Sector order is a judgement about supplier-list length
-   and account churn, not a published ranking, and it is labelled as such.
+   and account churn, not a published ranking, and it is labelled as such. Narrowed to the first
+   three of those sectors inside Nuevo Leon, the segment is **6,476 establishments** [48], and the 600
+   direct companies of the SOM are 0.67 percent of the 89,523 national figure but would be 9.3 percent
+   of those 6,476, so the direct half of the SOM leaves Nuevo Leon after the first year or it does not
+   happen. That is said here rather than discovered at the table.
 
 ### Why the arithmetic is the point
 
@@ -406,9 +430,11 @@ cell is the hit rate per supplier register, and that is measured, not assumed.
 ## Sources
 
 Every link was opened on **2026-09-12**. Source 3 is reproducible: download the file and count it.
-So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segmentation in
-`docs/02-persona.md`, which links here rather than duplicating a source list. 13 sits in
-`docs/05-business-model.md`, which numbers into this list.
+So is 26, and so is 48. Sources 27 and 44 are not cited in this file: they carry the segmentation
+in `docs/02-persona.md`, which links here rather than duplicating a source list. Source 28 now is, in
+assumption 4, because the bank route rests on where these firms already operate. Source 13 and sources
+49 to 56 sit in `docs/05-business-model.md`, which numbers into this list and is the only file that
+uses them.
 
 1. INEGI, *Censos Económicos 2024, resultados definitivos*, comunicado de prensa 79/25, 24 July
    2025. Units, size split and formality:
@@ -437,8 +463,32 @@ So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segme
    <https://www.diputados.gob.mx/LeyesBiblio/pdf/LISR.pdf>
 6. *Ley del Impuesto al Valor Agregado*, article 1, rate of 16 percent, last reform DOF 12 November
    2021: <https://www.diputados.gob.mx/LeyesBiblio/pdf/LIVA.pdf>
-7. 69b.mx, pricing page: <https://69b.mx/>
-8. Tesio, 69-B verifier and pricing line: <https://tesio.com.mx/verificar-69b/>
+7. 69b.mx, pricing page, re-read on 2026-09-12 in the evening for the channel question, 160,661
+   bytes. Three published tiers: `Gratis` at MXN 0 "Sin registro requerido", constancias at MXN 49
+   each and "Sin monitoreo (Watchlist)"; `Smart` at "$199 MXN / mes", marked `RECOMENDADO`, "Para
+   profesionales y PyMEs", 10 constancias included, additional at MXN 39, monitoring of up to 30 RFCs,
+   1 user; and `Corporativo` at "$1,999 MXN / mes", "Para equipos grandes y despachos", 50 constancias
+   included, additional at MXN 29, unlimited RFC monitoring, up to 5 users, with "¿Necesitas más
+   constancias o usuarios para un equipo grande? Contáctanos" above it. An `API 69-B` block is marked
+   "Próximamente" and offers a waitlist to "Integra la verificación del listado 69-B directamente en
+   tu ERP, sistema contable o flujo de alta de proveedores". The page says it consults five SAT
+   publications and that "Nuestro sistema consulta diariamente los cambios publicados en las cinco
+   fuentes", and it disclaims that "La consulta y la constancia son de 69b.mx; no son documentos del
+   SAT ni sustituyen asesoría profesional". Footer reads "Desarrollado por Schaefer Partners" and
+   "© 2026 69b.mx". **No reseller, partner or affiliate programme appears on the page**, and no
+   customer count: <https://69b.mx/>
+8. Tesio, 69-B verifier page and home page, both re-read on 2026-09-12 in the evening, the home page
+   210,525 bytes. The home page positions the product as "Software fiscal con IA para contadores y
+   despachos" and carries a "Tesio en números" block reading "+2,400 contadores automatizan con
+   Tesio", "180K CFDIs procesados al mes", "4.8/5 calificación promedio" and "99.9% uptime
+   garantizado", all self-reported on the vendor's own site and unaudited. Tiers: `Visor` free and
+   permanent with up to 2 RFCs, `Básico` at "$416 /mes" billed annually against "$499" monthly, and
+   `Premium` at "$666 /mes" against "$799" monthly, with "Ahorra $1596/año". Trial terms are "15 días
+   gratis · Sin tarjeta de crédito · Cancela cuando quieras". The verifier page uses "Un despacho
+   típico con 20 clientes" as its own worked example, which is the same unit of 20 client companies
+   the accounting-firm plan in `docs/05-business-model.md` is priced on. **No reseller, partner or
+   affiliate programme appears on either page**: <https://tesio.com.mx/verificar-69b/>,
+   <https://tesio.com.mx/>
 9. Trustpair: <https://trustpair.com/>
 10. nsKnox: <https://www.nsknox.net/>
 11. Eftsure: <https://home.eftsure.com.au/payment-fraud>
@@ -636,3 +686,23 @@ So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segme
     05 de junio de 2026`, three taxpayers: two `Definitivo` and one `Sentencia Favorable`. Linked
     from [45] together with a definitivos file and a sentencias favorables file:
     <https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Completo.csv>
+48. INEGI, *Directorio Estadistico Nacional de Unidades Economicas (DENUE) 05_2026*, Nuevo Leon state
+    bulk file, downloaded 2026-09-12 in the evening. 21,475,515 bytes, `Last-Modified` on the server
+    Wed, 20 May 2026 12:04:14 GMT, and the metadata file inside reads `Identifier:
+    MEX-INEGI.EEC2.05-DENUE-2026` with `Modified: 2026-05-20`, so it is the same release as [26].
+    211,349 establishment rows. Counted by us with the same `per_ocu` strata filter as [26], the four
+    strata `11 a 30 personas`, `31 a 50 personas`, `51 a 100 personas` and `101 a 250 personas`:
+    24,599 establishments in the band across all sectors, of which manufacturing (`codigo_act`
+    beginning 31, 32 or 33) 3,240, wholesale trade (43) 2,445, transport and warehousing (48, 49)
+    1,413 and construction (23) 791. By municipality over the three sectors of the first segment,
+    Monterrey 2,261, Apodaca 857, Guadalupe 730, San Nicolas de los Garza 601, Santa Catarina 531,
+    General Escobedo 426, San Pedro Garza Garcia 292 and Garcia 142, with 40 municipalities holding at
+    least one. Apodaca holds 2,511 in the band across all sectors. Over SCIAN 541211 the file returns
+    737 for the state, the same number [26] reports, split 424 at `0 a 5`, 165 at `6 a 10`, 113 at
+    `11 a 30`, 20 at `31 a 50`, 7 at `51 a 100`, 3 at `101 a 250` and 5 at `251 y mas`, so 143 sit in
+    the 11-to-250 band and 148 employ 11 or more. The thirteen-municipality metropolitan grouping used
+    above is ours and not INEGI's: Monterrey, Apodaca, Guadalupe, San Nicolas de los Garza, San Pedro
+    Garza Garcia, General Escobedo, Santa Catarina, Garcia, Juarez, Salinas Victoria, Cienega de
+    Flores, Cadereyta Jimenez and Santiago. Reproducible: download the file, filter the four strata,
+    group by `codigo_act` and `municipio`:
+    <https://www.inegi.org.mx/contenidos/masiva/denue/denue_19_csv.zip>

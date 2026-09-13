@@ -76,9 +76,10 @@ export function MetricsScreen() {
                 color: "var(--c-verify-ink)",
               }}
             >
-              Estos numeros son un placeholder con la forma del resultado real.
-              La evaluacion ciega todavia no ha corrido, asi que no son una
-              medicion y no se deben citar.
+              Sin API. Estos numeros se calcularon sobre los mismos casos
+              etiquetados que responde el servidor, con los mismos seis
+              controles, asi que son la misma evaluacion ciega y no un
+              placeholder. Se recalculan en el servidor al reconectar.
             </p>
           ) : null}
 
