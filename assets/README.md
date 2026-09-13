@@ -10,6 +10,7 @@ screenshot never costs a CI run.
 
 | Path | What goes in it | State |
 |---|---|---|
+| `brand/` | The SentryOne lockup and icon as SVG, the lockup rendered at 1600 px wide light and dark on transparent background, and `social-preview.png` at 1280x640 for the GitHub social preview | Done |
 | `demo.gif` | The README hero loop: under 6 MB, looping, 10 to 15 seconds, no cursor jitter | TODO(Apanawa) |
 | `screenshots/` | `<NN>-<slug>.png`, numbered in demo order. Three of these go in the README and in Devpost | TODO(Apanawa) |
 | `persona/` | The persona portrait and the journey visual referenced by `docs/02-persona.md` | TODO(Apanawa) |

@@ -122,6 +122,27 @@ section landed after that tag was cut.
   rather than private, so the tour reads its environment through the same function instead of keeping
   a third copy of it.
 
+- **The brand is in the repository** (issue #216). `assets/brand/` carries the four SentryOne SVGs,
+  the lockup rendered at 1600 px wide in a light and a dark variant on transparent background, and
+  `social-preview.png` at 1280x640 for the GitHub social preview card, which is the image that
+  travels with every link to the repository and cannot be set through the API: a person uploads it in
+  Settings, General, Social preview. `assets/` is already excluded from the Vercel upload by
+  `.vercelignore`, so none of it reaches the web bundle.
+
+### Changed
+
+- **The README is written for a judge with two hours** (issue #216). It opens with the lockup, the
+  track, the live app and the recorrido, and then tells the Thursday it exists for in six lines
+  before any table. The six controls are one table that names the source each one reads and the
+  screenshot that shows it, the moments are a gallery of the captures already committed, and the
+  build is one mermaid diagram plus a row per sponsor technology saying what we do with it and where
+  in the code it lives. The category section carries one evidence sentence each and one way to
+  falsify it in thirty seconds, for the five categories `docs/13-devpost.md` says we genuinely use
+  plus the Capital One track statement, and it names no category that document says not to select.
+  Nothing true was dropped: the setup commands, the stack table, the docs index, the rules of this
+  repository, the disclaimer and the licence are all still here, and the quickstart is two commands
+  now because `SEED=sentryone bun run dev` serves the demo company with no database at all.
+
 - **Entrada y ajustes reads in two columns instead of one long scroll** (issue #216). The screen was
   2620 px of stacked full-width panels, so at 1440 half the width was empty and the six control
   thresholds, which are the rows a judge came to read, sat four scrolls under the person selector. It
