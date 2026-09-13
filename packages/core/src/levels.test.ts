@@ -426,6 +426,7 @@ describe("executionLineOf", () => {
       failed: 0,
       cancelled: 0,
       amount: 50417.48,
+      queuedAmount: 12000,
       sentAmount: 38417.48,
       settledAmount: 0,
       failedAmount: 0,
