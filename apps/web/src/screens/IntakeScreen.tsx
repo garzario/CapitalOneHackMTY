@@ -155,9 +155,7 @@ export function IntakeScreen() {
             required
           />
           {amount !== "" && !amountIsValid ? (
-            <p className="t-xs" style={{ color: "var(--c-hold-ink)" }}>
-              Solo numeros y un punto decimal.
-            </p>
+            <p className="ink-hold t-xs">Solo numeros y un punto decimal.</p>
           ) : null}
           {amountIsValid ? (
             <p className="subtle t-xs">{formatMoney(parsedAmount)}</p>
