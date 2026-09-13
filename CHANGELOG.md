@@ -18,6 +18,43 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
+  behaviour that makes four of them true rather than asserted (issue #171). A held payment now
+  carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same
+  `EXPECTED_DELAY_DAYS` table `decide` weighed the expected loss against, so the delay the arithmetic
+  charged for and the deadline a clerk is promised are one number and cannot drift, three days for a
+  hold and one for a verification, measured from the decision's own instant. The deadline decides
+  nothing when it passes, which is binding under ADR-0002: `expired` turns true, the payment goes
+  back in front of a person, and what the deadline actually buys is a bound on the retry loop. The
+  window carries ordered `nextSteps`, and the one worth saying out loud is `one_cent_cep`, because it
+  needs nobody to answer a telephone; after a `denied` the only step offered is `keep_held`, since
+  suggesting a release next to the supplier's own denial would be the product arguing against its own
+  finding. `GET /api/v1/instructions/:id` answers it, and so does a recorded
+  `POST /api/v1/instructions/:id/verify-call`, which is how "nadie contesto" and "y ahora que" arrive
+  in the same response. `POST /api/v1/instructions/:id/decide` takes a `reason` next to the required
+  `decidedBy` and answers the `amountAtRisk` it was decided against: an urgent payment can be released
+  under a named person's responsibility with a written argument, and both land on the `decision_made`
+  ledger event and on `decisions.reason` (`packages/db/migrations/0009_decision_reason.sql`), because a
+  hold with no way out is bypassed outside the product where nothing is recorded at all. And the run
+  answers in pesos rather than in line counts: `runMoney` in `packages/core/src/exposure.ts` puts
+  `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount`, `amountAtRisk`,
+  `retroactive69bBase` and `retroactive69bExposure` on the `totals` of `GET /api/v1/run/current`, with
+  the 69-B pair counted once per supplier because the sweep prices it per supplier and one supplier can
+  sit on three payments in one week. `docs/09-api.md` and `docs/08-data-model.md` carry the contract
+  and the column. The same pass corrects a number the pitch said out loud: the listed-supplier
+  scenario summed its deducted base over the settled invoices and then reported the supplier's whole
+  invoice count next to it, so `docs/11-pitch.md` and `docs/08-data-model.md` said 31 invoices while
+  `docs/07-architecture.md` and `bun run demo` said 24 paid ones for the same MXN 878,592.59. The
+  note in `packages/seed/src/sentryone/scenarios.ts` now counts the set the base was summed over, and
+  the two docs say 24 of 31.
+
+- `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
+  problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one
+  line each, the business model in three sentences, and the six objections of 2026-09-12 with the
+  answer to say out loud. It uses `docs/print/print.css` and the visual system of `judge-card.html`,
+  and `docs/print/README.md` states the rule that governs it: no number reaches that card that is not
+  already in `docs/04`, `docs/05` or `docs/11`.
+
 - The other SAT list, article 49 Bis, covered next to 69-B and reported honestly (issue #180).
   Article 49 Bis of the CFF was added by the decree of DOF 07-11-2025 and is in force since 1 January
   2026: after an express home visit capped at twenty-four business days, the SAT publishes the taxpayer
@@ -51,6 +88,7 @@ then the screens, then the narrative, then the plumbing.
   it is about the improper transfer of tax losses and says nothing about a supplier's invoice. The
   TODOs this replaces are gone from `docs/04-market.md`, `docs/06-regulatory-privacy.md` and
   `docs/14-process.md`, and `docs/01`, `docs/08` and `docs/09` carry the coverage statement.
+
 - The one-cent verification travels inside the payment run, with nobody typing (issue #166).
   `packages/rail` is the new workspace and the only place in the product that sends money: one
   amount, 0.01 MXN, behind a `PaymentRail` interface with three adapters. `NessieRail` records the
@@ -122,11 +160,24 @@ then the screens, then the narrative, then the plumbing.
   **The network is synthetic and every artifact says so.** SentryOne has one tenant, so the other
   tenants are generated from seed 69 with `synthetic = TRUE` on every warehouse row, and
   `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse a rehearsal
-  with a warehouse. Verified end to end against a local PostgreSQL 18 on 2026-09-12: 46 hashed pairs
-  pulled with `--offline`, a corroborated account released with "pagada por 34 empresas" on the
-  finding, and the same supplier on an account the network has never paid verified at 35,769.75 MXN
-  of expected loss. The live Snowflake path is untried because `SNOWFLAKE_ACCOUNT` and
-  `SNOWFLAKE_USER` are still empty.
+  with a warehouse.
+  **Verified against the real warehouse on 2026-09-12, and the verification found one bug.**
+  `consortium:seed` created `SENTRYONE.CONSORTIUM` and loaded 2,040 synthetic events, `consortium:push`
+  added 2,446 of this tenant's own hashed outcomes, and `consortium:pull` landed 46 hashed pairs, 45
+  corroborated and 1 with a fraud report, into the managed Postgres. The first live pull skipped all 46
+  rows: the SQL REST API returns a DATE as the number of days since the epoch in a string, not as
+  `YYYY-MM-DD`, so the pull wrote an EMPTY snapshot with `source = 'snowflake'`, which a screen would
+  have read as a network that has never seen any of these accounts. `networkSelect` now formats both
+  dates with `to_varchar(..., 'YYYY-MM-DD')` and `readNetworkRows` also decodes the epoch-day form, each
+  with a test. `bun run doctor` prints the `snowflake` line green with the pair count and the
+  `pulled_at` it wrote.
+  **`bun run demo` has a sixth beat for it.** It fills a local snapshot from the generator with no
+  Snowflake account, then posts two lines of the seeded run through intake: one the network corroborates
+  is released carrying `pagada por 34 empresas desde sep 2025` in its evidence, one the network has no
+  row for is held at 537,960.97 MXN carrying `sin registro de esta cuenta, 1 otra cuenta del proveedor`,
+  and the same two lines against an instance with the flag off, and against one with the flag on and an
+  empty snapshot, come back with the identical action and the identical expected loss, which is claim 2
+  of `packages/core/src/network.ts` asserted rather than argued.
 
 - Two things the deploy of #44 cost to learn, written down next to the commands in
   `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
@@ -381,6 +432,23 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- `docs/12-judge-qa.md` gains "Table feedback of 12 September and the answers": the six objections,
+  a thirty-second answer each, and the file or the endpoint each answer rests on named once. The rule
+  it is written under is the one to keep: an answer that is not true in the repository today is written
+  as "today X, and by the demo Y" with the issue that makes it Y, which is why the screen work is
+  #174 and folding the newest sweep into the run counter is #175.
+
+- `docs/11-pitch.md` drops the minutes framing for the loss framing. "En la vida real esto toma ocho
+  minutos y con nuestro producto toma segundos" is now banned in Delivery rules rather than merely
+  discouraged: it prices the product at the wage of the person doing the work, which anyone can
+  compute while you are still talking, and it invites the objection the second engineer gave us. The
+  new section "The value is the loss, not the minutes" says what replaces it, and "The objection about
+  the father's PyME" answers that engineer: the user is not the owner who knows his suppliers by
+  voice, it is the company whose Thursday run pays dozens of them through one clerk, the supplier's own
+  WhatsApp is the channel the attacker uses so trusting the conversation is the failure mode and not
+  the defence, and the 69-B loss needs no fraud at all. The gated table gains the two rows these
+  changes let us say, and the numbers table gains the hold window.
+
 - The three questions three Capital One judges asked at the table on 2026-09-12 in the afternoon are
   answered with sources, and one claim we had been making is withdrawn (issue #173). They asked, one
   each: how many people have this problem in Mexico and is there demand, who is already doing it here
@@ -454,6 +522,29 @@ then the screens, then the narrative, then the plumbing.
   and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
 
 ### Fixed
+
+- Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
+  things the running product does not do, found by taking each claim to the code and to `curl`
+  (issue #171). The verification-call deadline is one day and not three: `HOLD_WINDOW_DAYS` is
+  `EXPECTED_DELAY_DAYS`, three days for a `hold` and one for a `verify`, and a verification call is
+  placed on a payment in `verify`, so the response says `days: 1`. The reason column is
+  `0011_decision_reason.sql` and not `0009`, which the consortium and the rail took. The cost of
+  delaying a payment reads MXN 0.00 on every instruction of the demo company, because the generator
+  prices no `Supplier.delayCostPerDay` and `supplierModelOf` falls back to zero, so the sheet now
+  says the mechanism is in `decide` and the number is flat in this data (issue #182). The UI does not
+  say the loss probability is a prior, only `decision.ts` does. `releasesPayment: false` is on every
+  response that reports a call and not on a `404`. A `no_answer` with nobody on the line carries no
+  quoted phrase; only a voicemail greeting does. The beneficiary comparison is not a documental fact
+  while `nameMatch` answers `partial` on one shared word and the seal reads `not_checked`. And four
+  numbers were stale: the test count, the 180 case-by-detector pairs that contradict a matrix summing
+  to 183, the claim that no control stayed silent in the blind evaluation, and a `TODO` about a
+  persona figure that had already been refreshed.
+
+- `POST /api/v1/instructions/:id/verify-call` validated `recordedBy` on a hand-recorded call and then
+  dropped it, so the fallback path the demo uses when there is no telephony on site was the only
+  human action in the product landing on an append-only ledger with nobody's name against it (issue
+  #171). It now travels onto the `verification_call` event, and stays absent on a call the agent
+  placed, where the conversation id is the provenance.
 
 - The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
   synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the

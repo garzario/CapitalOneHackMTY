@@ -9,7 +9,7 @@
  *   typecheck   every workspace compiles
  *   test        every test passes
  *   build       the web bundle and every package build
- *   demo        the five beats of docs/10-demo-script.md, headless
+ *   demo        the beats of docs/10-demo-script.md, headless
  *   scrub       no secret in the tree, the history or the commit messages
  *
  * It asserts nothing about the state of the world it cannot see: it does not
@@ -53,7 +53,7 @@ const GATES: Gate[] = [
   },
   {
     name: "demo",
-    why: "the five beats of docs/10-demo-script.md are what the judges see",
+    why: "the beats of docs/10-demo-script.md are what the judges see",
     command: ["bun", "run", "demo"],
   },
   {

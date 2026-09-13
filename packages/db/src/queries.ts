@@ -1383,10 +1383,10 @@ export async function insertDecision(
   return transact(sql, async (tx) => {
     const rows = await tx<{ id: string | number }[]>`
       insert into decisions (instruction_id, action, expected_loss,
-        delay_cost_per_day, decided_at, decided_by)
+        delay_cost_per_day, decided_at, decided_by, reason)
       values (${decision.instructionId}, ${decision.action}, ${decision.expectedLoss},
         ${decision.delayCostPerDay}, ${decision.decidedAt}::timestamptz,
-        ${decision.decidedBy ?? null})
+        ${decision.decidedBy ?? null}, ${decision.reason ?? null})
       returning id
     `;
     const id = Number(rows[0]?.id);
@@ -1407,7 +1407,7 @@ export async function insertDecision(
 
 const DECISION_SELECT = `
   select d.id, d.instruction_id, d.action, d.expected_loss, d.delay_cost_per_day,
-         d.decided_at, d.decided_by,
+         d.decided_at, d.decided_by, d.reason,
          coalesce(
            json_agg(
              json_build_object(

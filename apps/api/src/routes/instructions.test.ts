@@ -6,6 +6,7 @@ import type { IntakeExtractor } from "../extraction";
 import { runControlsFor } from "../pipeline";
 import {
   decideResponseSchema,
+  instructionDetailResponseSchema,
   instructionDetailSchema,
   intakeResponseSchema,
   ledgerResponseSchema,
@@ -75,6 +76,23 @@ describe("GET /api/v1/instructions/:id", () => {
     expect(detail.decision?.action).toBe("hold");
     expect(detail.findings.map((finding) => finding.detector)).toEqual([
       "clabe_forensics",
+    ]);
+  });
+
+  it("says how long the payment is held and what to do next", async () => {
+    /* The judges' question on 2026-09-12: what happens if it is urgent. A held
+       payment with no deadline and no way out is a control the clerk bypasses
+       outside the product, where nothing is recorded. */
+    const { app } = createTestApp();
+    const res = await app.request(`/api/v1/instructions/${SEEDED_ID}`);
+    const detail = instructionDetailResponseSchema.parse(await res.json());
+
+    expect(detail.hold?.action).toBe("hold");
+    expect(detail.hold?.days).toBe(3);
+    expect(detail.hold?.nextSteps).toEqual([
+      "call_supplier",
+      "one_cent_cep",
+      "release_with_reason",
     ]);
   });
 
@@ -659,6 +677,62 @@ describe("POST /api/v1/instructions/:id/decide", () => {
     );
 
     expect(res.status).toBe(404);
+  });
+
+  it("records the reason a person wrote and states the pesos at risk", async () => {
+    const { app, deps } = createTestApp();
+    const seen: LedgerEvent[] = [];
+    deps.events.subscribe((event) => seen.push(event));
+
+    const res = await app.request(
+      `/api/v1/instructions/${SEEDED_ID}/decide`,
+      json({
+        action: "release",
+        decidedBy: "clerk-synthetic",
+        reason:
+          "el proveedor confirmo la cuenta por telefono y la nomina sale hoy",
+      }),
+    );
+    const body = decideResponseSchema.parse(await res.json());
+
+    expect(body.decision.reason).toContain("la nomina sale hoy");
+    expect(body.amountAtRisk).toBeGreaterThan(0);
+    /* A release stops nothing, so there is no window and no next step. */
+    expect(body.hold).toBeNull();
+
+    /* The argument travels on the append-only event, not only in the response:
+       a release nobody can explain later is not a thing this product allows. */
+    const [event] = seen;
+    expect(event?.type).toBe("decision_made");
+    expect(
+      event?.type === "decision_made" ? event.decision.reason : undefined,
+    ).toContain("la nomina sale hoy");
+
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${SEEDED_ID}`)).json(),
+    );
+    expect(detail.decision?.reason).toContain("la nomina sale hoy");
+  });
+
+  it("carries no reason when nobody wrote one, rather than the last one", async () => {
+    const { app } = createTestApp();
+
+    await app.request(
+      `/api/v1/instructions/${SEEDED_ID}/decide`,
+      json({
+        action: "release",
+        decidedBy: "clerk-synthetic",
+        reason: "urgente",
+      }),
+    );
+    const res = await app.request(
+      `/api/v1/instructions/${SEEDED_ID}/decide`,
+      json({ action: "hold", decidedBy: "clerk-synthetic" }),
+    );
+    const body = decideResponseSchema.parse(await res.json());
+
+    expect(body.decision.reason).toBeUndefined();
+    expect(body.hold?.deadline).toBe("2026-09-15T03:00:00.000Z");
   });
 
   it("rejects an action outside the three the domain allows", async () => {

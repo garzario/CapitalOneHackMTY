@@ -217,6 +217,16 @@ describe("the DDL", () => {
     expect(select).toContain("order by rfc_hash, clabe_hash");
   });
 
+  test("the pull formats both dates in SQL rather than trusting the transport", () => {
+    /* The SQL REST API returns a DATE as days since the epoch in a string, so a
+       raw `select first_seen` handed the pull "19854" and every row was skipped.
+       The format model belongs in the statement, where a reviewer sees it. */
+    const select = networkSelect();
+
+    expect(select).toContain("to_varchar(first_seen, 'YYYY-MM-DD')");
+    expect(select).toContain("to_varchar(last_seen, 'YYYY-MM-DD')");
+  });
+
   test("the columns the view exposes are the ones the pull reads", () => {
     /* The two halves of the contract, checked against each other: a view that
        renamed a column would otherwise produce a snapshot of skipped rows. */

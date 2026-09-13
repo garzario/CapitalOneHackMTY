@@ -675,8 +675,9 @@ decision path never touches the warehouse.
 ### 8.7 The honest scope, in the words we are allowed to use
 
 There is one tenant. The other tenants in this repository are generated deterministically by
-`packages/seed` from seed 69, every row carries `synthetic = true`, and the network therefore
-demonstrates a mechanism and not an installed base.
+`packages/consortium/src/synthetic.ts`, off the same `packages/seed` generator and the same seed 69 as
+the demo company, every row carries `synthetic = true`, and the network therefore demonstrates a
+mechanism and not an installed base.
 
 - **May be said:** the network is a synthetic network of other tenants, generated for the demo, and
   the table it reads is real Snowflake holding real rows we put there.

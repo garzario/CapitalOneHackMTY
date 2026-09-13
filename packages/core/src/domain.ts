@@ -512,6 +512,17 @@ export interface Decision {
    * on the one decision the engine signs itself.
    */
   decidedBy?: string;
+  /**
+   * Why that person chose this action, in their own words.
+   *
+   * Absent on the engine's own proposal, because the engine's reasoning is the
+   * findings and it is already on the object. The case this field exists for is
+   * the urgent payment: a clerk releases something the engine held, and the
+   * responsibility has a name in `decidedBy` and an argument here. Both land on
+   * the `decision_made` ledger event, so a release nobody can explain later is
+   * not a thing this product allows.
+   */
+  reason?: string;
 }
 
 /** Append-only ledger event. The retroactive sweep is a replay over these. */
@@ -605,6 +616,15 @@ export type LedgerEvent =
       conversationId?: string;
       /** True when a person placed the call by hand and typed the outcome in. */
       manual: boolean;
+      /**
+       * Who typed the outcome in, on a call a person placed by hand.
+       *
+       * Absent on a call the agent placed, because there the conversation id is
+       * the provenance. Present on a manual one, because otherwise the only human
+       * action in this product with no name against it would be the fallback path
+       * the demo leans on when there is no telephony on site.
+       */
+      recordedBy?: string;
     }
   | { type: "decision_made"; at: string; decision: Decision };
 

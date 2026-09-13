@@ -246,7 +246,7 @@ flowchart LR
   subgraph C[packages/consortium, scripts only]
     PUSH["consortium:push<br/>hash, then INSERT"]
     PULL["consortium:pull<br/>SELECT the view"]
-    SEEDN["consortium:seed<br/>synthetic other tenants<br/>packages/seed, seed 69"]
+    SEEDN["consortium:seed<br/>synthetic other tenants<br/>synthetic.ts, seed 69"]
   end
 
   subgraph S[Snowflake SENTRYONE.CONSORTIUM]
@@ -304,9 +304,10 @@ only code that authenticates to Snowflake and a person runs them, which is also 
 holds that credential.
 
 **The network in this repository is synthetic.** `consortium:seed` creates the database, the schema,
-the table and the view, then loads a deterministic network of other tenants from `packages/seed` seed
-69, so the demo's legitimate supplier accounts carry months of sightings from many tenants and the
-hard negatives carry none or a fraud report. Every row is written with `synthetic = true`. There is
+the table and the view, then loads a deterministic network of other tenants built by
+`packages/consortium/src/synthetic.ts` off the same `packages/seed` generator at seed 69, so the demo's
+legitimate supplier accounts carry months of sightings from many tenants and the hard negatives carry
+none or a fraud report. Every row is written with `synthetic = true`. There is
 one real tenant, and `docs/10-demo-script.md` carries the sentence that says so on stage.
 
 ## Why each choice, and what would make us switch
@@ -322,7 +323,7 @@ one real tenant, and `docs/10-demo-script.md` carries the sentence that says so 
 | Postgres, one dialect, two hosts | SQLite for the offline path | Two dialects means two implementations and two sets of bugs. Same SQL everywhere, same driver, and the offline fallback is a local Postgres 18 rather than a second database. ADR-0003 | Nothing. This was an explicit correction, and `bun:sqlite` is now forbidden |
 | Timescale on Tiger Data, hypertables on `ledger_tx` and `ledger_events` | Plain Postgres only | The ledger genuinely is a time series: append-only, read as one company over a window, rolled up per day. `0002` and `0004` add the hypertables and the two continuous aggregates, and they are the honest answer to "what happens at ten times the volume": the same SQL, partitioned by time | Nothing, because the fallback already exists. `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips both files on a plain Postgres 18, where the same rollups run as plain `date_trunc` queries. `bun run doctor` names which path is live |
 | Raw SQL through `postgres@3.4.9`, no ORM | Drizzle or Prisma | When a judge asks how the sweep is fed, the answer is the SQL on screen. No migration tool to fight, no generated client to explain. Numerics cross the boundary as strings and are moved as integer cents | A schema complex enough that hand-written queries drift. `packages/db/src/queries.ts` is the one file to watch |
-| **Snowflake for the cross-tenant network** (`packages/consortium`) | Another schema in the same Tiger Data Postgres | The ledger is single-tenant by a database check constraint (`0006_company.sql`, `check (id = 1)`), and that constraint is only defensible because nothing behind it is ever read across customers. The network is the opposite shape: append-only events scanned across every tenant, aggregated a handful of times a day, and it has to grow into something a participant can audit and revoke, which is what Secure Data Sharing already is. Separate vendor, separate credential, separate blast radius, and no name or amount in it. ADR-0006 | A participant who needs the operator not to see the pairs at all, which is private set intersection and the Cenote design ADR-0002 rejected for this event. The client is `fetch` plus WebCrypto and no SDK, so the warehouse is replaceable without touching the engine |
+| **Snowflake for the cross-tenant network** (`packages/consortium`) | Another schema in the same Tiger Data Postgres | The ledger is single-tenant by a database check constraint (`0006_company.sql`, `check (id = 1)`), and that constraint is only defensible because nothing behind it is ever read across customers. The network is the opposite shape: append-only events scanned across every tenant, aggregated a handful of times a day, and it has to grow into something a participant can audit and revoke, which is what Secure Data Sharing already is. Separate vendor, separate credential, separate blast radius, and no name or amount in it. ADR-0006 | A participant who needs the operator not to see the pairs at all, which is private set intersection and the Cenote design ADR-0002 rejected for this event. The client is `fetch` plus `node:crypto` and no SDK, so the warehouse is replaceable without touching the engine |
 | **`apps/api` on a Vultr instance** | Serverless functions on the web host | The payment-run screen updates from a Server-Sent Events stream, and SSE needs a long-lived process. A function runtime with a request timeout either drops the stream or forces a polling fallback that makes the product feel like a report. One small box with the API and Postgres next to it also removes a network hop from the read path. This amends ADR-0005, see below | If the SSE stream were dropped in favour of polling, the box stops earning its keep and the API goes back to the function runtime, which the no-`bun:*` rule keeps available |
 | **`apps/web` static on Vercel** | Serving the built assets from the same box | Judges walk up repeatedly across 36 hours and open the product on their own phone. A CDN-hosted static build with a preview URL per pull request is the cheapest way to be reachable and the cheapest evidence to attach to a UI PR. A dead API box then costs us the data, not the page | Nothing. The two-unit split is deliberate |
 | Hash router in `apps/web`, no router dependency | A path router | The app ships as a static build, so a path router needs a rewrite rule on the host for every deep link, and `#/intake` inside a QR code would break the first time a deploy target changed | A server-rendered surface, which we do not have |

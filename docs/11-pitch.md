@@ -50,6 +50,9 @@ Refresh this table at every milestone.
 | "This CEP is real, re-verify the clave de rastreo on your phone" | `packages/cep` reads, checks and compares a CEP; the committed fixture is synthetic | **Not ticked.** Issue #57 supplies the real one-cent CEP. Until it lands, say what the parser does and that the CEP on screen is the synthetic fixture |
 | "Precision, recall and false-positive rate, blind" | Thirty labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
 | "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
+| "A held payment carries a deadline and a way out" | `holdWindow` in `packages/core/src/hold.ts`, on `GET /api/v1/instructions/:id` and on a recorded `verify-call`; the reason and the name on `POST /api/v1/instructions/:id/decide` | Ticked in the engine and the API. **Not on screen yet**, issue #174, so say "la API lo contesta y la pantalla lo muestra para el demo" and show it with `curl` if pushed |
+| "The run answers in pesos, not in minutes" | `runMoney` in `packages/core/src/exposure.ts`, on the `totals` of `GET /api/v1/run/current` | Ticked for the money that is stopped, released and at risk. The retroactive 69-B pair reads zero until a sweep prices a supplier in the run, issue #175 |
+| "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, and the `Costo de retrasar un dia` field on the instruction screen | **Ticked in the engine, flat in the demo data.** The generator prices no `Supplier.delayCostPerDay`, so all 92 decisions carry zero and the field reads MXN 0.00, issue #182. Say the mechanism, never point at the number |
 
 **The live call happened, so the row above is ticked.** Two outbound calls went out on 2026-09-12
 through the imported Twilio number to a teammate's own mobile, the first of them 18 seconds and
@@ -72,21 +75,23 @@ than being corrected.
 | How often the list changes | 33 publication dates in the twelve months to 2026-07-31, about one every eleven days, 973 taxpayers moved to definitivo and 1,226 new presuntos | `docs/04-market.md` source [3], counted from the file |
 | What one listing costs | For every MXN 100,000 of deducted subtotal, MXN 46,000 of tax effect reverses: 30 percent ISR plus 16 percent IVA | `docs/04-market.md`, sources [5] and [6] |
 | The buyer's window | 30 days from the publication | CFF article 69-B, `docs/06` section 3.1 |
+| How long a payment stays stopped | 3 days for a hold, 1 day for a verification, measured from the decision | `EXPECTED_DELAY_DAYS` in `packages/core/src/decision.ts`, reused by `holdWindow` in `hold.ts` so the delay the arithmetic charged for and the deadline on screen are one number |
 | Firms in the target band | About 246,000 Mexican firms of 11 to 250 people | INEGI CE 2024, `docs/04-market.md` source [1] |
 | TAM, SAM, SOM | MXN 2,655 million, MXN 948 million, MXN 12.1 million per year | `docs/04-market.md#sizing`, bottom-up, entities times price |
 | Our price | MXN 899 per company per month; MXN 3,900 per month for an accounting firm with up to 20 client companies, MXN 195 each | `docs/05-business-model.md` |
 | The price anchor | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
 | Break-even | One stopped invoice of MXN 23,452 of subtotal per year | `docs/05-business-model.md` |
 | Avoided loss | One held invoice of MXN 100,000 of subtotal pays 51 months of subscription; one misdirected SPEI of the same amount pays 111 months | `docs/05-business-model.md` |
-| The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`, printed by `bun run seed` |
+| The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`. `bun run seed` prints the suppliers, the CFDIs, the complements and the run; the headcount and the city are in `company.ts` and the event count is the ledger row of `docs/08-data-model.md` |
 | This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeSentryOne` |
-| The listed-supplier scenario | MXN 878,592.59 of base already deducted across 31 invoices to the supplier the simulated publication names | same, `notes.scenarios` |
-| The blind evaluation | 30 labelled cases, 180 case-by-detector pairs. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval` at `4e9e2eb`, unchanged since `5d4d506`. **Re-run it before quoting it** |
-| Tests | 1,116 tests across 65 files, green on 2026-09-12 at `4e9e2eb` | `bun test` |
+| This week's run in pesos | MXN 885,658.73 stopped (MXN 592,592.38 held plus MXN 293,066.35 to verify), MXN 1,288,552.03 released, MXN 799,209.86 at risk | `totals` of `GET /api/v1/run/current`, from `runMoney`. The two `retroactive69b` fields on the same object read zero on this run, and #175 is why |
+| The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
+| The blind evaluation | 30 labelled cases and 21 labelled expectations over six detectors, scored as 183 counts. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval`, re-read on 2026-09-12. **Re-run it before quoting it.** Say 30 cases, never a pair count: six detectors on thirty cases looks like 180 slots, and the matrix sums to 183 because a detector that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
+| Tests | 1,777 tests across 97 files on 2026-09-12: 1,666 passing, 111 skipped, 0 failing | `bun test`. Say passing and skipped, because a judge who runs it sees both |
 
-`TODO(FabriBanda)`: `docs/02-persona.md` still carries MXN 673,460.27 as the reference run amount.
-The finished generator produces MXN 2,174,210.76 for the same week. Refresh that cell, or the pitch
-and the persona doc contradict each other in front of a judge who reads both.
+The reference run amount in `docs/02-persona.md` is MXN 2,174,210.76, the same figure this table
+carries, so the pitch and the persona doc agree in front of a judge who reads both. That cell used to
+read MXN 673,460.27 and it was refreshed; re-check it whenever the generator changes.
 
 The two SAT vintages are reconciled in
 `docs/04-market.md#two-sat-files-and-the-one-the-product-ships`, with both files, both dates and
@@ -94,6 +99,61 @@ both row counts in one table. The short version for the stage: the product answe
 committed 14,234-row snapshot current to 2025-12-31, and the 14,761-row open-data file current to
 2026-07-31 is where the publication-frequency counts come from. Say either number with its date, or
 say neither. Never quote 14,761 as the size of the list the lookup box answers from.
+
+## The value is the loss, not the minutes
+
+Three Capital One judges heard "en la vida real esto toma ocho minutos y con nuestro producto toma
+segundos" on 2026-09-12 and told us they did not care. They were right, and this section is the
+replacement. Issue #171.
+
+**The sentence is banned.** Not softened, banned. It loses twice. It prices the product at the wage of
+the person doing the work, which is about MXN 375 a day, so eight minutes is worth centavos and anyone
+can do that arithmetic in their head while you are still talking. And it invites the answer the second
+engineer gave us, which is that his father talks to his suppliers all day and does not need software to
+be quick.
+
+**What replaces it.** The value of this product is the loss that did not happen, so every claim is in
+pesos.
+
+> Lo que vale no son los minutos, es la perdida que no ocurrio. De un subtotal rechazado por el
+> articulo 69-B se revierte el cuarenta y seis por ciento entre ISR e IVA. Una factura de cien mil
+> pesos de subtotal detenida paga cincuenta y un meses de suscripcion. Un SPEI mal dirigido del mismo
+> monto paga ciento once, porque ahi no hay nada que revertir. Y se paga completo con una sola factura
+> detenida de veintitres mil cuatrocientos cincuenta y dos pesos de subtotal al ano.
+
+Three delivery consequences, all of them checkable on screen.
+
+- **The run answers in pesos.** `GET /api/v1/run/current` reports `heldAmount`, `toVerifyAmount`,
+  `releasedAmount`, `stoppedAmount`, `amountAtRisk`, `retroactive69bBase` and
+  `retroactive69bExposure` on `totals`, computed by `runMoney` in `packages/core/src/exposure.ts`. The
+  hero figure on the run screen is already the money that is not leaving and never the total of the
+  run, which is the number that is the same whether the product works or not.
+- **The 69-B exposure is the loss that needs no fraud at all.** Nobody stole anything. The SAT
+  published a list and deductions already taken were voided. That is the half of the pitch no
+  anti-fraud demo has, and it is the half to lead with when a judge doubts the problem is real.
+- **Never say the product is fast.** It is not a claim anybody buys, and speed is the one property a
+  judge can neither verify nor care about at a table. If a time has to be said, say the window and not
+  the saving: the few minutes between approving a payment run and sending it are where nothing else
+  sits, which is a statement about the gap and not about our latency.
+
+## The objection about the father's PyME
+
+One of the engineers said his father has a PyME and is in constant contact with his suppliers, and
+concluded that he is not our user. He is right, and the answer is not to argue about his father.
+
+The user is not the owner who knows five suppliers by voice. It is the company whose Thursday run pays
+dozens of suppliers through one person in administration, who knows none of them by voice and cannot
+telephone forty-four of them before the bank cut-off. And the part that turns the objection around:
+**the supplier's own WhatsApp and email are the channel the attacker uses.** A payment instruction that
+arrives inside a conversation you trust is the whole attack, so trusting the conversation is the failure
+mode and not the defence. `PaymentInstruction.text` exists in `packages/core/src/domain.ts` for exactly
+this reason, and its comment says it: the message is shown as context and never decides, because a
+message is the artefact an attacker controls.
+
+Then the sentence that closes it, because it does not depend on an attacker existing at all: **the
+69-B loss needs no fraud.** The supplier is real, the invoice is real, the relationship is twenty years
+old, and the SAT publishes a list that voids the deductions already taken on it, retroactively, with
+thirty days to answer. Talking to your supplier every day protects you from none of that.
 
 ## The six controls, in the words used at the table
 
@@ -113,6 +173,13 @@ them. One sentence each is enough; the evidence column is what you open when the
 Then the decision, which is the part engineers ask about: **"seis detectores independientes, cada
 hallazgo trae pesos en riesgo, y una sola decision de perdida esperada pesa esos pesos contra lo que
 cuesta retrasar ese pago un dia. Retener, verificar o liberar, y firma una persona."**
+
+**Do not open the delay figure to prove it.** The trade-off is in `decide` and in `EXPECTED_DELAY_DAYS`,
+but the seeded company prices no supplier relationship, so `Costo de retrasar un dia` renders MXN 0.00
+on every instruction and rule 3 never reaches its release branch. If an engineer asks what the delay is
+worth here, the answer is "cero en esta empresa, porque el generador no le pone precio a la relacion;
+el mecanismo esta en la decision y lo puedes leer", and #182 is what fills it in. Volunteering that is
+cheap. Being caught pointing at a zero is not.
 
 And the property that is easy to miss and worth volunteering: **every one of the six lands in `ran`
 or in `skipped` with a named reason.** A run that says "sin hallazgos" because the engine could not
@@ -300,23 +367,31 @@ action agreement 28 of 30
 
 Then the part worth volunteering before anyone finds it, said as one sentence:
 
-> Los cuatro casos que no coinciden no son controles que se hayan callado. Los seis controles
-> dispararon en todos los casos donde la etiqueta esperaba un hallazgo, y ninguno disparo en un caso
-> donde la etiqueta no esperaba nada. Los cuatro son desacuerdos sobre la severidad o el estado, y
-> los dejamos en la tabla con los dos argumentos escritos, porque un conjunto de casos editado hasta
-> que coincide no mide nada.
+> Ninguno de los cuatro es un control que se haya quedado callado en un caso limpio. Los tres falsos
+> positivos caen en casos donde la etiqueta si esperaba a ese detector, y en los diez negativos duros no
+> disparo ninguno: eso es lo que vale del uno punto nueve por ciento. Los cuatro son desacuerdos sobre la
+> severidad o el estado. En tres, el detector disparo con otra severidad. En el cuarto, el del sello del
+> CEP, el verificador si produce un renglon pero en info, y la regla del harness cuenta info como
+> contexto y no como alerta, asi que no satisface una etiqueta que pedia warning. Los dejamos en la tabla
+> con los dos argumentos escritos, porque un conjunto de casos editado hasta que coincide no mide nada.
 
 The four disagreements are in `packages/seed/src/holdout/README.md` with both arguments side by
 side: a brand-new account over WhatsApp with nothing behind it (`critical` or `warning`), a supplier
 published as presunto (`warning` or `critical`), a CEP naming a different holder (`comprobable` or
-`requiere_verificacion`), and a seal we could not check (`warning` or `info`). Those four are also
-the entire reason `beneficiary_cep` reads 0.0 percent today: both of its expectations are CEP
-disagreements about severity and state, not a control that failed to fire. Say that, and open the
-row.
+`requiere_verificacion`), and a seal we could not check (`warning` or `info`).
+
+Those four are also the entire reason `beneficiary_cep` reads 0.0 percent today, and the honest reading
+of that zero is the thing to have ready, because it is the row an engineer opens. Its two expectations
+are the two CEP rows above. On the holder-name case the control fires at `requiere_verificacion` against
+a label asking for `comprobable`, so the same case is a miss and a false positive at once. On the seal
+case the verifier produces an `info` row rather than a `warning`, and `computeMetrics` scores `info` as
+context and not as an alert, so the expectation is unsatisfied and nothing is counted as a false positive
+either. Neither is the control going silent on a clean payment. `bun run eval --rows` prints both, and
+it prints `got -` on the seal case, so know why before a judge asks.
 
 Read precision, recall and the false-positive rate off the screen or off a fresh `bun run eval`,
-with the case count next to them. Never from memory: three merges from now this block is stale, and
-that is exactly why the numbers table carries the commit they came from.
+with the case count next to them. Never from memory: three merges from now this block is stale, which
+is why the numbers table says to re-run it.
 
 ## No model in the decision
 
@@ -512,6 +587,9 @@ positives, why Nessie at all, and how do you know it works. All four are in `doc
   lista del SAT" before saying "69-B".
 - Say the synthetic-data sentence unprompted, in beat 1.
 - Never say a number that is not in the numbers table above or on the screen.
+- **Never claim the product is faster than doing it by hand.** The value is the loss prevented, in
+  pesos. The eight-minutes sentence was said at the table on 2026-09-12 and it cost us the room. See
+  "The value is the loss, not the minutes".
 - Never say "no nos dio tiempo". Say what we cut and why, which is a judgment story.
 - If a gate in the table above is not ticked, say the version of the sentence that is true. The
   product is strong enough without the sentence that is not.

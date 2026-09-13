@@ -12,7 +12,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 |---|---|---|---|
 | GET | `/health` | `{ ok, service, version }` | liveness |
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
-| GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier }` | detail panel |
+| GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. See "The hold window" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
 | GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source, lists }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. `lists` answers for both SAT lists, article 69-B and article 49 Bis, and says which one could answer. Rate limited per client |
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
@@ -25,7 +25,9 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/instructions/:id/verify-call` | `{ script, voiceConfigured, releasesPayment: false }` | the words the voice agent reads, or the clerk does. Side effect free: no call is placed and nothing is appended |
 | GET | `/api/v1/instructions/:id/verification` | `VerificationState` | where the one-cent verification of this instruction stands, folded out of the event ledger. `state: "not_started"` when the cent has not been sent, which is a real answer and what lets the screen offer the action. `404` for an instruction nobody holds |
 
-`PaymentRun` = `{ id, weekOf, totals: { instructions, amount, held, toVerify, released }, items: Array<{ instruction, supplier, decision, findings }> }`.
+`PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings }> }`.
+
+`totals` answers in line counts and in pesos, because the value of the product is the loss it prevents and not the minutes it saves. Counts: `instructions`, `held`, `toVerify`, `released`. Pesos, all MXN and exact to the centavo, from `runMoney` in `packages/core/src/exposure.ts`: `amount` (the whole run), `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount` (held plus to verify, the money that has not left), `amountAtRisk` (the largest single amount at risk on each line, added across lines, never the sum inside a line), `retroactive69bBase` and `retroactive69bExposure` (the subtotal already deducted to the suppliers this run's 69-B findings name, and the ISR plus IVA that reverses on it). The last two are zero until a sweep has priced a supplier this run pays; the whole-ledger figure for one publication is `SweepResult.totalExposure` on `POST /api/v1/sat/publish`.
 
 ### The lookup box, in detail
 
@@ -46,10 +48,10 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | Method | Path | Body | Effect |
 |---|---|---|---|
 | POST | `/api/v1/instructions` | `{ supplierRfc?, cfdiUuids?, clabe?, amount, source, text?, image? (base64), audio? (base64) }` | intake from the QR page. Runs all detectors, stores the instruction, findings and decision, returns them. If `image` or `audio` is present the CLABE is extracted first and `ocrConfidence` set, and a voice-note transcript lands in `text`; a typed `clabe` always wins over one a model read. Extraction is transcription only (`packages/extract`, docs/06 section 6.2.1). A server with no `GEMINI_API_KEY` answers 422 `unprocessable` and says so. |
-| POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy }` | a person confirms. Appends `decision_made`. |
+| POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy, reason? }` | a person confirms. Appends `decision_made`, carrying `decidedBy` and `reason` on the decision, so a release nobody can explain later is not a thing this product allows. Answers `{ instruction, decision, amountAtRisk, hold }`: `amountAtRisk` is the largest single amount at risk among the findings, stated rather than left to be re-derived, and `hold` is `null` exactly when the action is `release`. `reason` is optional in the contract and asked for by the screen on an override: an API that refused a release with no prose would be refused by the clerk instead, outside the product, where nothing is recorded at all. |
 | POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only) and runs the retroactive sweep over everything the ledger says is already paid. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult`. |
 | POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | retrieves or accepts the CEP, checks the Banxico seal, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`, where `finding` is the `beneficiary_cep` finding `packages/engine` authors, or `null` when no pending payment goes to that account. See "The CEP, and what verify can prove" below. |
-| POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand. Never releases a payment: the response always carries `releasesPayment: false` and no `decision_made` is ever appended. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
+| POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand, and `recordedBy` travels onto the `verification_call` event so that entry carries a name like every other human action. A recorded outcome also carries `hold`, the window and the next step, which is how a `no_answer` answers "what now" in the same response, and that window is three days on a `hold` and one day on a `verify`, from `EXPECTED_DELAY_DAYS`. Never releases a payment: every response that reports a call carries `releasesPayment: false`, and no `decision_made` is ever appended. A `404` or a `400` carries only the error envelope, because there is no call to report. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
 | POST | `/api/v1/instructions/:id/verify-account` | no body | the one-cent verification, with nobody typing. Sends 0.01 MXN to the account this instruction pays, through the configured rail; appends `cent_sent` with the clave de rastreo the rail answered; resolves the CEP for that clave; and with the CEP in hand runs the beneficiary control and the expected-loss rule and appends `decision_made` signed `system`. Answers `202` with the `VerificationState` it reached synchronously. `404` unknown instruction, `409` when it is already released or blocked, `503` when this server has no rail. See "The cent inside the run" below |
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
 
@@ -191,6 +193,30 @@ plumbing lives in `packages/consortium` and its README carries the privacy argum
   the other tenants are generated deterministically from seed 69 with `synthetic = TRUE` on every
   warehouse row. The mechanism is real, the other companies are not, and `consortium_pull.source`
   says `snowflake` or `synthetic` so no screen can confuse the two.
+
+### The hold window
+
+`hold` is on the instruction detail and on a recorded verification call, and it is the answer to two
+questions a Capital One judge asked at the table on 2026-09-12: what happens if the supplier does not
+answer, and what happens if the payment is urgent.
+
+- `{ action, days, deadline, hoursLeft, expired, outcome?, nextSteps }`, computed by `holdWindow` in
+  `packages/core/src/hold.ts`. It is never stored: a deadline in a column could disagree with the
+  delay the expected-loss arithmetic charged for, and a derived one cannot.
+- `days` is `EXPECTED_DELAY_DAYS` for that action, the same table `decide` weighed the expected loss
+  against: three days for a hold, one for a verification. The deadline is measured from the
+  decision's own `decidedAt`, so a call does not reset it and confirming the decision does, because
+  then a person looked at it.
+- **The deadline decides nothing.** When it passes, `expired` is true and the payment goes back in
+  front of a person. Nothing is released and nothing is refused, which is binding under ADR-0002. What
+  the deadline buys is a bound on the retry loop: the call is retried until the window closes, and
+  then a person answers instead of the supplier.
+- `nextSteps` is ordered, best first, and never empty. `one_cent_cep` is the one worth naming out
+  loud, because it needs nobody to answer a telephone. After a `denied` the only step is `keep_held`:
+  the supplier said the account is not theirs, and offering "release anyway" next to that would be the
+  product arguing against its own finding.
+- `null` rather than a zero-hour window when the action is `release`. A payment that was let go is not
+  a hold that ran out.
 
 ### The constancias
 

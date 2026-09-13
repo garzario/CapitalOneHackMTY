@@ -7,13 +7,15 @@
  * voice agent, and later records what was said as a `verification_call` ledger
  * event with the sentence it was read from.
  *
- * Three properties this file is written to keep.
+ * Five properties this file is written to keep.
  *
  * **It never releases a payment.** There is no path here that touches
  * `recordDecision` and none that emits `decision_made`. A `confirmed` outcome is
  * evidence, like a CEP, and the release stays the separate `/decide` call that a
- * person signs. `releasesPayment: false` is on every response so the UI states
- * it rather than implying it.
+ * person signs. `releasesPayment: false` is on every response that reports a
+ * call, so the UI states it rather than implying it: the script, the started
+ * call, the recorded outcome and the 422 with no telephony all carry it. A 404 or
+ * a 400 carries only the error envelope, because there is no call to report.
  *
  * **Without keys it degrades to a script, not to a failure.** If
  * `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is
@@ -24,12 +26,29 @@
  * **The account is never spoken in full.** The script carries four digits. The
  * ledger event carries four digits. Neither carries the CLABE.
  *
+ * **A hand-recorded call carries the name of whoever recorded it.** `recordedBy`
+ * travels from the request onto the `verification_call` event, because the
+ * by-hand path is the one the demo falls back to and an unsigned entry on an
+ * append-only ledger is worse than no entry.
+ *
+ * **Nobody answering is an answer, and it says what to do next.** A Capital One
+ * judge asked what happens when the supplier does not pick up. The response that
+ * reports `no_answer` carries `hold`: how long the payment stays stopped, and the
+ * ordered next steps, one of which is the one-cent CEP path that needs nobody to
+ * answer anything at all. The deadline is what bounds the retry loop, and nothing
+ * is released or refused when it passes.
+ *
  * It is mounted as a second router on `/instructions` rather than added to
  * `routes/instructions.ts`, so this feature is one file that can be reverted in
  * one commit while three other people edit that one.
  */
 
-import type { VerificationOutcome, VerificationTurn } from "@hackmty/core";
+import type {
+  Decision,
+  VerificationOutcome,
+  VerificationTurn,
+} from "@hackmty/core";
+import { holdWindow } from "@hackmty/core";
 import {
   parseVerificationOutcome,
   scriptForInstruction,
@@ -187,6 +206,8 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               evidence: body.evidence,
               transcript: [],
               manual: true,
+              recordedBy: body.recordedBy,
+              decision: detail.decision,
             }),
           );
         }
@@ -241,6 +262,7 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               transcript: conversation.transcript,
               conversationId: conversation.conversationId,
               manual: false,
+              decision: detail.decision,
             }),
           );
         }
@@ -290,6 +312,17 @@ interface RecordInput {
   transcript: VerificationTurn[];
   conversationId?: string;
   manual: boolean;
+  /**
+   * Who typed the outcome in, on a hand-recorded call.
+   *
+   * Required by the schema for that variant and carried onto the event, so the
+   * by-hand call has a name against it the way `/decide` does. Validating a field
+   * and then dropping it would leave the fallback path as the only human action
+   * in the product that nobody signed.
+   */
+  recordedBy?: string;
+  /** The standing decision, so the answer can say how long the hold lasts. */
+  decision: Decision | null;
 }
 
 /**
@@ -317,6 +350,7 @@ async function record(
       ? {}
       : { conversationId: input.conversationId }),
     manual: input.manual,
+    ...(input.recordedBy === undefined ? {} : { recordedBy: input.recordedBy }),
   });
 
   const response: VerifyCallResponse = {
@@ -325,6 +359,12 @@ async function record(
     outcome: input.outcome,
     transcript: input.transcript,
     releasesPayment: false,
+    /* Null when the payment was already released, which is the one case where
+       there is no window to report and no next step to offer. */
+    hold:
+      input.decision === null
+        ? null
+        : holdWindow(input.decision, { now: at, outcome: input.outcome }),
   };
   if (input.evidence !== undefined) {
     response.evidence = input.evidence;

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SentryOne tarjeta del equipo</title>
+    <link rel="stylesheet" href="./print.css" />
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      /* The only styles this card adds. Everything else is print.css, so the
+         team card, the judge card and the one-pager stay one visual system. */
+      .team-card .page {
+        padding-bottom: 16mm;
+      }
+
+      .answer-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2.6mm;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: answers;
+      }
+
+      .answer-list li {
+        position: relative;
+        border: 0.25mm solid var(--line);
+        border-radius: 2mm;
+        padding: 2.8mm 3mm 3mm 9mm;
+        counter-increment: answers;
+      }
+
+      .answer-list li::before {
+        position: absolute;
+        top: 2.3mm;
+        left: 2.5mm;
+        display: grid;
+        width: 4.8mm;
+        height: 4.8mm;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--ink);
+        color: white;
+        content: counter(answers);
+        font-size: 6.5pt;
+        font-weight: 700;
+      }
+
+      .answer-list .heard {
+        display: block;
+        margin-bottom: 1mm;
+        color: var(--hold);
+        font-size: 7.8pt;
+        font-weight: 700;
+        line-height: 1.18;
+      }
+
+      /* Read at arm's length while a judge is still talking, so this is the one
+         place on the card where legibility beats density. */
+      .answer-list .said {
+        display: block;
+        font-size: 7.7pt;
+        line-height: 1.3;
+      }
+
+      .rival-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .rival-list li {
+        border-top: 0.25mm solid var(--line);
+        padding: 1.4mm 0;
+        font-size: 7pt;
+        line-height: 1.24;
+      }
+
+      .rival-list li:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .rival-list strong {
+        display: inline;
+        font-size: 7.4pt;
+      }
+
+      .rival-list span {
+        color: var(--muted);
+      }
+
+      .two-up {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5mm;
+        margin-bottom: 5mm;
+      }
+
+      .block-title {
+        margin-bottom: 1.6mm;
+      }
+
+      .lead p {
+        font-size: 9.2pt;
+        line-height: 1.32;
+      }
+
+      .lead p:last-child {
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body class="a4 team-card">
+    <section class="page" aria-label="SentryOne tarjeta del equipo">
+      <header class="brand-line">
+        <div class="wordmark">SENTRYONE</div>
+        <span class="tag">Para los cuatro. No se entrega a un juez</span>
+      </header>
+
+      <p class="eyebrow">Lo que se contesta en la mesa, palabra por palabra</p>
+      <h1 class="thesis">
+        El valor no son los minutos. Es la perdida que no ocurrio.
+      </h1>
+
+      <div class="two-up">
+        <div class="lead">
+          <h2 class="block-title">El problema, en dos frases</h2>
+          <p>
+            Si un proveedor aparece en la lista del articulo 69-B del SAT, las deducciones que la
+            empresa ya tomo sobre sus facturas se anulan de forma retroactiva, y quedan treinta dias
+            desde la publicacion para responder. Y cuando la cuenta esta mal, el dinero ya se fue: el
+            SPEI es firme e irrevocable y no hay contracargo.
+          </p>
+          <h2 class="block-title">El usuario, en una frase</h2>
+          <p>
+            No es el dueno que conoce a sus proveedores por la voz: es la empresa de once a
+            doscientos cincuenta personas cuya corrida del jueves le paga a decenas de proveedores a
+            traves de una sola persona de administracion.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="block-title">La competencia, una linea cada uno</h2>
+          <ul class="rival-list">
+            <li>
+              <strong>69b.mx</strong>
+              <span>
+                consulta un RFC contra cinco publicaciones del SAT, con constancia. Publicado: MXN 199
+                al mes por 30 RFCs monitoreados. Corre sobre una lista, nunca sobre un pago.
+              </span>
+            </li>
+            <li>
+              <strong>Tesio</strong>
+              <span>
+                cruza los CFDI ya descargados contra la lista actualizada, con alerta el mismo dia,
+                vendido a despachos. Publicado: desde MXN 499 al mes. Se detiene en el libro fiscal y
+                nunca ve la cuenta.
+              </span>
+            </li>
+            <li>
+              <strong>Trustpair</strong>
+              <span>
+                verificacion de beneficiario antes de la corrida de cuentas por pagar, 190 paises. No
+                menciona Mexico, CFDI, SAT, SPEI ni CLABE en su material publico.
+              </span>
+            </li>
+            <li>
+              <strong>nsKnox</strong>
+              <span>
+                proteccion de fraude en pagos B2B para corporativos y bancos. Verifica la cuenta e
+                ignora la situacion fiscal de la contraparte, que es la perdida mas grande aqui.
+              </span>
+            </li>
+            <li>
+              <strong>Eftsure</strong>
+              <span>
+                mas de 6 millones de negocios verificados. Mismo limite: la cuenta si, la factura y la
+                lista del SAT no.
+              </span>
+            </li>
+          </ul>
+          <h2 class="block-title" style="margin-top: 3mm">El modelo, en tres frases</h2>
+          <p class="muted">
+            La empresa paga MXN 899 al mes y el despacho contable paga MXN 3,900 por hasta veinte
+            empresas cliente, MXN 195 cada una. Se paga completo con una sola factura detenida de MXN
+            23,452 de subtotal al ano, porque de un subtotal rechazado se revierte el 46 por ciento
+            entre ISR e IVA. El canal son los despachos contables de Monterrey y su corredor
+            industrial, porque uno solo tiene el XML de veinte clientes y presenta la complementaria
+            cuando arranca el plazo de treinta dias.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="block-title">Las seis objeciones del 12 de septiembre, y la respuesta de treinta segundos</h2>
+      <ol class="answer-list">
+        <li>
+          <span class="heard">No supimos decir quien es la competencia</span>
+          <span class="said">
+            Dos directos mexicanos que corren sobre una lista y nunca ven la cuenta. Tres plataformas
+            globales que si ven la cuenta y no mencionan Mexico, ni CFDI, ni SAT, ni SPEI. Y el statu
+            quo, que es el contador con una hoja de calculo y WhatsApp. Nosotros somos el unico que
+            junta las tres cosas en el momento del pago.
+          </span>
+        </li>
+        <li>
+          <span class="heard">Mi papa tiene una PyME y habla con sus proveedores. No soy su usuario</span>
+          <span class="said">
+            Correcto, usted no lo es. El usuario es la empresa cuya corrida del jueves pasa por una
+            sola persona que no conoce a nadie por la voz. Y el WhatsApp del proveedor es justo el
+            canal del atacante: confiar en la conversacion es el modo de falla, no la defensa. La
+            perdida del 69-B ademas no necesita fraude de nadie.
+          </span>
+        </li>
+        <li>
+          <span class="heard">Cual es el mercado, el modelo, la competencia, esto es un problema de verdad</span>
+          <span class="said">
+            246,000 empresas mexicanas de once a doscientos cincuenta personas. Al ano, TAM MXN 2,655
+            millones, SAM MXN 948 millones y SOM MXN 12.1 millones, de abajo hacia arriba y con cada
+            insumo citado. MXN 899 al mes. Y si despues de doscientos barridos gratuitos menos del
+            cinco por ciento destapa algo, paramos: esa prueba cuesta un mes.
+          </span>
+        </li>
+        <li>
+          <span class="heard">No nos importa que a mano tome ocho minutos y con ustedes segundos</span>
+          <span class="said">
+            Tienen razon, los minutos no valen nada. Lo que vale es la perdida que no ocurrio. Una
+            factura de MXN 100,000 de subtotal detenida paga 51 meses de suscripcion, y un SPEI mal
+            dirigido del mismo monto paga 111, porque ahi no hay nada que revertir. La corrida contesta
+            en pesos: cuanto se detuvo, cuanto se libero y cuanto quedo en riesgo.
+          </span>
+        </li>
+        <li>
+          <span class="heard">Que pasa si no contesta, si es urgente, si el calculo esta mal</span>
+          <span class="said">
+            Si no contesta queda como no_answer en la bitacora y el pago sigue detenido. La respuesta
+            trae la fecha limite, tres dias si esta retenido y uno si esta por verificar, y los
+            siguientes pasos: entre ellos el centavo, que nadie tiene que contestar. Si es urgente se
+            libera con nombre y razon escrita, con los pesos en riesgo en pantalla. Falso positivo: un
+            retraso acotado por esa fecha. Falso negativo: el monto completo, irrevocable.
+          </span>
+        </li>
+        <li>
+          <span class="heard">No les parecio un problema real</span>
+          <span class="said">
+            Es falla del gancho, no del producto. Se abre siempre igual: si el proveedor aparece en la
+            lista del 69-B, las deducciones ya tomadas se anulan de forma retroactiva, con treinta dias
+            para responder, y la lista cambio 33 veces en doce meses, una cada once dias. La exposicion
+            la crea la publicacion, no el pago. No hace falta que nadie te defraude.
+          </span>
+        </li>
+      </ol>
+
+      <div class="footer-line">
+        <span>Todos los numeros de esta tarjeta salen de docs/04, docs/05 y docs/11</span>
+        <span>Las respuestas completas, con el archivo que las sostiene: docs/12-judge-qa.md</span>
+      </div>
+    </section>
+  </body>
+</html>
