@@ -18,6 +18,14 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- `bun run offline`, the rehearsal for the Wi-Fi dying (issue #71). It runs `doctor` and then the
+  whole demo with `fetch` replaced by one that throws on anything that is not loopback, so a call
+  that leaves the machine fails with its URL in the message instead of hanging out a socket timeout
+  in front of the room. The keys stay in `.env`, because a dead uplink is not a missing key. The
+  local Postgres is untouched: it is a socket, not a fetch, and it is the reason the demo works
+  offline at all. `docs/10` carries the measured cold-clone path, twenty seconds of machine time
+  from `git clone` to seven green beats on a laptop that already has bun and Postgres.
+
 - The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
   cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
   clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
