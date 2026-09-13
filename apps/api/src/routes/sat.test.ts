@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { LedgerEvent } from "@hackmty/core";
+import type { Actor, LedgerEvent } from "@hackmty/core";
 import { SYSTEM_DECIDER } from "@hackmty/core";
 import {
   paymentRunSchema,
@@ -8,14 +8,21 @@ import {
   satVersionsResponseSchema,
   sweepResultSchema,
 } from "../schemas";
-import { createTestApp } from "../test-app";
+import { createTestApp, TEST_CLERK, writeHeaders } from "../test-app";
 
 type ErrorBody = { error: { code: string; message: string } };
 
-function json(body: unknown): RequestInit {
+/**
+ * A JSON write, with the actor every write endpoint requires.
+ *
+ * The header is the default clerk unless a test names somebody else, so a test
+ * about a role says which role it is about and every other test reads as it did
+ * before the header existed.
+ */
+function json(body: unknown, actor: Actor = TEST_CLERK): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: writeHeaders(actor),
     body: JSON.stringify(body),
   };
 }
@@ -491,13 +498,39 @@ describe("the re-score POST /api/v1/sat/publish runs on the current run", () => 
     expect(totals.retroactive69bExposure).toBe(0);
   });
 
+  it("records who published the list on the event the constancia reads", async () => {
+    /* The sweep constancia prints it: a document that prices eight months of
+       deductions against a list has to say who put that list in front of it. The
+       re-scored decisions below it are the engine's own and stay signed `system`,
+       because publishing a list is not signing a decision about a payment. */
+    const { app, deps } = createTestApp();
+    const seen: LedgerEvent[] = [];
+    deps.events.subscribe((event) => seen.push(event));
+
+    await publish(app);
+
+    const published = seen.find((event) => event.type === "sat_list_published");
+    expect(
+      published?.type === "sat_list_published" ? published.actor : undefined,
+    ).toEqual(TEST_CLERK);
+
+    for (const event of seen.filter((row) => row.type === "decision_made")) {
+      expect(
+        event.type === "decision_made" ? event.decision.decidedBy : undefined,
+      ).toBe(SYSTEM_DECIDER);
+      expect(
+        event.type === "decision_made" ? event.decision.decidedByRole : "unset",
+      ).toBeUndefined();
+    }
+  });
+
   it("does not overwrite a decision a person signed", async () => {
     const { app } = createTestApp();
     await app.request(
       "/api/v1/instructions/ins-2026w37-01/decide",
       json({
         action: "verify",
-        decidedBy: "ana@ensambles.mx",
+        decidedBy: TEST_CLERK.name,
         reason: "El proveedor confirmo la cuenta por telefono.",
       }),
     );
@@ -509,7 +542,7 @@ describe("the re-score POST /api/v1/sat/publish runs on the current run", () => 
     );
 
     expect(published.rescored).toEqual([]);
-    expect(line?.decision?.decidedBy).toBe("ana@ensambles.mx");
+    expect(line?.decision?.decidedBy).toBe(TEST_CLERK.name);
     expect(line?.decision?.action).toBe("verify");
     /* And the run totals stay honest about it: nothing re-scored means nothing
        priced, rather than a pair quietly filled in from the sweep behind the
