@@ -44,6 +44,7 @@
  */
 
 import { resolve } from "node:path";
+import type { Dependency } from "../apps/api/src/dependencies.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 const API = "https://api.vultr.com/v2";
@@ -390,6 +391,8 @@ type SmokeResult = {
   runId: string;
   instructions: number;
   amount: number;
+  /** What the live `/health` says about each dependency, as issue #200 added it. */
+  dependencies: Dependency[];
 };
 
 /**
@@ -397,6 +400,11 @@ type SmokeResult = {
  * says nothing about the database; /api/v1/run/current is the payload the
  * payment-run screen loads, so it only answers if Postgres, the engine and the
  * seeded company are all there.
+ *
+ * Since issue #200, /health also carries a row per dependency, and this function
+ * keeps them: a deploy that ends by printing "database: up" and "rail: up" next to
+ * the run totals has proved the box holds its configuration as well as its code,
+ * which used to be a separate ssh and a separate guess.
  */
 async function smoke(ip: string): Promise<SmokeResult> {
   const host = `api.${ip}.sslip.io`;
@@ -414,6 +422,7 @@ async function smoke(ip: string): Promise<SmokeResult> {
           ok?: boolean;
           service?: string;
           version?: string;
+          dependencies?: Dependency[];
         };
 
         if (payload.ok === true && payload.service === "api") {
@@ -449,6 +458,7 @@ async function smoke(ip: string): Promise<SmokeResult> {
             runId: body.id,
             instructions: body.totals.instructions,
             amount: body.totals.amount ?? 0,
+            dependencies: payload.dependencies ?? [],
           };
         }
       }
@@ -646,6 +656,27 @@ function report(instance: Instance, result: SmokeResult): void {
   console.log(
     `  run/current  ${result.runId}, ${result.instructions} instructions, ${result.amount.toFixed(2)} MXN`,
   );
+
+  /* What the box says about its own configuration. Printed as the endpoint answers
+     it, because the sentence a judge reads in the terminal and the sentence they
+     read on the wire have to be the same one. */
+  if (result.dependencies.length > 0) {
+    console.log("  dependencies");
+    const width = result.dependencies.reduce(
+      (longest, dependency) => Math.max(longest, dependency.name.length),
+      0,
+    );
+    for (const dependency of result.dependencies) {
+      console.log(
+        `    ${dependency.name.padEnd(width)}  ${dependency.state.padEnd(15)}  ${dependency.detail}`,
+      );
+    }
+  } else {
+    console.log(
+      "  dependencies  none reported: this box predates issue #200, refresh it onto dev",
+    );
+  }
+
   console.log("");
   console.log("Next, so the deployed web talks to it:");
   console.log("  1. vercel.json rewrites /api and /health to this host");

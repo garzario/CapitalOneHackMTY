@@ -472,6 +472,59 @@ image: it reaches the instance only through the user data described above, and `
 in `apps/api/src/deps.ts` prints the host and the database and never the credentials, because that
 boot line is projected on a screen.
 
+### The topology answers for itself, as of 2026-09-13 (issue #200)
+
+Four units, two addresses, one ledger, and until this issue the only way to find out whether the
+deployed one held its configuration was to ssh in and guess. The closing change of #200 is that the
+topology now reports on itself, out of the same code in four places, and the contract for all of it is
+in `docs/09-api.md`.
+
+1. **`GET /health` carries a row per dependency.** `database`, `nessie`, `rail`, `consortium`, `cep`,
+   `extraction` and `voice`, each with `configured`, a `state` of `up`, `down` or `not_configured`, and
+   one sentence. Two things are probed and both are ours: a `select 1` bounded at 2000 ms, and building
+   the payment rail. Nothing reaches a third party, because a health check that depends on the Banxico
+   portal restarts the container when the Banxico portal is slow. Every sentence comes from
+   `dependencyReport` in `apps/api/src/dependencies.ts`, which is also what `bun run doctor` prints as
+   `dep <name>`, so the laptop and the box answer the same seven rows and cannot disagree about why a
+   screen is empty. No secret is in the payload: `configured` is a boolean, the details name variables,
+   and a failed probe is classified into one of five sentences so the driver's message stays in the log.
+2. **A request id on every response and every log line.** `X-Request-Id` was already on the response and
+   in the error envelope; now every request writes `[<id>] <method> <path> <status> <ms>ms`, so an id a
+   judge reads off a payload is findable in `docker compose logs`. The query string is deliberately
+   dropped, because `GET /api/v1/sat/lookup?rfc=` is the one endpoint that takes a real taxpayer's RFC.
+3. **A token bucket per client on every write**, 120 a minute, with the lookup box on 30 and an
+   assistant turn on 20. In memory, per process, keyed on the forwarded address, and the limits and the
+   honest statement of what that cannot defend against are in `docs/09-api.md`.
+4. **The Vercel rewrites are checked rather than remembered.** `scripts/vercel-rewrites.test.ts` reads
+   the route tree off the app and the rewrite sources off `vercel.json` and fails when a path exists that
+   the web origin cannot reach. That is the failure this deploy shape is most exposed to: the bundle
+   ships with no base URL, so a path no rewrite matches is a 404 on the product and a green suite. The
+   two rewrites cover two roots, `/api` and `/health`, and the endpoints under them have grown by the
+   assistant SSE, the execution stream, the layout response and the carta since those lines were written.
+   `/api/(.*)` and `/health` also carry `cache-control: no-store`, because a CDN that cached
+   `GET /api/v1/run/current` would show a judge last hour's run and a cached event stream is not a
+   stream. Those two header rules reach production with the next release PR to `main`; the rewrites
+   themselves have been live since #44.
+
+**How the box was moved onto this code, and why not with `--reinstall`.** `refresh.sh` on the instance,
+over ssh, which repoints the clone at a branch and rebuilds in place. It was the right tool for two
+reasons and both are worth writing down. A reinstall wipes the disk and takes the `caddy_data` volume
+with it, so Let's Encrypt issues again and there are five of those per week for one name; a refresh
+keeps the volume and costs nothing. And `scripts/deploy-vultr.ts` needs `VULTR_API_KEY`, which is IP
+restricted on this account: from the network of 2026-09-13 it answered "Vultr refused the key from this
+machine" with the allow-list instructions, so the API path was closed and the ssh path was open. That is
+the exact inverse of the note above it, where the venue let port 22 open and never delivered the banner,
+which is why both paths exist.
+
+```bash
+ssh -i ~/.ssh/sentryone_vultr root@104.238.147.69 /srv/sentryone/refresh.sh dev
+bun --env-file=.env run scripts/deploy-vultr.ts --smoke-only   # needs the Vultr key
+curl -s https://sentryone-one.vercel.app/health | jq '.dependencies[] | {name, state}'
+```
+
+`--smoke-only` now prints the dependency rows next to the run totals, so a deploy ends by proving the
+box holds its configuration as well as its code.
+
 ## Deliberately not in this tree
 
 Git cannot track an empty directory, so these are recorded here rather than as empty folders. Each

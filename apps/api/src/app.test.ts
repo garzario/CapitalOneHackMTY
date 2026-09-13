@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { app, REQUEST_ID_HEADER } from "./app";
-import { SERVICE_NAME, SERVICE_VERSION } from "./routes/health";
+import { createTestApp } from "./test-app";
 
 /**
  * Response.json() is typed as unknown under strict mode, so the shapes the
@@ -22,20 +22,32 @@ type ErrorBody = {
   error: { code: string; message: string; requestId: string };
 };
 
-describe("GET /health", () => {
-  it("reports the service as healthy", async () => {
-    const res = await app.request("/health");
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      ok: true,
-      service: SERVICE_NAME,
-      version: SERVICE_VERSION,
-    });
+/**
+ * Every request here goes through a test app rather than the module-level one, for
+ * the reason `test-app.ts` gives in full: the exported `app` reads the environment,
+ * so on a laptop holding a live `DATABASE_URL` a request to `/health` would probe
+ * Tiger Data from inside a unit test and a request to anything would print a log
+ * line into the suite's output. The module-level app is still asserted below, as the
+ * thing `index.ts` exports.
+ */
+describe("the app index.ts serves", () => {
+  it("builds with no overrides at all", () => {
+    /* `createApp()` with no arguments reads the environment for every dependency,
+       which is exactly what a deployed process does, and a constructor that threw
+       there would be a boot failure rather than a test failure. */
+    expect(typeof app.fetch).toBe("function");
   });
+});
 
+/**
+ * The payload of `/health` is asserted in `routes/health.test.ts`. What is left here
+ * is the request id, and the reason it is checked on `/health` is that it is the one
+ * route a deploy script and a load balancer call.
+ */
+describe("GET /health", () => {
   it("stamps a request id on the response", async () => {
-    const res = await app.request("/health");
+    const { app: test } = createTestApp();
+    const res = await test.request("/health");
     const id = res.headers.get(REQUEST_ID_HEADER);
 
     expect(id).toBeTruthy();
@@ -43,7 +55,8 @@ describe("GET /health", () => {
   });
 
   it("reuses the caller's request id", async () => {
-    const res = await app.request("/health", {
+    const { app: test } = createTestApp();
+    const res = await test.request("/health", {
       headers: { [REQUEST_ID_HEADER]: "trace-abc" },
     });
 
@@ -53,7 +66,8 @@ describe("GET /health", () => {
 
 describe("GET /api/v1/ping", () => {
   it("answers with the request id it was given", async () => {
-    const res = await app.request("/api/v1/ping", {
+    const { app: test } = createTestApp();
+    const res = await test.request("/api/v1/ping", {
       headers: { [REQUEST_ID_HEADER]: "trace-ping" },
     });
     const body = (await res.json()) as PingBody;
@@ -66,14 +80,16 @@ describe("GET /api/v1/ping", () => {
   });
 
   it("echoes a valid echo parameter", async () => {
-    const res = await app.request("/api/v1/ping?echo=hola");
+    const { app: test } = createTestApp();
+    const res = await test.request("/api/v1/ping?echo=hola");
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as PingBody).echo).toBe("hola");
   });
 
   it("rejects an empty echo parameter with the shared error envelope", async () => {
-    const res = await app.request("/api/v1/ping?echo=");
+    const { app: test } = createTestApp();
+    const res = await test.request("/api/v1/ping?echo=");
     const body = (await res.json()) as ErrorBody;
 
     expect(res.status).toBe(400);
@@ -84,7 +100,8 @@ describe("GET /api/v1/ping", () => {
 
 describe("unknown routes", () => {
   it("returns the error envelope and leaks nothing", async () => {
-    const res = await app.request("/nope");
+    const { app: test } = createTestApp();
+    const res = await test.request("/nope");
     const body = (await res.json()) as ErrorBody;
 
     expect(res.status).toBe(404);
