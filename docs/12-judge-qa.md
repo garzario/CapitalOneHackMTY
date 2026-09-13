@@ -423,9 +423,11 @@ They were right, and the sentence is out of the pitch.
 
 Rests on: `GET /api/v1/run/current`, whose `totals` now carry `heldAmount`, `toVerifyAmount`,
 `releasedAmount`, `stoppedAmount`, `amountAtRisk`, `retroactive69bBase` and `retroactive69bExposure`,
-from `runMoney` in `packages/core/src/exposure.ts`. On the seeded run `stoppedAmount` is MXN 885,658.73
-and `amountAtRisk` is MXN 799,209.86; the first of the two is the hero figure on the run screen. Read
-both off a fresh run, like every other number on this sheet.
+from `runMoney` in `packages/core/src/exposure.ts`. On the seeded run `stoppedAmount` is MXN 785,289.86
+and `amountAtRisk` is MXN 799,209.86; the first of the two is the hero figure on the run screen. The
+second is larger than the first, and that is not a bug: the pesos at risk are counted on every line
+that carries a finding, including the one the engine released because waiting costs more than the risk.
+Read both off a fresh run, like every other number on this sheet.
 
 The two 69-B fields are the honest gap to volunteer here, because they read **zero on stage**. They
 carry only what the run's own findings price, and a `sat_69b` finding gets `deductedBase` and
@@ -476,8 +478,8 @@ the instruction detail (#174).
 > Se libera, y se libera bien. Hay salida y esta dentro del producto, porque una retencion sin salida
 > se brinca por fuera, donde no queda registro de nada. El pago se libera con el nombre de quien lo
 > decide y con la razon escrita, y en la pantalla en ese momento estan los pesos en riesgo de cada
-> hallazgo y la perdida esperada del pago. Queda como evento decision_made en una bitacora que solo
-> crece.
+> hallazgo, la perdida esperada del pago y lo que cuesta esperar un dia mas con ese proveedor. Queda
+> como evento decision_made en una bitacora que solo crece.
 
 Rests on: `POST /api/v1/instructions/:id/decide`, which takes `decidedBy` and `reason` and answers
 `amountAtRisk` next to the decision; the argument is stored on `decisions.reason`
@@ -485,18 +487,21 @@ Rests on: `POST /api/v1/instructions/:id/decide`, which takes `decidedBy` and `r
 expected loss is on the instruction screen and each finding carries its own pesos at risk, in
 `apps/web/src/screens/InstructionScreen.tsx` and `apps/web/src/components/Findings.tsx`.
 
-Two honest gaps, both worth volunteering before they are found.
+One honest gap worth volunteering before it is found, and one figure that is now worth pointing at
+rather than talking around.
 
 - That screen still sends a fixed `clerk@demo` and does not ask for the reason before an override, so
   today the reason is recorded when it is sent and by the demo the screen asks for it under the person's
   own name (#174).
-- The screen also carries a field "Costo de retrasar un dia", and on the demo company **it reads MXN
-  0.00 on every payment**. The generator never prices `Supplier.delayCostPerDay`, so `supplierModelOf`
-  falls back to `DEFAULT_DELAY_COST_PER_DAY`, which is zero. The delay side of the trade-off is real in
-  the code and flat in this data, and pricing the seeded suppliers is #182. So today the answer is "los
-  pesos en riesgo y la perdida esperada estan en pantalla, el costo del retraso esta en la decision y en
-  esta empresa vale cero", and by the demo the field carries a number (#182). Do not say "valuado en
-  pesos por dia" at the table until that lands.
+- The screen carries a third figure, "Costo de retrasar un dia", and since #182 it reads a number on
+  every one of the 92 payments: between MXN 101.98 and MXN 4,611.27, MXN 1,120.05 on the hero line.
+  `Supplier.delayCostPerDay` is priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` from
+  two things a supplier contract actually carries, moratory interest on the balance owed and the pronto
+  pago discount that expires the day the payment is late, and it is higher for the raw material and the
+  tooling that stop production than for consumables and services. "Valuado en pesos por dia" may now be
+  said at the table. What must not be said is that the number is measured: it is priced from the
+  catalogue of a synthetic company, so the honest sentence is "asi valuamos la relacion en esta empresa
+  sintetica, y en una real el dato sale de sus contratos".
 
 The API deliberately does not refuse a release with no prose, because an API that did would be refused
 by the clerk instead, outside the product. Verified: `POST /api/v1/instructions/:id/decide` with
@@ -517,11 +522,19 @@ by the clerk instead, outside the product. Verified: `POST /api/v1/instructions/
 > calibracion de verdad es despues del hackathon: modo sombra con un socio de diseno, sobre corridas
 > reales, y si despues de doscientos barridos menos del cinco por ciento destapa algo, paramos.
 
-Rests on: the asymmetry is `decide` in `packages/core/src/decision.ts`, whose header says the tie goes
-to paying and why; the deadline is `holdWindow`, built on the same `EXPECTED_DELAY_DAYS` table the
-expected loss was weighed against, so the arithmetic and the promise on screen cannot drift apart. The
-numbers come from `scripts/eval.ts` over the thirty cases in `packages/seed/src/holdout/cases`, served
-by `GET /api/v1/metrics`, and they were re-run on this branch before this section was written. Read them
+Rests on: the asymmetry is `decide` in `packages/core/src/decision.ts`, whose header says the tie
+goes to paying and why; the deadline is `holdWindow`, built on the same `EXPECTED_DELAY_DAYS` table
+the expected loss was weighed against, so the arithmetic and the promise on screen cannot drift
+apart. Since #182 the bound on a false positive can be said in pesos as well as in days, because the
+delay the decision charged for now has a price: on the hero line one day of verification costs MXN
+1,120.05 and three days of hold would cost MXN 3,360.15, against MXN 23,050.49 of expected loss.
+That line is stopped by its critical finding rather than by the arithmetic, and the arithmetic
+agrees. The line where the arithmetic decides on its own is `INS-2026-09-07-032`, which carries a
+duplicate-invoice warning worth MXN 2,088.00 of expected loss and is released, because a day of
+delay with that supplier costs MXN 4,611.27. A critical finding can never be released that way, and
+that is the shape of `chooseRule` rather than a check bolted on the end. The numbers come from
+`scripts/eval.ts` over the thirty cases in `packages/seed/src/holdout/cases`, served by
+`GET /api/v1/metrics`, and they were re-run on this branch before this section was written. Read them
 off a fresh run, never from memory.
 
 **Why the sentence about facts now names one control and not two.** The 69-B membership is a fact: the

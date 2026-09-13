@@ -9,6 +9,7 @@
 export * from "./build";
 export * from "./clabe";
 export * from "./company";
+export * from "./delay-cost";
 export * from "./generator";
 export * from "./hard-negatives";
 export * from "./loader";
