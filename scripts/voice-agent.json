@@ -4,10 +4,5 @@
   "language": "es",
   "maxDurationSeconds": 150,
   "voiceId": "",
-  "ttsModelId": "",
-  "sample": {
-    "supplierLegalName": "Distribuidora Sintetica del Poniente, S.A. de C.V.",
-    "clabe": "012180001234567899",
-    "amount": 184300
-  }
+  "ttsModelId": ""
 }

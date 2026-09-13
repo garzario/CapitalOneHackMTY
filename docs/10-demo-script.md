@@ -69,6 +69,7 @@ also Q&A cards, so nothing is lost by leaving them out, and the full version is 
 | 8 | 11 | "Tres presentaciones a despachos contables en Monterrey y una conversacion con banca empresarial, donde el pago ya se ejecuta." | 19 |
 | 9 | 7 | "De ciento dos a cuatro mil seiscientos once pesos al dia segun el proveedor." | 14 |
 | 10 | 8 | "Traigo siete nombres mas, con la fecha en que abrimos cada pagina." | 12 |
+| 11 | 5 | "Y si quiere la palabra del proveedor, la llamada le pregunta dos cosas en un si o un no: si ellos cambiaron su cuenta, y si la cuenta que termina en esos cuatro digitos es suya. Nunca le leemos la cuenta completa, ni un digito de la cuenta de siempre." Issue #206, with the live call in `docs/14-process.md#live-integrations-verified` | 44 |
 
 ### The cut ladder, pre-declared
 
@@ -457,6 +458,12 @@ volunteered reason costs nothing; a silent workaround looks like a trick.
   certificate that would let us say anything else are issue #57.
 - The consortium network is a synthetic network of other tenants and we say so in the same breath as
   the chip, every time, per the network line above. The warehouse is real and the tenants are not.
+- The verification call confirms two things and nothing else: that the account changed, and the last
+  four digits of the new one. Never say that it reads a CLABE, never read one out loud on stage, and
+  never say it reads the account the supplier has always been paid on, because it reads no digit of
+  that one. If a judge asks for the wording, read it off `#/verify-call`, which answers the script
+  with no key and without ringing anybody. The calls we have placed went to a teammate's own mobile
+  and no supplier or counterparty has ever been called by this product.
 - Never demo from a branch. Always from what is deployed, or from `main`.
 - Never start a long agent run or a refactor inside the demo window.
 - Never say a number that is not on the screen.

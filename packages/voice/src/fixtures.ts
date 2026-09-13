@@ -19,9 +19,14 @@ const AGENT_OPENING: VerificationTurn = {
   atSecond: 1,
 };
 
+/**
+ * The question as the agent asks it when the account changed, which is the case
+ * the control exists for. It asks about the change and the four digits in one
+ * yes or no, and it reads no digits of the account paid before.
+ */
 const AGENT_QUESTION: VerificationTurn = {
   role: "agent",
-  text: "Recibimos una instruccion para depositarle $184,300.00 pesos a una cuenta que termina en 7899. Solo necesito que me confirme si esa cuenta es de ustedes. Si o no?",
+  text: "Recibimos una instruccion para depositarle $184,300.00 pesos a una cuenta que no es la que le hemos pagado antes, y que termina en 7 8 9 9. Solo necesito que me confirme si ustedes cambiaron su cuenta y si esa cuenta es de ustedes. Si o no?",
   atSecond: 9,
 };
 
