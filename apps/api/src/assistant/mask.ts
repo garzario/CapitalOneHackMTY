@@ -27,15 +27,21 @@
  */
 
 import type { EvidenceValue } from "@hackmty/core";
+import {
+  CLABE_VISIBLE_DIGITS,
+  carriesFullClabe,
+  clabeLast4,
+  maskClabesInText,
+} from "@hackmty/core";
 
-/** How many trailing digits of an account survive the mask. */
-export const CLABE_VISIBLE_DIGITS = 4;
+/* The account rules come from `packages/core/src/clabe.ts`, which owns every CLABE
+   rule in this product, and they are re-exported here so this module stays the one
+   import a reader of the panel follows. A second copy of the eighteen-digit pattern
+   is how the evidence letter and this file disagreed about the same sentence. */
+export { CLABE_VISIBLE_DIGITS, carriesFullClabe, clabeLast4, maskClabesInText };
 
 /** Exactly eighteen digits, which is what a CLABE is. */
 const CLABE_SHAPE = /^\d{18}$/;
-
-/** Eighteen digits anywhere inside a longer string, for free prose. */
-const CLABE_INSIDE = /\d{18}/g;
 
 /**
  * Keys whose value never leaves, whatever it holds.
@@ -74,17 +80,7 @@ export function maskClabe(value: string): string {
   if (!CLABE_SHAPE.test(value)) {
     return value;
   }
-  return `****${value.slice(-CLABE_VISIBLE_DIGITS)}`;
-}
-
-/** The last four digits of an account, for a sentence that names one. */
-export function clabeLast4(value: string): string {
-  return value.slice(-CLABE_VISIBLE_DIGITS);
-}
-
-/** Masks every eighteen-digit run inside a longer string, prose included. */
-export function maskClabesInText(value: string): string {
-  return value.replace(CLABE_INSIDE, (digits) => maskClabe(digits));
+  return `****${clabeLast4(value)}`;
 }
 
 /**
@@ -143,16 +139,4 @@ export function maskDeep(value: unknown): unknown {
     return masked;
   }
   return value;
-}
-
-/**
- * True when this string still carries a full account number.
- *
- * The test for the whole module is one assertion over a built request body using
- * this predicate, so a tool added later that forgets the mask fails the suite
- * instead of failing at a judge's table.
- */
-export function carriesFullClabe(text: string): boolean {
-  CLABE_INSIDE.lastIndex = 0;
-  return CLABE_INSIDE.test(text);
 }

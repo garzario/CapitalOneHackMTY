@@ -454,10 +454,19 @@ work and goes out on the second call; a run with nothing left to send is `409`.
 
 **The response.** `202` and `text/event-stream`: on a real rail the transfer is acknowledged after
 the response is written, so the work is not finished when the status code is chosen. One
-`event: line` per payment carrying a `PaymentExecutionLine`, one `event: skipped` per line the run
-deliberately left alone, then one `event: done` carrying the whole `PaymentExecution` and nothing
-wrapped around it. Every `line` is also an ordinary ledger event on `GET /api/v1/events`, so a second
-screen watching the run moves with the first.
+`event: line` per state a payment reaches, carrying a `PaymentExecutionLine`, one `event: skipped`
+per line the run deliberately left alone, then one `event: done` carrying the whole
+`PaymentExecution` and nothing wrapped around it. Every `line` is also an ordinary ledger event on
+`GET /api/v1/events`, so a second screen watching the run moves with the first.
+
+**A payment produces more than one `line` event, and a client keys on `instructionId`.** On a rail
+that confirms, each payment arrives twice: `sent` when the rail took it and `settled` when the
+listing answered, which is the same distinction the next paragraph but one refuses to collapse. An
+87-line run over `NessieRail` therefore streams 174 `line` events, and a client that counted them
+would report twice the payments it made. `PaymentExecution.lines` in `done` carries one row per
+payment and is the count to trust. `StpRail` offers no confirmation at all, so there each payment
+arrives once, as `sent`, and the run is finished on a `done` whose lines say `sent` and not
+`settled`: the number of events per payment is a property of the rail and never of the contract.
 
 A `skipped` row is `{ instructionId, amount, state, rule, reason }` and it is on the stream rather
 than in `PaymentExecution`, because a line nobody released was never part of what the run did on the

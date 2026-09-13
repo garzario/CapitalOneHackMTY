@@ -51,6 +51,7 @@ import {
 import {
   confidenceOf,
   executionLineOf,
+  maskClabesInText,
   sumAmounts,
   transactionStateOf,
 } from "../packages/core/src/index.ts";
@@ -502,18 +503,50 @@ describe("the level, the state, the execution and the conversation", () => {
   test("quote the engine rather than inventing a reason", async () => {
     /* ADR-0007: the assistant reads and proposes. The answer is the finding's own
        explanation plus the level, so nothing in the panel asserts anything the
-       deterministic side did not. */
+       deterministic side did not.
+
+       Quoted through `maskClabesInText`, because the API masks an account before it
+       leaves and the fallback has to read the same: control 2 writes the known
+       account into its own sentence, so the unmasked quote was a payload the live
+       panel could never have produced. The evidence object is compared the same way
+       and for the same reason. */
     const instructionId = ASSISTANT_SESSION.messages[0]?.instructionId ?? "";
     const detail = await api.instructionDetail(instructionId);
     const answer = ASSISTANT_SESSION.messages[1];
     const level = LEVELS_BY_INSTRUCTION[instructionId];
+    const evidence = INTAKE_EXAMPLE.decision.findings[0]?.evidence ?? {};
 
     expect(detail).toBeDefined();
-    expect(answer?.text).toContain(INTAKE_EXAMPLE.findings[0]?.explanation);
+    expect(answer?.text).toContain(
+      maskClabesInText(INTAKE_EXAMPLE.findings[0]?.explanation ?? "never"),
+    );
     expect(answer?.text).toContain(level?.confidence ?? "");
     expect(answer?.toolCalls?.[0]?.result).toEqual(
-      INTAKE_EXAMPLE.decision.findings[0]?.evidence ?? {},
+      Object.fromEntries(
+        Object.entries(evidence).map(([key, value]) => [
+          key,
+          typeof value === "string" ? maskClabesInText(value) : value,
+        ]),
+      ),
     );
+  });
+
+  test("carry four digits of an account and never eighteen", () => {
+    /* The offline panel is what a judge sees with the API unplugged, and the online
+       one is answered by a model that only ever saw four digits, so a whole account
+       here would be the two modes disagreeing about the same read. The proposal
+       payload is exempt: it is the body of the request the button sends. */
+    for (const message of ASSISTANT_SESSION.messages) {
+      expect(message.text).not.toMatch(/\d{18}/);
+      expect(message.proposal?.summary ?? "").not.toMatch(/\d{18}/);
+      for (const call of message.toolCalls ?? []) {
+        for (const value of Object.values(call.result ?? {})) {
+          if (typeof value === "string") {
+            expect(value).not.toMatch(/\d{18}/);
+          }
+        }
+      }
+    }
   });
 
   test("say no probability and never the word ADR-0009 forbids", () => {

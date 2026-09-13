@@ -39,6 +39,7 @@ import {
   ACTOR_ROLE_LABEL,
   describeActor,
   formatAmount,
+  maskClabesInText,
   SYSTEM_DECIDER,
   sumAmounts,
 } from "@hackmty/core";
@@ -582,8 +583,12 @@ function writeFindings(
         `${formatAmount(item.instruction.amount)} MXN`,
     );
     for (const finding of item.findings) {
+      /* Masked for the reason the evidence letter masks it: control 2 names the
+         known account inside its own sentence, so a constancia that printed the
+         explanation verbatim would put eighteen digits on a document the accountant
+         files and hands to the SAT. */
       sheet.paragraph(
-        `${finding.detector}, ${finding.severity}, ${state(finding)}: ${finding.explanation}`,
+        `${finding.detector}, ${finding.severity}, ${state(finding)}: ${maskClabesInText(finding.explanation)}`,
         { grey: 0.3 },
       );
     }

@@ -2359,7 +2359,7 @@ export const ASSISTANT_SESSION: AssistantSession = {
       "id": "SES-INS-2026-09-07-047-2",
       "sessionId": "SES-INS-2026-09-07-047",
       "author": "assistant",
-      "text": "Difiere en 2 dígitos (posiciones 4 y 9) de la cuenta 012580100091764611, que ya se pagó 52 veces. Cambió la plaza dentro del mismo banco: la cuenta conocida está en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF). Esa plaza no coincide con el lugar de expedición de la factura: el código postal 64000 queda en NL, así que la cuenta y la factura apuntan a estados distintos. Es la primera vez que se ve esta cuenta para este proveedor, que ya tiene 1 cuenta registrada. El nivel de esta linea es alerta y su estado es rojo.",
+      "text": "Difiere en 2 dígitos (posiciones 4 y 9) de la cuenta ****4611, que ya se pagó 52 veces. Cambió la plaza dentro del mismo banco: la cuenta conocida está en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF). Esa plaza no coincide con el lugar de expedición de la factura: el código postal 64000 queda en NL, así que la cuenta y la factura apuntan a estados distintos. Es la primera vez que se ve esta cuenta para este proveedor, que ya tiene 1 cuenta registrada. El nivel de esta linea es alerta y su estado es rojo.",
       "at": "2026-09-10T15:21:00.000Z",
       "instructionId": "INS-2026-09-07-047",
       "toolCalls": [
@@ -2370,14 +2370,14 @@ export const ASSISTANT_SESSION: AssistantSession = {
             "instructionId": "INS-2026-09-07-047"
           },
           "result": {
-            "clabe": "012180102091764611",
+            "clabe": "****4611",
             "ocrChannel": false,
             "institutionCode": "012",
             "plazaCode": "180",
             "checkDigit": "valid",
             "institutionName": "BBVA MEXICO",
             "knownAccounts": 1,
-            "nearestKnownAccount": "012580100091764611",
+            "nearestKnownAccount": "****4611",
             "nearestTimesPaid": 52,
             "editOperations": 2,
             "ocrSubstitutions": 0,

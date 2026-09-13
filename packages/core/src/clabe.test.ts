@@ -3,13 +3,16 @@ import {
   BANXICO_INSTITUTION_SNAPSHOT,
   BANXICO_INSTITUTIONS,
   CLABE_CHECK_WEIGHTS,
+  carriesFullClabe,
   clabeCheckDigit,
   clabeDistance,
+  clabeLast4,
   detectClabe,
   findNearestKnownAccount,
   isOcrConfusable,
   isValidClabe,
   lookupInstitution,
+  maskClabesInText,
   NO_PLAZA_HISTORY,
   normalizeClabe,
   OCR_CONFUSION_GROUPS,
@@ -893,5 +896,46 @@ describe("detectClabe, an account with no history behind it", () => {
 
     expect(assessment.level).toBe("precaucion");
     expect(assessment.rule).toBe("new_account_without_history");
+  });
+});
+
+describe("masking an account out of prose", () => {
+  /**
+   * The function exists because this detector writes the account into its own
+   * sentence, so every surface that shows a finding shows an account. Asserted here,
+   * next to the sentence, rather than in each of the three consumers.
+   */
+  it("keeps four digits of every account inside a sentence", () => {
+    const explanation =
+      "Difiere en 2 digitos de la cuenta 012580100091764611, que ya se pago 52 veces.";
+
+    expect(maskClabesInText(explanation)).toBe(
+      "Difiere en 2 digitos de la cuenta ****4611, que ya se pago 52 veces.",
+    );
+  });
+
+  it("masks every account in a sentence that names two", () => {
+    expect(maskClabesInText("de 012580100091764611 a 058580000123456812")).toBe(
+      "de ****4611 a ****6812",
+    );
+  });
+
+  it("leaves an RFC, an amount and a UUID alone", () => {
+    const untouched =
+      "SYN090615C01 pago 38,417.48 MXN del CFDI 73d71e39-0943-4d44-a2c8-5193e60a47f4";
+
+    expect(maskClabesInText(untouched)).toBe(untouched);
+  });
+
+  it("answers whether a string still carries a whole account", () => {
+    expect(carriesFullClabe("la cuenta 012580100091764611")).toBe(true);
+    expect(carriesFullClabe("la cuenta ****4611")).toBe(false);
+    /* A seventeen-digit run is not an account and is not masked: a function that
+       rewrote anything long would hide a CFDI folio or a clave de rastreo. */
+    expect(carriesFullClabe("01258010009176461")).toBe(false);
+  });
+
+  it("names an account by its last four, which is what every surface prints", () => {
+    expect(clabeLast4("012580100091764611")).toBe("4611");
   });
 });
