@@ -458,55 +458,33 @@ const CONTRAST_PROBE = `(() => {
     ["--c-rail-active-ink", "--c-rail-active", 4.5, "the current rail item"],
     ["--c-rail-ink", "--c-rail-active", 4.5, "a rail item on hover"],
     ["--c-rail-ink-muted", "--c-rail-active", 4.5, "muted ink on the active row"],
-    // The level chip of ADR-0009, which aliases the decision triplets. Measured
-    // anyway: an alias that is repointed at a new colour has to be caught here
-    // and not on the projector.
-    ["--c-level-alerta-ink", "--c-level-alerta-soft", 4.5, "alerta chip"],
-    [
-      "--c-level-precaucion-ink",
-      "--c-level-precaucion-soft",
-      4.5,
-      "precaucion chip",
-    ],
-    [
-      "--c-level-confiable-ink",
-      "--c-level-confiable-soft",
-      4.5,
-      "confiable chip",
-    ],
-    ["--c-level-alerta", "--c-level-alerta-soft", 3, "alerta chip border"],
-    [
-      "--c-level-precaucion",
-      "--c-level-precaucion-soft",
-      3,
-      "precaucion chip border",
-    ],
-    [
-      "--c-level-confiable",
-      "--c-level-confiable-soft",
-      3,
-      "confiable chip border",
-    ],
-    // The state chip. The cancelado and pendiente pairings are the two new ones
-    // in the palette: muted ink on a sunken panel and on a plain surface.
-    ["--c-state-rojo-ink", "--c-state-rojo-soft", 4.5, "rojo chip"],
-    ["--c-state-cancelado-ink", "--c-state-cancelado-soft", 4.5, "cancelado chip"],
-    ["--c-state-enviado-ink", "--c-state-enviado-soft", 4.5, "enviado chip"],
-    ["--c-state-liberado-ink", "--c-state-liberado-soft", 4.5, "liberado chip"],
-    ["--c-state-pendiente-ink", "--c-state-pendiente-soft", 4.5, "pendiente chip"],
-    [
-      "--c-state-cancelado",
-      "--c-state-cancelado-soft",
-      3,
-      "cancelado chip border",
-    ],
-    [
-      "--c-state-pendiente",
-      "--c-state-pendiente-soft",
-      3,
-      "pendiente dashed border",
-    ],
-    ["--c-state-enviado", "--c-state-enviado-soft", 3, "enviado chip border"],
+    // The level and the state of ADR-0009. They are words on a page now rather
+    // than chips, so the ground is the ground they sit on and not a soft fill
+    // that no longer renders: the run table is on the surface token and a detail
+    // panel puts the same words on the canvas. Both are measured, because a pair
+    // that passes on one and fails on the other is a word that disappears on
+    // exactly one screen. The level aliases the decision triplets, and an alias
+    // repointed at a new colour has to be caught here and not on the projector.
+    //
+    // No backticks in this block, and that is not a style choice: every line
+    // from CONTRAST_PROBE down is inside a template literal, so one would end
+    // the string and take the rest of the file with it.
+    ["--c-level-alerta-ink", "--c-surface", 4.5, "alerta on a panel"],
+    ["--c-level-alerta-ink", "--c-canvas", 4.5, "alerta on the page"],
+    ["--c-level-precaucion-ink", "--c-surface", 4.5, "precaucion on a panel"],
+    ["--c-level-precaucion-ink", "--c-canvas", 4.5, "precaucion on the page"],
+    ["--c-level-confiable-ink", "--c-surface", 4.5, "confiable on a panel"],
+    ["--c-level-confiable-ink", "--c-canvas", 4.5, "confiable on the page"],
+    ["--c-state-rojo-ink", "--c-surface", 4.5, "rojo on a panel"],
+    ["--c-state-rojo-ink", "--c-canvas", 4.5, "rojo on the page"],
+    ["--c-state-cancelado-ink", "--c-surface", 4.5, "cancelado on a panel"],
+    ["--c-state-cancelado-ink", "--c-canvas", 4.5, "cancelado on the page"],
+    ["--c-state-enviado-ink", "--c-surface", 4.5, "enviado on a panel"],
+    ["--c-state-enviado-ink", "--c-canvas", 4.5, "enviado on the page"],
+    ["--c-state-liberado-ink", "--c-surface", 4.5, "liberado on a panel"],
+    ["--c-state-liberado-ink", "--c-canvas", 4.5, "liberado on the page"],
+    ["--c-state-pendiente-ink", "--c-surface", 4.5, "pendiente on a panel"],
+    ["--c-state-pendiente-ink", "--c-canvas", 4.5, "pendiente on the page"],
     // The focus ring, which is the same colour as the accent and has to clear
     // 3:1 against every ground a control sits on.
     ["--c-focus", "--c-surface", 3, "the focus ring on a panel"],

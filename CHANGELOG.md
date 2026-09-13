@@ -12,13 +12,47 @@ commands, and `bun run release-check` is the gate that runs before them.
 
 ## [Unreleased]
 
-Nothing yet. v1.0.0 is the HackMTY 2026 submission; anything after it is a P0 demo fix and lands here.
+v1.0.0 is the HackMTY 2026 submission and the tag holds exactly what is under it. Everything in this
+section landed after that tag was cut.
 
-## [1.0.0] - 2026-09-13
+### Changed
 
-Everything below is the content of `[1.0.0]`, the HackMTY 2026 submission. The order inside each
-group is the order of `AGENTS.md` "Where things live": the intelligence first, then the transport,
-then the screens, then the narrative, then the plumbing.
+- **Entrada y ajustes reads in two columns instead of one long scroll** (issue #216). The screen was
+  2620 px of stacked full-width panels, so at 1440 half the width was empty and the six control
+  thresholds, which are the rows a judge came to read, sat four scrolls under the person selector. It
+  is 2175 px now with nothing removed: who signs and what that person may do are the same question and
+  sit side by side, the API status pairs with the three levels, and the two blocks that carry a table
+  or a grid of their own keep the full width because that is what they need. The rail panel alone was
+  962 px in half a column and is 427 px across the page, which was most of the difference.
+
+  The three levels run across rather than down, since each is one word and one sentence, and the six
+  thresholds take a third column where there is room for one. Panels keep their own height rather than
+  stretching to match the tallest in the row, because a panel with two hundred pixels of empty floor
+  under its last line reads as a screen that ran out of content. `bun run audit:web` is clean at 390,
+  768, 1440 and 1920, and the shot height in `shoot.ts` came down with the page so the committed
+  screenshot is not four hundred pixels of blank canvas.
+
+- **The level and the state are words now, not chips** (issue #216). Both were pills: a rounded
+  container with a tinted fill, a border, and a glyph inside it, a three step meter on the level and a
+  dot on the state. On a run of ninety-two lines that is ninety-two filled capsules in two columns,
+  competing for attention with the amounts, which are the numbers a clerk is actually scanning. They
+  are the word in its colour now, everywhere both appear, because both render through
+  `ConfidenceBadge` and `TransactionStateBadge` and neither screen paints its own.
+
+  It costs no channel, which was the thing worth checking before doing it. The channel was never the
+  container: `confiable`, `precaucion` and `alerta` are three different words, and `pendiente` says in
+  a language what its dashed border used to say in a shape, so a reader who cannot separate the red
+  from the amber, which is roughly one man in twelve, reads these exactly as well as anyone else.
+  Colour is the second channel and it stays.
+
+  Contrast was measured before the change rather than after, over all sixteen combinations: the ink
+  tokens sit on the fill no longer rendered at between 6.45 and 10.55, and on the surfaces they now
+  sit on at between 7.16 and 12.71. Every one improved, because a tinted fill was always closer to the
+  ink than the page is. `bun run audit:web` measures the pairs that render now, ink on `--c-surface`
+  for the run table and ink on `--c-canvas` for a detail panel, rather than the ink-on-soft pairs that
+  passed green while describing nothing on screen.
+
+  `CONFIDENCE_BARS` and the two tests over it are gone with the meter they fed.
 
 ### Fixed
 
@@ -32,6 +66,12 @@ then the screens, then the narrative, then the plumbing.
   database sent somebody looking for Postgres when what they needed was one line of environment.
   Measured rather than reasoned this time: two API processes on two ports, one with `SEED=sentryone`
   and one with nothing, answering ninety-two and twelve.
+
+## [1.0.0] - 2026-09-13
+
+Everything below is the content of `[1.0.0]`, the HackMTY 2026 submission. The order inside each
+group is the order of `AGENTS.md` "Where things live": the intelligence first, then the transport,
+then the screens, then the narrative, then the plumbing.
 
 ### Added
 

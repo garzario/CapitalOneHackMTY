@@ -391,20 +391,6 @@ export const CONFIDENCE_BADGE: Record<Confidence, string> = {
   alerta: "level level-alerta",
 };
 
-/**
- * How many of the three bars the meter fills beside the word.
- *
- * An ordinal over the same three values the word already carries, which is why
- * it is allowed: it adds a channel and not a digit, and red against amber is the
- * pair roughly one man in twelve cannot separate. It is not a score and must
- * never become one. See the note on `.level` in `design/primitives.css`.
- */
-export const CONFIDENCE_BARS: Record<Confidence, number> = {
-  alerta: 3,
-  precaucion: 2,
-  confiable: 1,
-};
-
 export const CONFIDENCE_HELP: Record<Confidence, string> = {
   confiable:
     "Los documentos que tenemos coinciden y no hay nada abierto en esta linea.",
