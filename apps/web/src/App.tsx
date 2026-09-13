@@ -10,6 +10,7 @@ import { EmptyBlock } from "./components/States";
 import { TokenSheet } from "./design/TokenSheet";
 import { DEFAULT_PATH, href, PATHS, type Route, useRoute } from "./lib/router";
 import { CepScreen } from "./screens/CepScreen";
+import { EntryScreen } from "./screens/EntryScreen";
 import { InstructionScreen } from "./screens/InstructionScreen";
 import { IntakeScreen } from "./screens/IntakeScreen";
 import { MetricsScreen } from "./screens/MetricsScreen";
@@ -19,6 +20,7 @@ import { SatScreen } from "./screens/SatScreen";
 import { VerifyCallScreen } from "./screens/VerifyCallScreen";
 
 const TITLES: Record<Route["name"], string> = {
+  entry: "Entrada y ajustes",
   run: "Corrida de pagos",
   payments: "Salida de la corrida",
   instruction: "Instruccion de pago",
@@ -33,6 +35,8 @@ const TITLES: Record<Route["name"], string> = {
 
 function screenFor(route: Route) {
   switch (route.name) {
+    case "entry":
+      return <EntryScreen />;
     case "run":
       return <RunScreen />;
     case "payments":

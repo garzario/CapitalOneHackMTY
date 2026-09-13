@@ -1,54 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getHealth } from "../lib/api";
-import type { Health } from "../lib/contract";
-import { reachesApi } from "../lib/resource";
-
-type Status =
-  | { kind: "checking" }
-  | { kind: "skipped" }
-  | { kind: "online"; health: Health; checkedAt: Date }
-  | { kind: "offline"; message: string; checkedAt: Date };
-
-const LABEL: Record<Status["kind"], string> = {
-  checking: "Consultando la API",
-  skipped: "No se consulto la API",
-  online: "API en linea",
-  offline: "API no responde",
-};
-
-const DOT_CLASS: Record<Status["kind"], string> = {
-  checking: "dot-neutral",
-  skipped: "dot-neutral",
-  online: "dot-release",
-  offline: "dot-hold",
-};
-
-function detail(status: Status): string {
-  switch (status.kind) {
-    case "checking":
-      return "Preguntando a /health si el servicio esta vivo.";
-    case "skipped":
-      return "Esta pagina corre en modo sin conexion, asi que no se pregunto por el servicio. No saber si responde no es lo mismo que saber que no responde.";
-    case "online":
-      return `Servicio ${status.health.service}, version ${status.health.version}.`;
-    case "offline":
-      return status.message;
-  }
-}
-
-/** When the answer on screen was obtained, or why there is no time to show. */
-function stamp(status: Status): string {
-  if (status.kind === "checking") {
-    return "Sin respuesta todavia";
-  }
-
-  if (status.kind === "skipped") {
-    return "Sin consultar";
-  }
-
-  return `Consultado a las ${status.checkedAt.toLocaleTimeString("es-MX")}`;
-}
-
 /**
  * The first thing a judge should be able to trust: is the backend actually
  * answering, right now, from this browser. It reads GET /health and says so out
@@ -60,49 +9,23 @@ function stamp(status: Status): string {
  * And an unanswered /health rendered as "API no responde" in the hold colour,
  * which is a red card reporting a failure of a server nobody asked: the offline
  * mode is a feature of this build, and that made it look like a broken one.
+ *
+ * The state machine and the sentences moved to `lib/api-status.ts` when the shell
+ * gained the offline banner, because the two have to give one answer: a banner
+ * saying the API is down over a card saying it is up is worse than either of them
+ * alone, and one shared store is also one request per page load instead of two.
  */
+
+import {
+  API_STATUS_DOT,
+  API_STATUS_LABEL,
+  apiStatusDetail,
+  apiStatusStamp,
+  useApiStatus,
+} from "../lib/api-status";
+
 export function StatusCard() {
-  const allowed = reachesApi();
-  const [status, setStatus] = useState<Status>(
-    allowed ? { kind: "checking" } : { kind: "skipped" },
-  );
-  const [isChecking, setIsChecking] = useState(allowed);
-  const controllerRef = useRef<AbortController | null>(null);
-
-  const check = useCallback(async () => {
-    if (!allowed) {
-      return;
-    }
-
-    controllerRef.current?.abort();
-
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    setIsChecking(true);
-
-    const result = await getHealth({ signal: controller.signal });
-
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    setStatus(
-      result.ok
-        ? { kind: "online", health: result.data, checkedAt: new Date() }
-        : {
-            kind: "offline",
-            message: result.error.message,
-            checkedAt: new Date(),
-          },
-    );
-    setIsChecking(false);
-  }, [allowed]);
-
-  useEffect(() => {
-    void check();
-
-    return () => controllerRef.current?.abort();
-  }, [check]);
+  const { status, checking, recheck } = useApiStatus();
 
   return (
     <section aria-labelledby="api-status-heading" className="well">
@@ -116,30 +39,28 @@ export function StatusCard() {
               decoration that runs forever. */}
           <span
             aria-hidden="true"
-            data-checking={isChecking ? "true" : "false"}
-            className={`status-dot mt-1 ${DOT_CLASS[status.kind]}`}
+            data-checking={checking ? "true" : "false"}
+            className={`status-dot mt-1 ${API_STATUS_DOT[status.kind]}`}
           />
         </div>
 
         <div aria-live="polite" className="flex flex-col gap-1">
-          <p className="t-md font-semibold">{LABEL[status.kind]}</p>
-          <p className="muted t-sm">{detail(status)}</p>
+          <p className="t-md font-semibold">{API_STATUS_LABEL[status.kind]}</p>
+          <p className="muted t-sm">{apiStatusDetail(status)}</p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="subtle t-xs">{stamp(status)}</p>
+          <p className="subtle t-xs">{apiStatusStamp(status)}</p>
           {/* No button in the offline mode: the only thing it could do is break
               the promise the mode made. */}
           {status.kind === "skipped" ? null : (
             <button
               type="button"
-              aria-busy={isChecking}
-              onClick={() => {
-                void check();
-              }}
+              aria-busy={checking}
+              onClick={recheck}
               className="btn btn-pill"
             >
-              {isChecking ? "Consultando" : "Consultar de nuevo"}
+              {checking ? "Consultando" : "Consultar de nuevo"}
             </button>
           )}
         </div>

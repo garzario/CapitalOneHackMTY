@@ -15,6 +15,8 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { useMemo, useSyncExternalStore } from "react";
 
 export type Route =
+  /** The front door: who is acting, and what this build is configured with. */
+  | { name: "entry" }
   | { name: "run" }
   | { name: "payments" }
   | { name: "instruction"; id: string }
@@ -30,6 +32,7 @@ export type Route =
 export type RouteName = Route["name"];
 
 export const PATHS = {
+  entry: "/entrada",
   run: "/run",
   payments: "/payments",
   intake: "/intake",
@@ -114,6 +117,8 @@ export function parsePath(target: string): Route {
 
   if (segments.length === 1) {
     switch (segments[0]) {
+      case "entrada":
+        return { name: "entry" };
       case "run":
         return { name: "run" };
       case "payments":

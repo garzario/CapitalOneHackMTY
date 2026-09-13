@@ -112,6 +112,19 @@ const SHOTS: Shot[] = [
     height: 1000,
   },
   { path: "#/intake", name: "intake-phone", width: 390, height: 900 },
+  /* The entry screen, offline, and the mode is the reason rather than a
+     convenience: the panel that says which rail this server holds is the one
+     thing on that page whose answer depends on whoever is running an API at the
+     moment of the capture, so `?data=mock` is the state the file can be taken of
+     twice and come back the same. The phone width is there because this is the
+     screen somebody opens first, on whatever they are holding. */
+  { path: "?data=mock#/entrada", name: "entry", width: 1440, height: 2620 },
+  {
+    path: "?data=mock#/entrada",
+    name: "entry-phone",
+    width: 390,
+    height: 3760,
+  },
   { path: "#/sat", name: "sat", width: 1440, height: 1000 },
   { path: "#/cep", name: "cep", width: 1440, height: 1000 },
   { path: "#/metrics", name: "metrics", width: 1440, height: 1000 },
