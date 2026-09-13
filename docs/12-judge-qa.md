@@ -186,19 +186,25 @@ not a second implementation. The API runs as a long-lived process because the sc
 Server-Sent Events stream. Full reasoning in `docs/07-architecture.md` and ADR-0001.
 
 **The list is public and free. Why not just check it yourself.** The check is not the hard part, the
-cadence is. It has to run against every supplier on every run, and again retroactively over
+cadence is, and the cadence is already sold: ValidX and Portal de Proveedores sweep it daily and
+69b.mx sells it by monitored RFC. What none of them does is read it next to the account the money is
+about to leave for. It has to run against every supplier on every run, and again retroactively over
 everything already paid and already deducted each time the SAT publishes a new list version. The
 exposure is created by the publication, which happens after the payment, so a check done once at
 onboarding does not protect anything. Our sweep is a replay over the event ledger and it quantifies
 the deducted base, the ISR and the IVA per newly listed supplier. Evidence: `SweepResult` in
 `packages/core/src/domain.ts`, `POST /api/v1/sat/publish`, beat 2 in `docs/10-demo-script.md`.
 
-**The bank already shows the beneficiary name.** It shows a name after you have typed the account,
-and it compares that name with nothing, because the bank does not have the invoice. We compare the
-holder name on a Banxico-signed receipt against the legal name on the CFDI we are settling, we store
-the signed XML byte-exact as evidence, and the result is one of match, partial or mismatch. It is
-done once per account and not once per payment, so the registry of verified beneficiaries is an
-asset that accumulates. Evidence: `POST /api/v1/cep/verify`, the CEP viewer (#50).
+**The bank already shows the beneficiary name.** Be precise here, because one bank really does sell
+this: HSBCnet validates beneficiary names, "unicamente cuentas HSBC", from a batch file and inside a
+service window, which is a hygiene sweep of an address book and not a gate on an outbound payment.
+BBVA Net Cash, by contrast, has the company type the holder's name itself. So the general answer is
+that a bank shows a name after you have typed the account, and compares that name with nothing,
+because the bank does not have the invoice. We compare the holder name on a Banxico-signed receipt
+against the legal name on the CFDI we are settling, we store the signed XML byte-exact as evidence,
+and the result is one of match, partial or mismatch. It is done once per account and not once per
+payment, so the registry of verified beneficiaries is an asset that accumulates. Evidence:
+`POST /api/v1/cep/verify`, the CEP viewer (#50), and `docs/04-market.md` sources [42] and [43].
 
 **The one-cent probe needs a person, so it is not automatic.** Correct, and it is the design rather
 than a limitation. We hold no funds and we execute no transfer, which is precisely why we need no
@@ -292,17 +298,86 @@ Y.** A judge who finds the gap costs more than the gap.
 
 ### 1. "Do you know who your competition is?" We could not answer
 
-> Si. Dos directos mexicanos, tres plataformas globales, y el statu quo. Los mexicanos corren sobre
-> una lista: 69b.mx monitorea RFCs por ciento noventa y nueve pesos al mes, y Tesio cruza los CFDI que
-> ya descargaste contra la lista actualizada desde cuatrocientos noventa y nueve. Ninguno de los dos ve
-> nunca la cuenta a la que esta por salir el dinero. Las tres globales de verificacion de beneficiario,
-> Trustpair, nsKnox y Eftsure, si ven la cuenta y no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en nada
-> de su material publico que hayamos encontrado. Y el statu quo es el contador con una hoja de calculo
-> y WhatsApp. Nosotros somos el unico que junta las tres cosas en el momento del pago.
+**This answer was rewritten after the market research of PR #177 landed in `docs/04-market.md`.** The
+old one named two Mexican companies that both run on a list, three global platforms and the status
+quo, and closed with "nosotros somos el unico que junta las tres cosas en el momento del pago".
+Both halves of that are falsifiable in one search, which is the most expensive way to lose a table:
+ValidX and Portal de Proveedores already hold a payment on SAT compliance, and the one-centavo probe is
+Banco de Mexico's own codified procedure. What follows is the narrower claim, and it survives the
+search.
 
-Rests on: `docs/04-market.md#competitor-map`, where every company named is named with its own published
-material and its access date. The market, the gap and the sizing are issue #169 and land in `docs/04`,
-`docs/02` and the sections above.
+> Si. La mitad fiscal retiene sin ver la cuenta: ValidX, Portal de Proveedores, 69b.mx, Tesio. La del
+> dinero dispersa SPEI sin verificar a quien recibe: Clara, Xepelin. El centavo es commodity:
+> Verificamex lo vende y Banxico lo manda en la regla 51a Bis. CONTPAQi tiene ambas mitades y no se
+> cruzan; Bind ERP avisa y no restringira, lo dice su ayuda; HSBCnet valida nombres solo de cuentas
+> HSBC; Trustpair, nsKnox y Eftsure verifican cuentas corporativas afuera. Lo nuestro es la union: una
+> decision con evidencia antes de la transferencia.
+
+**One line each, which is the order to say them in if a judge asks about any one of them.** Every cell
+is the vendor's own published material with its access date, in `docs/04-market.md#competitor-map`.
+
+| Name | Said out loud, in one line | Source |
+|---|---|---|
+| ValidX | "Antes de pagar: cada pago consulta el estatus del proveedor; si no cumple, se retiene y se notifica a Compras". Retiene sobre cuatro listas del SAT y nunca ve la cuenta. Anuncia rebarrido diario del 49 Bis, que el SAT no publica como archivo | [31] |
+| Portal de Proveedores, Monterrey | Barre 69 y 69-B a diario y detiene el pago cuando un documento vence. Ninguna capa bancaria, y es un portal al que entran catorce mil proveedores | [32] |
+| Verificamex | Vende la prueba del centavo con lectura del CEP, de nueve a dieciocho pesos por verificacion. Sin 69-B, sin CFDI, sin decision | [35] [36] |
+| Banco de Mexico | La regla 51a Bis del SPEI manda un centimo de peso y lee el titular en el CEP, en nombre del propio Banxico. El centavo no es un truco, y tampoco es nuestro | [29] |
+| CONTPAQi Contabilidad-Bancos | Tiene las dos mitades en un solo producto, tablero fiscal y dispersion masiva con conexion al banco, y su propio changelog muestra que no se encuentran en el momento del pago | [33] |
+| Bind ERP | Su centro de ayuda: el sistema "no restringira" la operacion con un proveedor en la lista de EFOS, "pero si te alertara". Avisa, no decide | [34] |
+| Clara | Cuarenta mil empresas, valida la factura con el SAT, y dispersa cientos de SPEI desde un .xlsx que sube el pagador. Su pagina no nombra ninguna verificacion de quien recibe | [37] |
+| Xepelin | Confirming en tres pasos, linea, SAT y pagar, y ninguno de los tres verifica la contraparte. Los proveedores no tienen que estar registrados | [38] |
+| HSBCnet | Si vende validacion del nombre del beneficiario, y "unicamente cuentas HSBC", por archivo y en horario. Higiene de una libreta, nunca una puerta en el pago | [42] |
+| 69b.mx y Tesio | Corren sobre la lista: monitoreo por RFC con constancia desde MXN 199, y cruce de los CFDI ya descargados desde MXN 499. Ninguno ve la cuenta | [7] [8] |
+| Trustpair, nsKnox, Eftsure | Verifican cuentas de beneficiarios para tesorerias corporativas fuera de Mexico, y no mencionan Mexico, CFDI, SAT, SPEI ni CLABE en su material publico | [9] [10] [11] |
+| El statu quo | El contador con una hoja de calculo y WhatsApp, unos cuantos RFCs a mano una vez al mes, sin evidencia de que la revision ocurrio | [24] |
+
+**Our claim, in the words that survive the search.** The union of the fiscal half and the money half in
+one decision, retener, verificar o liberar, with the evidence attached, before the transfer is
+irrevocable. Two edges of that union are sharper than the join itself and are the ones to name second:
+we found nobody selling the comparison of a new CLABE against the accounts that supplier has already
+been paid on, and nobody turning either signal into a decision with an amount at risk on it.
+
+**The two sentences never to say, in any version, in either language.**
+
+1. **"Nadie hace esto."** Nobody does this is false and ValidX's own landing page is the
+   counterexample. What replaces it is "no encontramos a nadie que venda las dos mitades juntas",
+   which is what the research supports and is weaker on purpose.
+2. **"Nosotros inventamos la prueba del centavo."** We invented the one-cent test is false twice:
+   Verificamex sells it metered [36] and Banco de Mexico writes it into Regla 51a Bis of the SPEI
+   rules [29]. What replaces it is that the centavo is a commodity primitive and that what is ours is
+   the decision we hang on its answer.
+
+Two more things not to say here, for the same reason: nothing about Belvo, whose site refuses automated
+fetching and about which we know nothing, and no customer complaint about any competitor, because the
+review sites blocked us and every problem in that table is a vendor's own admission or a named outlet.
+
+**Scope, volunteered before it is found.** ValidX advertises daily re-screening of four SAT lists and
+CONTPAQi shipped the 49 Bis situation in July 2026, so "you only cover one list" is a question that
+comes straight out of the table above. This section was drafted as "today 69-B, and by the demo the 49
+Bis list (#180)", the rule this whole section is written under. **#180 landed before this pull request
+did, so the answer changed and this is the current one**: both articles are in the lookup, in control
+1 and in the retroactive sweep, and `GET /api/v1/sat/lookup` answers a block per list. Say both halves
+in one breath:
+
+> Leemos los dos articulos que el SAT publica contra un proveedor, el 69-B y el 49 Bis, en la consulta,
+> en el control y en el barrido hacia atras. Y decimos lo segundo: el 69-B contesta desde la lista
+> descargada, y el 49 Bis contesta que no hay lista. El SAT no lo publica como archivo, lo publica
+> oficio por oficio en el DOF, catorce oficios con catorce contribuyentes entre el diez de julio y el
+> veintiocho de agosto de 2026. Por eso nunca decimos que barremos la lista del 49 Bis.
+
+The endpoint says it rather than the presenter: the 49 Bis block carries `answered: false` and
+`coverage: "not_published_machine_readable"` with those counts and the URL to check them, and it
+deliberately has no `listed` key, because an empty `entries` rendered as "no esta listado" would claim
+a check nobody ran. That also answers the competitor: a vendor advertising daily re-screening of 49 Bis
+[31] is transcribing or scraping DOF notes, and that is a claim we do not make without the file. 69-B
+Bis is out on purpose, because it is about transferred tax losses in a restructuring and its complete
+listing holds three taxpayers. All of it is in `docs/04-market.md#what-we-cover-on-49-bis-and-what-nobody-can`
+and `docs/09-api.md`.
+
+Rests on: `docs/04-market.md#competitor-map` and `docs/04-market.md#the-gap`, where every company named
+is named with its own published material and its access date, and the roster in section 2 of this file,
+which carries the winning feature of each one next to its problem. The market, the gap and the sizing
+are issue #169 and land in `docs/04`, `docs/02` and the sections above.
 
 ### 2. "My father has a PyME and talks to his suppliers constantly. I am not your user"
 
@@ -490,5 +565,8 @@ the thing that measures it.
   engineering maturity. A discovered one reads as a Wizard of Oz.
 - Never invent a number at the table. "I do not have that number, it is derived in `docs/04`" is a
   fine answer and a much cheaper one than being corrected.
+- **Two sentences are banned outright: "nadie hace esto" and "nosotros inventamos la prueba del
+  centavo".** Both break in one search, and the replacements are in section 1 of the table feedback.
+  A claim about the competition is written as what we found or did not find, never as what exists.
 - If two people would answer differently, the answer is not written yet.
 - Every path named in this file has to exist when it is named. Check the paths at each milestone.
