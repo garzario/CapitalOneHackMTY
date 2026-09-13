@@ -33,11 +33,9 @@ import {
   writeHeaders,
 } from "../test-app";
 import {
-  createTourLimiter,
   hashPhone,
   readTourFacts,
   TOUR_HOLD_REASON,
-  TOUR_HOURLY_LIMIT,
   TOUR_RELEASE_REASON,
   TOUR_REVERT_REASON,
   type TourDeps,
@@ -279,32 +277,38 @@ describe("GET /api/v1/tour", () => {
 /* -------------------------------------------------------------------------- */
 
 describe("POST /api/v1/tour/call, what it refuses", () => {
-  it("refuses a number that is not a Mexican mobile", async () => {
+  it("refuses what is not an E.164 number, and nothing else about the number", async () => {
     const { http } = provider([IN_PROGRESS]);
     const { deps: tour } = tourDeps(http);
     const { app } = createTestApp({}, undefined, tour);
 
-    for (const phone of ["+14155550123", "+5281123456", "8112345678"]) {
+    /* No plus, too short to be a telephone number, and a country code that
+       starts with a zero. The shape is the whole rule now. */
+    for (const phone of ["8112345678", "+5281123", "+0528112345678"]) {
       const res = await app.request(
         "/api/v1/tour/call",
         call({ phone, consent: true }),
       );
 
-      expect(res.status).toBe(400);
+      expect([phone, res.status]).toEqual([phone, 400]);
     }
   });
 
-  it("dials another country only when the instance says it may", async () => {
-    const { http } = provider([IN_PROGRESS, DONE_SILENT]);
-    const { deps: tour } = tourDeps(http, { allowAnyCountry: true });
+  it("dials any country, because the visitor's telephone is theirs", async () => {
+    /* The rule this replaced was Mexican mobiles only, behind a flag nobody sets
+       at a stand, so a judge whose telephone is not on a Mexican network typed
+       their own number and was refused by their own country code. */
+    const { deps: tour } = tourDeps(provider([IN_PROGRESS, DONE_SILENT]).http);
     const { app } = createTestApp({}, undefined, tour);
 
-    const res = await app.request(
-      "/api/v1/tour/call",
-      call({ phone: "+14155550123", consent: true }),
-    );
+    for (const phone of ["+14155550123", "+5218112345678", "+34600123456"]) {
+      const res = await app.request(
+        "/api/v1/tour/call",
+        call({ phone, consent: true }),
+      );
 
-    expect(res.status).toBe(202);
+      expect([phone, res.status]).toEqual([phone, 202]);
+    }
   });
 
   it("refuses a call nobody consented to", async () => {
@@ -444,89 +448,39 @@ describe("POST /api/v1/tour/call, what it refuses", () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* The limiter                                                                 */
+/* Calling the same number again                                               */
 /* -------------------------------------------------------------------------- */
 
-describe("the tour limiter", () => {
-  it("rings one number once per ten minutes", async () => {
+describe("the same number, again", () => {
+  /**
+   * There is no rate limit on this route and this is the test that says so.
+   *
+   * It used to ring one number once per ten minutes and stop at twenty calls an
+   * hour from the instance, both `429` with `Retry-After`. Both were written for
+   * a stand this product never had: the same four people rehearse this call all
+   * day, a judge who did not hear their telephone asks for it again, and the
+   * second attempt was answered with a sentence about a call the visitor had
+   * already had. What protects a stranger's telephone is the box they tick, the
+   * owner role and `ALLOW_TOUR_CALLS`, and none of those is a counter.
+   */
+  it("rings the same number as many times as somebody asks", async () => {
     const { http } = provider([IN_PROGRESS, DONE_SILENT]);
     const { deps: tour } = tourDeps(http);
     const { app } = createTestApp({}, undefined, tour);
 
-    const first = await app.request(
-      "/api/v1/tour/call",
-      call({ phone: PHONE, consent: true }),
-    );
-    expect(first.status).toBe(202);
-
-    const second = await app.request(
-      "/api/v1/tour/call",
-      call({ phone: PHONE, consent: true }),
-    );
-
-    expect(second.status).toBe(429);
-    expect(Number(second.headers.get("Retry-After"))).toBeGreaterThan(0);
-    const body = (await second.json()) as ErrorBody;
-    expect(body.error.code).toBe("rate_limited");
-  });
-
-  it("stops at twenty calls an hour however many numbers they are", async () => {
-    const { http } = provider([IN_PROGRESS, DONE_SILENT]);
-    const { deps: tour } = tourDeps(http);
-    const { app } = createTestApp({}, undefined, tour);
-
-    for (let index = 0; index < TOUR_HOURLY_LIMIT; index += 1) {
-      const phone = `+5281${String(10_000_000 + index)}`;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       const res = await app.request(
         "/api/v1/tour/call",
-        call({ phone, consent: true }),
+        call({ phone: PHONE, consent: true }),
       );
 
-      expect(res.status).toBe(202);
-    }
-
-    /* A number the hour has not seen, so it is the hourly limit that refuses it
-       and not the ten minute rule on a number that was already rung. */
-    const over = await app.request(
-      "/api/v1/tour/call",
-      call({ phone: PHONE, consent: true }),
-    );
-
-    expect(over.status).toBe(429);
-    expect(over.headers.get("Retry-After")).not.toBeNull();
-  });
-
-  it("lets the same number through once the window has passed", () => {
-    const limiter = createTourLimiter();
-    const hash = hashPhone("salt", PHONE);
-
-    expect(limiter.take(hash, 0).ok).toBe(true);
-    expect(limiter.take(hash, 599_000).ok).toBe(false);
-    expect(limiter.take(hash, 600_000).ok).toBe(true);
-  });
-
-  it("a slot handed back is a slot neither window spent", () => {
-    const limiter = createTourLimiter();
-    const hash = hashPhone("salt", PHONE);
-
-    /* One more than the hour allows, because a take that is given back has to
-       leave both structures exactly where it found them: the number is free
-       again and the hour never counted the call. */
-    for (let index = 0; index <= TOUR_HOURLY_LIMIT; index += 1) {
-      const slot = limiter.take(hash, index);
-
-      expect([index, slot.ok]).toEqual([index, true]);
-
-      if (slot.ok) {
-        slot.release();
-      }
+      expect([attempt, res.status]).toEqual([attempt, 202]);
     }
   });
 
-  it("a call the provider refused does not spend the number's ten minutes", async () => {
-    /* The booth case, and the reason the slot is handed back at all: one
-       provider hiccup must not lock a visitor's number out for ten minutes and
-       tell them their telephone already rang. */
+  it("a call the provider refused can be tried again immediately", async () => {
+    /* The booth case: one provider hiccup must not cost a visitor their turn.
+       It answered `429` on the retry once, about a telephone that never rang. */
     let placed = 0;
     const http: HttpLike = async (url) => {
       if (url.includes("/outbound-call")) {
@@ -556,8 +510,6 @@ describe("the tour limiter", () => {
     );
     expect(refused.status).toBe(422);
 
-    /* The same number, immediately. Nothing rang the first time, so there is
-       nothing for the ten minute rule to protect yet. */
     const again = await app.request(
       "/api/v1/tour/call",
       call({ phone: PHONE, consent: true }),
@@ -878,8 +830,9 @@ describe("hashPhone", () => {
 
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
     expect(hash).not.toContain("8112345678");
-    /* Reproducible, which is what lets the limiter refuse a repeat call without
-       holding the number, and what lets somebody be told which hash is theirs. */
+    /* Reproducible on one salt, which is what lets somebody who asks be told
+       which hash on the ledger is theirs without this product holding a
+       telephone number to compare against. */
     expect(hashPhone("sentryone-tour", PHONE)).toBe(hash);
     expect(hashPhone("otra", PHONE)).not.toBe(hash);
   });

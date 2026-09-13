@@ -496,19 +496,6 @@ export function Tour() {
 
             {step.kind === "call" ? <TourCall config={config} /> : null}
 
-            {step.look !== undefined ? (
-              <div className="tour-look">
-                <span className="eyebrow">Que mirar</span>
-                <ul className="tour-look-list">
-                  {step.look.map((line) => (
-                    <li key={line} className="subtle t-xs">
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
             <SourceNotice
               notice={resource.status === "ready" ? resource.notice : null}
               compact

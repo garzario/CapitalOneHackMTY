@@ -350,12 +350,13 @@ Four things to have straight before offering it.
   as a second decision signed `Recorrido`, so the only rule is operational: do not run the call in
   the ten minutes before a pitch, and reload the run before beat 1. `TOUR_REVERT_MS` is the knob and
   `0` disables the revert, which is what a rehearsal wants and never what the stand does.
-- **One number rings once.** The limiter is one call per number per ten minutes and twenty an hour
-  from the instance, so a queue of judges is fine and the same judge twice is not.
+- **Any number, as many times as they ask.** There is no limit on the route and no country rule: the
+  field takes the number the way the person writes it, with or without a country code, and says
+  underneath which telephone it is about to ring. A judge who did not hear it can ask again.
 - **The number is not kept.** Say it while they type: the field takes their number, one call goes
-  out, and what is stored is a salted hash so the limiter can refuse the second call without holding
-  the first number. `docs/06-regulatory-privacy.md` section 4.5 is the written version, and the
-  consent box is unticked until they tick it.
+  out, and what is stored is a salted hash of it and never the number.
+  `docs/06-regulatory-privacy.md` section 4.5 is the written version, and the consent box is
+  unticked until they tick it.
 
 **Never say** that the call decided anything. It asked, a person answered, and what the ledger holds
 is a `decision_made` with that person's name and the sentence it was read from. The supplier line of

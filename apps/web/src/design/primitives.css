@@ -2314,24 +2314,6 @@
     gap: var(--space-3);
   }
 
-  .tour-look {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background-color: var(--c-surface-sunken);
-    border-radius: var(--radius-md);
-  }
-
-  .tour-look-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    margin: 0;
-    padding-left: var(--space-4);
-    list-style: disc;
-  }
-
   .tour-foot {
     display: flex;
     align-items: center;
@@ -2351,39 +2333,13 @@
     border-radius: var(--radius-lg);
   }
 
-  .tour-call-line {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
+  /* One field and no prefix chip. The country is not fixed any more: the field
+     takes the number as it was written and says underneath which telephone it
+     resolved to, which is a thing a person can check before pressing. */
   .tour-field {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-  }
-
-  /* The prefix is furniture and not an input: the country is fixed, so it is
-     drawn as part of the field instead of offered as something to edit. */
-  .tour-phone {
-    display: flex;
-    align-items: stretch;
-  }
-
-  .tour-phone-prefix {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-    padding: 0 var(--space-3);
-    border: var(--border-width) solid var(--c-border-strong);
-    border-right: none;
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-    background-color: var(--c-surface-sunken);
-    color: var(--c-ink-muted);
-  }
-
-  .tour-phone .input {
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
 
   .tour-consent {

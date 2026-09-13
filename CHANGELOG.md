@@ -60,14 +60,11 @@ section landed after that tag was cut.
   one that records the tour undoing itself.
 
   The visitor's number is never stored, never logged and never shown. What is kept is `phoneHash`, a
-  SHA-256 of a salt and the number, and it exists so the limiter can refuse to ring the same
-  telephone twice in ten minutes without holding the telephone number.
-  `docs/06-regulatory-privacy.md` section 4.5 is the argument in full, including the two providers
-  the number passes through and the `TODO(FabriBanda)` against their processing terms. That limiter
-  is the tour's own, separate from the write bucket on `/api/v1`, because the two protect different
-  things: twenty calls an hour from the instance, one per number per ten minutes, `429` with
-  `Retry-After`. `consent` is a literal `true` and not a boolean, so a body carrying `false` is
-  refused rather than read as a flag somebody left off.
+  SHA-256 of a salt and the number, so an event on the ledger can be tied back to whoever asked for
+  the call without this product holding a telephone number. `docs/06-regulatory-privacy.md` section
+  4.5 is the argument in full, including the two providers the number passes through and the
+  `TODO(FabriBanda)` against their processing terms. `consent` is a literal `true` and not a
+  boolean, so a body carrying `false` is refused rather than read as a flag somebody left off.
 
 - **The owner agent, its script and its parser** (issue #216). `packages/voice` has two lines now,
   not one, and they are separate files with separate agents at the provider because they say
@@ -89,7 +86,7 @@ section landed after that tag was cut.
 
 ### Changed
 
-- **Seven environment variables, and a box that rings a telephone only when it was told to** (issue
+- **Six environment variables, and a box that rings a telephone only when it was told to** (issue
   #216). `ELEVENLABS_OWNER_AGENT_ID` is the second agent, created by `bun run voice-setup --owner`;
   an agent id names a configuration and authorises nothing, so it is not a secret. `ALLOW_TOUR_CALLS`
   is the flag, off by default and deliberately opt-in, because an endpoint that telephones a real
@@ -100,10 +97,8 @@ section landed after that tag was cut.
   and never what a stand does. `TOUR_POLL_INTERVAL_MS` and `TOUR_POLL_DEADLINE_MS` are how often and
   how long the server asks the provider whether the call has finished. `TOUR_SALT` salts the
   telephone hash, with `CONSORTIUM_SALT` winning when both are set so that rotating one salt rotates
-  this one with it. `TOUR_ALLOW_ANY_COUNTRY` widens the number past a Mexican mobile, and the demo is
-  in Monterrey so it is off. All seven are in `.env.example` with the sentence that says what each
-  one buys, and `deploy/docker-compose.yml` and `scripts/deploy-vultr.ts` pass them through to the
-  instance.
+  this one with it. All six are in `.env.example` with the sentence that says what each one buys, and
+  `deploy/docker-compose.yml` and `scripts/deploy-vultr.ts` pass them through to the instance.
 
   Three smaller shapes moved with them, all backwards compatible. `verification_call` gained four
   optional fields, `line`, `phoneHash`, `ownerOutcome` and `question`, so an event already on a
@@ -154,6 +149,49 @@ section landed after that tag was cut.
 
 ### Fixed
 
+- **The telephone field refused the visitor's own number, and the button said nothing about it**
+  (issue #216). A number typed into the last stop of the tour never reached the API: no
+  `POST /api/v1/tour/call` in the instance log, no error on the screen, nothing. The block was
+  entirely in the browser and it was the button's `disabled`, which fires no click and so explains
+  nothing. Two gates held it shut. `isPhoneComplete` wanted exactly ten digits after a normaliser
+  that deleted whatever did not fit: `keepDigits` capped the field at ten and stripped a leading
+  `52`, so a number pasted with its country code lost its last digits on screen, dropped back under
+  ten while it was being typed, or silently became a different telephone. And the consent box, which
+  is the other half of the condition, sits under the field with nothing tying it to the control it
+  was holding shut.
+
+  The field takes whatever a person writes now. `toE164` keeps a leading `+` whatever country
+  follows it, reads `00` as that `+`, assumes `+52` for ten bare digits, reads eleven starting in `1`
+  and twelve or thirteen starting in `52` as numbers that already carry their country code, and sends
+  anything else exactly as it was written. Nothing is capped or rewritten, the line under the field
+  says which telephone is about to ring before the button is pressed, the only refusal is fewer than
+  eight digits, and a button that is still disabled says why. Every failure from the API reaches the
+  screen in words, including the statuses this screen has never heard of. The table of what a person
+  types and what would be POSTed is a test.
+
+- **The tour call had three rules that only ever refused the people it was for** (issue #216). The
+  route took Mexican mobiles only unless `TOUR_ALLOW_ANY_COUNTRY=1`, refused a second call to one
+  number for ten minutes and a twenty-first call from the instance in an hour. All three are gone,
+  along with the limiter, its type, its tests, the slot bookkeeping an earlier round of this branch
+  taught it so that a provider hiccup did not cost a visitor their turn, and the `429` on this route:
+  `POST /api/v1/tour/call` now takes any E.164 number and rings it as often as somebody asks. The rules were written for a
+  stand this product never had. The people who type a number into that screen are judges and
+  teammates, their telephones are not all Mexican, and the same four of us rehearse the call all day:
+  what they bought was a visitor refused by their own country code, a rehearsal that could not be
+  repeated, and a `429` whose sentence was about a call the person had already had. `ALLOW_TOUR_CALLS`,
+  `X-Actor: role=owner` and a consent that has to be the literal `true` are what stand between this
+  endpoint and a telephone, and each of those is a person or an operator deciding rather than a
+  counter. `phoneHash` stays, because the ledger event still has to be able to say which call it was.
+
+- **The recorrido was a wall of text in front of the product it points at** (issue #216). Nine stops
+  of three dense paragraphs and two bullets each, which is more reading than the screens the tour is
+  supposed to be showing. Every stop is a title and at most two short sentences now, under
+  twenty-eight words of body, with no bullet list and no "que mirar" block under it, and
+  `lib/tour.test.ts` counts the words rather than trusting the next person to. The opening is three
+  lines, because the hour, the person and the two losses are the one thing not on the screen behind
+  it. The last stop is one sentence over the form: the card underneath used to repeat it and that is
+  what pushed the telephone field below the fold of its own corner.
+
 - **The tour showed a plaza discrepancy between two identical cities, and the telephone call did not**
   (issue #216). `GET /api/v1/tour` answers `APODACA` for both plazas of the hero on the seeded run,
   because the finding on that line is a check digit that does not add up and an account seen for the
@@ -177,15 +215,6 @@ section landed after that tag was cut.
   The fixture in `apps/web/src/lib/tour-call.test.ts` was the reason this shipped: it paired the
   hero's folio, amount and account with the two plazas of a different line, a hero neither side can
   answer. It is the derived hero itself now, asserted against `heroOf`.
-
-- **A provider hiccup locked a visitor's number out of the tour for ten minutes** (issue #216).
-  `POST /api/v1/tour/call` took the limiter slot before asking the provider and gave it back on
-  neither `422`, so a first attempt that rang nothing was answered `422`, and the second attempt with
-  the same number was answered `429 Retry-After: 600` and the sentence `This number was already called
-  by the tour in the last ten minutes`, about a call that never happened. The slot is still taken
-  first, because two presses of the button a second apart must not both ring the same telephone, and
-  it is handed back on the path where the provider refused or could not be reached. A provider that
-  accepted the call and named no conversation keeps its slot: there a telephone is ringing.
 
 - **The printed script opened with words the real line may not use** (issue #216). The card labelled
   `El guion que escucha el dueno` is open by default wherever calls are off, which is every deployment

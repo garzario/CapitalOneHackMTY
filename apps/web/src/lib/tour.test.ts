@@ -1,6 +1,11 @@
 /**
  * The recorrido is the one screen of this app that is mostly prose, so the tests
- * over it are about the prose and about the three ways prose goes wrong here.
+ * over it are about the prose and about the four ways prose goes wrong here.
+ *
+ * **There can be too much of it.** The first version was three dense paragraphs
+ * and two bullets per stop, which is a wall of text in front of the product the
+ * tour is supposed to be pointing at. A stop is a title and at most two short
+ * sentences now, and the word count is a test rather than an intention.
  *
  * **It can point nowhere.** Two stops carry a folio and every stop but two carries
  * a route, and a route this app's own router reads as `notFound` is a tour that
@@ -55,11 +60,26 @@ function everyLine(): Array<{ where: string; text: string }> {
       where: `${step.id}.body[${index}]`,
       text,
     })),
-    ...(step.look ?? []).map((text, index) => ({
-      where: `${step.id}.look[${index}]`,
-      text,
-    })),
   ]);
+}
+
+/** How long a stop may be, in the unit a person reads in. */
+const WORD_LIMIT = 28;
+
+/**
+ * The one stop that may say more, and the reason it may.
+ *
+ * The opening sets the hour, the person, the two losses and where the product
+ * lives, and none of that is on the screen behind it yet. Every other stop is a
+ * caption over something the visitor is already looking at.
+ */
+const SCENE_WORD_LIMIT = 45;
+
+function wordsIn(text: string): number {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word !== "").length;
 }
 
 function sourceFiles(dir: string): string[] {
@@ -90,14 +110,41 @@ describe("the steps", () => {
     for (const step of steps) {
       expect([step.id, step.eyebrow.length > 2]).toEqual([step.id, true]);
       expect([step.id, step.title.length > 6]).toEqual([step.id, true]);
-      /* Two paragraphs is the floor: one is a caption, and a caption is what
-         this tour exists instead of. */
-      expect([step.id, step.body.length >= 2]).toEqual([step.id, true]);
+      /* One to three lines. The floor is one because the last stop is a
+         sentence over a form, and the ceiling is three because that is the
+         opening, which is the only stop whose screen is not the explanation. */
+      const inRange = step.body.length >= 1 && step.body.length <= 3;
 
-      for (const paragraph of step.body) {
-        expect([step.id, paragraph.length > 60]).toEqual([step.id, true]);
-      }
+      expect([step.id, inRange]).toEqual([step.id, true]);
     }
+  });
+
+  test("a stop says under twenty-eight words, and the opening under forty-five", () => {
+    /* The rule this file was rewritten to: a tour that has to be read instead
+       of walked is a tour a visitor abandons on stop three, and the screen
+       underneath is what the stop is about. The count is over the body, because
+       the title is the one line that is allowed to be a label. */
+    const overrun = steps
+      .map((step) => ({
+        id: step.id,
+        count: wordsIn(step.body.join(" ")),
+        limit: step.id === "why" ? SCENE_WORD_LIMIT : WORD_LIMIT,
+      }))
+      .filter((step) => step.count >= step.limit)
+      .map((step) => `${step.id}: ${step.count} words`);
+
+    expect(overrun).toEqual([]);
+  });
+
+  test("the last stop is one sentence over the form and says it once", () => {
+    /* It used to say what the call is in the step body and again in the card
+       underneath, which is how the telephone field ended up below the fold of
+       its own corner. The card carries the field, the box and the button, and
+       this is the only place the sentence lives. */
+    const call = steps.at(-1);
+
+    expect(call?.body).toHaveLength(1);
+    expect(call?.body.join(" ")).toContain("Contesta con tu voz");
   });
 
   test("the first stop is the problem and the last one is the call", () => {
@@ -118,14 +165,6 @@ describe("the steps", () => {
     /* And it is the one that points at the drawer, because a step that opens a
        panel and spotlights something else is a step that dims what it opened. */
     expect(opens[0]?.target).toBe(TOUR_TARGETS.assistantPanel);
-  });
-
-  test("at most two things to look at per stop", () => {
-    /* Three bullets is a checklist, and a visitor reading a checklist is not
-       looking at the screen the tour is pointing at. */
-    for (const step of steps) {
-      expect([step.id, (step.look ?? []).length <= 2]).toEqual([step.id, true]);
-    }
   });
 });
 
@@ -202,7 +241,7 @@ describe("what the steps may say", () => {
   const lines = everyLine();
 
   test("there is copy to check", () => {
-    expect(lines.length).toBeGreaterThan(40);
+    expect(lines.length).toBeGreaterThan(30);
   });
 
   test("nothing promises a payment is safe, and nothing carries a probability", () => {
@@ -241,15 +280,18 @@ describe("what the steps may say", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("the first stop carries both losses and neither is rounded up", () => {
+  test("the first stop carries both losses, in two clauses instead of two paragraphs", () => {
     const why = steps[0]?.body.join(" ") ?? "";
 
-    /* Both figures are this repository's own, cited in `docs/04-market.md` and
-       `docs/05-business-model.md`. A test on the words is what keeps somebody
-       from improving them into numbers nobody can source. */
-    expect(why).toContain("de cada 100 pesos reclamados por fraude");
-    expect(why).toContain("24");
-    expect(why).toContain("46 regresan como ISR e IVA");
+    /* The two losses are the argument of the whole product and they are both
+       irreversible, so neither may be dropped in the name of saying less: the
+       transfer that does not come back, and the deduction that goes with a SAT
+       publication. The cited rates that used to be here are in
+       `docs/04-market.md` and `docs/05-business-model.md`, where a judge can
+       check them, rather than in the first paragraph of a tour card. */
+    expect(why).toContain("no regresan");
+    expect(why).toContain("SAT");
+    expect(why).toContain("deduccion");
   });
 
   test("the peso figure of the first stop is the line the tour is about", () => {

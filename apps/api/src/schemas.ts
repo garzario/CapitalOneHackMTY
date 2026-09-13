@@ -1484,12 +1484,13 @@ export const verifyCallBodySchema = z.union([
 /**
  * `POST /api/v1/tour/call`: a telephone number and the consent to ring it.
  *
- * Both halves are required and neither has a default. The number is E.164 here
- * and the route narrows it to a Mexican mobile unless `TOUR_ALLOW_ANY_COUNTRY=1`,
- * because the shape of the refusal is what tells a visitor to add the country
- * code rather than to try again. `consent` is a literal `true` rather than a
- * boolean: a body that carries `false` is not a request with a flag off, it is a
- * request to telephone somebody who did not agree to it, and it is refused.
+ * Both halves are required and neither has a default. The number is E.164 and
+ * that is the whole of the rule: the route used to narrow it to a Mexican mobile
+ * behind a flag, which refused the telephone of every visitor who was not on a
+ * Mexican network and left the screen with nothing useful to say about it.
+ * `consent` is a literal `true` rather than a boolean: a body that carries
+ * `false` is not a request with a flag off, it is a request to telephone somebody
+ * who did not agree to it, and it is refused.
  */
 export const tourCallBodySchema = z.object({
   phone: z

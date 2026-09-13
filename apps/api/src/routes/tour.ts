@@ -14,14 +14,28 @@
  * **The visitor's number is never stored, never logged and never shown.** It
  * arrives in a request body, it is handed to the telephony provider to place one
  * call, and the only thing that survives is `phoneHash`, a salted SHA-256. That
- * hash is what lets the limiter refuse a second call to the same number without
- * holding the number, and it is the one field of this feature that reaches the
- * ledger. `docs/06-regulatory-privacy.md`, "El numero del visitante", is the
- * argument in full.
+ * hash is the one field of this feature that reaches the ledger, and it is what
+ * lets somebody who asks be told which line was theirs without this product
+ * holding a telephone number. `docs/06-regulatory-privacy.md`, "El numero del
+ * visitante", is the argument in full.
  *
  * **Consent is a literal `true` and not a boolean.** A body carrying `false` is
  * not a request with a flag off, it is a request to telephone somebody who did
  * not agree to it, and `tourCallBodySchema` refuses it before this file runs.
+ *
+ * **Any telephone number this schema calls E.164 is dialled.** There is no
+ * country rule and no rate limit on this route: the shape in
+ * `tourCallBodySchema` is the whole of what it checks. The version this replaced
+ * took Mexican mobiles only behind a `TOUR_ALLOW_ANY_COUNTRY` flag, and refused a
+ * second call to one number for ten minutes and a twenty-first call from the
+ * instance in an hour. All three were written for a stand this product never
+ * had: the people who type a number into this screen are judges and teammates,
+ * their telephones are not all Mexican, and the demo is two days long. What those
+ * rules actually bought was a visitor who could not be rung, a rehearsal that
+ * could not be repeated, and a `429` whose sentence was about somebody else's
+ * call. Consent, the owner role and `ALLOW_TOUR_CALLS` are what stand between
+ * this endpoint and a telephone, and each of those is a person or an operator
+ * deciding rather than a counter.
  *
  * **The assistant does not decide.** The parser in `packages/voice` reads what
  * the person said, and what is recorded is a `decision_made` signed by them,
@@ -156,24 +170,11 @@ export const DEFAULT_TOUR_REVERT_MS = 600_000;
  * The salt the visitor's number is hashed with when nothing configures one.
  *
  * A default and not a secret, and it is written down rather than generated so
- * that two processes of the same demo agree about whether a number has already
- * been called. `CONSORTIUM_SALT` wins when it exists, so a deployment that
- * already rotates one salt rotates this one with it.
+ * that two processes of the same demo hash one number the same way.
+ * `CONSORTIUM_SALT` wins when it exists, so a deployment that already rotates
+ * one salt rotates this one with it.
  */
 export const DEFAULT_TOUR_SALT = "sentryone-tour";
-
-/** One call per number per ten minutes. The same window the revert uses. */
-export const TOUR_SAME_PHONE_MS = 600_000;
-
-/** And twenty calls an hour from this process, whatever the numbers are. */
-export const TOUR_HOURLY_LIMIT = 20;
-
-const TOUR_HOUR_MS = 3_600_000;
-
-const MS_PER_SECOND = 1_000;
-
-/** A Mexican mobile in E.164: `+52` and ten digits, nothing else. */
-export const MEXICAN_MOBILE = /^\+52\d{10}$/;
 
 export interface TourOptions {
   /** `TOUR_POLL_INTERVAL_MS`. Zero means the tour starts no background work. */
@@ -184,8 +185,6 @@ export interface TourOptions {
   revertAfterMs: number;
   /** `CONSORTIUM_SALT`, then `TOUR_SALT`, then the documented default. */
   salt: string;
-  /** `TOUR_ALLOW_ANY_COUNTRY=1`, for a visitor whose telephone is not Mexican. */
-  allowAnyCountry: boolean;
   /** Injected so a test drives the whole wait in microseconds. */
   sleep(ms: number): Promise<void>;
 }
@@ -214,7 +213,6 @@ export function defaultTourOptions(
     ),
     revertAfterMs: nonNegative(read("TOUR_REVERT_MS"), DEFAULT_TOUR_REVERT_MS),
     salt: read("CONSORTIUM_SALT") ?? read("TOUR_SALT") ?? DEFAULT_TOUR_SALT,
-    allowAnyCountry: read("TOUR_ALLOW_ANY_COUNTRY") === "1",
     sleep: (ms) =>
       new Promise((resolve) => {
         setTimeout(resolve, ms);
@@ -435,122 +433,11 @@ function wireScript(script: OwnerScript) {
  * Salt first and then the number, which is the order `packages/consortium`
  * hashes a pair in, so the two salted hashes of this repository are built the
  * same way. It is deliberately reproducible: the same number gives the same hash
- * on the same salt, which is what lets a limiter refuse a repeat call and what
- * lets somebody who asks be told which hash is theirs.
+ * on the same salt, which is what lets somebody who asks be told which hash is
+ * theirs.
  */
 export function hashPhone(salt: string, phone: string): string {
   return createHash("sha256").update(`${salt}${phone}`).digest("hex");
-}
-
-/**
- * The tour's own limiter, separate from the write bucket on `/api/v1`.
- *
- * It counts a different thing. The write bucket protects the ledger from a loop
- * in our own web app; this one protects a person from their telephone ringing
- * twice, and protects the account from a stand where twenty people press the
- * button in five minutes. So it is keyed on the hash of the number rather than
- * on the client address: the same visitor from a different laptop is the same
- * telephone.
- *
- * In memory and per process, like every other limit here. Two instances behind a
- * balancer each hold their own, which is the honest cost of not having Redis for
- * one weekend, and it is stated rather than hidden.
- */
-export interface TourLimiter {
-  /** Takes a slot, or says how long until one exists. */
-  take(
-    phoneHash: string,
-    at: number,
-  ): TourSlot | { ok: false; retryAfterSeconds: number; message: string };
-}
-
-/**
- * A slot somebody is holding, and the way to hand it back.
- *
- * The slot is taken BEFORE the provider is asked, on purpose: two presses of the
- * button a second apart are two requests, and a limiter consulted after the call
- * was placed would let both of them ring the same telephone. What that ordering
- * costs is a slot spent on a call that never happened, and `release` is how it is
- * paid back. A visitor at the stand whose first attempt met a provider hiccup
- * would otherwise be told for the next ten minutes that their number had already
- * been called, which is a sentence about something that did not happen.
- *
- * It is given back only where nothing rang. A provider that accepted the call and
- * then named no conversation keeps the slot, because a telephone is ringing and
- * the ten minute rule is exactly what protects the person holding it.
- */
-export interface TourSlot {
-  ok: true;
-  release(): void;
-}
-
-export function createTourLimiter(): TourLimiter {
-  const lastCallByPhone = new Map<string, number>();
-  const startedAt: number[] = [];
-
-  return {
-    take(phoneHash, at) {
-      /* Pruned on every take, so neither structure grows with the length of the
-         demo. Both windows are short, so this stays a handful of entries. */
-      for (const [hash, when] of lastCallByPhone) {
-        if (at - when >= TOUR_SAME_PHONE_MS) {
-          lastCallByPhone.delete(hash);
-        }
-      }
-      while (
-        startedAt.length > 0 &&
-        at - (startedAt[0] ?? at) >= TOUR_HOUR_MS
-      ) {
-        startedAt.shift();
-      }
-
-      const previous = lastCallByPhone.get(phoneHash);
-      if (previous !== undefined) {
-        return {
-          ok: false,
-          retryAfterSeconds: secondsUntil(previous + TOUR_SAME_PHONE_MS, at),
-          message:
-            "This number was already called by the tour in the last ten minutes. The line rings once per number per ten minutes, because the person answering it is a person.",
-        };
-      }
-      if (startedAt.length >= TOUR_HOURLY_LIMIT) {
-        return {
-          ok: false,
-          retryAfterSeconds: secondsUntil(
-            (startedAt[0] ?? at) + TOUR_HOUR_MS,
-            at,
-          ),
-          message: `The tour has placed ${TOUR_HOURLY_LIMIT} calls in the last hour from this instance, which is its limit. Read the script on the screen in the meantime: it is the same words.`,
-        };
-      }
-
-      lastCallByPhone.set(phoneHash, at);
-      startedAt.push(at);
-
-      return {
-        ok: true,
-        release() {
-          /* This take's own two entries and nothing else. Both guards matter on
-             a second take of the same hash after this one was handed back: the
-             map holds that later moment, and the hour holds both. */
-          if (lastCallByPhone.get(phoneHash) === at) {
-            lastCallByPhone.delete(phoneHash);
-          }
-
-          const index = startedAt.lastIndexOf(at);
-
-          if (index !== -1) {
-            startedAt.splice(index, 1);
-          }
-        },
-      };
-    },
-  };
-}
-
-/** Never zero: a `Retry-After: 0` invites the retry that gets the same 429. */
-function secondsUntil(deadline: number, at: number): number {
-  return Math.max(1, Math.ceil((deadline - at) / MS_PER_SECOND));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -615,7 +502,6 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
   const allowCalls =
     tour.allowCalls ?? (() => readEnv("ALLOW_TOUR_CALLS") === "1");
   const calls = new Map<string, TourCall>();
-  const limiter = createTourLimiter();
 
   /**
    * Asks the provider until the call is finished, then applies what was said.
@@ -810,14 +696,6 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
         if (!roleSatisfies(actor.role, "owner")) {
           return fail(c, 400, "bad_request", OWNER_ONLY_MESSAGE);
         }
-        if (!options.allowAnyCountry && !MEXICAN_MOBILE.test(phone)) {
-          return fail(
-            c,
-            400,
-            "bad_request",
-            "The tour dials Mexican mobiles: +52 and ten digits, for example +5281XXXXXXXX. Set TOUR_ALLOW_ANY_COUNTRY=1 to let it dial anywhere else.",
-          );
-        }
         if (!allowCalls()) {
           return fail(c, 403, "forbidden", CALLS_OFF_MESSAGE);
         }
@@ -832,8 +710,7 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
         if (config === undefined) {
           /* The same degradation as `/verify-call`, and the same reason: a 422
              whose body was only a message would send a visitor looking for the
-             script somewhere else. Nothing is counted against the limiter here,
-             because no telephone rang. */
+             script somewhere else. */
           return c.json(
             {
               ...errorBody("unprocessable", NO_VOICE_MESSAGE, requestIdOf(c)),
@@ -845,11 +722,6 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
 
         /* Hashed once, here, and the number is never read again. */
         const phoneHash = hashPhone(options.salt, phone);
-        const slot = limiter.take(phoneHash, Date.parse(deps.clock.now()));
-        if (!slot.ok) {
-          c.header("Retry-After", String(slot.retryAfterSeconds));
-          return fail(c, 429, "rate_limited", slot.message);
-        }
 
         const client = new VoiceClient({
           apiKey: config.apiKey,
@@ -872,11 +744,6 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
           );
 
         if (call instanceof VoiceError || !call.success) {
-          /* No telephone rang, so the slot goes back. Keeping it would refuse
-             this visitor for ten minutes over a call the provider never placed,
-             and the sentence the limiter answers with would be false. */
-          slot.release();
-
           const detail =
             call instanceof VoiceError ? call.code : "the call was refused";
 
@@ -895,10 +762,6 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
 
         const conversationId = call.conversationId ?? "";
         if (conversationId === "") {
-          /* The slot stays here, and that is the difference from the branch
-             above: the provider accepted this one, so a telephone is ringing and
-             what the ten minute rule protects is the person holding it. What was
-             lost is the way to follow the call, not the call. */
           return c.json(
             {
               ...errorBody(

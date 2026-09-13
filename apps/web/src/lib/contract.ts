@@ -642,6 +642,11 @@ export interface TourConfig {
  * never stored, only a salted hash of it.
  */
 export interface TourCallBody {
+  /**
+   * E.164, and that is the whole rule the endpoint applies: a `+`, a country
+   * code that does not start with zero, and eight to fifteen digits. `toE164` in
+   * `lib/tour-call.ts` builds it out of whatever the visitor typed.
+   */
   phone: string;
   consent: true;
 }

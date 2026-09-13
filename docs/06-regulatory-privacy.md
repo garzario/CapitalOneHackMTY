@@ -495,7 +495,7 @@ treated as such rather than as a demo input.
 | Why | To place exactly one call, to that number, right now. That is the whole purpose and there is no second one |
 | Who it is sent to | ElevenLabs, which runs the agent, and Twilio, which carries the call. Both are encargados under art. 2, fr. XII: they act on our instruction and for no purpose of their own, so this is not a transfer under art. 35. `TODO(FabriBanda)`: read both providers' processing terms and record the verdict here, the same TODO 4.2 already carries for the model provider |
 | What is stored | `phoneHash`, a SHA-256 of a salt and the number, hex. Nothing else. The number is not written to the database, not written to a log line, and not echoed in any response |
-| Why a hash at all | So the limiter can refuse to ring the same telephone twice in ten minutes without holding the telephone number. That is the whole of what it is for |
+| Why a hash at all | So the ledger event of a call can be tied back to the person who asked for it, if they ask, without this product holding a telephone number. That is the whole of what it is for. It used to key a limiter too; the limiter is gone and the hash is not, because the event has to be able to say which call it was |
 | Who can see it | The hash is on the `verification_call` ledger event, which is as visible as the rest of the ledger. It is not the number and it is not reversible without the number |
 | How long | The call registry lives in memory and dies with the process. The hash lives as long as the ledger event it is on |
 

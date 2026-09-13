@@ -313,8 +313,11 @@ And `#/run?tour=1` opens it on arrival, which is what a printed card or a messag
 
 The nine stops are `tourSteps` in `src/lib/tour.ts`, in this order: why the product exists, the run,
 the capture arriving on WhatsApp, the account and its plaza, the cent and the Banxico receipt, the SAT
-publication, the run leaving, who signs, and the call. Each one is a title, two or three paragraphs
-and at most two things to look at; the overlay that renders them is `components/Tour.tsx`.
+publication, the run leaving, who signs, and the call. Each one is a title and at most two short
+sentences, under twenty-eight words of body, with no bullet list under it, and `lib/tour.test.ts`
+counts the words. It was three dense paragraphs and two bullets a stop, which is a wall of text in
+front of the product the tour exists to point at: the screen underneath is the explanation and the
+card is the caption on it. The overlay that renders them is `components/Tour.tsx`.
 
 It drives the real app rather than drawing pictures of it. Every stop navigates with `navigate`, the
 screen underneath is the screen the copy is about, and the stop that is about the assistant opens the
@@ -351,10 +354,18 @@ The last stop rings the visitor as the owner of the company, and it is the part 
 does not fit on a screen: the person who decides a held payment in a twenty-eight-employee company is
 not at a desk, he answers his telephone between two other things.
 
+- **The field takes the number the way a person writes it.** With spaces, brackets, a leading `+` or
+  `00`, or none of that: `toE164` in `lib/tour-call.ts` normalises it and the line under the field
+  says which telephone is about to ring, before anything is pressed. Ten bare digits are Mexican,
+  eleven starting in `1` are the United States and Canada, twelve or thirteen starting in `52` are a
+  Mexican number that lost its plus, and anything else is sent as it was written. The only refusal is
+  fewer than eight digits. The version this replaced kept ten digits and deleted the rest, so a
+  number typed with its country code became a different number and the button stayed dead in front of
+  a full field.
 - **The number is never stored.** It goes in the body of one `POST /api/v1/tour/call` and nowhere
-  else, the field is fixed at `+52` and ten digits, and the API keeps `sha256(salt + phone)` and not
-  the number. The consent sentence says so in the words a person reads, and the box has to be ticked
-  before the button enables.
+  else, and the API keeps `sha256(salt + phone)` and not the number. The box has to be ticked before
+  the button enables, and the card says so next to the button rather than leaving a dead control to
+  be guessed at.
 - **The actor is the owner, and the stored identity is untouched.** The request carries
   `X-Actor: role=owner; name=Visitante`, passed explicitly, while the browser keeps acting as whoever
   `#/entrada` selected.
@@ -368,9 +379,10 @@ not at a desk, he answers his telephone between two other things.
   rather than the owner and leave the line exactly where it was.
 - **It reverts itself.** The decision stands for `revertAfterMs`, ten minutes by default, and the
   sentence on the card is computed from the number the API sent rather than written out in words.
-- **It refuses politely.** `403` says the calls are off on this server, `422` says the voice is not
-  configured and shows the script anyway, `429` says when to try again out of `Retry-After`, and a
-  `400` carries the API's own sentence. Three of those four are not failures.
+- **It refuses politely, and it always says something.** `403` says the calls are off on this server,
+  `422` says the voice is not configured and shows the script anyway, and a `400` carries the API's
+  own sentence. Anything else is printed exactly as it arrived, because a press that produces no
+  request and no words is the one outcome a visitor cannot act on.
 
 Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off, nothing rings: the card prints
 the script the agent would read, built from the same line by `localScript`, and offers `Retener` and

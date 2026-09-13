@@ -10,10 +10,10 @@
  *
  * What it does, and the order matters because three of the four are refusals.
  *
- * 1. Ten digits, the prefix fixed at `+52`, and a box that has to be ticked. The
- *    number is sent in the body of one POST and nowhere else: the API keeps a
- *    salted hash of it and the consent sentence says so in the words a person
- *    reads.
+ * 1. One field that takes a telephone number in whatever shape it was written in,
+ *    a line underneath saying which number is about to be dialled, and a box that
+ *    has to be ticked. The number is sent in the body of one POST and nowhere
+ *    else, and the API keeps a salted hash of it rather than the number.
  * 2. The call, as a strip that walks `Marcando`, `En llamada`, `Procesando`,
  *    `Termino`. It follows the ledger stream, which is how the rest of this app
  *    learns that anything happened, and asks `GET /tour/call/:id` every four
@@ -26,6 +26,14 @@
  *    one with no voice configured -- the script is printed and the two answers can
  *    be simulated. The result card then says `simulado` on it, because a simulated
  *    answer that looks like a real one is the one thing this stop must not do.
+ *
+ * The button is dead only while there are fewer than eight digits or the box is
+ * unticked, and both of those say so on screen next to the control they are
+ * about. It used to be dead until the field held exactly ten digits after a
+ * normaliser that deleted whatever did not fit, so a number typed with its
+ * country code silently became a different number or dropped back under ten, and
+ * a press produced no request and no sentence: the click went nowhere and the
+ * screen said nothing about why.
  *
  * The actor is passed explicitly and is the owner, while the browser keeps acting as
  * whoever the entry screen selected. That is the point of the stop rather than a
@@ -51,27 +59,23 @@ import { dataMode, reachesApi } from "../lib/resource";
 import {
   CALL_BUSY,
   CALL_BUTTON,
-  CALL_NOTE,
   CONSENT_TEXT,
   callBody,
   callProblem,
-  formatPhone,
+  dialNote,
   isPhoneComplete,
-  keepDigits,
   LOCAL_SCRIPT_NOTE,
   localScript,
   OUTCOME_SENTENCE,
   outcomeState,
-  PHONE_PREFIX,
   phoneProblem,
-  plazaNote,
   revertSentence,
   SIMULATED_EVIDENCE,
   stateFromEvent,
   TOUR_CALL_STATUS_LABEL,
   TOUR_CALL_STATUS_ORDER,
 } from "../lib/tour-call";
-import { Amount, TransactionStateBadge } from "./Primitives";
+import { TransactionStateBadge } from "./Primitives";
 
 /** How often to ask where the call is, and only while the stream is not open. */
 const POLL_MS = 4000;
@@ -91,7 +95,10 @@ export function TourCall({ config }: { config: TourConfig }) {
   const online = reachesApi(mode);
   const canCall = config.callsEnabled && online;
 
-  const [digits, setDigits] = useState("");
+  /* Exactly what was typed, kept exactly as it was typed. The field used to hold
+     ten digits and redraw itself out of them, which is what ate the country code
+     of a pasted number in front of the person who pasted it. */
+  const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
   const [touched, setTouched] = useState(false);
   const [sending, setSending] = useState(false);
@@ -183,17 +190,18 @@ export function TourCall({ config }: { config: TourConfig }) {
     };
   }, [polling, conversationId]);
 
-  const complete = isPhoneComplete(digits);
-  const phoneFault = touched ? phoneProblem(digits) : null;
-  /* One city named twice is not a discrepancy, so the clause says so or is not
-     there at all. The rule is `plazaNote`, shared with the script underneath. */
-  const note = plazaNote(config.hero);
+  const complete = isPhoneComplete(phone);
+  const phoneFault = touched ? phoneProblem(phone) : null;
+  /* Which telephone this is about to ring, spelled out before anybody presses
+     anything. It is the field's own answer to a normalisation that used to be
+     invisible until the call was already placed. */
+  const dial = complete ? dialNote(phone) : "";
 
   const call = useCallback(async () => {
     setProblem(null);
     setSending(true);
 
-    const answer = await startTourCall(callBody(digits), OWNER);
+    const answer = await startTourCall(callBody(phone), OWNER);
 
     setSending(false);
 
@@ -218,7 +226,7 @@ export function TourCall({ config }: { config: TourConfig }) {
     }
 
     setProblem(callProblem(failure));
-  }, [digits]);
+  }, [phone]);
 
   const simulate = useCallback((outcome: TourOwnerOutcome) => {
     setStatus("done");
@@ -231,48 +239,33 @@ export function TourCall({ config }: { config: TourConfig }) {
 
   return (
     <div className="tour-call">
-      <p className="muted m-0 t-sm">{CALL_NOTE}</p>
-
-      {/* The line the owner is being asked about, so the call has a subject on
-          screen as well as in the agent's mouth. */}
-      <div className="tour-call-line">
-        <span className="subtle t-xs">{config.hero.supplierName}</span>
-        <Amount value={config.hero.amount} size="lg" />
-        <span className="subtle t-xs">
-          {`Cuenta que termina en ${config.hero.accountLast4}`}
-          {note === "" ? "" : ` · ${note}`}
-        </span>
-      </div>
-
       {result === null ? (
         <>
           <div className="tour-field">
             <label className="label" htmlFor="tour-phone">
               Tu celular
             </label>
-            <div className="tour-phone">
-              <span className="tour-phone-prefix code" aria-hidden="true">
-                {PHONE_PREFIX}
-              </span>
-              <input
-                id="tour-phone"
-                className="input"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel-national"
-                /* Ten digits of a Mexican mobile, and the example is the area
-                   code of Monterrey because that is where the company is. */
-                placeholder="81 1234 5678"
-                aria-describedby="tour-phone-help"
-                value={formatPhone(digits)}
-                onChange={(event) => {
-                  setTouched(true);
-                  setDigits(keepDigits(event.target.value));
-                }}
-              />
-            </div>
+            <input
+              id="tour-phone"
+              className="input"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              /* The example is a Monterrey mobile because that is where the
+                 company is, and it is only an example: the field takes a number
+                 from anywhere, with or without a country code. */
+              placeholder="81 1234 5678"
+              aria-describedby="tour-phone-help"
+              value={phone}
+              onChange={(event) => {
+                setTouched(true);
+                setPhone(event.target.value);
+              }}
+            />
+            {/* What is missing while something is, and which telephone is about
+                to ring as soon as nothing is. */}
             <p id="tour-phone-help" className="subtle m-0 t-xs">
-              {phoneFault ?? "Diez digitos, solo Mexico, y una sola llamada."}
+              {phoneFault ?? dial}
             </p>
           </div>
 
@@ -287,17 +280,29 @@ export function TourCall({ config }: { config: TourConfig }) {
           </label>
 
           {canCall ? (
-            <button
-              type="button"
-              className="btn btn-accent btn-lg"
-              aria-busy={sending}
-              disabled={sending || !complete || !consent}
-              onClick={() => {
-                void call();
-              }}
-            >
-              {sending ? CALL_BUSY : CALL_BUTTON}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-accent btn-lg"
+                aria-busy={sending}
+                disabled={sending || !complete || !consent}
+                onClick={() => {
+                  void call();
+                }}
+              >
+                {sending ? CALL_BUSY : CALL_BUTTON}
+              </button>
+
+              {/* A disabled button explains itself, because a press that does
+                  nothing and says nothing is the failure this stop shipped
+                  with: the box is below the field and nothing on screen tied
+                  it to the control it was holding shut. */}
+              {!consent && complete ? (
+                <p className="subtle m-0 t-xs">
+                  Marca la casilla para poder llamarte.
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="panel-sunken muted m-0 p-3 t-xs">
               {mode === "mock"
@@ -412,11 +417,6 @@ export function TourCall({ config }: { config: TourConfig }) {
           </div>
         ) : null}
       </details>
-
-      <p className="subtle m-0 t-xs">
-        Ninguna llamada libera un pago sola. El resultado es evidencia, y la
-        decision la firma una persona: en esta, tu, como dueno.
-      </p>
     </div>
   );
 }

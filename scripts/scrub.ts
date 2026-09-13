@@ -154,6 +154,16 @@ const ALLOW: Allow[] = [
     why: "the same sequential fixture written with spaces, the case that proves isE164 rejects it",
   },
   {
+    rule: "mx-phone",
+    match: /^\+5218112345678$/,
+    why: "the same sequential fixture with the 1 a Mexican mobile carries after its country code, which is how a contact card exports one. The tour call takes any E.164 number now, so the suite dials this shape too",
+  },
+  {
+    rule: "mx-phone",
+    match: /^\+52 1 81 1234 5678$/,
+    why: "the same number again, written the way a person types it into the tour field, which is the input half of the normalisation table in apps/web/src/lib/tour-call.test.ts",
+  },
+  {
     rule: "attribution",
     path: /^(?:\.githooks\/commit-msg|scripts\/scrub\.ts|SECURITY\.md|AGENTS\.md|CONTRIBUTING\.md|docs\/playbooks\/[a-z-]+\.md|\.claude\/skills\/[a-z-]+\/SKILL\.md)$/,
     why: "the files that state and enforce the no-attribution rule have to name the trailer they block, including the playbook copies that PR #61 moved out of .claude",

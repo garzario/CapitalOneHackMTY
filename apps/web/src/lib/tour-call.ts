@@ -1,20 +1,18 @@
 /**
  * The call of the last stop of the recorrido, as rules instead of as a component.
  *
- * The visitor types ten digits and hears the call the owner of the company would
- * hear about a payment that is being held. Everything in this file is the part of
- * that which can be decided without a screen: what a telephone number has to look
- * like before anything is sent, which ledger event belongs to which call, what each
- * of the four answers means, and what to say when the API refuses.
+ * The visitor types a telephone number and hears the call the owner of the company
+ * would hear about a payment that is being held. Everything in this file is the
+ * part of that which can be decided without a screen: how whatever was typed
+ * becomes one E.164 number, which ledger event belongs to which call, what each of
+ * the four answers means, and what to say when the API refuses.
  *
  * Three things are deliberately here rather than in `TourCall.tsx`.
  *
  * **The number never leaves as anything but a body.** `toE164` builds the one
- * string the endpoint takes, the prefix is fixed in the interface so a visitor
- * cannot send a number from another country by accident, and nothing in this file
- * logs, stores or puts a telephone number in a URL. The API keeps a salted hash and
- * not the number, and the copy says so where a person reads it rather than only
- * here.
+ * string the endpoint takes out of whatever shape a person wrote it in, and
+ * nothing in this file logs, stores or puts a telephone number in a URL. The API
+ * keeps a salted hash and not the number.
  *
  * **The outcome is not a verdict.** Four answers come back and two of them are the
  * telephone rather than the owner: nobody answered, and the answer did not parse.
@@ -40,41 +38,119 @@ import { formatMoney } from "./format";
 
 /* ----------------------------------------------------------- the number */
 
-/** Fixed in the interface, so the field holds ten digits and nothing else. */
-export const PHONE_PREFIX = "+52";
+/**
+ * The fewest digits this field refuses to work with, and the only thing it
+ * refuses.
+ *
+ * Eight is the shortest number the endpoint itself accepts, so anything under it
+ * is somebody who is still typing rather than somebody with a number. Above it
+ * the field takes what it was given: a form that argues with a visitor about the
+ * shape of their own telephone is a form that never places a call, and a number
+ * this file guessed wrong about is a refusal the API can explain and this one
+ * cannot.
+ */
+export const MIN_PHONE_DIGITS = 8;
 
-/** A Mexican mobile in E.164 is the prefix plus ten digits. Nothing else. */
-export const PHONE_DIGITS = 10;
+/** The digits of whatever was typed. Spaces, dashes and brackets are noise. */
+export function digitsOf(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
 
 /**
- * The digits of whatever was typed or pasted.
+ * The one string the endpoint takes, out of every shape a telephone is written
+ * in.
  *
- * A pasted number arrives in every shape a telephone is ever written in:
- * `81 1234 5678`, `(81) 1234-5678`, `+52 81 1234 5678`. The country code is
- * dropped when it is there, because the prefix is already on the field and a
- * visitor who pasted a complete number would otherwise be two digits over the
- * limit and see the last two of their own number disappear.
+ * The rules, in the order they are applied, and each one is a thing somebody
+ * actually types at a stand:
+ *
+ * - a leading `+` is kept, whatever country follows it, because a person who
+ *   wrote their country code knows it better than this file does;
+ * - `00` is the same `+` written the way most of the world dials it;
+ * - ten bare digits is the Mexican mobile of the company this demo is about,
+ *   so it gets `+52`;
+ * - eleven starting in `1` already carries the United States and Canada code;
+ * - twelve or thirteen starting in `52` is a Mexican number that carries its
+ *   country code and lost the plus, `52 1 81 ...` included;
+ * - anything else is sent exactly as it was written, because guessing a country
+ *   for it would be dialling a number nobody typed.
+ *
+ * Nothing here caps, trims or rewrites a digit. The version this replaced kept
+ * ten digits and dropped the rest, so `+52 1 81 1234 5678` became a different
+ * telephone number and a pasted foreign number lost its last digits on screen.
  */
-export function keepDigits(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  const national =
-    digits.length > PHONE_DIGITS && digits.startsWith("52")
-      ? digits.slice(2)
-      : digits;
+export function toE164(raw: string): string {
+  const digits = digitsOf(raw);
 
-  return national.slice(0, PHONE_DIGITS);
+  if (digits === "") {
+    return "";
+  }
+
+  if (raw.trim().startsWith("+")) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith("00")) {
+    return `+${digits.slice(2)}`;
+  }
+
+  if (digits.length === 10) {
+    return `+52${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+${digits}`;
+  }
+
+  if (
+    (digits.length === 12 || digits.length === 13) &&
+    digits.startsWith("52")
+  ) {
+    return `+${digits}`;
+  }
+
+  return `+${digits}`;
 }
 
-/** `8112345678` reads as `81 1234 5678`, which is how it is said out loud. */
-export function formatPhone(digits: string): string {
-  const kept = keepDigits(digits);
-  const parts = [kept.slice(0, 2), kept.slice(2, 6), kept.slice(6, 10)];
+/**
+ * The normalised number, grouped the way it is said out loud.
+ *
+ * Only the two shapes this demo can read aloud are grouped; everything else is
+ * printed as the E.164 string it is, because inventing groups for a country
+ * whose numbering plan this file does not know would be a screen making up a
+ * telephone number.
+ */
+export function groupE164(phone: string): string {
+  if (/^\+52\d{10}$/.test(phone)) {
+    return `+52 ${phone.slice(3, 5)} ${phone.slice(5, 9)} ${phone.slice(9)}`;
+  }
 
-  return parts.filter((part) => part !== "").join(" ");
+  if (/^\+521\d{10}$/.test(phone)) {
+    return `+52 1 ${phone.slice(4, 6)} ${phone.slice(6, 10)} ${phone.slice(10)}`;
+  }
+
+  if (/^\+1\d{10}$/.test(phone)) {
+    return `+1 ${phone.slice(2, 5)} ${phone.slice(5, 8)} ${phone.slice(8)}`;
+  }
+
+  return phone;
 }
 
-export function isPhoneComplete(digits: string): boolean {
-  return keepDigits(digits).length === PHONE_DIGITS;
+/**
+ * What the field says under itself before anybody presses anything.
+ *
+ * The number that is about to be dialled, in full. It is the whole answer to the
+ * question the old fixed `+52` chip was pretending to answer: a visitor sees
+ * which telephone this is going to ring while they can still correct it.
+ */
+export function dialNote(raw: string): string {
+  const phone = toE164(raw);
+
+  return phone === "" ? "" : `Marcaremos a ${groupE164(phone)}`;
+}
+
+/** Whether there is enough here to dial. Eight digits, and nothing else. */
+export function isPhoneComplete(raw: string): boolean {
+  return digitsOf(raw).length >= MIN_PHONE_DIGITS;
 }
 
 /**
@@ -83,47 +159,34 @@ export function isPhoneComplete(digits: string): boolean {
  * It counts what is missing rather than saying "numero invalido": a person who is
  * one digit short should be told that they are one digit short.
  */
-export function phoneProblem(digits: string): string | null {
-  const kept = keepDigits(digits);
+export function phoneProblem(raw: string): string | null {
+  const digits = digitsOf(raw);
 
-  if (kept.length === 0) {
-    return "Escribe los 10 digitos de un celular, despues del +52.";
+  if (digits.length === 0) {
+    return "Escribe tu numero, como lo marcarias desde tu telefono.";
   }
 
-  if (kept.length < PHONE_DIGITS) {
-    const missing = PHONE_DIGITS - kept.length;
+  if (digits.length < MIN_PHONE_DIGITS) {
+    const missing = MIN_PHONE_DIGITS - digits.length;
 
-    return missing === 1
-      ? "Falta 1 digito: son 10 despues del +52."
-      : `Faltan ${missing} digitos: son 10 despues del +52.`;
+    return missing === 1 ? "Falta 1 digito." : `Faltan ${missing} digitos.`;
   }
 
   return null;
 }
 
-/** The one string the endpoint takes. Built here, sent in the body, never logged. */
-export function toE164(digits: string): string {
-  return `${PHONE_PREFIX}${keepDigits(digits)}`;
-}
-
-/**
- * The rule the API applies, applied here first.
- *
- * The same regular expression as the endpoint, so the page can refuse before the
- * request instead of rendering a 400 the visitor cannot act on.
- */
-export function isMexicanMobile(value: string): boolean {
-  return /^\+52\d{10}$/.test(value);
-}
-
 /* ----------------------------------------------------------- what it says */
 
-/** The exact sentence a person ticks. It is the consent, so it is not paraphrased. */
+/**
+ * The exact sentence a person ticks. It is the consent, so it is not paraphrased.
+ *
+ * One line, because it sits beside the button and a paragraph next to a control
+ * is a paragraph nobody reads before pressing it. What happens to the number is
+ * the API's rule and `docs/06-regulatory-privacy.md` is where it is argued: it is
+ * hashed with a salt and the number itself is never stored.
+ */
 export const CONSENT_TEXT =
-  "Acepto que SentryOne me llame una vez a este numero. No se guarda: solo un hash con sal.";
-
-export const CALL_NOTE =
-  "Vas a recibir la llamada que recibiria el dueno de la empresa cuando hay un pago en riesgo. Contesta con tu voz: retenerlo o liberarlo.";
+  "Acepto que SentryOne me llame una vez a este numero.";
 
 export const CALL_BUTTON = "Llamame como dueno";
 
@@ -301,31 +364,16 @@ export function isSettled(status: TourCallStatus): boolean {
 
 /* ------------------------------------------------------------- a refusal */
 
-/** How long to wait, in the words a person waits in. */
-export function retryAfter(seconds: number | undefined): string {
-  if (seconds === undefined || seconds <= 0) {
-    return "Intenta de nuevo en un rato.";
-  }
-
-  if (seconds < 60) {
-    return `Intenta de nuevo en ${Math.ceil(seconds)} segundos.`;
-  }
-
-  const minutes = Math.ceil(seconds / 60);
-
-  return minutes === 1
-    ? "Intenta de nuevo en 1 minuto."
-    : `Intenta de nuevo en ${minutes} minutos.`;
-}
-
 /**
  * What to say about a refusal, by status and never by the message alone.
  *
- * Each of the four is a different thing to tell a visitor, and three of them are
- * not failures: the tour without telephony still has a script to read, the
- * rate limiter is the product protecting a stranger's telephone, and a 400 is the
- * number. The API's own sentence is appended where it adds something, because the
- * envelope is the contract and paraphrasing it loses the reason.
+ * Every failure gets words on the screen, which is the rule this function
+ * exists for: a press that produced nothing at all is the one outcome a visitor
+ * cannot act on. Two of the three named statuses are not failures, because the
+ * tour without telephony still has a script to read, and the API's own sentence
+ * is carried where it adds something, because the envelope is the contract and
+ * paraphrasing it loses the reason. Anything this does not know about is
+ * reported exactly as it arrived rather than rounded to "algo salio mal".
  */
 export function callProblem(failure: ApiFailure): string {
   if (failure.status === 403) {
@@ -336,12 +384,8 @@ export function callProblem(failure: ApiFailure): string {
     return "Este servidor no tiene la voz configurada, asi que no puede marcar. El guion de abajo es lo que diria el agente, palabra por palabra.";
   }
 
-  if (failure.status === 429) {
-    return `Ya hubo una llamada a este numero hace poco. ${retryAfter(failure.retryAfterSeconds)}`;
-  }
-
   if (failure.status === 400) {
-    return `El numero o el consentimiento no pasaron la validacion. ${failure.message}`;
+    return `El servidor no acepto el numero: ${failure.message}`;
   }
 
   return failure.message;
@@ -352,41 +396,30 @@ export function callProblem(failure: ApiFailure): string {
  *
  * `consent` is the literal `true` the contract asks for, so a caller cannot reach
  * the endpoint without a person having ticked the box, and the phone is the E.164
- * string and not whatever was typed.
+ * string `toE164` built and not whatever was typed.
  */
-export function callBody(digits: string): { phone: string; consent: true } {
-  return { phone: toE164(digits), consent: true };
+export function callBody(raw: string): { phone: string; consent: true } {
+  return { phone: toE164(raw), consent: true };
 }
 
 /* --------------------------------------------------------------- the plazas */
 
 /**
- * The two plazas, in the three cases there are and not in two.
+ * The two plazas as one sentence, in the three cases there are and not in two.
  *
  * `plazasFor` in `packages/voice/src/owner-script.ts` is the authority and this
  * is the same reading of the same two fields: both known and different, both
  * known and the same, and no history to compare against. The middle one is the
  * case the seeded run actually produces, because the hero's finding is a check
- * digit that does not add up and not an account that moved city, and a screen
- * that branched only on emptiness printed "plaza APODACA, la de siempre
- * APODACA": one city read out twice as though it were two places, next to a
- * telephone call that says it once.
+ * digit that does not add up and not an account that moved city, and a rendering
+ * that branched only on emptiness said "se abrio en la plaza APODACA, y la de
+ * siempre esta en APODACA": one city read out twice as though it were two
+ * places, next to a telephone call that says it once.
  *
  * Empty is an answer rather than a gap: `GET /api/v1/tour` sends a plain place
  * name when the catalogue carries the code and nothing when it does not, and a
  * supplier with no previous account has moved nothing at all.
  */
-export function plazaNote(hero: TourHero): string {
-  if (hero.plazaNew === "" || hero.plazaUsual === "") {
-    return "";
-  }
-
-  return hero.plazaNew === hero.plazaUsual
-    ? `plaza ${hero.plazaNew}, la misma de siempre`
-    : `plaza ${hero.plazaNew}, la de siempre ${hero.plazaUsual}`;
-}
-
-/** The same three cases as one sentence, for the words the agent reads. */
 function plazaSentence(hero: TourHero): string {
   if (hero.plazaNew === "" || hero.plazaUsual === "") {
     return "La cuenta no es la que esta empresa le ha pagado antes.";

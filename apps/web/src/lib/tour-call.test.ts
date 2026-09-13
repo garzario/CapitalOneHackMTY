@@ -5,10 +5,13 @@
  * Four things in this file are worth a test and the rest is copy.
  *
  * **The number.** It is the one piece of personal data this product ever touches,
- * it is Mexican mobiles only, and the page has to refuse a bad one before the
- * request rather than render a `400` a visitor cannot act on. The same regular
- * expression the endpoint applies is applied here first, and `callBody` is the one
- * place that builds what is sent.
+ * and the field has to take it in whatever shape the person in front of it writes
+ * their own telephone number: with spaces, with brackets, with a country code or
+ * without one. So the table of what somebody types and what would be POSTed is a
+ * test, over `callBody`, which is the one place that builds what is sent. The
+ * version this replaced kept ten digits and deleted the rest, which is how a
+ * number typed with its country code became a different number and how the
+ * button stayed dead with a full field in front of it.
  *
  * **Which event belongs to this call.** The ledger stream carries every event of
  * the whole company: a supplier verification call on the same instruction, and a
@@ -20,8 +23,10 @@
  * backwards would be this page saying a payment was released because nobody picked
  * up.
  *
- * **What to say when the API refuses.** Three of the four refusals are not
- * failures, and the one that asks a visitor to wait has to say how long.
+ * **What to say when the API refuses.** Two of the three named refusals are not
+ * failures, and anything this file has never heard of still has to reach the
+ * screen in words, because a press that produced nothing at all is the one
+ * outcome a visitor cannot act on.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -36,25 +41,23 @@ import {
   CONSENT_TEXT,
   callBody,
   callProblem,
-  formatPhone,
-  isMexicanMobile,
+  dialNote,
+  digitsOf,
   isPhoneComplete,
   isSettled,
-  keepDigits,
   LOCAL_SCRIPT_NOTE,
   localScript,
+  MIN_PHONE_DIGITS,
   OUTCOME_SENTENCE,
   outcomeState,
-  PHONE_DIGITS,
   phoneProblem,
-  plazaNote,
-  retryAfter,
   revertSentence,
   SIMULATED_EVIDENCE,
   stateFromEvent,
   stillHeld,
   TOUR_CALL_STATUS_LABEL,
   TOUR_CALL_STATUS_ORDER,
+  toE164,
   tourCallFields,
 } from "./tour-call";
 
@@ -107,56 +110,108 @@ function ownerCall(extra: Record<string, unknown> = {}): LedgerEvent {
 }
 
 describe("the telephone number", () => {
-  test("keeps ten digits out of whatever shape it was typed in", () => {
-    expect(keepDigits("81 1234 5678")).toBe("8112345678");
-    expect(keepDigits("(81) 1234-5678")).toBe("8112345678");
-    expect(keepDigits("+52 81 1234 5678")).toBe("8112345678");
-    /* Pasting a complete number with its country code must not cost the last two
-       digits of the number, which is what a plain ten-character cut would do. */
-    expect(keepDigits("528112345678")).toBe("8112345678");
-    expect(keepDigits("81123456789999")).toHaveLength(PHONE_DIGITS);
+  /**
+   * What a person at the stand types, and the exact body that would be POSTed.
+   *
+   * Every row here is a shape somebody actually writes: the local way, the way a
+   * contact card exports a Mexican mobile with its `1`, bare digits, and a number
+   * from another country pasted out of a chat. Not one of them may be refused,
+   * and not one of them may be quietly turned into a different telephone number.
+   */
+  const typed: Array<[string, string]> = [
+    ["81 1234 5678", "+528112345678"],
+    ["+52 1 81 1234 5678", "+5218112345678"],
+    ["8112345678", "+528112345678"],
+    ["+1 (512) 555 0100", "+15125550100"],
+  ];
+
+  test("what a person types is what would be sent", () => {
+    for (const [raw, phone] of typed) {
+      expect([raw, callBody(raw)]).toEqual([raw, { phone, consent: true }]);
+    }
   });
 
-  test("a national number starting in 52 is not mistaken for a country code", () => {
-    /* Ten digits are already national, so nothing is stripped: 52 is the area
-       code of Zacatecas and of half a dozen other places. */
-    expect(keepDigits("5212345678")).toBe("5212345678");
+  test("every one of those enables the button", () => {
+    /* The half of the bug that produced no request at all: the button was
+       disabled until the field held exactly ten digits, and the normaliser that
+       fed it deleted whatever did not fit, so a number with a country code sat
+       in the field looking complete while the button stayed dead. */
+    for (const [raw] of typed) {
+      expect([raw, isPhoneComplete(raw)]).toEqual([raw, true]);
+      expect([raw, phoneProblem(raw)]).toEqual([raw, null]);
+    }
   });
 
-  test("reads back grouped the way it is said out loud", () => {
-    expect(formatPhone("8112345678")).toBe("81 1234 5678");
-    expect(formatPhone("811")).toBe("81 1");
-    expect(formatPhone("")).toBe("");
+  test("the other shapes of the same number", () => {
+    /* The `00` prefix is the `+` written the way most of the world dials it, and
+       a Mexican number that lost its plus somewhere is twelve or thirteen digits
+       that start in 52. */
+    expect(toE164("00 52 81 1234 5678")).toBe("+528112345678");
+    expect(toE164("528112345678")).toBe("+528112345678");
+    expect(toE164("52 1 81 1234 5678")).toBe("+5218112345678");
+    expect(toE164("(81) 1234-5678")).toBe("+528112345678");
+    expect(toE164("15125550100")).toBe("+15125550100");
   });
 
-  test("says what is missing instead of saying invalid", () => {
-    expect(phoneProblem("")).toContain("10 digitos");
-    expect(phoneProblem("811234567")).toBe(
-      "Falta 1 digito: son 10 despues del +52.",
+  test("nothing is capped, trimmed or renamed", () => {
+    /* The bug itself, as a test. `keepDigits` kept ten digits and stripped a
+       leading 52, so a thirteen digit number reached the endpoint one digit
+       short and pointing at a different telephone: a number built in the
+       browser out of digits a person had typed correctly. */
+    expect(digitsOf("+52 1 81 1234 5678")).toHaveLength(13);
+    expect(toE164("+52 1 81 1234 5678")).toHaveLength(14);
+    /* And a number from another country keeps all eleven of its digits rather
+       than losing the last one to a ten digit cap. */
+    expect(digitsOf(toE164("+1 (512) 555 0100"))).toHaveLength(11);
+  });
+
+  test("a number from a country nobody guessed is sent as it was written", () => {
+    /* Sending it is the honest answer: the endpoint takes any E.164 number now,
+       and a browser that invented a country code for it would be dialling a
+       number nobody typed. */
+    expect(toE164("+34 600 123 456")).toBe("+34600123456");
+    expect(toE164("+81 90 1234 5678")).toBe("+819012345678");
+  });
+
+  test("the only refusal is too few digits to be a number", () => {
+    expect(isPhoneComplete("")).toBe(false);
+    expect(isPhoneComplete("81 12")).toBe(false);
+    expect(isPhoneComplete("811 2345")).toBe(false);
+    /* Eight is the floor, and it is the endpoint's own floor. */
+    expect(MIN_PHONE_DIGITS).toBe(8);
+    expect(isPhoneComplete("8112 3456")).toBe(true);
+  });
+
+  test("it says what is missing instead of saying invalid", () => {
+    expect(phoneProblem("")).toContain("Escribe tu numero");
+    expect(phoneProblem("811 2345")).toBe("Falta 1 digito.");
+    expect(phoneProblem("81123")).toBe("Faltan 3 digitos.");
+    expect(phoneProblem("81 1234 5678")).toBeNull();
+  });
+
+  test("the field says which telephone is about to ring", () => {
+    /* Before the button is pressed, in the grouping the number is said in. It is
+       what the fixed `+52` chip was pretending to answer and could not, because
+       the normalisation happened after the field and out of sight. */
+    expect(dialNote("81 1234 5678")).toBe("Marcaremos a +52 81 1234 5678");
+    expect(dialNote("+52 1 81 1234 5678")).toBe(
+      "Marcaremos a +52 1 81 1234 5678",
     );
-    expect(phoneProblem("81123")).toBe(
-      "Faltan 5 digitos: son 10 despues del +52.",
-    );
-    expect(phoneProblem("8112345678")).toBeNull();
-    expect(isPhoneComplete("8112345678")).toBe(true);
-    expect(isPhoneComplete("811234567")).toBe(false);
+    expect(dialNote("+1 (512) 555 0100")).toBe("Marcaremos a +1 512 555 0100");
+    /* A country this file cannot group is printed as the E.164 string it is,
+       rather than split into groups somebody invented. */
+    expect(dialNote("+34 600 123 456")).toBe("Marcaremos a +34600123456");
+    expect(dialNote("")).toBe("");
   });
 
-  test("what is sent is E.164 and the consent is the literal true", () => {
-    const body = callBody("81 1234 5678");
+  test("what is sent matches the rule the endpoint applies", () => {
+    /* `tourCallBodySchema` in `apps/api/src/schemas.ts`, which is now the whole
+       rule: E.164, eight to fifteen digits, no country of its own. */
+    const e164 = /^\+[1-9]\d{7,14}$/;
 
-    expect(body).toEqual({ phone: "+528112345678", consent: true });
-    expect(isMexicanMobile(body.phone)).toBe(true);
-  });
-
-  test("the rule is the endpoint's rule", () => {
-    /* Same expression as `POST /api/v1/tour/call`: Mexico, ten digits, nothing
-       else, unless the server was started with TOUR_ALLOW_ANY_COUNTRY. */
-    expect(isMexicanMobile("+528112345678")).toBe(true);
-    expect(isMexicanMobile("+5281123456")).toBe(false);
-    expect(isMexicanMobile("+12025550123")).toBe(false);
-    expect(isMexicanMobile("8112345678")).toBe(false);
-    expect(isMexicanMobile("+52 81 1234 5678")).toBe(false);
+    for (const [raw] of typed) {
+      expect([raw, e164.test(callBody(raw).phone)]).toEqual([raw, true]);
+    }
   });
 });
 
@@ -317,35 +372,25 @@ describe("a refusal", () => {
     expect(callProblem(failure(422))).toContain("guion");
   });
 
-  test("429 says when to try again, from Retry-After", () => {
-    expect(callProblem(failure(429, { retryAfterSeconds: 480 }))).toContain(
-      "8 minutos",
-    );
-    expect(callProblem(failure(429, { retryAfterSeconds: 45 }))).toContain(
-      "45 segundos",
-    );
-    /* A 429 with no header still has to say something a person can act on. */
-    expect(callProblem(failure(429))).toContain("un rato");
-  });
-
-  test("the waiting sentence rounds up, because a wait cut short is a second 429", () => {
-    expect(retryAfter(61)).toBe("Intenta de nuevo en 2 minutos.");
-    expect(retryAfter(60)).toBe("Intenta de nuevo en 1 minuto.");
-    expect(retryAfter(undefined)).toContain("un rato");
-  });
-
   test("a 400 carries the API's own sentence", () => {
     const message = callProblem(
-      failure(400, { message: "phone must be a Mexican mobile" }),
+      failure(400, { message: "phone must be an E.164 telephone number" }),
     );
 
-    expect(message).toContain("phone must be a Mexican mobile");
+    expect(message).toContain("phone must be an E.164 telephone number");
   });
 
-  test("anything else is reported as it came", () => {
-    expect(
-      callProblem(failure(0, { message: "The API is not reachable." })),
-    ).toBe("The API is not reachable.");
+  test("anything else is reported as it came, and nothing is swallowed", () => {
+    /* Every status this function has never heard of still reaches the screen as
+       the API's own sentence. The alternative is a press that produced no
+       request the visitor can see and no words either, which is exactly what
+       this stop shipped with. */
+    for (const status of [0, 404, 409, 500, 503]) {
+      expect([
+        status,
+        callProblem(failure(status, { message: "nope" })),
+      ]).toEqual([status, "nope"]);
+    }
   });
 });
 
@@ -414,21 +459,16 @@ describe("the words the owner hears", () => {
 
 describe("the two plazas", () => {
   test("two different cities are both named, which is the whole signal", () => {
-    expect(plazaNote(MOVED)).toBe(
-      "plaza DISTRITO FEDERAL, la de siempre APODACA",
-    );
     expect(localScript(MOVED).spoken.join(" ")).toContain(
       "se abrio en la plaza DISTRITO FEDERAL, y la de siempre esta en APODACA",
     );
   });
 
   test("one city is not a discrepancy, and is never read out twice", () => {
-    /* The case the seeded run actually produces, and the one both renderings got
-       wrong: "plaza APODACA, la de siempre APODACA" is one place printed as two.
-       `plazasFor` in `packages/voice/src/owner-script.ts` already collapses it,
-       so the screen says the same thing the telephone does. */
-    expect(plazaNote(HERO)).toBe("plaza APODACA, la misma de siempre");
-
+    /* The case the seeded run actually produces, and the one the rendering got
+       wrong: one place printed as two, next to a telephone call that says it
+       once. `plazasFor` in `packages/voice/src/owner-script.ts` already
+       collapses it, so the screen says the same thing the telephone does. */
     const spoken = localScript(HERO).spoken.join(" ");
 
     expect(spoken).toContain("esa misma plaza");
@@ -436,8 +476,16 @@ describe("the two plazas", () => {
   });
 
   test("nothing to compare says nothing rather than half a comparison", () => {
-    expect(plazaNote({ ...HERO, plazaUsual: "" })).toBe("");
-    expect(plazaNote({ ...HERO, plazaNew: "", plazaUsual: "" })).toBe("");
+    /* Either half missing is the same case, and the sentence then says the
+       account is simply not one this company has paid before. */
+    for (const hero of [
+      { ...HERO, plazaUsual: "" },
+      { ...HERO, plazaNew: "", plazaUsual: "" },
+    ]) {
+      expect(localScript(hero).spoken.join(" ")).toContain(
+        "no es la que esta empresa le ha pagado antes",
+      );
+    }
   });
 
   test("the fixture is a hero a real payload can carry", () => {
@@ -456,10 +504,13 @@ describe("the two plazas", () => {
 });
 
 describe("the copy of the form", () => {
-  test("the consent says what is kept and what is not", () => {
+  test("the consent is one line, and it is the thing being consented to", () => {
+    /* One call, to this number, because that is what the box authorises. It is
+       one line on purpose: it sits beside the button, and the paragraph it used
+       to be is a paragraph nobody reads before pressing. */
     expect(CONSENT_TEXT).toContain("una vez");
-    expect(CONSENT_TEXT).toContain("No se guarda");
-    expect(CONSENT_TEXT).toContain("hash con sal");
+    expect(CONSENT_TEXT).toContain("llame");
+    expect(CONSENT_TEXT.split(" ")).toHaveLength(10);
     expect(forbiddenVerdict(CONSENT_TEXT)).toBeNull();
   });
 

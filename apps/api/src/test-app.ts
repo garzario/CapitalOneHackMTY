@@ -120,7 +120,6 @@ export function testTourOptions(over: Partial<TourOptions> = {}): TourOptions {
     pollDeadlineMs: 0,
     revertAfterMs: 0,
     salt: DEFAULT_TOUR_SALT,
-    allowAnyCountry: false,
     sleep: async () => {},
     ...over,
   };
