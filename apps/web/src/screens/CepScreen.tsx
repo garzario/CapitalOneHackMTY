@@ -36,6 +36,7 @@ import { formatClabe, formatDate, formatDateTime } from "../lib/format";
 import { NAME_MATCH_BADGE, NAME_MATCH_LABEL } from "../lib/labels";
 import { BENEFICIARIES, MOCK_CEP, SUPPLIERS } from "../lib/mock";
 import { useResource } from "../lib/resource";
+import { useRouteQuery } from "../lib/router";
 
 function registryFallback() {
   return { items: BENEFICIARIES };
@@ -84,6 +85,12 @@ const EXAMPLE: CepVerification = {
 };
 
 export function CepScreen() {
+  /* A beneficiary finding links here with the supplier it is about. It fills
+     the field and nothing else: the verification is a request against Banxico
+     and a person decides when it goes. */
+  const query = useRouteQuery();
+  const prefilledRfc = query.get("rfc") ?? "";
+
   const loadRegistry = useCallback(
     (signal: AbortSignal) => getBeneficiaries({ signal }),
     [],
@@ -94,7 +101,7 @@ export function CepScreen() {
   );
 
   const [claveRastreo, setClaveRastreo] = useState("");
-  const [supplierRfc, setSupplierRfc] = useState("");
+  const [supplierRfc, setSupplierRfc] = useState(prefilledRfc);
   const [xml, setXml] = useState("");
   const [state, setState] = useState<VerifyState>({ status: "idle" });
 

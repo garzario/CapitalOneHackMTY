@@ -56,6 +56,24 @@ export const DETECTOR_LABEL: Record<Detector, string> = {
   bank_reconciliation: "Conciliacion bancaria",
 };
 
+/**
+ * The screen that proves a finding, per detector, and the words on the link.
+ *
+ * Two detectors are missing on purpose rather than by omission. A duplicate
+ * invoice already carries its own origin inside the panel, and a bank
+ * reconciliation already carries the bank row it failed against: the proof is
+ * the block the reader is looking at, and there is no screen in the app that
+ * shows more of it than that. A link to nowhere new is furniture.
+ */
+export const EVIDENCE_ACTION: Partial<
+  Record<Detector, { label: string; kind: "sat" | "cep" | "call" }>
+> = {
+  sat_69b: { label: "Consultar en la lista 69-B", kind: "sat" },
+  beneficiary_cep: { label: "Verificar con el CEP", kind: "cep" },
+  clabe_forensics: { label: "Llamar al proveedor", kind: "call" },
+  supplier_behaviour: { label: "Llamar al proveedor", kind: "call" },
+};
+
 export const DETECTOR_ORDER: Detector[] = [
   "sat_69b",
   "clabe_forensics",

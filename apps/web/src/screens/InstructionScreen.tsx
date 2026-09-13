@@ -35,7 +35,7 @@ import {
 import { ACTION_HELP, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockInstruction } from "../lib/mock";
 import { useResource } from "../lib/resource";
-import { Link, PATHS } from "../lib/router";
+import { Link, PATHS, verifyCallPath } from "../lib/router";
 
 export function InstructionScreen({ id }: { id: string }) {
   const load = useCallback(
@@ -150,6 +150,21 @@ export function InstructionScreen({ id }: { id: string }) {
                 <p className="subtle t-xs">
                   {ACTION_HELP[resource.data.decision.action]}
                 </p>
+
+                {/* The call is a step in this decision, not a section of the
+                    app, so it is offered here and only when the decision asks
+                    for it. It left the rail for the same reason. */}
+                {resource.data.decision.action === "verify" ? (
+                  <>
+                    <Link to={verifyCallPath(id)} className="btn">
+                      Llamar para verificar
+                    </Link>
+                    <p className="subtle t-xs">
+                      El guion lleva los ultimos cuatro digitos de la cuenta,
+                      nunca la CLABE completa.
+                    </p>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -242,6 +257,8 @@ export function InstructionScreen({ id }: { id: string }) {
                   key={finding.id}
                   finding={finding}
                   proposedClabe={resource.data.instruction.clabe}
+                  instructionId={resource.data.instruction.id}
+                  supplierRfc={resource.data.supplier.rfc}
                 />
               ))
             )}

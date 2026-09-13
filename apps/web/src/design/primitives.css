@@ -24,6 +24,19 @@
     border-radius: var(--radius-md);
   }
 
+  /* The row a link arrived at. Someone who followed an evidence link off a
+     finding should not have to read the list to find the supplier they came
+     for, so the row they came for is tinted. Brand blue and not a status
+     colour: it says "here", not "bad".
+
+     The tint is a third ground and the subtle ink is the one that does not
+     survive it: on the dark accent it measures 4.37, under AA, and the RFC is
+     the line wearing it. The tinted row lifts subtle one step, next to the rule
+     that defines it so the specificity climbs rather than descends. */
+  [data-highlight="true"] {
+    background-color: var(--c-accent-soft);
+  }
+
   .divider {
     height: var(--border-width);
     background-color: var(--c-border);
@@ -97,6 +110,12 @@
 
   .subtle {
     color: var(--c-ink-subtle);
+  }
+
+  /* One step up on the marked row. See the note on `[data-highlight]`: subtle
+     ink on that tint is under AA in dark, and the RFC is the line wearing it. */
+  [data-highlight="true"] .subtle {
+    color: var(--c-ink-muted);
   }
 
   /* --------------------------------------------------------------- numerals */
@@ -692,11 +711,16 @@
   /*
    * The shell: a collapsible rail on the left, the screen on the right.
    *
-   * Why a rail and not the row of tabs this app had. The six sections are not
-   * peers of equal weight -- the payment run is the product and the other five
+   * Why a rail and not the row of tabs this app had. The five sections are not
+   * peers of equal weight -- the payment run is the product and the other four
    * are evidence you open from it -- and a horizontal tab row says the
-   * opposite. A rail also survives a seventh section, which a tab row does not,
+   * opposite. A rail also survives a sixth section, which a tab row does not,
    * and it keeps the run's own header free for the run's own numbers.
+   *
+   * There were six. The verification call moved onto the instruction, because
+   * a call is a step in one decision about one payment and not a place you go
+   * to; the rail lights "Corrida" while you are on it. The four that stayed
+   * sit in groups, with the two evidence screens under a label of their own.
    *
    * It collapses to icons because the run is a wide financial table and on a
    * 13-inch laptop the last column is the one that decides whether money
@@ -789,6 +813,44 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  /* The groups stack inside the rail's own column so the spacer below them
+     still pushes the foot to the bottom. */
+  .rail-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  /* A label, not a link: it names the two screens under it and is hidden from
+     the accessibility tree, where the list carries the same name instead. */
+  .rail-group-label {
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    color: var(--c-rail-ink-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  /* The rule that separates the groups. It has its own token because neither
+     of the rail's existing lines works here: `--c-rail-line` disappears on the
+     navy and the muted ink at full strength reads as a divider. */
+  .rail-rule {
+    height: var(--border-width);
+    margin: var(--space-1) var(--space-2);
+    border: 0;
+    background-color: var(--c-rail-rule);
+  }
+
+  /* Collapsed there is no room for a word, and the rules carry the grouping on
+     their own, inset so they read as separators and not as a border. */
+  .rail[data-collapsed="true"] .rail-group-label {
+    display: none;
+  }
+
+  .rail[data-collapsed="true"] .rail-rule {
+    margin-inline: var(--space-3);
   }
 
   /* Measured off capitalone.com's own navigation and matched exactly: Optimist

@@ -4,9 +4,17 @@
  *
  * Three decisions worth their reasons.
  *
- * The rail replaced a row of six tabs. The six sections are not peers: the
- * payment run is the product and the other five are evidence you open from it.
- * A tab row says they are equal and spends the run's own header saying it.
+ * The rail replaced a row of tabs. The five sections are not peers: the payment
+ * run is the product and the other four are evidence you open from it. A tab
+ * row says they are equal and spends the run's own header saying it. The rail
+ * says it twice over, because the two evidence sections sit under their own
+ * label and the run does not.
+ *
+ * The verification call used to be a sixth entry here and is now a link on the
+ * instruction. A call is a step inside one decision about one payment, not a
+ * place you go; parked in the rail it invited someone to open it with no
+ * instruction behind it, and the screen had nothing to say. The rail keeps
+ * "Corrida" lit while you are on it, because that is where you came from.
  *
  * The rail collapses, and the choice is remembered. The run is a wide financial
  * table whose last column decides whether money leaves; on a 13-inch laptop
@@ -19,12 +27,17 @@
  * cut. A judge reads the tagline once, in the pitch, not on every screen.
  */
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { SYNTHETIC_LABEL } from "../lib/labels";
 import { dataMode } from "../lib/resource";
 import { href, PATHS, type Route, type RouteName } from "../lib/router";
 import {
-  IconCall,
   IconIntake,
   IconList,
   IconMetrics,
@@ -40,27 +53,43 @@ type NavItem = {
   Icon: (props: { size?: number }) => ReactNode;
 };
 
-const NAV: NavItem[] = [
+/**
+ * The rail in three groups. The first is the run and the way things enter it,
+ * the middle is the evidence you open from a finding, and the last is the
+ * scoreboard. A group with no label is a group that needs no explaining.
+ */
+const NAV_GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
   {
-    to: PATHS.run,
-    label: "Corrida",
-    match: ["run", "instruction"],
-    Icon: IconRun,
+    label: null,
+    items: [
+      {
+        to: PATHS.run,
+        label: "Corrida",
+        /* The verification call lights this one: it is an action on an
+           instruction of the run, and the rail should not go dark under it. */
+        match: ["run", "instruction", "verifyCall"],
+        Icon: IconRun,
+      },
+      { to: PATHS.intake, label: "Alta", match: ["intake"], Icon: IconIntake },
+    ],
   },
-  { to: PATHS.intake, label: "Alta", match: ["intake"], Icon: IconIntake },
-  { to: PATHS.sat, label: "Lista 69-B", match: ["sat"], Icon: IconList },
-  { to: PATHS.cep, label: "CEP", match: ["cep"], Icon: IconSeal },
   {
-    to: PATHS.verifyCall,
-    label: "Llamada",
-    match: ["verifyCall"],
-    Icon: IconCall,
+    label: "Evidencia",
+    items: [
+      { to: PATHS.sat, label: "Lista 69-B", match: ["sat"], Icon: IconList },
+      { to: PATHS.cep, label: "CEP", match: ["cep"], Icon: IconSeal },
+    ],
   },
   {
-    to: PATHS.metrics,
-    label: "Metricas",
-    match: ["metrics"],
-    Icon: IconMetrics,
+    label: null,
+    items: [
+      {
+        to: PATHS.metrics,
+        label: "Metricas",
+        match: ["metrics"],
+        Icon: IconMetrics,
+      },
+    ],
   },
 ];
 
@@ -175,29 +204,44 @@ export function AppShell({
           </button>
         </div>
 
-        <ul className="rail-nav">
-          {NAV.map(({ to, label, match, Icon }) => {
-            const isCurrent = match.includes(route.name);
+        {/* The group labels are furniture and not links, so they are hidden
+            from the accessibility tree and the name they carry is put on the
+            list instead. Keyboard order is the order of the links, unchanged. */}
+        <div className="rail-groups">
+          {NAV_GROUPS.map((group, index) => (
+            <Fragment key={group.label ?? `group-${index}`}>
+              {index > 0 ? <hr className="rail-rule" /> : null}
+              {group.label ? (
+                <span className="rail-group-label" aria-hidden="true">
+                  {group.label}
+                </span>
+              ) : null}
+              <ul className="rail-nav" aria-label={group.label ?? undefined}>
+                {group.items.map(({ to, label, match, Icon }) => {
+                  const isCurrent = match.includes(route.name);
 
-            return (
-              <li key={to}>
-                <a
-                  href={href(to)}
-                  className="rail-item"
-                  aria-current={isCurrent ? "page" : undefined}
-                  title={collapsed ? label : undefined}
-                  /* On a phone the rail is an overlay, and an overlay that
-                     survives navigation covers the screen you just asked
-                     for. */
-                  onClick={() => setOpen(false)}
-                >
-                  <Icon size={18} />
-                  <span className="rail-label">{label}</span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+                  return (
+                    <li key={to}>
+                      <a
+                        href={href(to)}
+                        className="rail-item"
+                        aria-current={isCurrent ? "page" : undefined}
+                        title={collapsed ? label : undefined}
+                        /* On a phone the rail is an overlay, and an overlay
+                           that survives navigation covers the screen you just
+                           asked for. */
+                        onClick={() => setOpen(false)}
+                      >
+                        <Icon size={18} />
+                        <span className="rail-label">{label}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Fragment>
+          ))}
+        </div>
 
         <div className="rail-spacer" />
 

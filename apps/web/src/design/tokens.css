@@ -209,6 +209,10 @@
   --c-rail-active: #0a5375;
   --c-rail-active-ink: #ffffff;
   --c-rail-line: #0a5375;
+  /* The rule between the rail's groups. `--c-rail-line` is the active ground
+     and vanishes on the navy (1.4:1); the muted ink at full strength reads as
+     a divider. A third of the muted ink is the whisper in between. */
+  --c-rail-rule: rgba(170, 196, 210, 0.35);
 
   /* The QR code, and the one pair in this file that is deliberately identical
      in both schemes. A scanner needs contrast in a fixed direction, dark
@@ -301,6 +305,7 @@
     --c-rail-active: #0a5375;
     --c-rail-active-ink: #ffffff;
     --c-rail-line: #0a5375;
+    --c-rail-rule: rgba(170, 196, 210, 0.35);
 
     --c-qr-module: #000000;
     --c-qr-quiet: #ffffff;

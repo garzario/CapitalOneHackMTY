@@ -84,7 +84,8 @@ export function IconSeal(props: IconProps) {
   );
 }
 
-/** The verification call: a handset. */
+/** The verification call: a handset. Reserved for the instruction screen, which
+    is where the call lives now that it is not a section of the rail. */
 export function IconCall(props: IconProps) {
   return (
     <Glyph {...props}>

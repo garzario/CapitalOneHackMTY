@@ -54,16 +54,28 @@ src/
     router.tsx        hash router, ~120 lines, no dependency
     format.ts         money, dates, CLABE blocks, digit diffs
     labels.ts         every Spanish word the clerk reads, in one dictionary
-  components/         AppShell (the rail and the top bar), Wordmark, Icons (the rail's six),
+  components/         AppShell (the rail and the top bar), Wordmark, Icons (the rail's five,
+                      plus the handset the instruction screen uses),
                       RunVerdict (the one figure), RunFilter, Controls (the six controls),
                       States, Primitives, Evidence, Decision, Findings, SupplierDrawer,
                       StatusCard, IntakeQr, QrCode
   screens/            RunScreen, InstructionScreen, IntakeScreen, SatScreen, CepScreen,
-                      MetricsScreen
+                      MetricsScreen, VerifyCallScreen
 ```
 
 Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
-change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`.
+change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`,
+`#/verify-call`.
+
+The rail holds five of them, in three groups: the run and the intake, then `Evidencia` with the
+69-B list and the CEP, then the metrics. `#/verify-call` is not one of them and is reached from
+the instruction it is about, because a call is a step in a decision and not a place; the rail
+keeps `Corrida` lit while you are on it.
+
+A finding links to the screen that proves it: a 69-B finding to `#/sat?rfc=…` with the lookup box
+filled but not run, a beneficiary finding to `#/cep?rfc=…`, a CLABE or behaviour finding to the
+call. The map is `EVIDENCE_ACTION` in `src/lib/labels.ts`. Nothing a link carries is submitted on
+arrival: the official list is queried only when a person presses the button.
 
 The intake page reads `rfc`, `amount` and `clabe` out of its own query, so the QR code can
 carry a prefilled instruction: `#/intake?rfc=SYN010101AAA&amount=184300`.

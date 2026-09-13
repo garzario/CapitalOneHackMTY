@@ -46,6 +46,20 @@ export function verifyCallPath(instructionId: string): string {
   return `${PATHS.verifyCall}?instruction=${encodeURIComponent(instructionId)}`;
 }
 
+/**
+ * The 69-B screen with the lookup box prefilled. Never runs the lookup itself:
+ * ADR-0002 puts the official list behind a button a person presses, so a link
+ * may carry the RFC but may not ask the SAT anything on arrival.
+ */
+export function satPath(rfc: string): string {
+  return `${PATHS.sat}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/** The CEP screen with the supplier prefilled in the verification form. */
+export function cepPath(rfc: string): string {
+  return `${PATHS.cep}?rfc=${encodeURIComponent(rfc)}`;
+}
+
 /** `/run` becomes `#/run`, the value that goes in an href. */
 export function href(path: string): string {
   return `#${path}`;

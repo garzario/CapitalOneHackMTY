@@ -362,6 +362,12 @@ const CONTRAST_PROBE = `(() => {
     ["--c-hold", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
     ["--c-verify", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
     ["--c-release", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
+    // The marked row on the 69-B sweep: the supplier an evidence link arrived
+    // at, tinted so it is found without reading the list. Its subtle ink is
+    // lifted to muted by primitives.css, which is why muted is what is
+    // measured here.
+    ["--c-ink", "--c-accent-soft", 4.5, "the marked sweep row on its tint"],
+    ["--c-ink-muted", "--c-accent-soft", 4.5, "the RFC on the marked sweep row"],
     ["--c-border-strong", "--c-surface", 3, "a strong border"],
     // The rail is a navy brand panel with its own small palette. None of the
     // pairs above touch it, and it is the one surface on every screen.
