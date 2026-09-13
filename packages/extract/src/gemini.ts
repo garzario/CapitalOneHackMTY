@@ -16,10 +16,20 @@
  *   this package passes a stub, so `bun test` never opens a socket and never
  *   needs a key.
  *
- * Thinking is switched off (`thinkingBudget: 0`). Transcription needs none, it
- * doubles the latency of the intake screen, and on a small output budget the
- * thinking tokens can consume the whole allowance and return an empty answer,
- * which is the worst possible failure mode at a demo table.
+ * Thinking is left to the provider, and that is a correction rather than a
+ * preference. This module used to send `thinkingConfig: { thinkingBudget: 0 }`,
+ * because transcription needs no thinking and on a small output budget the
+ * thinking tokens can eat the whole allowance and return an empty answer. The
+ * model `.env.example` configures, `gemini-3.6-flash`, refuses that field
+ * outright: every request came back `400 Request contains an invalid argument`,
+ * which is the whole photo intake path failing against the configured model.
+ * Verified against the live API on 2026-09-12 with a real screenshot.
+ *
+ * So `thinkingConfig` is sent only when a caller asks for a budget, and the
+ * output allowance is large enough that an answer survives a model that thinks
+ * anyway. The empty-answer failure is still reported as `bad_response` with the
+ * reason, so a budget that turns out to be too small says so instead of looking
+ * like a model that had nothing to read.
  */
 
 import { Buffer } from "node:buffer";
@@ -237,7 +247,11 @@ export interface GeminiOptions {
   baseUrl?: string;
   /** 0 disables the timeout. */
   timeoutMs?: number;
-  /** Thinking tokens. 0, the default here, switches thinking off. */
+  /**
+   * Thinking tokens. Omitted by default, which leaves the decision to the
+   * provider: Gemini 3 refuses the field with a 400 and Gemini 2.5 accepts a 0.
+   * A caller that knows its model may still pin one.
+   */
   thinkingBudget?: number;
 }
 
@@ -297,7 +311,7 @@ function redact(text: string, apiKey: string): string {
  */
 export function buildRequestBody(
   request: GeminiRequest,
-  thinkingBudget: number,
+  thinkingBudget?: number,
 ): Record<string, unknown> {
   return {
     contents: [
@@ -321,7 +335,11 @@ export function buildRequestBody(
       responseMimeType: "application/json",
       responseSchema: request.schema,
       maxOutputTokens: request.maxOutputTokens,
-      thinkingConfig: { thinkingBudget },
+      /* Present only when a caller pinned one. See the note at the top of this
+         file: the configured model answers 400 to the field itself. */
+      ...(thinkingBudget === undefined
+        ? {}
+        : { thinkingConfig: { thinkingBudget } }),
     },
   };
 }
@@ -360,7 +378,7 @@ export async function generateJson<T>(
   const baseUrl = (options.baseUrl ?? GEMINI_BASE_URL).replace(/\/+$/, "");
   const model = options.model ?? GEMINI_MODEL;
   const timeoutMs = options.timeoutMs ?? GEMINI_TIMEOUT_MS;
-  const body = buildRequestBody(request, options.thinkingBudget ?? 0);
+  const body = buildRequestBody(request, options.thinkingBudget);
 
   const init: RequestInit = {
     method: "POST",

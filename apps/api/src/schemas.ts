@@ -20,8 +20,15 @@
  */
 
 import type {
+  ActionProposal,
   Actor,
   ActorRole,
+  AssistantAuthor,
+  AssistantMessage,
+  AssistantSession,
+  AssistantTool,
+  AssistantToolCall,
+  AssistantUsage,
   Cep,
   Cfdi,
   Confidence,
@@ -37,6 +44,8 @@ import type {
   NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
+  ProposalKind,
+  ProposalValue,
   RailId,
   SatListEntry,
   SealState,
@@ -460,6 +469,144 @@ export const verificationOutcomeSchema = z.enum([
   "unclear",
 ]) satisfies z.ZodType<VerificationOutcome>;
 
+/* -------------------------------------------------------------------------- */
+/* The assistant panel                                                         */
+/* -------------------------------------------------------------------------- */
+
+/* `actorRoleSchema` and `actorSchema` are above, with the `X-Actor` parser they
+   belong to. The panel reuses them rather than declaring a second pair. */
+
+export const assistantAuthorSchema = z.enum([
+  "clerk",
+  "assistant",
+]) satisfies z.ZodType<AssistantAuthor>;
+
+/**
+ * The whole list of reads the panel may perform. It is an enum and not a string
+ * for the reason ADR-0007 gives: a tool that writes has to be unrepresentable, and
+ * the closed list plus `readOnly: true` is what makes it so.
+ */
+export const assistantToolSchema = z.enum([
+  "get_run",
+  "get_instruction",
+  "get_supplier",
+  "get_verification",
+  "get_execution",
+  "get_receipt",
+  "sat_lookup",
+  "consortium_signal",
+  "get_metrics",
+]) satisfies z.ZodType<AssistantTool>;
+
+export const assistantToolCallSchema = z.object({
+  id: z.string().min(1),
+  tool: assistantToolSchema,
+  arguments: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean()]),
+  ),
+  /** The engine's own evidence, the same chips the finding panel renders. */
+  result: z.record(z.string(), evidenceValueSchema).optional(),
+  at: instantSchema,
+  /** The literal true. A tool call that writes cannot be expressed. */
+  readOnly: z.literal(true),
+  error: z.string().min(1).max(1000).optional(),
+}) satisfies z.ZodType<AssistantToolCall>;
+
+export const proposalKindSchema = z.enum([
+  "verify_account",
+  "verify_call",
+  "decide",
+  "execute_run",
+  "intake",
+]) satisfies z.ZodType<ProposalKind>;
+
+export const proposalValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+]) satisfies z.ZodType<ProposalValue>;
+
+/**
+ * An action the panel offers and a person executes.
+ *
+ * `payload` is the body of the endpoint that would run it, field for field, which
+ * is what lets the panel show what is about to happen in the words of the request
+ * itself. Primitives only, so it can be rendered without a second viewer.
+ */
+export const actionProposalSchema = z.object({
+  kind: proposalKindSchema,
+  instructionId: z.string().min(1).optional(),
+  payload: z.record(z.string(), proposalValueSchema),
+  requiresRole: actorRoleSchema,
+  summary: z.string().min(1).max(600),
+}) satisfies z.ZodType<ActionProposal>;
+
+export const assistantMessageSchema = z.object({
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
+  author: assistantAuthorSchema,
+  text: z.string().max(8000),
+  at: instantSchema,
+  actor: actorSchema.optional(),
+  instructionId: z.string().min(1).optional(),
+  /** References, never bytes. The image itself is on no stored object. */
+  imageRefs: z.array(z.string().min(1)).max(10).optional(),
+  toolCalls: z.array(assistantToolCallSchema).max(40).optional(),
+  proposal: actionProposalSchema.optional(),
+}) satisfies z.ZodType<AssistantMessage>;
+
+/**
+ * What one turn cost. The rate and its date are in docs/06 section 6.4 and the
+ * arithmetic is in `src/assistant/cost.ts`, which is unit tested: a cost on an
+ * append-only row has to be reproducible, so it is computed from stamped
+ * constants and never read back from the provider.
+ */
+export const assistantUsageSchema = z.object({
+  promptTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  costMxn: z.number().nonnegative(),
+  model: z.string().min(1).max(120),
+  rounds: z.number().int().nonnegative(),
+}) satisfies z.ZodType<AssistantUsage>;
+
+export const assistantSessionSchema = z.object({
+  id: z.string().min(1),
+  actor: actorSchema,
+  startedAt: instantSchema,
+  runId: z.string().min(1).optional(),
+  messages: z.array(assistantMessageSchema),
+}) satisfies z.ZodType<AssistantSession>;
+
+/** Largest base64 image one turn may carry, matching the intake contract. */
+export const ASSISTANT_IMAGE_MAX = 4_000_000;
+
+/** How many images one turn may carry. A clerk drops one screenshot, sometimes two. */
+export const ASSISTANT_IMAGES_MAX = 4;
+
+/**
+ * `POST /api/v1/assistant/messages`, as JSON. The same fields arrive as
+ * `multipart/form-data` from the panel, which is the form a browser sends a file
+ * in; `src/assistant/routes.ts` normalises the two into this shape.
+ *
+ * An empty `text` with no image is `400`: there is no turn to take. A `text` with
+ * no image is ordinary, and an image with no text is the whole point of the panel.
+ */
+export const assistantMessageBodySchema = z
+  .object({
+    sessionId: z.string().min(1).max(200).optional(),
+    text: z.string().max(4000).default(""),
+    images: z
+      .array(z.base64().max(ASSISTANT_IMAGE_MAX))
+      .max(ASSISTANT_IMAGES_MAX)
+      .optional(),
+  })
+  .refine((body) => body.text.trim() !== "" || (body.images?.length ?? 0) > 0, {
+    message: "Send text, or an image to read, or both.",
+    path: ["text"],
+  });
+
 export const ledgerEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("cfdi_received"),
@@ -548,6 +695,28 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     type: z.literal("decision_made"),
     at: instantSchema,
     decision: decisionSchema,
+  }),
+  /* One turn of the assistant panel. The conversation is on the same append-only
+     ledger as the payments because a proposal somebody acted on is part of the
+     history of that payment, and `AssistantSession` is projected from these rows
+     rather than stored twice. */
+  z.object({
+    type: z.literal("assistant_message"),
+    at: instantSchema,
+    sessionId: z.string().min(1),
+    message: assistantMessageSchema,
+    usage: assistantUsageSchema.optional(),
+  }),
+  /* A screenshot reached the product: the reference, who dropped it, and the
+     instruction it became. Never the bytes. */
+  z.object({
+    type: z.literal("intake_image"),
+    at: instantSchema,
+    imageRef: z.string().min(1),
+    actor: actorSchema,
+    mediaType: z.string().min(1).max(120).optional(),
+    sessionId: z.string().min(1).optional(),
+    instructionId: z.string().min(1).optional(),
   }),
 ]) satisfies z.ZodType<LedgerEvent>;
 
@@ -1134,3 +1303,4 @@ export type VerifyCallScriptResponse = z.infer<
 >;
 export type SeedBody = z.infer<typeof seedBodySchema>;
 export type VerificationStateResponse = z.infer<typeof verificationStateSchema>;
+export type AssistantMessageBody = z.infer<typeof assistantMessageBodySchema>;

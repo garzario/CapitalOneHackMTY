@@ -46,6 +46,12 @@ export interface RateLimitOptions {
   windowMs?: number;
   /** Injected by the tests so a window can pass without waiting for one. */
   now?: () => number;
+  /**
+   * What the 429 calls the thing that was counted. The lookup box counts lookups
+   * and the assistant panel counts turns, and a clerk reading "too many lookups"
+   * after typing a question would go looking for a lookup she never made.
+   */
+  label?: string;
 }
 
 interface Window {
@@ -90,6 +96,7 @@ export function createRateLimit(options: RateLimitOptions = {}) {
   const limit = options.limit ?? SAT_LOOKUP_LIMIT;
   const windowMs = options.windowMs ?? SAT_LOOKUP_WINDOW_MS;
   const clock = options.now ?? (() => Date.now());
+  const label = options.label ?? "lookups";
   const windows = new Map<string, Window>();
 
   return createMiddleware(async (c, next) => {
@@ -123,7 +130,7 @@ export function createRateLimit(options: RateLimitOptions = {}) {
         c,
         429,
         "rate_limited",
-        `Too many lookups from this client. The limit is ${limit} per minute; try again in ${resetSeconds} s.`,
+        `Too many ${label} from this client. The limit is ${limit} per minute; try again in ${resetSeconds} s.`,
       );
     }
 

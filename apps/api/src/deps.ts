@@ -12,6 +12,7 @@ import type { LedgerEvent } from "@hackmty/core";
 import { getSql } from "@hackmty/db";
 import { type RailResolution, resolveRail } from "@hackmty/rail";
 import { officialSatIndex, type SatIndex } from "@hackmty/sat";
+import { type AssistantModel, createAssistantModel } from "./assistant/model";
 import {
   type CepInbox,
   type CepSource,
@@ -51,6 +52,17 @@ export interface ApiDeps {
    * server holds no `GEMINI_API_KEY`, which is also how the tests run it.
    */
   extractor: IntakeExtractor;
+  /**
+   * The model behind the assistant panel: Gemini with function calling over the
+   * read tools in `src/assistant/tools.ts`.
+   *
+   * It is injected for the same reason the extractor is, and the consequence is the
+   * same: `bun test` drives the whole panel against a scripted model with no key and
+   * no socket. A server with no `GEMINI_API_KEY` gets the refusing one and
+   * `POST /api/v1/assistant/messages` answers 422 naming the variable, which is the
+   * behaviour docs/09-api.md promises and the behaviour CI exercises.
+   */
+  model: AssistantModel;
   /**
    * Retrieves and checks a Banxico CEP. Pasted XML is always accepted; reaching
    * the portal needs `ALLOW_CEP_FETCH=1` and checking the seal needs
@@ -98,6 +110,7 @@ export interface DepsOverrides {
   allowSeed?: boolean;
   satList?: () => Promise<SatIndex>;
   extractor?: IntakeExtractor;
+  model?: AssistantModel;
   cep?: CepSource;
   cepInbox?: CepInbox;
   rail?: () => Promise<RailResolution>;
@@ -175,6 +188,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
   const allowSeed = overrides.allowSeed ?? readEnv("ALLOW_SEED") === "1";
   const satList = overrides.satList ?? (() => officialSatIndex());
   const extractor = overrides.extractor ?? createExtractor();
+  const model = overrides.model ?? createAssistantModel();
   const cep = overrides.cep ?? createCepSource();
   const cepInbox = overrides.cepInbox ?? committedCepInbox();
   const verification =
@@ -191,6 +205,7 @@ export function createDeps(overrides: DepsOverrides = {}): ApiDeps {
     satList,
     allowSeed,
     extractor,
+    model,
     cep,
     cepInbox,
     rail,

@@ -2,6 +2,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { assistantRoutes } from "./assistant/routes";
+import type { ApiCaller } from "./assistant/tools";
 import { type ApiDeps, createDeps } from "./deps";
 import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
 import { requestId } from "./middleware/request-id";
@@ -90,6 +92,13 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   v1.route("/ledger", ledgerRoutes(deps));
   v1.route("/events", eventRoutes(deps));
   v1.route("/seed", seedRoutes(deps));
+  /* The assistant reads this API through this API. `callApi` is bound to the app
+     being built and is only ever invoked at request time, by which point the route
+     tree is complete, so a tool answers out of the very handler the web app calls
+     over the wire. One code path, one payload, and a panel that cannot tell a clerk
+     something the screen next to it does not show. */
+  const callApi: ApiCaller = async (path, init) => app.request(path, init);
+  v1.route("/assistant", assistantRoutes(deps, callApi));
   /* The constancias sit on two different base paths, `/sat/constancia` and
      `/run/:id/constancia`, so they mount at the root of v1 rather than under
      either group. Keeping them in one file is what makes the two documents
