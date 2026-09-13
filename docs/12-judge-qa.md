@@ -158,10 +158,10 @@ is a statistic. And that any of this validates Lupita: it sizes the population s
 |---|---|
 | What do you own | The deterministic generator (#43), the labelled holdout cases and the metrics harness (#55), the SAT list loader and the retroactive sweep (#35), the real CEP evidence (#57), and `assets/` |
 | The one file to open on screen | A holdout case JSON next to the metrics output, because the pair is the evaluation story |
-| The data in three sentences | One fixed seed, byte-identical output asserted in a test, a demo company of 28 employees and about 42 suppliers over eight months, and a watermark flag on every generated object. The labelled cases that measure the detectors are written by me and are not read by the person who writes the detectors until those are merged, so the precision and recall are blind. The hard negatives are deliberate: a legitimate bank change backed by a payment complement, a legitimate new supplier ramping up, a round-number invoice, and a partial legal-name match that is fine |
+| The data in three sentences | One fixed seed, byte-identical output asserted in a test, a demo company of 28 employees and about 42 suppliers over eight months, and a watermark flag on every generated object. The thirty-five labelled cases that measure the controls come from ADR-0002 and the domain types rather than from reading the control source, and no case has been edited to make a control pass. The hard negatives are deliberate and there are twelve of them: a legitimate bank change backed by a payment complement, a legitimate plaza move with the complement to say so, a new supplier ramping up, a round-number retainer, and a partial legal-name match that is fine |
 | Why the labels are separate from the generator | Because a generator that creates both the data and the answer key measures nothing except itself |
-| The current honest gap | TODO(Apanawa), refresh at every milestone |
-| What is next | TODO(Apanawa) |
+| The current honest gap | The evaluation is less blind than the protocol first promised: the controls were merged before the labels were written. What holds the number up is the second rule, that no case was edited to make a control pass, and the four labels that still disagree are counted against us. `beneficiary_cep` reads 0.0 percent because both its expectations are severity arguments, not a control going silent |
+| What is next | The level matrix is the view a clerk reads and it is one release old: `perLevel` is on `GET /api/v1/metrics` and no screen renders it yet |
 
 ### Fabricio (`FabriBanda`), product surface, narrative and market
 
@@ -236,11 +236,18 @@ deploy are separate open issues (#62, #33 to #39, #40, #44).
 committed seed, plus the Nessie sandbox as the company's bank mirror for reconciliation. No real
 personal data anywhere, including in screenshots and issues. Methodology in `docs/08-data-model.md`.
 
-**How do you know it works.** The metrics page reports precision, recall and false-positive rate per
-detector with the case count next to them, computed over labelled cases written by someone who does
-not write the detectors, in a folder the detector author does not open until the code is merged. The
-git history is the evidence that the separation held. We also state the thresholds we would refuse
-to ship at, and we wrote them before the first run.
+**How do you know it works.** The metrics page reports precision, recall and false-positive rate two
+ways: per control, which is what a detector author fixes, and per confidence level, which is what a
+clerk experiences. A control can be right and the line still read `precaucion` when the documents say
+`alerta`, and only the second table shows that. Thirty-five labelled cases, and the row to defend is
+`confiable`: on this run nothing the product called trustworthy turned out not to be.
+
+Be precise about how blind it is, because the repository is. The controls were merged before the
+labels were written, and the labels come from ADR-0002 and the domain types rather than from reading
+the control source. The rule that holds the number up is the other one: no case has been edited to
+make a control pass, four labels still disagree with the engine, and all four are counted against us
+with both arguments written down in `packages/seed/src/holdout/README.md`. We also state the
+thresholds we would refuse to ship at, and we wrote them before the first run.
 
 **What happens at ten times the volume.** The read path is one indexed query per company over a time
 window, and on Timescale the ledger is a hypertable with a continuous aggregate doing the weekly
@@ -527,9 +534,10 @@ by the clerk instead, outside the product. Verified: `POST /api/v1/instructions/
 > pantalla y decide una persona. Y uno de los seis controles no estima nada, es un hecho documental: que
 > un RFC este o no en la lista del 69-B, con la fecha de la publicacion de la que salio.
 >
-> De los numeros: treinta casos etiquetados por quien no escribe los detectores, ochenta y cinco por
-> ciento de precision, ochenta y uno de recall, uno punto nueve por ciento de falsos positivos, y el
-> motor eligio la accion etiquetada en veintiocho de treinta. Son casos sinteticos y lo decimos. La
+> De los numeros: treinta y cinco casos etiquetados, ochenta y siete por ciento de precision, ochenta
+> y tres de recall, uno punto seis por ciento de falsos positivos, y el motor eligio la accion
+> etiquetada en treinta y tres de treinta y cinco. Leido como lo lee la clerk: de doce lineas que
+> debian salir confiables, las doce salieron confiables. Son casos sinteticos y lo decimos. La
 > calibracion de verdad es despues del hackathon: modo sombra con un socio de diseno, sobre corridas
 > reales, y si despues de doscientos barridos menos del cinco por ciento destapa algo, paramos.
 

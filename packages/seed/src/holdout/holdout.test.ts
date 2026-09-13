@@ -8,12 +8,15 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import type { Confidence } from "@hackmty/core";
 import {
   ALL_DETECTORS,
+  ALL_LEVELS,
   computeMetrics,
   emptyMetrics,
   HOLDOUT_CASES,
   type HoldoutCase,
+  levelMatrix,
   parseHoldoutCase,
   predictNothing,
 } from "./index";
@@ -37,6 +40,7 @@ function caseOf(overrides: Partial<HoldoutCase> = {}): HoldoutCase {
     },
     expectedFindings: [{ detector: "sat_69b" }],
     expectedAction: "hold",
+    expectedLevel: "alerta",
     ...overrides,
   });
 }
@@ -95,6 +99,7 @@ describe("parseHoldoutCase", () => {
         },
         expectedFindings: [],
         expectedAction: "release",
+        expectedLevel: "confiable",
       }),
     ).toThrow(/synthetic must be true/);
   });
@@ -254,5 +259,148 @@ describe("computeMetrics", () => {
         0,
       ),
     );
+  });
+});
+
+describe("levelMatrix", () => {
+  const cases = [
+    caseOf({ id: "a", expectedLevel: "alerta" }),
+    caseOf({ id: "b", expectedLevel: "alerta" }),
+    caseOf({ id: "c", expectedLevel: "precaucion" }),
+    caseOf({
+      id: "d",
+      kind: "negative",
+      expectedFindings: [],
+      expectedAction: "release",
+      expectedLevel: "confiable",
+    }),
+  ];
+
+  function predictions(levels: Record<string, Confidence | undefined>) {
+    return cases.map((holdout) => ({
+      caseId: holdout.id,
+      findings: [],
+      ...(levels[holdout.id] === undefined
+        ? {}
+        : { level: levels[holdout.id] as Confidence }),
+    }));
+  }
+
+  it("counts a case once on each axis, so the columns sum to the case count", () => {
+    const matrix = levelMatrix(
+      cases,
+      predictions({
+        a: "alerta",
+        b: "alerta",
+        c: "precaucion",
+        d: "confiable",
+      }),
+    );
+    const expected = ALL_LEVELS.reduce(
+      (total, level) => total + matrix[level].expected,
+      0,
+    );
+    const predicted = ALL_LEVELS.reduce(
+      (total, level) => total + matrix[level].predicted,
+      0,
+    );
+
+    expect(expected).toBe(cases.length);
+    expect(predicted).toBe(cases.length);
+  });
+
+  it("scores a perfect run at one on every level that has a case", () => {
+    const matrix = levelMatrix(
+      cases,
+      predictions({
+        a: "alerta",
+        b: "alerta",
+        c: "precaucion",
+        d: "confiable",
+      }),
+    );
+
+    expect(matrix.alerta.precision).toBe(1);
+    expect(matrix.alerta.recall).toBe(1);
+    expect(matrix.confiable.recall).toBe(1);
+  });
+
+  it("charges a line shown too calm to the level it was shown at and to the one it should have been", () => {
+    // The failure that matters: a payment that reads precaucion when the
+    // documents say alerta. It costs alerta its recall and precaucion its
+    // precision, and both halves are the point.
+    const matrix = levelMatrix(
+      cases,
+      predictions({
+        a: "precaucion",
+        b: "alerta",
+        c: "precaucion",
+        d: "confiable",
+      }),
+    );
+
+    expect(matrix.alerta.recall).toBeCloseTo(0.5, 10);
+    expect(matrix.precaucion.precision).toBeCloseTo(0.5, 10);
+    expect(matrix.precaucion.recall).toBe(1);
+  });
+
+  it("counts a case with no predicted level against recall and not against precision", () => {
+    // Nothing was shown, so nothing can have been shown in the wrong place.
+    const matrix = levelMatrix(
+      cases,
+      predictions({
+        a: undefined,
+        b: "alerta",
+        c: "precaucion",
+        d: "confiable",
+      }),
+    );
+
+    expect(matrix.alerta.expected).toBe(2);
+    expect(matrix.alerta.predicted).toBe(1);
+    expect(matrix.alerta.precision).toBe(1);
+    expect(matrix.alerta.recall).toBeCloseTo(0.5, 10);
+  });
+
+  it("answers zero rather than NaN for a level no case carries", () => {
+    const matrix = levelMatrix(
+      [cases[0] as HoldoutCase],
+      [{ caseId: "a", findings: [], level: "alerta" as Confidence }],
+    );
+
+    expect(matrix.confiable.precision).toBe(0);
+    expect(matrix.confiable.recall).toBe(0);
+  });
+});
+
+describe("the labelled set, by level", () => {
+  it("labels every case with a level", () => {
+    for (const holdout of HOLDOUT_CASES) {
+      expect([holdout.id, ALL_LEVELS.includes(holdout.expectedLevel)]).toEqual([
+        holdout.id,
+        true,
+      ]);
+    }
+  });
+
+  it("carries cases at all three levels, so no row of the matrix is empty", () => {
+    const levels = new Set(
+      HOLDOUT_CASES.map((holdout) => holdout.expectedLevel),
+    );
+
+    expect([...levels].sort()).toEqual([...ALL_LEVELS].sort());
+  });
+
+  it("never labels a negative case above confiable", () => {
+    // A case with nothing to find is a case with nothing open, and a level
+    // above confiable on one would mean the label contradicts itself.
+    for (const holdout of HOLDOUT_CASES) {
+      if (holdout.kind === "negative") {
+        expect([holdout.id, holdout.expectedLevel]).toEqual([
+          holdout.id,
+          "confiable",
+        ]);
+      }
+    }
   });
 });

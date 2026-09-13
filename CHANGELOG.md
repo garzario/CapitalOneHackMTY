@@ -18,6 +18,17 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
+  cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
+  clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
+  plaza where the only fact is that we have never paid it; a CEP that arrives while the run is open
+  and moves the line from precaucion to confiable; and the hard negative that pairs with the plaza
+  case. `Metrics` gains `perLevel`, so `GET /api/v1/metrics` and `bun run eval` report precision and
+  recall per confidence level as well as per control, and each case carries an `expectedLevel`
+  labelled from what the case is rather than derived through the rule table the engine applies. On
+  thirty-five cases: precision 87.0, recall 83.3, false positive rate 1.6, action agreement 33 of 35,
+  and `confiable` right on 12 of 12. The numbers in docs/11 and docs/12 are that run's.
+
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
   moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;
@@ -583,6 +594,12 @@ then the screens, then the narrative, then the plumbing.
   contract, price list and screen until both have happened.
 
 ### Changed
+
+- `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
+  read the controls. The controls were merged first, `packages/seed/src/holdout/README.md` has said
+  so since #122, and a judge who reads the repository and then hears the stronger claim out loud has
+  found the one thing that costs more than the point it was worth. The sentence to say is that no
+  case was edited to make a control pass and the ones that disagree are still counted against us.
 
 - A second Capital One panel came to the table on the evening of 2026-09-12, said the project was
   interesting and then asked the one thing the afternoon's answers had given in categories instead of

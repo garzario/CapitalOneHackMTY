@@ -70,5 +70,6 @@
       "because": "One stamped UUID cannot belong to two documents, so paying both rows sends the same amount twice and the two XMLs prove it."
     }
   ],
-  "expectedAction": "hold"
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
 }

@@ -63,5 +63,6 @@
       "because": "The RFC is on the published list as presunto, which is provable from the DOF, but the fiscal effect of the invoices is not settled until the status is definitivo."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

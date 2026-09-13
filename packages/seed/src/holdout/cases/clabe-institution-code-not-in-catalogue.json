@@ -54,5 +54,6 @@
       "because": "Digits 1 to 3 are not in the participant snapshot and the account is at a different institution from every account this supplier has been paid on."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }
