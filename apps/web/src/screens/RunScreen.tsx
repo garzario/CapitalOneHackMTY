@@ -123,6 +123,7 @@ import {
   verdictDelta,
 } from "../lib/run-view";
 import { useToken } from "../lib/tokens";
+import { LEDGER_NUDGE } from "../lib/tour-call";
 
 /**
  * How long the screen waits before re-reading the run after a ledger event.
@@ -294,6 +295,17 @@ export function RunScreen() {
       refresh();
     }, REFRESH_COALESCE_MS);
   }, [refresh]);
+
+  /* The other way in, for the one case the stream does not cover: the tour's
+     call can be settled by its own poll before the event reaches this stream,
+     or with the stream closed behind a proxy that dropped it, and then the row
+     the visitor was just told about would sit unchanged behind the card. It is
+     the same coalesced re-read and not a second path through the data. */
+  useEffect(() => {
+    window.addEventListener(LEDGER_NUDGE, onLedgerEvent);
+
+    return () => window.removeEventListener(LEDGER_NUDGE, onLedgerEvent);
+  }, [onLedgerEvent]);
 
   useEffect(
     () => () => {

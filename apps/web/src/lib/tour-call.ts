@@ -163,13 +163,13 @@ export function phoneProblem(raw: string): string | null {
   const digits = digitsOf(raw);
 
   if (digits.length === 0) {
-    return "Escribe tu numero, como lo marcarias desde tu telefono.";
+    return "Escribe tu número, como lo marcarías desde tu teléfono.";
   }
 
   if (digits.length < MIN_PHONE_DIGITS) {
     const missing = MIN_PHONE_DIGITS - digits.length;
 
-    return missing === 1 ? "Falta 1 digito." : `Faltan ${missing} digitos.`;
+    return missing === 1 ? "Falta 1 dígito." : `Faltan ${missing} dígitos.`;
   }
 
   return null;
@@ -186,9 +186,9 @@ export function phoneProblem(raw: string): string | null {
  * hashed with a salt and the number itself is never stored.
  */
 export const CONSENT_TEXT =
-  "Acepto que SentryOne me llame una vez a este numero.";
+  "Acepto que SentryOne me llame una vez a este número.";
 
-export const CALL_BUTTON = "Llamame como dueno";
+export const CALL_BUTTON = "Llámame como dueño";
 
 export const CALL_BUSY = "Marcando";
 
@@ -197,7 +197,7 @@ export const TOUR_CALL_STATUS_LABEL: Record<TourCallStatus, string> = {
   initiated: "Marcando",
   "in-progress": "En llamada",
   processing: "Procesando",
-  done: "Termino",
+  done: "Terminó",
   failed: "No se pudo completar",
 };
 
@@ -213,7 +213,7 @@ export const TOUR_CALL_STATUS_LABEL: Record<TourCallStatus, string> = {
 export const TOUR_CALL_STRIP: readonly string[] = [
   "Marcando",
   "En llamada",
-  "Termino",
+  "Terminó",
 ];
 
 /**
@@ -246,10 +246,10 @@ export function stripIndexOf(status: TourCallStatus): number {
  * changes a payment this product is holding.
  */
 export const OUTCOME_SENTENCE: Record<TourOwnerOutcome, string> = {
-  hold: "El dueno la retuvo por telefono.",
-  release: "El dueno la libero bajo su nombre.",
-  no_answer: "Nadie contesto, asi que la linea sigue retenida.",
-  unclear: "La respuesta no quedo clara, asi que la linea sigue retenida.",
+  hold: "El dueño la retuvo por teléfono.",
+  release: "El dueño la liberó bajo su nombre.",
+  no_answer: "Nadie contestó, así que la línea sigue retenida.",
+  unclear: "La respuesta no quedó clara, así que la línea sigue retenida.",
 };
 
 /**
@@ -386,6 +386,42 @@ export function stateFromEvent(
   };
 }
 
+/**
+ * How often the card asks the server where the call is, in milliseconds.
+ *
+ * Here rather than in the component because it is the rule and not a detail of
+ * the rendering: the provider writes its ledger event at the end of the call and
+ * nowhere before it, so a card that learned the status only from the stream sat
+ * on "Marcando" for the whole minute somebody was on the telephone. The poll
+ * runs whatever the stream is doing, and a second and a half is short enough
+ * that the strip moves while a visitor is watching it and long enough that one
+ * call is forty small requests rather than four hundred.
+ */
+export const CALL_POLL_MS = 1500;
+
+/**
+ * The nudge the run screen listens for, so a call that ended moves the row.
+ *
+ * The ledger stream is how `RunScreen` learns that anything happened, and it
+ * still is. This is the other half of the same fact for the one case the stream
+ * does not cover: the poll of the tour's own call can learn that the call is
+ * done before the event reaches the stream, or with the stream closed behind a
+ * proxy that dropped it, and then the row a visitor was just told about sits
+ * unchanged on the screen behind the card. A window event and not a store,
+ * because there is exactly one listener and it wants exactly what an event on
+ * the stream gives it: a reason to re-read the run.
+ */
+export const LEDGER_NUDGE = "sentryone:ledger-nudge";
+
+/** Ask whoever is showing the run to read it again. Never carries data. */
+export function nudgeLedger(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(LEDGER_NUDGE));
+}
+
 /** Whether a status is one the page still has to keep asking about. */
 export function isSettled(status: TourCallStatus): boolean {
   return status === "done" || status === "failed";
@@ -406,15 +442,15 @@ export function isSettled(status: TourCallStatus): boolean {
  */
 export function callProblem(failure: ApiFailure): string {
   if (failure.status === 403) {
-    return "Este servidor tiene las llamadas del recorrido apagadas. El guion de abajo es lo que diria el agente.";
+    return "Este servidor tiene las llamadas del recorrido apagadas. El guion de abajo es lo que diría el agente.";
   }
 
   if (failure.status === 422) {
-    return "Este servidor no tiene la voz configurada, asi que no puede marcar. El guion de abajo es lo que diria el agente, palabra por palabra.";
+    return "Este servidor no tiene la voz configurada, así que no puede marcar. El guion de abajo es lo que diría el agente, palabra por palabra.";
   }
 
   if (failure.status === 400) {
-    return `El servidor no acepto el numero: ${failure.message}`;
+    return `El servidor no aceptó el número: ${failure.message}`;
   }
 
   return failure.message;
@@ -455,8 +491,8 @@ function plazaSentence(hero: TourHero): string {
   }
 
   return hero.plazaNew === hero.plazaUsual
-    ? `La cuenta nueva se abrio en ${hero.plazaNew}, y las que ya le pagamos estan en esa misma plaza.`
-    : `La cuenta nueva se abrio en la plaza ${hero.plazaNew}, y la de siempre esta en ${hero.plazaUsual}.`;
+    ? `La cuenta nueva se abrió en ${hero.plazaNew}, y las que ya le pagamos están en esa misma plaza.`
+    : `La cuenta nueva se abrió en la plaza ${hero.plazaNew}, y la de siempre está en ${hero.plazaUsual}.`;
 }
 
 /* --------------------------------------------------------------- the words */
@@ -472,7 +508,7 @@ function plazaSentence(hero: TourHero): string {
  * here and the qualification disappears the moment the API sends its script.
  */
 export const LOCAL_SCRIPT_NOTE =
-  "Aproximacion armada en el navegador con esta misma linea. El guion exacto lo escribe el servidor y llega al marcar, o cuando contesta que no tiene la voz configurada.";
+  "Aproximación armada en el navegador con esta misma línea. El guion exacto lo escribe el servidor y llega al marcar, o cuando contesta que no tiene la voz configurada.";
 
 /**
  * The script, built in the browser, for a page that cannot ask a server for it.
@@ -492,12 +528,12 @@ export const LOCAL_SCRIPT_NOTE =
 export function localScript(hero: TourHero): TourCallScript {
   return {
     firstMessage:
-      "Buen dia. Le habla la linea automatica de pagos de su empresa. El control de pagos retuvo una instruccion de la corrida de esta semana y necesito su indicacion. Le tomo un minuto.",
-    question: "Digame si la retenemos, o si usted la libera.",
+      "Buen día. Le habla la línea automática de pagos de su empresa. El control de pagos retuvo una instrucción de la corrida de esta semana y necesito su indicación. Le tomo un minuto.",
+    question: "Dígame si la retenemos, o si usted la libera.",
     spoken: [
       `El pago es para ${hero.supplierName}, por ${formatMoney(hero.amount)}.`,
-      `La cuenta que llego termina en ${hero.accountLast4}. ${plazaSentence(hero)}`,
-      "No le voy a leer la cuenta completa, ni un digito de la cuenta de siempre.",
+      `La cuenta que llegó termina en ${hero.accountLast4}. ${plazaSentence(hero)}`,
+      "No le voy a leer la cuenta completa, ni un dígito de la cuenta de siempre.",
       "Si prefiere revisarlo, la dejamos retenida y no sale nada.",
     ],
   };
@@ -513,8 +549,8 @@ export function localScript(hero: TourHero): TourCallScript {
  * said anything.
  */
 export const SIMULATED_EVIDENCE: Record<TourOwnerOutcome, string> = {
-  hold: "No, ese cambio de cuenta no lo autorice yo. Detenla.",
-  release: "Si, ese cambio lo hicimos nosotros. Liberala.",
+  hold: "No, ese cambio de cuenta no lo autoricé yo. Detenla.",
+  release: "Sí, ese cambio lo hicimos nosotros. Libérala.",
   no_answer: "",
   unclear: "",
 };

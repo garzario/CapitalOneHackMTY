@@ -64,13 +64,16 @@ import { dataMode, reachesApi } from "../lib/resource";
 import {
   CALL_BUSY,
   CALL_BUTTON,
+  CALL_POLL_MS,
   CONSENT_TEXT,
   callBody,
   callProblem,
   dialNote,
   isPhoneComplete,
+  isSettled,
   LOCAL_SCRIPT_NOTE,
   localScript,
+  nudgeLedger,
   OUTCOME_SENTENCE,
   outcomeState,
   phoneProblem,
@@ -82,9 +85,6 @@ import {
   TOUR_CALL_STRIP,
 } from "../lib/tour-call";
 import { TransactionStateBadge } from "./Primitives";
-
-/** How often to ask where the call is, and only while the stream is not open. */
-const POLL_MS = 4000;
 
 /** Who the visitor is for one call. Never written to the stored identity. */
 const OWNER = { role: "owner", name: "Visitante" } as const;
@@ -132,7 +132,30 @@ export function TourCall({ config }: { config: TourConfig }) {
      for. */
   const watching = conversationId !== null && !settled;
 
-  const stream = useEvents({
+  /*
+   * The answer, written once and never rewritten.
+   *
+   * The poll and the stream are two ways of learning the same fact and both are
+   * running, so whichever arrives first is the one the card shows and the second
+   * one changes nothing: a result that was replaced would be a badge that
+   * flickered, and a status that went backwards would be a strip that un-ended a
+   * call the visitor watched end.
+   */
+  const advance = useCallback((next: TourCallStatus) => {
+    setStatus((current) =>
+      current !== null && isSettled(current) ? current : next,
+    );
+  }, []);
+
+  const finish = useCallback((outcome: TourOwnerOutcome, evidence: string) => {
+    setResult((current) => current ?? { outcome, evidence, simulated: false });
+    /* The row on the screen behind the card is the point of the whole stop, so
+         the run is asked to read itself again as soon as the call has landed,
+         by whichever of the two learned it first. */
+    nudgeLedger();
+  }, []);
+
+  useEvents({
     enabled: online && watching,
     onEvent: (event) => {
       if (conversationId === null) {
@@ -145,18 +168,15 @@ export function TourCall({ config }: { config: TourConfig }) {
         return;
       }
 
-      setStatus(next.status);
-      setResult({
-        outcome: next.ownerOutcome ?? "unclear",
-        evidence: next.evidence ?? "",
-        simulated: false,
-      });
+      advance(next.status);
+      finish(next.ownerOutcome ?? "unclear", next.evidence ?? "");
     },
   });
 
-  /* The fallback, and only a fallback: four seconds while the stream is not open,
-     and nothing at all while it is. A call that ended is never asked about again. */
-  const polling = watching && online && stream.status !== "open";
+  /* The provider's own status, every second and a half, whatever the stream is
+     doing. A call that ended is never asked about again, which is what
+     `watching` is: the conversation is open and nothing has settled it. */
+  const polling = watching && online;
   const pollTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -172,19 +192,19 @@ export function TourCall({ config }: { config: TourConfig }) {
           return;
         }
 
-        setStatus(answer.data.status);
+        advance(answer.data.status);
 
         if (answer.data.ownerOutcome !== undefined) {
-          setResult({
-            outcome: answer.data.ownerOutcome,
-            evidence: answer.data.evidence ?? "",
-            simulated: false,
-          });
+          finish(answer.data.ownerOutcome, answer.data.evidence ?? "");
         }
       });
     };
 
-    pollTimer.current = window.setInterval(ask, POLL_MS);
+    /* At once and then on the interval: the first answer is the one that moves
+       the strip off "Marcando", and waiting a whole tick for it is the delay
+       this poll exists to remove. */
+    ask();
+    pollTimer.current = window.setInterval(ask, CALL_POLL_MS);
 
     return () => {
       cancelled = true;
@@ -194,7 +214,7 @@ export function TourCall({ config }: { config: TourConfig }) {
         pollTimer.current = null;
       }
     };
-  }, [polling, conversationId]);
+  }, [polling, conversationId, advance, finish]);
 
   const complete = isPhoneComplete(phone);
   const phoneFault = touched ? phoneProblem(phone) : null;
@@ -282,7 +302,11 @@ export function TourCall({ config }: { config: TourConfig }) {
             </p>
           </div>
 
-          <label className="tour-consent t-xs" htmlFor="tour-consent">
+          {/* The input is inside the label, which is what makes the words
+              clickable, so the label may not also point at it by id: a click on
+              the box itself would be forwarded to the box a second time and the
+              tick would come straight back off. */}
+          <label className="tour-consent t-xs">
             <input
               id="tour-consent"
               type="checkbox"
@@ -341,8 +365,8 @@ export function TourCall({ config }: { config: TourConfig }) {
 
               <p className="subtle m-0 t-xs">
                 {mode === "mock"
-                  ? "Modo sin conexion: no sale ninguna peticion del navegador, asi que nadie marca."
-                  : "Este servidor tiene las llamadas del recorrido apagadas, asi que nadie marca."}
+                  ? "Modo sin conexión: no sale ninguna petición del navegador, así que nadie marca."
+                  : "Este servidor tiene las llamadas del recorrido apagadas, así que nadie marca."}
               </p>
             </>
           )}
@@ -366,6 +390,11 @@ export function TourCall({ config }: { config: TourConfig }) {
               key={label}
               className="tour-strip-step"
               data-on={at <= reached ? "true" : "false"}
+              /* Where the call is right now, as opposed to where it has been.
+                 A strip of three lit pills says how far it got and nothing about
+                 whether anything is still happening, which is the whole question
+                 somebody holding a telephone is asking. */
+              data-now={at === reached && result === null ? "true" : "false"}
             >
               {label}
             </span>
@@ -397,8 +426,8 @@ export function TourCall({ config }: { config: TourConfig }) {
 
           <p className="subtle m-0 t-xs">
             {result.simulated
-              ? "Simulado en el navegador: nada se escribio en la bitacora."
-              : `Quedo en la bitacora a nombre del dueno. ${revertSentence(revertMs)}`}
+              ? "Simulado en el navegador: nada se escribió en la bitácora."
+              : `Quedó en la bitácora a nombre del dueño. ${revertSentence(revertMs)}`}
           </p>
         </div>
       ) : null}
@@ -408,7 +437,7 @@ export function TourCall({ config }: { config: TourConfig }) {
           owner would hear. It stays shut, because the stop is the call and this
           is the footnote to it. */}
       <details className="tour-script">
-        <summary className="t-xs">El guion que escucha el dueno</summary>
+        <summary className="t-xs">El guion que escucha el dueño</summary>
 
         {/* The stand-in is close to the call and is not the call, and a card
             that promised otherwise would be claiming what it cannot check. The

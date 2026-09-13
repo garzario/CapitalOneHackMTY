@@ -2413,19 +2413,59 @@
     gap: var(--space-2);
   }
 
+  /* No transition on purpose. The strip is the answer to "is anything
+     happening", and a pill that takes a beat to light up is the same delay this
+     stop already had once, wearing a fade. */
   .tour-strip-step {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
     padding: var(--space-1) var(--space-2);
     border: var(--border-width) solid var(--c-border);
     border-radius: var(--radius-pill);
     background-color: var(--c-surface);
     color: var(--c-ink-subtle);
     font-size: var(--text-xs);
+    transition: none;
   }
 
   .tour-strip-step[data-on="true"] {
     border-color: var(--c-accent);
     background-color: var(--c-accent-soft);
     color: var(--c-ink);
+  }
+
+  /* The one the call is on right now. Three lit pills say how far it got and
+     nothing about whether it is still going, which is the only question the
+     person holding the telephone has. The dot is the ink of the pill it is in,
+     so it carries no colour of its own. */
+  .tour-strip-step[data-now="true"]::before {
+    content: "";
+    width: 0.5em;
+    height: 0.5em;
+    flex: none;
+    border-radius: var(--radius-pill);
+    background-color: currentColor;
+    animation: tour-call-pulse 900ms ease-in-out infinite;
+  }
+
+  @keyframes tour-call-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.2;
+    }
+  }
+
+  /* The dot stays, because it is what says which pill is the live one; only the
+     pulsing goes. */
+  @media (prefers-reduced-motion: reduce) {
+    .tour-strip-step[data-now="true"]::before {
+      animation: none;
+    }
   }
 
   .tour-result {

@@ -78,6 +78,7 @@ import {
   TOUR_LENGTH_NOTE,
   TOUR_STEP_COUNT,
   type TourBox,
+  type TourPlace,
   type TourSize,
   type TourStep,
   tourSteps,
@@ -94,10 +95,13 @@ import { TourCall } from "./TourCall";
  * changed on, so the element is asked for on this interval for two seconds, and
  * a step that still has no target after two seconds is a card with no ring.
  */
-const SETTLE_MS = 100;
+const SETTLE_MS = 50;
 
-/** Twenty of them, which is the two seconds the ring waits before giving up. */
-const SETTLE_TICKS = 20;
+/** Thirty of them, which is the second and a half the ring waits before giving
+ * up. Short on purpose: a step that navigates and then sits on a dimmed screen
+ * for the better part of a second reads as a product that is thinking, and the
+ * only thing this interval is waiting for is one render and one fetch. */
+const SETTLE_TICKS = 30;
 
 /** Below this the card is a bottom sheet, so neither axis is chosen. */
 const SHEET_WIDTH = 768;
@@ -114,6 +118,15 @@ const LOCKUP = {
      because the rail is navy on either ground; this card is not. */
   dark: "/sentryone-lockup-dark.svg",
 };
+
+/**
+ * Where the card stands until something makes it move, which is the corner the
+ * welcome card takes and the one nothing else in this app uses.
+ */
+const DOCK: TourPlace = { side: "left", vert: "bottom" };
+
+/** The card before it has been rendered once, for the first placement only. */
+const FALLBACK_CARD: TourSize = { width: 400, height: 300 };
 
 function sameBox(a: TourBox | null, b: TourBox | null): boolean {
   if (a === null || b === null) {
@@ -147,9 +160,21 @@ export function Tour() {
   const [view, setView] = useState<TourSize>(() =>
     typeof window === "undefined" ? { width: 1440, height: 900 } : viewport(),
   );
-  /* The card measures itself, because where it may stand depends on how big it
-     is: the call stop is twice the height of a caption. */
-  const [card, setCard] = useState<TourSize>({ width: 400, height: 300 });
+  /*
+   * Which corner the card stands in, as state that is written once per step.
+   *
+   * It used to be computed on every render out of the live spotlight and the
+   * live height of the card, which is the whole of the bug a visitor saw: the
+   * rect was re-measured on every scroll event, the card re-measured itself
+   * through a `ResizeObserver`, and either of those could flip the corner. So
+   * the card moved when the field printed the number it was about to dial, when
+   * the result landed under the form, and while the smooth scroll of the step
+   * was still running -- which is a card that walks out from under the pointer
+   * between a mousedown and a mouseup, and a click that lands on nothing. It is
+   * decided when the step changes and when the window is resized, and by
+   * nothing else.
+   */
+  const [place, setPlace] = useState<TourPlace>(DOCK);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const bodyId = useId();
@@ -234,27 +259,16 @@ export function Tour() {
     cardRef.current?.focus();
   }, [open, index]);
 
-  /* The card's own size, watched rather than measured once: the call stop grows
-     when the result lands under the form, and a card that grew downwards out of a
-     top corner would be a card that walked over its own spotlight. */
-  useEffect(() => {
-    const element = cardRef.current;
+  /* The card's own rectangle, read at the moment a placement is decided and
+     never watched. Watching it is what tied the corner the card stands in to
+     the height of its own contents. */
+  const cardSize = useCallback((): TourSize => {
+    const rect = cardRef.current?.getBoundingClientRect();
 
-    if (!open || element === null || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      const rect = element.getBoundingClientRect();
-      const next = { width: rect.width, height: rect.height };
-
-      setCard((current) => (sameSize(current, next) ? current : next));
-    });
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [open]);
+    return rect === undefined || rect.width === 0
+      ? FALLBACK_CARD
+      : { width: rect.width, height: rect.height };
+  }, []);
 
   /* The viewport, as state, because where the card may stand is computed from it
      and a resize changes the answer without changing the step. */
@@ -292,20 +306,44 @@ export function Tour() {
    * Re-measuring is one `querySelector` and one rect, so the cheap answer is to
    * keep asking until the screen has settled.
    *
-   * The interval stops itself; `resize` and `scroll` are what keep the ring on
-   * the element after that, because both move the rect without changing the step.
+   * The interval stops itself, and `resize` is the only thing that measures
+   * after it. `scroll` used to be on this list and is deliberately off it: the
+   * step's own `scrollIntoView` fires it for the length of a smooth scroll, a
+   * visitor scrolling the screen under the card fires it again, and every one of
+   * those was a new rect, a new placement and a card that moved.
+   *
+   * The corner is taken once, on the first measurement that finds the element,
+   * and then only a resize may change it. The ring goes on following the element
+   * for the rest of the settle, because a ring in the wrong place is visible and
+   * a ring that moves is what it is supposed to do.
    */
   useEffect(() => {
-    if (!open || target === undefined) {
+    if (!open) {
       setBox(null);
 
       return;
     }
 
+    if (target === undefined) {
+      /* Nothing lit, so nothing to stand out of the way of: the welcome card and
+         the call card both take the dock and stay in it. */
+      setBox(null);
+      setPlace(DOCK);
+
+      return;
+    }
+
     let scrolled = false;
+    let docked = false;
     let ticks = 0;
 
-    const measure = (mayScroll: boolean) => {
+    const dock = (rect: TourBox) => {
+      const now = viewport();
+
+      setPlace(placeCard(spotlightHole(rect, now), cardSize(), now));
+    };
+
+    const measure = (mayScroll: boolean, redock: boolean) => {
       const element = document.querySelector<HTMLElement>(
         `[data-tour="${target}"]`,
       );
@@ -338,30 +376,35 @@ export function Tour() {
       };
 
       setBox((current) => (sameBox(current, next) ? current : next));
+
+      if (redock || !docked) {
+        docked = true;
+        dock(next);
+      }
     };
 
-    measure(true);
+    measure(true, false);
 
     const timer = window.setInterval(() => {
       ticks += 1;
-      measure(true);
+      measure(true, false);
 
       if (ticks >= SETTLE_TICKS) {
         window.clearInterval(timer);
       }
     }, SETTLE_MS);
 
-    const onMove = () => measure(false);
+    /* A resize is the one thing that may move the card inside a step, because
+       the corner it is standing in can stop existing. */
+    const onResize = () => measure(false, true);
 
-    window.addEventListener("resize", onMove);
-    window.addEventListener("scroll", onMove, { capture: true, passive: true });
+    window.addEventListener("resize", onResize);
 
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("resize", onMove);
-      window.removeEventListener("scroll", onMove, { capture: true });
+      window.removeEventListener("resize", onResize);
     };
-  }, [open, target, reduceMotion, narrow]);
+  }, [open, target, reduceMotion, narrow, cardSize]);
 
   const back = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
@@ -418,10 +461,6 @@ export function Tour() {
   const hole = box === null ? null : spotlightHole(box, view);
   const last = index === total - 1;
   const welcome = step?.kind === "welcome";
-  /* Which corner the card docks in: the first of the four that does not touch
-     the spotlight. A tour card that covers its own spotlight is the oldest
-     mistake in the form. */
-  const place = placeCard(hole, card, view);
 
   return (
     <>
@@ -503,7 +542,7 @@ export function Tour() {
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: reduceMotion ? 0 : 0.2,
+          duration: reduceMotion ? 0 : 0.18,
           ease: [0.2, 0.8, 0.2, 1],
         }}
       >

@@ -132,7 +132,7 @@ export function stepLabel(index: number, total: number): string {
 export const START_BUTTON = "Empezar el recorrido";
 
 /** Not now, from the welcome card. The top bar is how you come back. */
-export const LATER_BUTTON = "Ver despues";
+export const LATER_BUTTON = "Ver después";
 
 /** Out of the tour, from any card, and it is on every one of them. */
 export const SKIP_BUTTON = "Saltar";
@@ -175,13 +175,13 @@ export function tourSteps(links: TourLinks): TourStep[] {
          cannot be recalled, so the only place a control can stand is in front of
          it. Everything in the eight stops after this one is that sentence with
          evidence under it. */
-      title: "El ultimo control antes de que un pago sea irrevocable",
+      title: "El último control antes de que un pago sea irrevocable",
       /* Three lines and the only card with three, because it is the one that has
          to land before anything else means anything: the hour, the person, the
          two losses and where the product sits. */
       body: [
         "Es jueves, 4:00 pm. Lupita tiene 92 pagos y un WhatsApp con una CLABE nueva.",
-        `Un clic y ${formatDecimal(links.heroAmount)} pesos no regresan. Y si el SAT publica al proveedor, tampoco la deduccion.`,
+        `Un clic y ${formatDecimal(links.heroAmount)} pesos no regresan. Y si el SAT publica al proveedor, tampoco la deducción.`,
         "SentryOne vive en el minuto antes de enviar.",
       ],
       kind: "welcome",
@@ -190,8 +190,8 @@ export function tourSteps(links: TourLinks): TourStep[] {
       id: "run",
       title: "La corrida del jueves",
       body: [
-        "Esta es la corrida de la semana, ya revisada linea por linea.",
-        "Cada linea trae su nivel, su estado y la razon detras.",
+        "Esta es la corrida de la semana, ya revisada línea por línea.",
+        "Cada línea trae su nivel, su estado y la razón detrás.",
       ],
       look: "Mira la cifra grande: son los pesos que no salen.",
       route: PATHS.run,
@@ -201,10 +201,10 @@ export function tourSteps(links: TourLinks): TourStep[] {
       id: "intake",
       title: "La captura de WhatsApp, al chat",
       body: [
-        "Asi llega un pago real: una foto. El asistente lee la cuenta y propone.",
+        "Así llega un pago real: una foto. El asistente lee la cuenta y propone.",
         "Ejecuta una persona, y su nombre queda en el evento.",
       ],
-      look: "Mira el panel que se abrio a la derecha.",
+      look: "Mira el panel que se abrió a la derecha.",
       opensAssistant: true,
       target: TOUR_TARGETS.assistantPanel,
     },
@@ -212,8 +212,8 @@ export function tourSteps(links: TourLinks): TourStep[] {
       id: "instruction",
       title: "La cuenta y su plaza",
       body: [
-        "El control compara la cuenta que llego contra las que ya se le pagaron.",
-        "Tres digitos de la cuenta dicen en que ciudad se abrio.",
+        "El control compara la cuenta que llegó contra las que ya se le pagaron.",
+        "Tres dígitos de la cuenta dicen en qué ciudad se abrió.",
       ],
       look: "Mira el primer hallazgo y su evidencia.",
       route: instructionPath(links.heroInstructionId),
@@ -223,8 +223,8 @@ export function tourSteps(links: TourLinks): TourStep[] {
       id: "cep",
       title: "El centavo y el comprobante de Banxico",
       body: [
-        "Antes del dinero va un centavo, y Banxico dice de quien es la cuenta.",
-        "Si el titular no es el proveedor, la linea se bloquea.",
+        "Antes del dinero va un centavo, y Banxico dice de quién es la cuenta.",
+        "Si el titular no es el proveedor, la línea se bloquea.",
       ],
       look: "Mira los dos nombres: la factura y Banxico.",
       route: verifyAccountPath(links.cepInstructionId),
@@ -235,9 +235,9 @@ export function tourSteps(links: TourLinks): TourStep[] {
       title: "El SAT publica",
       body: [
         "Cuando el SAT publica a un proveedor, tus deducciones sobre sus facturas se caen.",
-        "El boton lo simula y recorre la bitacora para ponerlo en pesos.",
+        "El botón lo simula y recorre la bitácora para ponerlo en pesos.",
       ],
-      look: "Presiona Simular publicacion 69-B y mira la exposicion.",
+      look: "Presiona Simular publicación 69-B y mira la exposición.",
       route: PATHS.sat,
       target: TOUR_TARGETS.satSimulate,
     },
@@ -245,21 +245,21 @@ export function tourSteps(links: TourLinks): TourStep[] {
       id: "payments",
       title: "La corrida sale",
       body: [
-        "Aqui sale la corrida, y pide una segunda confirmacion de una persona.",
-        "Cada linea sale con su clave de rastreo, o se queda con su razon.",
+        "Aquí sale la corrida, y pide una segunda confirmación de una persona.",
+        "Cada línea sale con su clave de rastreo, o se queda con su razón.",
       ],
-      look: "Mira el boton de enviar: es el unico que mueve dinero.",
+      look: "Mira el botón de enviar: es el único que mueve dinero.",
       route: PATHS.payments,
       target: TOUR_TARGETS.paymentsSend,
     },
     {
       id: "who",
-      title: "Quien decide",
+      title: "Quién decide",
       body: [
-        "Cada escritura lleva un nombre y un papel, y la bitacora los guarda.",
-        "Liberar lo que no es confiable es del dueno.",
+        "Cada escritura lleva un nombre y un papel, y la bitácora los guarda.",
+        "Liberar lo que no es confiable es del dueño.",
       ],
-      look: "Mira quien esta actuando ahora mismo.",
+      look: "Mira quién está actuando ahora mismo.",
       route: PATHS.entry,
       target: TOUR_TARGETS.entryPerson,
     },
@@ -270,13 +270,16 @@ export function tourSteps(links: TourLinks): TourStep[] {
          button. Everything this stop used to say twice, once here and once in
          `TourCall.tsx`, is said once. */
       body: [
-        "Vas a recibir la llamada que recibiria el dueno cuando hay un pago en riesgo. Contesta con tu voz: retenerlo o liberarlo.",
+        "Vas a recibir la llamada que recibiría el dueño cuando hay un pago en riesgo. Contesta con tu voz: retenerlo o liberarlo.",
       ],
       route: PATHS.run,
-      /* The figure and not the row. A released line leaves the slice the table is
-         showing, so the row the owner decided can walk out from under the
-         spotlight; the figure on the dark card is always there to move. */
-      target: TOUR_TARGETS.runHero,
+      /* No spotlight, and that is the point of this stop rather than an
+         omission. The card here is a form: a telephone field, a consent box and
+         a button, and a visitor works inside it for as long as it takes to type
+         a number. A target would put the card wherever the ring is not, which is
+         a card that moves while somebody is typing into it. The eight stops
+         before this one are captions over the product; this one is the product.
+         */
       kind: "call",
     },
   ];
