@@ -23,6 +23,7 @@
  */
 
 import type { Actor, ActorRole } from "@hackmty/core";
+import { ACTOR_NAME_MAX_LENGTH } from "@hackmty/core";
 import { useSyncExternalStore } from "react";
 
 export const ACTOR_HEADER = "x-actor";
@@ -173,4 +174,27 @@ function serverActor(): Actor {
 /** The header value, in the form docs/09-api.md documents. */
 export function actorHeaderValue(actor: Actor = currentActor()): string {
   return `role=${actor.role}; name=${actor.name}`;
+}
+
+/**
+ * Whether this is a name the header can carry and the API will accept.
+ *
+ * The `;` check is the load-bearing one: it is the only character the header
+ * format cannot survive, and a name silently cut at it would put a different
+ * person in the ledger than the one who signed. The bound is
+ * `ACTOR_NAME_MAX_LENGTH` from `@hackmty/core`, which is the same constant the
+ * header parser and the stored decision use, because a name the API accepts and
+ * the ledger truncates is a signature that does not match itself.
+ *
+ * Who may decide what is NOT here: `decideRequirement` in `@hackmty/core` is the
+ * one place that answers it, and the API refuses on the same function.
+ */
+export function isActorName(name: string): boolean {
+  const trimmed = name.trim();
+
+  return (
+    trimmed.length > 0 &&
+    trimmed.length <= ACTOR_NAME_MAX_LENGTH &&
+    !name.includes(";")
+  );
 }

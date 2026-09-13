@@ -413,15 +413,14 @@ that stops being wrong. What the credit buys is that the first two cost us money
 - The payment was still stopped when the window closed, `expired` true on `holdWindow` with no release
   before it. If the owner released at hour two the bound did its job, and there is nothing to credit.
 
-**The honest consequences, volunteered rather than discovered.** Two of those conditions are only
-half observable through the product today. Since issue #199 every write carries the name and the role
-on `X-Actor`, the screens send the identity rather than a fixed string, and the API refuses an
-override that carries no reason, so a release under a named person with a written argument is now
-enforced rather than hoped for, and since issue #215 **Entrada y ajustes** puts the person on screen,
-so which of the two signed a release is visible rather than only recorded. What the screens still owe
-is asking for the reason before the click instead of after the refusal (#174), and nothing carrying a
-cap is sold before that screen exists, because a clerk who meets the refusal and gives up is a release
-that happened outside the product. The
+**The honest consequences, volunteered rather than discovered.** One of those conditions is only half
+observable through the product today. Since issue #199 every write carries the name and the role on
+`X-Actor`, the screens send the identity rather than a fixed string, and the API refuses an override
+that carries no reason, so a release under a named person with a written argument is enforced rather
+than hoped for, and since issue #215 **Entrada y ajustes** puts the person on screen,
+so which of the two signed a release is visible rather than only recorded; since #209 the instruction detail asks for the name, the role and the reason before
+the click rather than after the refusal, and shows the pesos at risk at that moment, which is the
+screen that had to exist before anything carrying a cap is sold. The
 strongest contradiction, a CEP holder name that matched under a seal that validated, is the state
 layer 2 is also waiting for: `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal
 reads `not_checked` until the real Banxico certificate lands (#57). And for a duplicate-invoice or a

@@ -57,6 +57,7 @@ import type {
   AssistantMessage,
   AssistantStreamEvent,
   AssistantTurnBody,
+  DecideResult,
   InstructionDetail,
   VerificationState,
   VerifyCallBody,
@@ -584,7 +585,11 @@ export function needsReason(proposal: ActionProposal): boolean {
 export type ProposalOutcome =
   | { kind: "verify_account"; verification: VerificationState }
   | { kind: "verify_call"; call: VerifyCallResult }
-  | { kind: "decide"; detail: InstructionDetail }
+  /* The decide route answers `{ instruction, decision, amountAtRisk, hold }`
+     and not a whole instruction detail, so this carries the shape the endpoint
+     actually sends. The card reads the decision and the folio, which is all of
+     it that ever reached the screen. */
+  | { kind: "decide"; detail: DecideResult }
   | { kind: "intake"; detail: InstructionDetail };
 
 /**

@@ -30,6 +30,7 @@ import type {
   CepVerifyBody,
   CreateInstructionBody,
   DecideBody,
+  DecideResult,
   ExecuteRunBody,
   Health,
   InstructionDetail,
@@ -616,6 +617,19 @@ export function sweepConstanciaHref(listVersion: string): string {
   return `${API_PREFIX}/sat/constancia?listVersion=${encodeURIComponent(listVersion)}`;
 }
 
+/**
+ * The one-page evidence letter of one instruction, as a link.
+ *
+ * A link and not a fetch, because the browser downloads a PDF better than any
+ * blob this file could build, and because the href is the thing a judge copies
+ * out of the page and opens on their own machine. The screen offers it only when
+ * the payload came from the API: a letter about a run the browser invented would
+ * be a document about nothing.
+ */
+export function cartaHref(instructionId: string): string {
+  return `${API_PREFIX}/instructions/${encodeURIComponent(instructionId)}/carta`;
+}
+
 export function runConstanciaHref(runId: string): string {
   return `${API_PREFIX}/run/${encodeURIComponent(runId)}/constancia`;
 }
@@ -658,7 +672,7 @@ export async function decideInstruction(
   id: string,
   body: DecideBody,
   options?: RequestOptions,
-): Promise<ApiResult<InstructionDetail>> {
+): Promise<ApiResult<DecideResult>> {
   return andThen(
     await request(
       `${API_PREFIX}/instructions/${encodeURIComponent(id)}/decide`,
@@ -666,7 +680,7 @@ export async function decideInstruction(
       options,
     ),
     (value) =>
-      shaped<InstructionDetail>(
+      shaped<DecideResult>(
         value,
         (detail) => isRecord(detail.decision) || isRecord(detail.instruction),
         "decision",
