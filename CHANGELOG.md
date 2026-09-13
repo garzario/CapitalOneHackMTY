@@ -1147,6 +1147,44 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- **The verification call confirms the account change and the last four digits, and the agent the
+  provider stores carries neither** (issue #206). The call used to ask one question, whether the
+  account is theirs, which somebody who opened that account yesterday can answer yes to. It now asks
+  about the change when there is a change: "una cuenta que no es la que le hemos pagado antes, y que
+  termina en 4 6 1 1. Solo necesito que me confirme si ustedes cambiaron su cuenta y si esa cuenta es
+  de ustedes. Si o no?". Still one yes or no, because a call that asks two questions gets an answer to
+  one of them, and still nothing a supplier has to look up. Whether it is a change is derived and not
+  typed: `scriptForInstruction` compares the instruction's account against `supplier.knownAccounts` on
+  digits, and no history answers "not a change" rather than "a change", because a brand-new supplier
+  has changed nothing. The four outcome types are untouched.
+
+  The second half is where the account numbers went. `VERIFICATION_TEMPLATE` is the prompt with
+  `{{company}}`, `{{supplier}}`, `{{supplier_sentence}}`, `{{question}}` and `{{account_last4}}` where
+  the instruction's words go, and it is what `bun run voice-setup` uploads: the agent at ElevenLabs now
+  holds the five rules and no supplier, no amount and no account, asserted by a test that it carries no
+  two digits in a row at all. The per-call values travel as
+  `conversation_initiation_client_data.dynamic_variables`, so the words on the telephone are this
+  instruction's and not a sample's, which they used to be. `VERIFICATION_VARIABLE_DEFAULTS` rides along
+  as `dynamic_variable_placeholders` and is what a call with no variables says, which asks nothing and
+  names no account, and `renderVerificationText` throws rather than hand a telephone a string with
+  `{{supplier}}` still in it. `scripts/voice-agent.json` lost its sample instruction, which is where
+  the repository's one eighteen-digit placeholder CLABE lived, and `scripts/voice-setup.test.ts` is the
+  pin: no full CLABE and no run of five digits in the config or in the body that is uploaded.
+
+  Three real outbound calls on 2026-09-13 are the evidence, all to a teammate's own mobile on the
+  seeded hero line, and two of them found defects rather than confirming the build.
+  `conv_8201m2cnt2fbf949zxnawp7hktfs` reached a voicemail, was read as `no_answer` correctly, and sat
+  on the recording asking "sigue ahi" for the full hundred and fifty seconds, so the prompt now ends
+  the call on a recording and leaves no message. `conv_0901m2cp16q0feht603dbz1t8a5r` reached a person
+  who heard the change question, and the voice read `4611` as "cuatro mil seiscientos once", a
+  quantity, so `spokenLast4` spaces the digits. `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` is the call as it
+  ships: "termina en cuatro seis uno uno", the change asked, no other digit of any account spoken, an
+  off-topic request refused with "Mi funcion es unicamente confirmar los datos de pago", and an
+  outcome of `unclear` that is the honest reading of a person who said "Si, lo que es" and then went
+  off script. `docs/03-user-journey.md` branch 3, `docs/09-api.md`, `docs/10-demo-script.md` and
+  `docs/14-process.md#live-integrations-verified` carry it, and the voice id the cut list said was not
+  pinned is pinned.
+
 - **The pitch is a stand pitch now, and the clock is counted rather than claimed** (issue #75). The
   240-second stage version of `docs/11-pitch.md` is gone, because there is no stage: judging is
   continuous, the pitch happens standing at the table on the real app, and a video is only the backup.

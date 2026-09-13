@@ -13,7 +13,11 @@ import { describe, expect, test } from "bun:test";
 import type { HttpLike, VoiceError } from "./client";
 import { buildAgentBody, isE164, toTranscript, VoiceClient } from "./client";
 import { CONVERSATION_PAYLOAD } from "./fixtures";
-import { buildVerificationScript } from "./script";
+import {
+  buildVerificationScript,
+  VERIFICATION_TEMPLATE,
+  VERIFICATION_VARIABLE_DEFAULTS,
+} from "./script";
 
 interface Recorded {
   url: string;
@@ -120,6 +124,40 @@ describe("buildAgentBody", () => {
     expect(body.conversation_config).not.toHaveProperty("tts");
   });
 
+  /**
+   * The defaults exist so that an unfilled slot cannot reach a telephone as the
+   * literal text "{{supplier}}". Absent when nobody passed any, for the same
+   * reason the voice is absent: an empty object is a value, not a default.
+   */
+  test("puts the slot defaults where the dynamic-variable reference documents them", () => {
+    const body = buildAgentBody({
+      name: "verificacion",
+      systemPrompt: VERIFICATION_TEMPLATE.systemPrompt,
+      firstMessage: VERIFICATION_TEMPLATE.firstMessage,
+      dynamicVariableDefaults: VERIFICATION_VARIABLE_DEFAULTS,
+    });
+
+    const config = body.conversation_config as Record<string, unknown>;
+    const agent = config.agent as Record<string, unknown>;
+
+    expect(agent.dynamic_variables).toEqual({
+      dynamic_variable_placeholders: VERIFICATION_VARIABLE_DEFAULTS,
+    });
+  });
+
+  test("omits the slot defaults when there are none", () => {
+    const body = buildAgentBody({
+      name: "verificacion",
+      systemPrompt: "p",
+      firstMessage: "f",
+      dynamicVariableDefaults: {},
+    });
+
+    const config = body.conversation_config as Record<string, unknown>;
+
+    expect(config.agent).not.toHaveProperty("dynamic_variables");
+  });
+
   test("sends the voice and the duration cap when they are given", () => {
     const body = buildAgentBody({
       name: "verificacion",
@@ -196,7 +234,7 @@ describe("VoiceClient", () => {
     expect(result.agentId).toBe("agent-1");
   });
 
-  test("places the outbound call with the three documented fields", async () => {
+  test("places the outbound call with the three required fields", async () => {
     const { client, seen } = clientWith({
       body: {
         success: true,
@@ -226,6 +264,49 @@ describe("VoiceClient", () => {
       conversationId: "conv-1",
       callSid: "CA-synthetic",
     });
+  });
+
+  /**
+   * Issue #206. The supplier, the amount and the four digits reach one call as
+   * dynamic variables, which is what lets the agent the provider stores carry no
+   * account at all. The key is the one the outbound-call reference documents on
+   * `conversation_initiation_client_data`.
+   */
+  test("carries this instruction's words as dynamic variables", async () => {
+    const { client, seen } = clientWith({
+      body: { success: true, message: "ok", conversation_id: "conv-1" },
+    });
+
+    await client.startOutboundCall({
+      agentId: "agent-1",
+      agentPhoneNumberId: "phnum-1",
+      toNumber: "+528112345678",
+      dynamicVariables: SCRIPT.variables,
+    });
+
+    const body = seen[0]?.body as Record<string, unknown>;
+
+    expect(body.conversation_initiation_client_data).toEqual({
+      dynamic_variables: SCRIPT.variables,
+    });
+    expect(JSON.stringify(body)).not.toContain("012180001234567899");
+  });
+
+  test("sends no client data when there are no variables to send", async () => {
+    const { client, seen } = clientWith({
+      body: { success: true, message: "ok", conversation_id: "conv-1" },
+    });
+
+    await client.startOutboundCall({
+      agentId: "agent-1",
+      agentPhoneNumberId: "phnum-1",
+      toNumber: "+528112345678",
+      dynamicVariables: {},
+    });
+
+    expect(seen[0]?.body).not.toHaveProperty(
+      "conversation_initiation_client_data",
+    );
   });
 
   /** A malformed number is caught here so it does not cost a round trip. */

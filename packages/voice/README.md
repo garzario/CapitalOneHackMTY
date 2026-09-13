@@ -3,10 +3,11 @@
 The verification call.
 
 When the decision engine says `verify`, somebody still has to ask the supplier
-whether the account we are about to pay is theirs. This package is that phone
+whether the account change we received came from them. This package is that phone
 call: an ElevenLabs conversational agent that speaks Mexican Spanish, reads a
-script built from the payment instruction, and hands back a transcript that a
-deterministic parser turns into one of four outcomes.
+script built from the payment instruction, confirms the change and the last four
+digits of the account and never the whole CLABE, and hands back a transcript that
+a deterministic parser turns into one of four outcomes.
 
 It is control 5's sibling. The CEP proves who received money after a transfer;
 this call asks the supplier before one leaves. Neither of them releases a
@@ -24,27 +25,67 @@ Server only. `apps/web` never imports this package: the browser fallback at
 `/verify-call` talks to the same agent through the public widget, which needs no
 key at all.
 
-## The script, and the four rules it may not break
+## The script, and the five rules it may not break
 
 The script names the supplier's legal name from its CFDI, the amount, and the
-**last four digits** of the new account, then asks one question: is that account
-yours, yes or no.
+**last four digits** of the account the instruction wants to pay, then asks one
+question. When the supplier has already been paid on a different account the
+question is about the change: did you change your account, and is this one yours,
+yes or no. When there is no such account it asks only whether this one is theirs.
 
-1. **Only four digits of the account are ever spoken.** Reading a CLABE out loud
+1. **Only four digits of one account are ever spoken.** Reading a CLABE out loud
    to whoever answered a telephone hands them the account. Four digits are enough
-   for the real supplier to recognise their own and useless to anybody else. A
-   test asserts the full CLABE appears nowhere in the prompt, the first message or
-   the spoken lines.
-2. **Nothing is promised.** The call never says the payment will be made, or when,
+   for the real supplier to recognise their own and useless to anybody else. The
+   account the supplier has always been paid on is never read out either, not even
+   its four digits: the call says this account is not that one, which is the fact,
+   and reads no digits of it. Tests assert that no full CLABE and no run of five
+   digits appears in the prompt, the first message, the spoken lines, the dynamic
+   variables or the body `bun run voice-setup` uploads.
+2. **When the account changed, the call confirms the change.** "Is this account
+   yours" can be answered yes by somebody who opened it yesterday. "Did you change
+   your account, and is this one yours" cannot be answered yes by accident. Both
+   halves are one yes or no, because a call that asks two questions gets an answer
+   to one of them.
+3. **Nothing is promised.** The call never says the payment will be made, or when,
    or that it already went out. If asked, the agent says the payment is still
    under review and a person will follow up.
-3. **Nobody is accused.** No fraud, no suspicion, no impersonation. ADR-0002 fixes
+4. **Nobody is accused.** No fraud, no suspicion, no impersonation. ADR-0002 fixes
    the states as `comprobable` or `requiere_verificacion`, and an automated call
-   that accuses a supplier is the one way this product could do real damage.
-4. **No data is requested.** One yes or no. No account, no code, no password,
+   that accuses a supplier is the one way this product could do real damage. If
+   asked why we are calling, the agent says we confirm the account before paying
+   and that it is a normal step, and never that something looks wrong.
+5. **No data is requested.** One yes or no. No account, no code, no password,
    nothing personal. A call that asks for those is indistinguishable from the
    fraud it exists to catch, and a supplier who has been trained by it is worse
    off than before we called.
+
+Whether the account changed is not a flag a caller sets. `scriptForInstruction`
+reads it off `supplier.knownAccounts`: an account the supplier has been paid on,
+compared on digits so separators do not matter. No history answers "not a change"
+rather than "a change", because a brand-new supplier has changed nothing and
+saying otherwise would be a claim about a history that does not exist. The CLABE
+forensics control already raises `first_time_seen` and `new_supplier` on the
+screen where that belongs.
+
+## What the provider stores, and what travels per call
+
+The agent at ElevenLabs holds `VERIFICATION_TEMPLATE`: the rules and the guion
+with `{{company}}`, `{{supplier}}`, `{{supplier_sentence}}`, `{{question}}` and
+`{{account_last4}}` where the instruction's own words go. It carries no supplier,
+no amount and no account, and a test asserts it carries no two digits in a row at
+all. The values travel with each call as
+`conversation_initiation_client_data.dynamic_variables`, so an account number
+never sits in somebody else's dashboard waiting to be read, and two calls placed a
+minute apart cannot read each other's four digits.
+
+`VERIFICATION_VARIABLE_DEFAULTS` is uploaded alongside it as
+`dynamic_variable_placeholders`, and it is what the agent says if a call ever
+arrives with no variables: that we are confirming a payment, that the information
+is not complete right now, and that a person will follow up. It asks nothing and
+names no account. The reason it exists is the failure mode it prevents, which is a
+text to speech model reading the literal text `{{supplier}}` to a real person.
+`renderVerificationText` throws rather than return a string with a slot left in
+it, so that failure cannot reach a telephone from our side either.
 
 The Spanish is ASCII, with no accents and no inverted question marks, which is the
 convention every user-facing string in this repo already follows. The affected
@@ -110,11 +151,16 @@ What each page confirmed:
   `agent.language` (default `"en"`, so we send `"es"`) and `tts.voice_id` /
   `tts.model_id`. The reference documents a default `voice_id`; this package sends
   none unless the team picks one, because an absent key means "your default" and a
-  present one would be a voice nobody in this repo has heard.
-- **The outbound call** takes exactly `agent_id`, `agent_phone_number_id` and
-  `to_number`, and answers `success`, `message`, `conversation_id` (nullable) and
-  `callSid` (nullable). A refusal can arrive as `success: false` inside a 200,
-  which is why the client reads the flag and does not trust the status alone.
+  present one would be a voice nobody in this repo has heard. Slot defaults go in
+  `agent.dynamic_variables.dynamic_variable_placeholders`, documented at
+  https://elevenlabs.io/docs/agents-platform/customization/personalization/dynamic-variables,
+  which is also where the `{{name}}` syntax comes from.
+- **The outbound call** requires `agent_id`, `agent_phone_number_id` and
+  `to_number`, takes an optional `conversation_initiation_client_data` whose
+  `dynamic_variables` is a map of string to any, and answers `success`, `message`,
+  `conversation_id` (nullable) and `callSid` (nullable). A refusal can arrive as
+  `success: false` inside a 200, which is why the client reads the flag and does
+  not trust the status alone.
 - **The conversation** answers `conversation_id`, `agent_id`, `status` (one of
   `initiated`, `in-progress`, `processing`, `done`, `failed`), a `transcript`
   array of `{ role: "user" | "agent", message, time_in_call_secs }`, an `analysis`
@@ -135,9 +181,14 @@ What each page confirmed:
 - **`analysis.call_successful` is not used to decide anything.** It is the
   provider's own view of whether the conversation went well, which is not the
   question we are asking. Our answer comes from the words.
-- **No voice id is pinned.** The team has not listened to a Mexican Spanish voice
-  and chosen one, so `ELEVENLABS_VOICE_ID` is empty and the provider default
-  applies. Pick one, put the id in `.env`, and `bun run voice-setup` pushes it.
+- **The voice, now that one is pinned.** `ELEVENLABS_VOICE_ID` names a voice in
+  each local `.env`, it is on the agent, and it is what was heard on the three
+  calls of 2026-09-13. What is still not verified is how it reads anything beyond
+  the sentences those calls exercised. One thing it got wrong is fixed here rather
+  than hoped about: given `4611` it said "cuatro mil seiscientos once", a quantity,
+  so `spokenLast4` spaces the digits and the prompt says to read them one by one.
+  The call of `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` is where "cuatro seis uno uno"
+  was heard.
 - **The transcription itself.** The parser reads whatever the speech to text
   returns. A missed "no" is a wrong outcome, which is the strongest argument for
   the rule that no outcome releases a payment on its own.
@@ -145,7 +196,7 @@ What each page confirmed:
 ## Running it
 
 ```
-bun run voice-setup --dry-run     # prints the script and the exact body, no key
+bun run voice-setup --dry-run     # prints the template and the exact body, no key
 bun run voice-setup               # creates or updates the agent, prints the ids
 ```
 
@@ -153,7 +204,11 @@ bun run voice-setup               # creates or updates the agent, prints the ids
 reviewed by the team before a supplier hears it. Without it the script reads
 `ELEVENLABS_API_KEY`, creates the agent (or updates the one in
 `ELEVENLABS_AGENT_ID`), and prints `ELEVENLABS_AGENT_ID` and every
-`ELEVENLABS_PHONE_NUMBER_ID` the account has.
+`ELEVENLABS_PHONE_NUMBER_ID` the account has. `scripts/voice-agent.json` is the
+config and it holds the company name, the language, the voice and the duration
+cap. It holds no sample instruction: there is nothing to render a sample against
+any more, which is why no eighteen-digit account appears in it or in anything this
+script uploads, and `scripts/voice-setup.test.ts` is what keeps that true.
 
 The API side is `POST /api/v1/instructions/:id/verify-call`, with `GET` on the
 same path returning the script and nothing else. Without the three variables the

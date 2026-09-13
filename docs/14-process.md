@@ -164,19 +164,44 @@ was exercised against the real provider, three of them on 2026-09-12 and the pay
 
 | | |
 |---|---|
-| What ran | Two real outbound calls, 2026-09-12 |
+| What ran | Two real outbound calls on 2026-09-12, and three more on 2026-09-13 for issue #206 |
 | Agent | `agent_3501m2ah6erkf46rxdmhy4xtsexw` |
 | Dialled from | The team's own imported Twilio number, the imported Twilio number (Monterrey local, kept out of the repository) |
-| Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product |
-| Conversation ids | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
+| Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product, and the number is in nobody's file here: the 2026-09-13 calls read it back out of the provider's own metadata for the 2026-09-12 ones |
+| Conversation ids, 2026-09-12 | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
+| Conversation ids, 2026-09-13 | `conv_8201m2cnt2fbf949zxnawp7hktfs`, `conv_0901m2cp16q0feht603dbz1t8a5r` and `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` |
 | The first call | 18 seconds, ended by the remote party, transcript captured |
-| Cost | USD 0.016, as the provider reports it |
+| Cost | USD 0.016 for the first call, as the provider reports it |
 
 This is the evidence the gate table in `docs/11-pitch.md` was waiting for, so the live-call row there
 is ticked and points at this section: "ya llamamos" is now a sentence about something that happened.
-It ticks nothing else. Both open items on this integration are still in the cut list below, the voice
-id that is not pinned and the `verification_call` event that reaches the ledger and the SSE stream
-without being rendered in the instruction panel.
+It ticks nothing else. One open item on this integration is still in the cut list below, the
+`verification_call` event that reaches the ledger and the SSE stream without being rendered in the
+instruction panel.
+
+#### What the three calls of 2026-09-13 settled, issue #206
+
+All three were placed on the seeded hero line `INS-2026-09-07-047`: Maquinados Industriales Regios SA
+de CV, MXN 38,417.48, an account ending 4611 against the one account that supplier has been paid on.
+`scriptForInstruction` read the change off `knownAccounts` rather than being told, so the wording was
+derived and not typed.
+
+| Call | What happened | What it settled |
+|---|---|---|
+| `conv_8201m2cnt2fbf949zxnawp7hktfs` | 150 seconds, reached a voicemail, 28 turns. `parseVerificationOutcome` read `no_answer` off the greeting | The `no_answer` path works against a real answering machine, and it exposed a defect: the agent asked "sigue ahi" for the whole duration cap instead of hanging up. The prompt now says to end the call on a recording and leave no message |
+| `conv_0901m2cp16q0feht603dbz1t8a5r` | 41 seconds, a person answered and heard the change question | The change question reaches a human and is answerable. It exposed the second defect: given `4611` the voice said "cuatro mil seiscientos once", a quantity. The four digits now go out spaced |
+| `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` | 68 seconds, a person answered, 15 turns, outcome `unclear` | The call as it ships. The agent said "termina en cuatro seis uno uno", asked "si ustedes cambiaron su cuenta y si esa cuenta es de ustedes", read no other digit of any account, and refused an off-topic request with "Mi funcion es unicamente confirmar los datos de pago" |
+
+The outcome of the third call is `unclear` and that is the honest reading, not a bug: the person
+answered "Si, lo que es" and then went off script, and no clause of that matches a confirmation
+phrase, so the parser falls through to `unclear` with their last sentence as the quote. A bare "si"
+has never been a confirmation in this package and `unclear` releases nothing.
+
+What the provider stores for this agent is now the template with its slots empty, which can be
+checked in the ElevenLabs dashboard: `GET /v1/convai/agents/{id}` answers a prompt whose
+`first_message` is "Hola, buen dia. Le llamo de parte de {{company}}..." and which carries no two
+digits in a row anywhere. The supplier, the amount and the four digits travel per call as
+`conversation_initiation_client_data.dynamic_variables`.
 
 ### The extraction, Gemini
 
@@ -403,7 +428,7 @@ and would have cost the demo.
 | The composition report does not reach the HTTP contract | PR #117, "Deliberately not done" | Adding `controls: { ran, skipped }` to the intake response would have changed `docs/09-api.md` and `apps/web` while three people were editing those files. It is additive and it is its own PR |
 | The `sat_69b` detector was not fed the real committed SAT list, a cut PR #133 then reversed | PR #119 made the cut, PR #133 undid it, and the reasoning sits in `apps/api/src/pipeline.ts` next to the wiring | ADR-0002 forbids a real RFC sitting next to fabricated evidence, which is why #119 left the real list read-only behind the lookup box. #133 wired it in once the argument was written down: every seeded supplier RFC is synthetic, so a real row cannot meet a fabricated invoice, and what it buys is a control that knows what the lookup box on the next screen knows. `simulatePublication` still refuses any RFC without the `SYN` prefix, so the publication the demo replays stays invented |
 | The `verification_call` event is not rendered in the instruction panel | PR #118, "Deliberately not done" | `InstructionScreen.tsx` and `Findings.tsx` belong to the UI front and were being edited at that hour. The event is already on `GET /api/v1/ledger` and on the SSE stream, so the panel needs no API change when it is built |
-| No ElevenLabs voice id is pinned | PR #118 | Nobody on the team had listened to a Mexican Spanish voice and chosen one, so `ELEVENLABS_VOICE_ID` is empty and the provider default applies rather than an id this repo invented |
+| No ElevenLabs voice id was pinned, until the calls of 2026-09-13 | PR #118, closed by #206 | Nobody on the team had listened to a Mexican Spanish voice and chosen one, so the provider default applied rather than an id this repo invented. `ELEVENLABS_VOICE_ID` now names one in each local `.env`, it is on the agent, and it is the voice heard on the three calls of 2026-09-13. The id stays out of the repository like every other env value |
 | Per-transaction basis points, and lead generation to a lender | `docs/05-business-model.md#revenue-lines` | The first makes a subscriber pay twice for one payment run. The second turns a control into an origination channel and invites the credit regime ADR-0002 deliberately stayed outside of |
 | The white-label licence to a financial institution | `docs/05-business-model.md#revenue-lines` | Real, and on a procurement cycle that cannot start from a hackathon. It is the year-two line, not the headline |
 

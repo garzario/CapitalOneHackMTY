@@ -23,7 +23,7 @@ flowchart TD
   D -->|"No finding"| F
   D -->|"False positive"| FP["Release with reason<br/>Keep the override as a hard negative"] --> F
   D -->|"Partial name match"| PM["Confirm through an independent channel<br/>Do not silently convert partial to match"] --> E
-  D -->|"Legitimate bank change"| LC["Verify the new account once<br/>Preserve the establishing evidence"] --> E
+  D -->|"Legitimate bank change"| LC["Verify the new account once<br/>Confirm the change and the last four digits by telephone<br/>Preserve the establishing evidence"] --> E
   E --> F --> G
 ```
 
@@ -123,12 +123,24 @@ is absent from `knownAccounts`.
 2. Lupita presses **Verificar cuenta** on the instruction. The cent leaves through the rail, the
    CEP comes back under the clave the rail recorded, and **CEP** at `#/cep` shows its beneficiary
    beside the CFDI legal name with the seal state the server can prove.
-3. After a match and human decision, the account enters the beneficiary registry with
+3. If she wants the supplier's own word as well, **Llamada de verificacion** at `#/verify-call`
+   rings them, or hands her the script to read on her own telephone. The call confirms two things
+   and asks for nothing: that the account changed, and the **last four digits** of the new one. It
+   never reads the whole CLABE, and it never reads any digit of the account the supplier has always
+   been paid on. The outcome reaches the ledger as `verification_call` with those four digits and
+   the sentence it was read from, and it releases nothing on its own.
+4. After a match and human decision, the account enters the beneficiary registry with
    `establishedBy: "cep"` and she selects **Liberar** on the instruction.
-4. The same account carries its evidence into the next run, so the legitimate change does not
+5. The same account carries its evidence into the next run, so the legitimate change does not
    create an identical exception every Thursday.
 
 Emotion moves from -2, concern, to 0, checking, to +2, evidence established.
+
+Why the call asks about the change and not only about the digits: "is this account yours" can be
+answered yes by whoever opened it yesterday, and "did you change your account, and is this one
+yours" cannot be answered yes by accident. It is still one yes or no, because a call that asks two
+questions gets an answer to one of them. `packages/voice/README.md` carries the five rules the
+script may not break and the tests that pin them.
 
 ## Why the branches matter
 
