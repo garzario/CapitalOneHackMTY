@@ -1060,6 +1060,44 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- **The pitch is a stand pitch now, and the clock is counted rather than claimed** (issue #75). The
+  240-second stage version of `docs/11-pitch.md` is gone, because there is no stage: judging is
+  continuous, the pitch happens standing at the table on the real app, and a video is only the backup.
+  What replaces it is eleven beats in the order the screen tells the story, the laptop shut for the
+  first forty-four seconds, and the numbers, the competition, the model and the guarantee afterwards at
+  one breath each. The hook now carries article 49 Bis beside 69-B, which is the clause that makes the
+  retroactive clock point at the buyer and at the buyer's own sello digital, and it closes on the
+  sentence `docs/11` has asked for since the eight-minutes sentence was banned: el jueves Lupita va a
+  apretar enviar noventa y dos veces, no la hacemos mas rapida, le quitamos de encima los seis pagos
+  que no se deshacen.
+
+  **The clock is arithmetic on a word count and the file says so.** 786 spoken words at 150 words a
+  minute is 5:14, which is fourteen seconds over the ceiling, so rung 1 of a pre-declared ladder comes
+  off by default and lands it at 4:59. The ladder has six rungs with measured savings per rung down to
+  3:25, ten `+` clauses that go back in when a judge stays, and three things that never come off at any
+  rung: the hook, the synthetic-data sentence, and the beat where a screenshot becomes a payment
+  instruction. `docs/14-process.md` gains the protocol that replaces the arithmetic with two stopwatch
+  readings, one clean run and one against a teammate playing a hostile judge, with what gets logged per
+  run and the rule for reading the ladder off the total.
+
+  **`docs/10-demo-script.md` gains the operating sheet** with the exact click, the on-screen result,
+  the Spanish said over it, the dependency and the fallback per beat, above the four-minute reference
+  that still owns every id and every figure. Two of its rules inverted with this merge and both are
+  written the new way: the plaza fires on the seeded hero line since #233 moved the account to
+  `012180102091764611`, so the two places are named out loud; and the re-scored line reads
+  `cancelado` through `sat_definitive` since #204, so the word is true on a merged build. `docs/12`
+  gains twenty-two Q&A cards, one per question the two Capital One tables actually asked, each answer
+  under sixty words in Spanish with the owner among the four and the long section it compresses; a card
+  that still gets asked after the pitch is recorded as a defect in the pitch and not in the card.
+
+  **`docs/print/team-card.html` carries the order of the pitch** instead of the six objections, which
+  moved to the cards and live on a phone: the hook word for word, the three families of banned
+  sentence, the eleven beats with their clock and their presenter, the ten numbers allowed out loud,
+  four competitors first and seven on request, and the four guarantee layers with the empty menu slot
+  and the triage that stops a tired presenter improvising a letter into it. Re-measured headless, one
+  A4: `/Count 1`, `/MediaBox [0 0 594.95996 841.91998]`, zero overflow, and the last block at 1000
+  against a limit of 1063.
+
 - `docs/10-demo-script.md` is true against the app again (issue #79). Beat 2 says seven months of
   replay because that is what the seeded ledger holds and what the screen shows; beat 5 carries the
   thirty-five case numbers and stops claiming the labels were written by someone who had not read
