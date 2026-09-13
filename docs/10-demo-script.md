@@ -241,7 +241,8 @@ the difference between looking real and looking like a prototype.
 - [ ] The printed card is on the table: QR code, the CLABE to photograph, the clave de rastreo, the real RFC
 - [ ] Notifications off, Do Not Disturb on
 - [ ] Browser zoom at 100 percent, or a deliberate larger value that is the same every time
-- [ ] The local fallback instance is already running on the second port, seeded
+- [ ] The local fallback instance is already running on the second port, seeded, and
+      `bun run offline` was green on this machine today
 - [ ] Battery above 50 percent or plugged in
 - [ ] The recorded video is on the laptop and on a phone, playable with no network
 - [ ] `docs/12-judge-qa.md` open on a phone
@@ -250,11 +251,50 @@ the difference between looking real and looking like a prototype.
 
 Three layers, in this order. Conference Wi-Fi dying is the expected case, not the unlucky one.
 
+**Rehearse it with one command.** `bun run offline` runs `bun run doctor` and then the whole demo
+with `fetch` replaced by one that throws on anything that is not loopback. Nothing is guessed and no
+host list is maintained: a call that leaves the machine fails with its URL in the message, which is
+the failure and the diagnosis at once. The local Postgres keeps working, because it speaks its own
+protocol over a socket and never touches `fetch`, and that is the point rather than an exception.
+
+The keys stay in `.env` on purpose. A dead uplink is not a missing key and the two produce different
+failures: a server with no `GEMINI_API_KEY` refuses in a path we wrote, a server whose uplink is gone
+has a key, tries, and waits for a socket that never answers. Only the second happens at Arena
+Borregos.
+
+What it cannot do is unplug the machine, so once, before the room fills up, turn the Wi-Fi off and
+run `bun run demo` again. The guard replaces `fetch`, and a dependency that opens a raw socket walks
+straight past it.
+
+`bun run doctor` ends with the readiness line, and it is the one to read:
+`offline demo: ready, this laptop can run the demo with the network unplugged`. It goes red when
+the database is unreachable, the migrations are behind or the SentryOne tables are empty, which are
+the three things that actually stop an offline demo.
+
+**From a cold clone, measured on 2026-09-13** on a laptop that already had bun 1.3.11 and
+Postgres 18. The repository steps are seconds; the prerequisites are the part that is not, and
+neither was measured on a clean machine, so install them the night before rather than in the room.
+
+| Step | Command | Measured |
+|---|---|---|
+| Clone | `git clone --depth 1 --branch dev` | 2.3 s, 20 MB |
+| Install, empty bun cache | `bun install --frozen-lockfile` | 2.9 s, 192 packages |
+| Database | `createdb sentryone && bun run migrate` | 0.4 s, 9 of 12 applied, 3 need timescaledb and skip |
+| Seed | `bun run seed` | 3.1 s |
+| Demo, uplink closed | `bun run demo` | 8.9 s, seven beats green |
+
+Under twenty seconds of machine time end to end, which is what the ten-minute claim in issue #71
+rests on. The `.env` needs `DATABASE_URL`, `ALLOW_SEED=1` and `SEED=sentryone` and nothing else for
+this path: no key in that file is required to reach `demo path is green`.
+
 1. **Local mode.** A second instance already running against the local Postgres 18 on 5432, seeded,
    on a second port, with the SAT list snapshot and the CEP fixture on disk. Same SQL, same driver,
    same migrations, per ADR-0003. The only thing that changes is which host the browser points at.
    The consortium snapshot is in that database too, because `0009_consortium_snapshot.sql` applies on
    both paths, so the network chip survives a dead uplink. Snowflake is never on the demo path.
+   The web has its own layer under this one: `?data=mock` serves the whole app from the generated
+   snapshot in `apps/web/src/lib/mock-data.ts` and opens no connection at all, which covers the API
+   itself dying rather than the uplink.
 2. **Recorded video.** The backup demo video on the laptop and on a phone, playable with no network.
    Capital One confirmed a backup video is allowed.
 3. **The engine itself.** Open a detector next to its test file and run `bun test` with the Wi-Fi

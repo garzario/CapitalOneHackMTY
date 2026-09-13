@@ -55,6 +55,7 @@ function caseOf(): HoldoutCase {
     },
     expectedFindings: [{ detector: "clabe_forensics" }],
     expectedAction: "verify",
+    expectedLevel: "precaucion",
   };
 }
 
@@ -138,5 +139,37 @@ describe("runEngine", () => {
 
     expect(withMirror).toBeDefined();
     expect(composeInputFor(caseOf()).bankMirror).toEqual([]);
+  });
+
+  it("derives the level from the same function the screens call", () => {
+    const [prediction] = runEngine([caseOf()], {
+      detectors: adapterOf([findingOf({ severity: "critical" })]),
+    });
+
+    expect(prediction?.level).toBe("alerta");
+  });
+
+  it("puts a case with nothing open at confiable", () => {
+    const [prediction] = runEngine([caseOf()], { detectors: adapterOf([]) });
+
+    expect(prediction?.level).toBe("confiable");
+  });
+
+  it("gives every labelled case a level, so no case is missing from the matrix", () => {
+    for (const prediction of runEngine(HOLDOUT_CASES)) {
+      expect([prediction.caseId, prediction.level !== undefined]).toEqual([
+        prediction.caseId,
+        true,
+      ]);
+    }
+  });
+
+  it("hands the 49 Bis rows through, and an absent list through as empty", () => {
+    const withList = HOLDOUT_CASES.find(
+      (holdout) => (holdout.input.sat49BisEntries ?? []).length > 0,
+    );
+
+    expect(withList).toBeDefined();
+    expect(composeInputFor(caseOf()).sat49BisEntries).toEqual([]);
   });
 });

@@ -336,6 +336,10 @@ export const decisionSchema = z.object({
 /**
  * The level one payment is read at, and never a number.
  *
+ * `metricsSchema` reads it too, because `Metrics.perLevel` of issue #201 reports
+ * the blind evaluation the way a clerk reads the screen. One enum for both, so a
+ * fourth word could not be added to one of them alone.
+ *
  * Three words. ADR-0009 is binding on this and docs/09-api.md says it twice: the
  * expected-loss arithmetic is an upper bound on the evidence and says so in its
  * own comment, so a figure next to a supplier's name would be a precision nobody
@@ -561,6 +565,17 @@ export const metricsSchema = z.object({
       tp: z.number().int().nonnegative(),
       fp: z.number().int().nonnegative(),
       fn: z.number().int().nonnegative(),
+    }),
+  ),
+  /** The same evaluation read the way a clerk reads the screen, per level. */
+  perLevel: z.record(
+    confidenceSchema,
+    z.object({
+      expected: z.number().int().nonnegative(),
+      predicted: z.number().int().nonnegative(),
+      agreed: z.number().int().nonnegative(),
+      precision: z.number().min(0).max(1),
+      recall: z.number().min(0).max(1),
     }),
   ),
 }) satisfies z.ZodType<Metrics>;

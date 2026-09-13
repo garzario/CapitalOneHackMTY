@@ -489,5 +489,6 @@
       "because": "The share of invoiced outflow jumps far past both the floor and the jump the detector requires, and concentration is the signal a single-invoice threshold cannot see."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

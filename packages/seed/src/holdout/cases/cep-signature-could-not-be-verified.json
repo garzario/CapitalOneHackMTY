@@ -69,5 +69,6 @@
       "because": "The account holder agrees with the CFDI, so nothing is provably wrong, but the seal did not validate under any candidate scheme and the evidence is therefore incomplete."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

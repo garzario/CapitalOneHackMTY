@@ -13,12 +13,7 @@
 
 import type { Finding } from "@hackmty/core";
 import { useCallback, useState } from "react";
-import {
-  Amount,
-  Field,
-  SectionHeader,
-  SyntheticMark,
-} from "../components/Primitives";
+import { Amount, Field, SyntheticMark } from "../components/Primitives";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -82,10 +77,16 @@ type VerifyState =
 const EXAMPLE: CepVerification = mockCepVerification();
 
 export function CepScreen() {
-  /* A link from the instruction detail carries the folio, so the verification
-     panel loads itself and nobody retypes an id in front of a judge. The key
-     remounts the panel when the link changes, which is what resets its state. */
-  const fromLink = useRouteQuery().get("instruction") ?? "";
+  /* Two ways to arrive, and this screen answers both. A beneficiary finding
+     links here with the supplier it is about, which fills the field and stops
+     there: the verification is a request against Banxico and a person decides
+     when it goes. The instruction detail links here with the folio, and then
+     the panel loads itself so nobody retypes an id in front of a judge. The key
+     remounts the panel when that link changes, which is what resets its state. */
+  const query = useRouteQuery();
+  const prefilledRfc = query.get("rfc") ?? "";
+  const fromLink = query.get("instruction") ?? "";
+
   const loadRegistry = useCallback(
     (signal: AbortSignal) => getBeneficiaries({ signal }),
     [],
@@ -96,7 +97,7 @@ export function CepScreen() {
   );
 
   const [claveRastreo, setClaveRastreo] = useState("");
-  const [supplierRfc, setSupplierRfc] = useState("");
+  const [supplierRfc, setSupplierRfc] = useState(prefilledRfc);
   const [xml, setXml] = useState("");
   const [state, setState] = useState<VerifyState>({ status: "idle" });
 
@@ -144,10 +145,15 @@ export function CepScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Comprobante Electronico de Pago"
-        description="Un SPEI de un centavo viaja en la misma corrida que el pago grande, el banco devuelve la clave de rastreo y Banxico firma el CEP que dice a nombre de quien esta la cuenta. Se compara con la razon social del CFDI, el motor libera o bloquea el pago grande, y la cuenta queda en el registro de beneficiarios verificados."
-      />
+      {/* The top bar carries the page's name, so this is the sentence under it
+          and not a second title. The cent, the clave, the seal and the holder,
+          in the order they happen. */}
+      <p className="muted max-w-prose t-sm">
+        Un SPEI de un centavo viaja en la misma corrida que el pago grande, el
+        banco devuelve la clave de rastreo y Banxico firma el CEP que dice a
+        nombre de quien esta la cuenta. Se compara con la razon social del CFDI,
+        y la cuenta queda en el registro de beneficiarios verificados.
+      </p>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] [&>*]:min-w-0">
         <div className="flex flex-col gap-5">
