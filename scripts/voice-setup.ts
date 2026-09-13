@@ -12,16 +12,19 @@
  * `conversation_config` that would be sent, with no key and no network, which
  * is how the team reads the wording before a real supplier hears it.
  *
- * The system prompt is the one in `packages/voice/src/script.ts`, rendered
- * against the sample instruction in the config. The live call replaces that
- * sample per instruction, so what is shown here is the shape and the rules, not
- * the supplier and the amount.
+ * The system prompt is `VERIFICATION_TEMPLATE` in `packages/voice/src/script.ts`
+ * with its `{{name}}` slots still empty. No supplier, no amount and no account
+ * is ever pushed to the provider: those travel per call as dynamic variables, so
+ * what this script uploads is the rules and nothing about anybody's money.
+ * `VERIFICATION_VARIABLE_DEFAULTS` goes with it, as the sentence the agent says
+ * if a call ever arrives with no variables at all.
  */
 
 import { resolve } from "node:path";
 import {
   buildAgentBody,
-  buildVerificationScript,
+  VERIFICATION_TEMPLATE,
+  VERIFICATION_VARIABLE_DEFAULTS,
   VoiceClient,
   VoiceError,
 } from "../packages/voice/src/index.ts";
@@ -31,16 +34,12 @@ const DEFAULT_CONFIG = `${ROOT}/scripts/voice-agent.json`;
 
 interface AgentFile {
   name?: string;
+  /** Fills the `{{company}}` slot when a call sends no variables of its own. */
   companyName?: string;
   language?: string;
   maxDurationSeconds?: number;
   voiceId?: string;
   ttsModelId?: string;
-  sample?: {
-    supplierLegalName?: string;
-    clabe?: string;
-    amount?: number;
-  };
 }
 
 function flag(name: string): boolean {
@@ -75,20 +74,18 @@ const configPath = option("config") ?? DEFAULT_CONFIG;
 const config = await readConfig(configPath);
 const dryRun = flag("dry-run");
 
-const script = buildVerificationScript({
-  supplierLegalName:
-    config.sample?.supplierLegalName ?? "Proveedor Sintetico, S.A. de C.V.",
-  clabe: config.sample?.clabe ?? "012180001234567899",
-  amount: config.sample?.amount ?? 184_300,
-  ...(config.companyName === undefined
+const defaults = {
+  ...VERIFICATION_VARIABLE_DEFAULTS,
+  ...(config.companyName === undefined || config.companyName === ""
     ? {}
-    : { companyName: config.companyName }),
-});
+    : { company: config.companyName }),
+};
 
 const agentConfig = {
   name: config.name ?? "SentryOne, verificacion de cuenta",
-  systemPrompt: script.systemPrompt,
-  firstMessage: script.firstMessage,
+  systemPrompt: VERIFICATION_TEMPLATE.systemPrompt,
+  firstMessage: VERIFICATION_TEMPLATE.firstMessage,
+  dynamicVariableDefaults: defaults,
   ...(config.language === undefined ? {} : { language: config.language }),
   ...(config.voiceId === undefined || config.voiceId === ""
     ? {}
@@ -103,9 +100,12 @@ const agentConfig = {
 
 console.log(`config      ${configPath}`);
 console.log("");
-console.log("The agent would say, on a sample instruction:");
-for (const line of script.spoken) {
-  console.log(`  ${line}`);
+console.log("The agent is stored with the slots empty:");
+console.log(`  ${VERIFICATION_TEMPLATE.firstMessage}`);
+console.log("");
+console.log("And with these values for a call that sends none of its own:");
+for (const [name, value] of Object.entries(defaults)) {
+  console.log(`  {{${name}}} ${value}`);
 }
 console.log("");
 
