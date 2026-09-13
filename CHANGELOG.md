@@ -609,6 +609,58 @@ then the screens, then the narrative, then the plumbing.
   column so the roster gets a column of its own, and `docs/print/README.md` gains the headless
   re-measurement, because `.page` clips silently and a PDF with one page is not evidence that nothing
   was cut.
+
+- The evidence behind the article 49 Bis coverage, taken back to the SAT, the DOF and the compiled
+  statute and made reproducible by somebody who was not there when it was written (issue #180). The
+  facts all held: the committed 69-B snapshot was downloaded again and is byte for byte the file the
+  SAT serves, same 4566277 bytes and same `Last-Modified` of 2026-01-22, so the counts
+  `official.test.ts` asserts are counts of the live file, and `packages/sat/src/snapshot/README.md`
+  now carries its `sha256` and the one-line command that repeats the comparison. Article 49 Bis
+  fraccion X reads as the docs say, forty-five business days to publish, thirty NATURAL days for the
+  buyer to file the complementary return and then the restriction of the buyer's own certificado de
+  sello digital under 17-H Bis fraccion XIV, all of it added by the decree of DOF 07-11-2025 whose
+  Transitorio Primero sets 1 January 2026; the SAT open data catalogue still carries only articles 69,
+  69-B and 69-B Bis; and all fourteen DOF oficios were opened one by one, each naming exactly one
+  taxpayer, the notification dates written `DD/MM/YYYY` in the first seven and `06 de agosto de 2026`
+  in the last seven with the change between oficios 24291 and 24292, exactly as `dates.ts` says.
+  **What did not hold was the citation itself, twice over.** The DOF search was cited as
+  `https://dof.gob.mx/busqueda_detalle.php`, which answers `302 Found` to `/Error_BS.php`: a bare link
+  to a form nobody can open, handed to a clerk in the lookup answer as the URL to check the
+  publications with. And the phrase was written without its accents, `fraccion X del articulo 49 Bis`,
+  which the DOF full-text search answers with **zero results** where `fracción X del artículo 49 Bis`
+  answers fourteen. Together those two would have read as "the list is empty" to the next person who
+  checked. `ART_49BIS_DOF_SEARCH_URL` is now the search with its query string and the accents
+  percent-encoded, a new test fails if it goes back to the bare page, and the trap is written down in
+  `packages/sat/src/snapshot/README.md`, `docs/04-market.md` source 46 and `docs/06-regulatory-privacy.md`.
+  One legal sentence was also an addition rather than a reading: fraccion XI does not refer anything to
+  the Ministerio Público, it says the SHCP "procederá penalmente" in the terms of article 113 Bis,
+  which itself requires a querella from the SHCP and names no other body, so the three places that said
+  otherwise now quote the statute. Article 29-A fraccion IX is quoted as it reads, "Amparar operaciones
+  existentes, verdaderas o actos jurídicos reales". Two blanket sentences about
+  `art49bis-fixture.csv` were true of the accepted rows only and now say so: one row carries
+  `XXXXXXXXXXXX` the way the SAT redacts an RFC and is rejected with its line number, and one row has
+  an empty name and falls back to its own RFC, which is the pair the test `names nobody real` asserts.
+  The lookup and the sweep were also run through the API over the memory repository: a real 69-B RFC
+  answers from the committed list with its three dated situations, a real 49 Bis taxpayer gets
+  `answered: false` with the coverage reason rather than a clean bill, a `SYN` RFC on neither list
+  answers empty with both lists named, `POST /api/v1/sat/publish` still refuses a non-synthetic RFC
+  with a `400`, and the simulated sweep prices MXN 404,152.59 over 24 paid invoices, the number
+  `docs/10-demo-script.md` states.
+
+- `bun run scrub` printed a remediation nobody could act on, and the test count three documents quote
+  had drifted. A `branch` finding said "its author amends and force-pushes that branch", which is
+  impossible when the branch was merged and deleted on the remote weeks or minutes ago: `git rev-list
+  --all` walks remote-tracking refs, so a clone that has not run `git fetch --prune` keeps reporting a
+  real `Co-authored-by` trailer on a commit no remote branch contains, and `bun run release-check`
+  fails on it with no way forward. The finding now prints the three commands that identify and clear
+  that case, a commit-message finding prints a remediation at all, and the header says the same. The
+  comment in `.githooks/pre-commit` names the `Co-authored-by` trailer it exists to prevent again,
+  which the shape change in #187 made safe and which is how `.githooks/commit-msg` has always read it.
+  `docs/01-rubric-mapping.md` and `README.md` said 1,670 tests across 97 files, and `README.md` said
+  109 database cases skip, where `bun test` answers 1,725 passing and 111 skipping across 99 files.
+  The three documents that quote a count, those two and the table in `docs/11-pitch.md`, were read off
+  one run after merging `origin/dev`, so they agree with each other and with the case this branch adds.
+
 - Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
   things the running product does not do, found by taking each claim to the code and to `curl`
   (issue #171). The verification-call deadline is one day and not three: `HOLD_WINDOW_DAYS` is
