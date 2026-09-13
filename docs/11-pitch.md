@@ -77,6 +77,10 @@ than being corrected.
 | The buyer's window | 30 days from the publication | CFF article 69-B, `docs/06` section 3.1 |
 | How long a payment stays stopped | 3 days for a hold, 1 day for a verification, measured from the decision | `EXPECTED_DELAY_DAYS` in `packages/core/src/decision.ts`, reused by `holdWindow` in `hold.ts` so the delay the arithmetic charged for and the deadline on screen are one number |
 | Firms in the target band | About 246,000 Mexican firms of 11 to 250 people | INEGI CE 2024, `docs/04-market.md` source [1] |
+| The first segment, the one the GTM attacks | **6,476** establishments of 11 to 250 people in Nuevo Leon in manufacturing, wholesale trade and construction, **6,114** of them in the metropolitan municipalities, and **about 2,312** after INEGI's blunt 35.7 percent formality rate. Say the 6,476 before the 246,000, always: the national figure is the TAM | `docs/04-market.md#where-the-segment-actually-is`, source [48], counted by us from the DENUE Nuevo Leon file and reproducible in one filter. The formality rate is source [1] and is deliberately too low |
+| The reseller denominator | **143 of the 737** accounting and audit units in Nuevo Leon employ 11 to 250 people, and 140 of the 143 are metropolitan. The year-one target of 25 firms is 17.5 percent of the 143 | `docs/04-market.md` source [48], and `docs/05-business-model.md#from-month-6-accounting-firms-as-resellers-on-the-mxn-3900-plan`. Never quote the 16,356 national units as the target: that denominator makes the plan look like a rounding error |
+| The price anchor on the despacho side | 69b.mx `Corporativo` at **MXN 1,999 per month**, "Para equipos grandes y despachos", unlimited monitored RFCs and up to 5 users. Our MXN 3,900 firm plan is **1.95 times** it, and the whole argument for the difference is that theirs monitors a list while ours decides a payment | `docs/04-market.md` source [7], re-read 2026-09-12 in the evening |
+| The only customer count either competitor publishes | Tesio, "+2,400 contadores automatizan con Tesio", on its own home page, self-reported and unaudited. It is evidence that despachos buy software of this shape, and it is said as theirs, never as a market size and never as a share we are taking | `docs/04-market.md` source [8]. Neither competitor publishes a reseller, partner or affiliate programme, so say our channel is our bet |
 | TAM, SAM, SOM | MXN 2,655 million, MXN 948 million, MXN 12.1 million per year | `docs/04-market.md#sizing`, bottom-up, entities times price |
 | Our price | MXN 899 per company per month; MXN 3,900 per month for an accounting firm with up to 20 client companies, MXN 195 each | `docs/05-business-model.md` |
 | The price anchor on the list side | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
@@ -333,20 +337,40 @@ Optional clause, only if `bun run eval` was run within the hour and the screen i
 no coinciden estan en la tabla con su argumento." Cut it if the number on the screen is not the
 number in your mouth.
 
-**3:25, market, model and regulation.** One sentence each, from the numbers table above.
+**3:25, market, model and regulation.** One sentence each, from the numbers table above. The market
+sentence is the narrowed one, and the order inside it is binding: the segment first, the national
+figure second and labelled as the total. Opening with 246,000 is what a second Capital One panel asked
+us to stop doing on the evening of 2026-09-12, because a number that size answers how many could buy
+and not who we are selling to on Monday.
 
-> Doscientos cuarenta y seis mil empresas mexicanas de once a doscientos cincuenta personas, y el
-> tamano se construye de abajo hacia arriba, entidades por precio, con cada insumo citado. Cobramos
-> ochocientos noventa y nueve pesos al mes por empresa, y tres mil novecientos al despacho contable
-> que trae veinte; las anclas publicas del mercado son ciento noventa y nueve pesos al mes por
-> monitorear una lista y de nueve a dieciocho pesos por verificar una cuenta, y lo que cobramos es la
-> decision que junta las dos. Y no somos entidad regulada: no custodiamos fondos, no ejecutamos
-> transferencias y nada se rechaza sin que una persona lo decida.
+> Seis mil cuatrocientas setenta y seis empresas de once a doscientos cincuenta personas en Nuevo
+> Leon, en manufactura, mayoreo y construccion, contadas una por una en el directorio de unidades
+> economicas del INEGI, seis mil ciento catorce de ellas en el area metropolitana, y alrededor de dos
+> mil trescientas doce si les aplicamos la tasa de formalidad del INEGI, que se queda corta y lo
+> decimos; doscientos cuarenta y seis mil a nivel nacional es el mercado total, no el que atacamos
+> primero. Cobramos ochocientos noventa y nueve pesos al mes por empresa y tres mil novecientos al
+> despacho contable que trae veinte, contra mil novecientos noventa y nueve pesos al mes del plan para
+> despachos que ya se publica en este mercado: cobramos casi el doble y la diferencia es que ese plan
+> vigila una lista y el nuestro decide un pago. Y no somos entidad regulada: no custodiamos fondos, no
+> ejecutamos transferencias y nada se rechaza sin que una persona lo decida.
 
-**3:45, the ask.**
+**3:45, the ask, and it is now the channel ask.** The same panel asked who sells this and through which
+channel, so the ask names the channel instead of asking for a generic pilot. The ten real payment runs
+did not disappear, they are what the introductions are for, which is the only form in which a pilot is
+worth asking for.
 
-> Queremos diez corridas de pago reales enfrente de nosotros la semana que entra, en empresas de
-> verdad, para medir la tasa de falsos positivos con datos que no generamos nosotros.
+> Dos cosas. Tres presentaciones a despachos contables de once personas o mas en Monterrey, que son
+> ciento cuarenta y tres en todo el estado y los tenemos contados, para correr el barrido gratuito
+> sobre corridas de pago reales y medir la tasa de falsos positivos con datos que no generamos
+> nosotros. Y una conversacion con el area de banca empresarial de un banco, porque la version de esto
+> que escala vive dentro del portal donde el pago ya se ejecuta: el banco de nuestra demo es Nessie, y
+> Capital One es justo el tipo de banco que lo haria. Eso es una ruta que estamos pidiendo, no un
+> acuerdo: nadie ha firmado nada con nosotros.
+
+If a judge pushes on that second half, the answer is the intermediation dilemma and it is one sentence:
+we are not asking to stand between a company and its bank, we are asking to sit where the payment
+already executes, which is the bank's own screen, and the argument with its three published facts is in
+`docs/05-business-model.md#the-third-route-a-bank-embeds-the-control-where-the-payment-executes`.
 
 Rehearsed twice, out loud, timed, with all four people present. A rehearsal with one person is a
 read-through. The log goes in `docs/14-process.md`, issue #75.
@@ -513,10 +537,25 @@ about the six controls and it should not be stretched.
   SPEI of the same amount pays 111 months, because there is nothing to reverse. We claim no frequency
   for either, and the free supplier-register sweep in the go-to-market is the thing that measures it.
 
-The channel is accounting firms serving 11 to 250 person companies in Monterrey and its industrial
-corridor, because one firm holds the CFDI XML of twenty client companies and files the corrective
-return when the thirty-day clock starts. Category named, no company named, because nobody has agreed
-to anything.
+**Who sells it, and through which channel**, which is the fourth sentence the second table asked for.
+Four motions in one order, and the order is arithmetic rather than preference. For the first six months
+two of the four founders sell it, Fabricio and Patricio, and they sell to **purchasing and to finance**,
+never to the clerk who operates it: finance carries the disallowed deduction, purchasing owns the
+supplier register and makes the call when a payment is held, and the clerk has no budget line. The
+opener is the free supplier-register sweep, 200 of them in the stop condition, about eight a week. From
+month six the channel is the accounting firm as a reseller on the MXN 3,900 plan, against a counted
+denominator of **143** firms of 11 or more people in Nuevo Leon out of the 737 in the state: one firm
+holds the CFDI XML of twenty client companies and files the corrective return when the thirty-day clock
+starts, and that work is what the plan removes. Third, gated on ten paying firms, ERP and PAC
+integrations, which is where CONTPAQi's more than six thousand distributors sit and where no vendor
+publishes its partner terms, so the gate is a count and not a date. Fourth, gated on the same ten firms
+and with the largest surface and the longest cycle of the four, the control goes inside a bank's own
+business banking, because that is where the payment executes and it is the surface the company already
+opens on a Thursday. The bank of the demo is Nessie, Capital One's sandbox, which is a fact about our
+code and nothing else: **a bank embedding this is a route we are asking for and not a deal we have**, and
+nobody at any bank has agreed to anything. Segment, counts, both conversion rates and the two
+assumptions behind them are in
+`docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel`.
 
 ## The eight hardest questions
 
