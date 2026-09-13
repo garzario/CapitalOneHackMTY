@@ -61,6 +61,7 @@ import {
   assessNetwork,
   formatAmount,
   networkLabel,
+  plazaLabel,
   subtractAmounts,
   sumAmounts,
 } from "../packages/core/src/index.ts";
@@ -522,6 +523,32 @@ async function beatClabeForensics(api: Api, say: Say): Promise<void> {
     intake.decision.action !== "release",
     "the intake released a payment to an account that changed by two digits",
   );
+  /* One of the two digits is the plaza, which is the half of this case a clerk can
+     act on without counting digits: the account was opened somewhere else. Issue
+     #203 asks for the hero line to carry it and for both places to be named, so it
+     is asserted here rather than only in a unit test. */
+  need(
+    String(fresh.evidence.signals).includes("plaza_changed"),
+    `the hero finding carries no plaza_changed: ${String(fresh.evidence.signals)}`,
+  );
+  need(
+    typeof fresh.evidence.plazaCity === "string" &&
+      typeof fresh.evidence.previousPlazaPlaces === "string",
+    "the plaza finding does not name both places",
+  );
+  /* The invoice half is asserted on the SEEDED line and not on the posted one, and
+     the difference is the contract rather than an oversight: an instruction posted
+     from the QR page names no CFDI, so there is no LugarExpedicion to compare and
+     `detectClabe` makes no geographic claim at all. The seeded line settles four
+     invoices, all issued in Nuevo Leon, so it carries both comparisons. */
+  const seeded = stored.findings.find(
+    (finding) => finding.detector === "clabe_forensics",
+  );
+  need(
+    seeded !== undefined &&
+      String(seeded.evidence.signals).includes("plaza_off_invoice"),
+    "the seeded hero line does not contradict the LugarExpedicion of its invoices",
+  );
 
   say(`seeded line ${hero.clabeInstructionId}: ${stored.action}`);
   say(
@@ -532,6 +559,12 @@ async function beatClabeForensics(api: Api, say: Say): Promise<void> {
   );
   say(
     `  check digit ${String(fresh.evidence.checkDigit)}, so this is a changed account and not a typo`,
+  );
+  say(
+    `  plaza ${String(fresh.evidence.previousPlazaPlaces)} in the history and ${plazaLabel(String(fresh.evidence.plazaCode))} on this one, so one of the two digits moved the account to another state`,
+  );
+  say(
+    `  on the seeded line the invoices are issued in ${String(seeded?.evidence.invoicePostalCode)} (${String(seeded?.evidence.invoiceState)}), which contradicts that plaza; the line posted here names no invoice, so no geographic claim is made about it`,
   );
 }
 

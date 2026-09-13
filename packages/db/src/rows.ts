@@ -215,6 +215,7 @@ export interface CfdiRow {
   total: SqlNumeric;
   payment_method: Cfdi["paymentMethod"];
   payment_form: string | null;
+  issue_place: string | null;
   synthetic: boolean;
 }
 
@@ -231,6 +232,7 @@ export interface CfdiInsertRow {
   total: number;
   payment_method: Cfdi["paymentMethod"];
   payment_form: string | null;
+  issue_place: string | null;
   synthetic: boolean;
 }
 
@@ -250,6 +252,9 @@ export function cfdiFromRow(row: CfdiRow): Cfdi {
   assign(cfdi, "serie", optionalText(row.serie));
   assign(cfdi, "folio", optionalText(row.folio));
   assign(cfdi, "paymentForm", optionalText(row.payment_form));
+  /* Null stays absent rather than becoming an empty string: control 2 reads a
+     missing place as no comparison, and "" would be a place that matches nothing. */
+  assign(cfdi, "issuePlace", optionalText(row.issue_place));
   return cfdi;
 }
 
@@ -267,6 +272,7 @@ export function cfdiToRow(cfdi: Cfdi): CfdiInsertRow {
     total: cfdi.total,
     payment_method: cfdi.paymentMethod,
     payment_form: cfdi.paymentForm ?? null,
+    issue_place: cfdi.issuePlace ?? null,
     synthetic: cfdi.synthetic,
   };
 }

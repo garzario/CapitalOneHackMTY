@@ -195,6 +195,30 @@ onboarding does not protect anything. Our sweep is a replay over the event ledge
 the deducted base, the ISR and the IVA per newly listed supplier. Evidence: `SweepResult` in
 `packages/core/src/domain.ts`, `POST /api/v1/sat/publish`, beat 2 in `docs/10-demo-script.md`.
 
+**Where did the plaza names come from, and is that Banxico's catalogue.** No, and that is written in
+the first paragraph of `packages/core/src/snapshot/README.md` rather than being something to admit at
+the table. Two claims to keep apart. What a plaza code IS is primary and settled: Banco de Mexico and
+the ABM publish the same sentence on their own FAQs, three digits, the city or region where the
+account is held, "de acuerdo a la definicion de claves de plaza definida para el servicio de
+cheques". The catalogue ITSELF is published by neither of them, and the README carries five checks
+anyone can repeat in a minute instead of asserting it: the CEP app serves an institution endpoint and
+no plaza one, the Internet Archive index has no Banxico URL containing the word, the one ABM URL that
+ever existed was already answering 404 when it was captured in 2004, Circular 3/2012 and Circular
+2019/95 contain no plaza table, and the DOF full-text search answers zero. The 786 rows come from the
+plaza table STP publishes, the SPEI participant we document as the production rail.
+
+So the catalogue is allowed one job and the code enforces it. It puts a NAME on three digits. A code
+it does not carry yields no name and no signal. It never raises a finding and never changes a
+severity: `plaza_changed` is three digits compared against the three digits of the accounts this
+company has actually paid, which is arithmetic over our own ledger and needs no catalogue at all, and
+the catalogue is read afterwards only to write the sentence a clerk reads. Every sentence that names
+a plaza prints the digits beside the name, `180 (DISTRITO FEDERAL, DF)`, so the reader checks the
+committed CSV rather than trusting us. If a judge pushes: the honest answer is that we would rather
+name the place from a participant's published table and say whose it is than print a city we inferred,
+and the weaker the source the less the code is allowed to do with it. Evidence:
+`packages/core/src/snapshot/README.md`, `packages/core/src/plazas.ts`,
+`packages/core/src/plazas.test.ts`.
+
 **The bank already shows the beneficiary name.** Be precise here, because one bank really does sell
 this: HSBCnet validates beneficiary names, "unicamente cuentas HSBC", from a batch file and inside a
 service window, which is a hygiene sweep of an address book and not a gate on an outbound payment.

@@ -18,6 +18,57 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The plaza of a CLABE as a signal control 2 can name, and the geography comparison neither document
+  can make alone (issue #203). Digits 4 to 6 of an account number are the plaza the branch that
+  opened it belongs to, and `detectClabe` already compared those three digits against the three
+  digits of the accounts a supplier had actually been paid on. What it could not do was say where
+  that is. `packages/core/src/snapshot/plazas-2026-09-13.csv` is the 786-row catalogue that closes
+  the gap, `lookupPlaza` and `plazaLabel` in `packages/core/src/plazas.ts` read it, and the finding
+  now names both places with both codes: "Cambio la plaza dentro del mismo banco: la cuenta conocida
+  esta en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF)". The second
+  comparison is new. `Cfdi.issuePlace` carries `LugarExpedicion`, the postal code a CFDI was issued
+  from and the only geography an invoice has, the parser reads it, `0013_cfdi_issue_place.sql` stores
+  it so the deployed API behaves like the in-memory one, and `plaza_off_invoice` fires when the plaza
+  of a new account and the state of the invoices it settles disagree. A brand-new account with no
+  history raises the level for lack of information and says so in those words:
+  `NO_PLAZA_HISTORY` reaches the evidence and `confidenceOf` answers `precaucion` under
+  `new_account_without_history`, which is the join a test asserts.
+
+  **The provenance is the part to read before quoting any of this, and `packages/core/src/snapshot/README.md`
+  says it in its first paragraph: this is not Banxico's file, because Banxico does not publish one.**
+  What is primary is the definition, and Banco de Mexico and the ABM publish the same sentence on
+  their own FAQs, three digits and a cheque-service plaza key. The catalogue itself is published by
+  neither, and the README carries five repeatable checks that establish the absence rather than
+  asserting it: the CEP app exposes an institution endpoint and no plaza one, the Internet Archive
+  index holds no Banxico URL containing the word, the single ABM URL that ever existed was already
+  answering 404 when it was captured in 2004, Circular 3/2012 and Circular 2019/95 contain no plaza
+  table, and the DOF full-text search answers zero notes. The rows come from the plaza table STP
+  publishes, the SPEI participant `packages/rail` documents as the production rail, whose help-centre
+  article now answers a login page, so the bytes were read from a public copy whose `sha256` the
+  README records. That chain buys exactly one permission and the code enforces it: the catalogue puts
+  a name on three digits, a code it does not carry yields no name and no signal, it never raises a
+  finding and never changes a severity, and every sentence that names a plaza prints the digits
+  beside the name so a reader checks the file instead of trusting us. `POSTAL_PREFIX_STATES` is
+  bounded the same way, the states the synthetic dataset uses and no more, with the SAT
+  `c_CodigoPostal` catalogue named as the national source and the import left as a follow-on, because
+  a 32-row national table written from memory would be a claim with no source.
+
+  The seeded dataset moved with it, and the TODO that asked for this is now answered rather than
+  deleted. `MTY_PLAZA_CODE` was `180`, and `180` is `DISTRITO FEDERAL`: the comment in
+  `packages/seed/src/sentryone/clabe.ts` had been asking since the generator was written for somebody
+  to check it before the detector treated a plaza mismatch as evidence, and it was right about the
+  cost of being wrong. The Monterrey metropolitan plaza is `580`, Pesqueria has `598` of its own, so
+  all 45 known accounts, the company's own account and the 92 run lines were re-minted into the plaza
+  of the municipality that banks there, ids and amounts untouched. The hero line is the case this was
+  built for: `INS-2026-09-07-047` now pays `012180102091764611` against the `012580100091764611` that
+  supplier has been paid on 52 times, two digits apart with a valid check digit as before, except one
+  of the two digits is the plaza, so the money would leave Nuevo Leon. `bun run demo` asserts that
+  line carries `plaza_changed` with both places named and that the seeded line contradicts the
+  `LugarExpedicion` of its own invoices, and a same-plaza account change still raises no plaza signal
+  at all, which is the half that keeps the control usable: 91 of the 92 lines are in `580` or `598`
+  and exactly one is not. Every peso figure in `docs/10-demo-script.md` is unchanged, because the
+  plaza adds a sentence and a chip and never a severity.
+
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
   moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;

@@ -21,17 +21,36 @@ export type Clabe = string;
  * digits inside one institution and raises `plaza_changed`, and this type is the
  * row that turns a code into words.
  *
- * `city` and `state` are filled only from a dated snapshot of the Banxico plaza
- * table, and this repository holds no such snapshot yet: the detector compares
- * codes and no screen names a city. Until one lands with its retrieval date,
- * nothing may render a plaza name, because a city invented next to a real account
- * number is the kind of claim ADR-0002 forbids outright.
+ * `city` and `state` are filled only from a dated snapshot, and that snapshot now
+ * exists: `./snapshot/plazas-2026-09-13.csv`, 786 plazas, read through
+ * `lookupPlaza` in `./plazas.ts`. Read `./snapshot/README.md` before quoting it
+ * anywhere, because its provenance is weaker than the participant table's and the
+ * code is built around that. What a plaza code is, is primary: Banco de Mexico and
+ * the ABM publish the same sentence. The catalogue itself is published by neither,
+ * and the rows come from the plaza table a SPEI participant publishes.
+ *
+ * The consequence is a rule and not a preference. A code the snapshot does not
+ * carry yields no name and no claim, the snapshot never raises a finding or
+ * changes a severity, and every sentence that names a plaza prints the three
+ * digits beside the name so the reader can check it against the committed file. A
+ * city invented next to a real account number is the kind of claim ADR-0002
+ * forbids outright, and a city asserted on a catalogue nobody can open is the same
+ * claim with extra steps.
  */
 export interface Plaza {
   /** The three digits as they appear in the CLABE, zero padded, e.g. "180". */
   code: string;
+  /** The place, cased as the catalogue publishes it: "DISTRITO FEDERAL". */
   city: string;
-  /** Two-letter state code, "NL" and never "Nuevo Leon". */
+  /**
+   * The state, abbreviated as the catalogue abbreviates it: "NL", "DF", "COA",
+   * "EDOMEX", "TAMPS". Two to six letters, and never the name spelled out.
+   *
+   * It used to say two letters. That was written before any catalogue was in
+   * hand, and the one that landed abbreviates eleven of the thirty-two states in
+   * more than two, so the contract follows the data rather than the other way
+   * round. `snapshot/README.md` lists all thirty-two with their plaza counts.
+   */
   state: string;
 }
 
@@ -113,6 +132,21 @@ export interface Cfdi {
   paymentMethod: "PUE" | "PPD";
   /** SAT c_FormaPago, for example "03" transferencia. */
   paymentForm?: string;
+  /**
+   * CFDI 4.0 `LugarExpedicion`, which the SAT defines as the postal code the
+   * invoice was issued from. Five digits, and the only geography a CFDI carries.
+   *
+   * Control 2 reads it: an account whose plaza sits in another state than the
+   * state the supplier invoices from is a question worth one sentence, and it is
+   * a question the ledger cannot ask on its own because the plaza lives in the
+   * account number and the postal code lives in the invoice. `stateOfPostalCode`
+   * in `./plazas.ts` does the mapping and answers `undefined` far more often than
+   * it answers a state, which is deliberate.
+   *
+   * Optional because a CFDI this repository did not parse may not carry it and a
+   * missing place must never become a finding.
+   */
+  issuePlace?: string;
   synthetic: boolean;
 }
 

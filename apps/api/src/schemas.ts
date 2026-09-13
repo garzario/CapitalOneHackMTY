@@ -129,6 +129,16 @@ export const cfdiSchema = z.object({
   total: amountSchema,
   paymentMethod: z.enum(["PUE", "PPD"]),
   paymentForm: z.string().min(1).optional(),
+  /**
+   * CFDI 4.0 LugarExpedicion, five digits. Validated as a postal code here and
+   * not just as a string, because control 2 maps it to a state and a place that
+   * cannot be read has to be refused at the edge rather than silently ignored
+   * inside the engine.
+   */
+  issuePlace: z
+    .string()
+    .regex(/^\d{5}$/, "issuePlace is a five-digit postal code")
+    .optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cfdi>;
 
