@@ -1,14 +1,20 @@
 /**
  * Deterministic screenshots of the running app, for `assets/screenshots`.
  *
- * `chrome --screenshot` cannot do this job. It has no way to ask for a colour
- * scheme, and it races the entrance animations: the alert rail is driven by
- * `motion/react`, so roughly one capture in three came back with the rail
- * heading and no cards under it. Both problems disappear over the DevTools
- * protocol, which can emulate the media features directly. Asking for
- * `prefers-reduced-motion: reduce` is not a cosmetic choice here, it is what
- * makes the capture reproducible: every animation resolves to its end state
- * immediately because the design tokens collapse to 1 ms.
+ * `chrome --screenshot` cannot do this job. It cannot ask for reduced motion and
+ * it races the entrance animations: the alert rail is driven by `motion/react`,
+ * so roughly one capture in three came back with the rail heading and no cards
+ * under it. That problem disappears over the DevTools protocol, which can
+ * emulate the media feature directly. Asking for `prefers-reduced-motion:
+ * reduce` is not a cosmetic choice here, it is what makes the capture
+ * reproducible: every animation resolves to its end state immediately because
+ * the design tokens collapse to 1 ms.
+ *
+ * The appearance is no longer a media feature. The app opens light whatever the
+ * machine is set to and the dark palette hangs off `data-theme` on the document
+ * (`src/design/tokens.css`), so a dark capture is this script writing that
+ * attribute on the settled page rather than emulating somebody's operating
+ * system. Both appearances are still shot, and the file names have not moved.
  *
  * No dependency. Chrome is launched as a child process and driven over a
  * WebSocket, both of which the runtime already has.
@@ -29,6 +35,7 @@ import {
   LISTED_SUPPLIER_RFC,
   VERIFICATIONS,
 } from "../src/lib/mock-data";
+import { THEME_KEY } from "../src/lib/theme";
 
 const CHROME =
   process.env.CHROME_PATH ??
@@ -237,6 +244,26 @@ const FRAMES_PER_STOP = 6;
 
 const SCHEMES: Scheme[] = ["light", "dark"];
 
+/**
+ * Puts the page in one of the two appearances, by choosing it the way a person
+ * would rather than by painting over the result.
+ *
+ * The appearance is no longer a media feature to emulate: it is the choice
+ * `src/lib/theme.ts` keeps in storage and applies to the document before the
+ * first render. So this seeds that key on every new document, which means the
+ * app boots in the appearance being captured and the top bar's own button
+ * agrees with the page under it. Writing `data-theme` after the load instead
+ * would colour the page correctly and leave the button offering the appearance
+ * it is already in, which is a screenshot of a bug the product does not have.
+ *
+ * The key is imported rather than written out, so the two cannot drift, and the
+ * write is guarded because it also runs on the `about:blank` between shots,
+ * where there is no storage to write to.
+ */
+function themeScript(scheme: Scheme): string {
+  return `try { localStorage.setItem(${JSON.stringify(THEME_KEY)}, ${JSON.stringify(scheme)}); } catch (error) { void error; }`;
+}
+
 /** One in-flight DevTools protocol connection. */
 class Devtools {
   private nextId = 1;
@@ -393,12 +420,18 @@ async function main(): Promise<void> {
 
         await devtools.send("Emulation.setEmulatedMedia", {
           features: [
-            { name: "prefers-color-scheme", value: scheme },
             /* The point of the whole script. Without it the alert rail is
                mid-animation when the shutter opens. */
             { name: "prefers-reduced-motion", value: "reduce" },
           ],
         });
+
+        /* Before the navigation, so the app reads the choice on its way up and
+           the first paint is already the appearance being captured. */
+        const seeded = await devtools.send<{ identifier: string }>(
+          "Page.addScriptToEvaluateOnNewDocument",
+          { source: themeScript(scheme) },
+        );
 
         /* about:blank first. Two URLs that differ only in the fragment are
            the same document to Page.navigate, so without this the second shot
@@ -409,6 +442,10 @@ async function main(): Promise<void> {
         /* The app falls back to the synthetic run when the API is absent, and
            that fallback is a failed fetch with a timeout behind it. */
         await wait(2500);
+
+        await devtools.send("Page.removeScriptToEvaluateOnNewDocument", {
+          identifier: seeded.identifier,
+        });
 
         if (shot.prepare !== undefined) {
           await devtools.send("Runtime.evaluate", {
@@ -474,10 +511,13 @@ async function captureTour(devtools: Devtools, base: string): Promise<void> {
     mobile: false,
   });
   await devtools.send("Emulation.setEmulatedMedia", {
-    features: [
-      { name: "prefers-color-scheme", value: "dark" },
-      { name: "prefers-reduced-motion", value: "reduce" },
-    ],
+    features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+  });
+
+  /* The loop is shot dark, the way it always was. It is chosen once, for every
+     document of the run, because nothing here switches appearance mid-tour. */
+  await devtools.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: themeScript("dark"),
   });
 
   let index = 0;

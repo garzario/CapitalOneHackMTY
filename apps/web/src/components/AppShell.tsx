@@ -52,17 +52,26 @@ import {
 import { SYNTHETIC_LABEL } from "../lib/labels";
 import { dataMode } from "../lib/resource";
 import { href, PATHS, type Route, type RouteName } from "../lib/router";
+import {
+  otherTheme,
+  THEME_LABEL,
+  THEME_TOGGLE_LABEL,
+  toggleTheme,
+  useTheme,
+} from "../lib/theme";
 import { openTour } from "../lib/tour-store";
 import {
   IconIntake,
   IconList,
   IconMetrics,
+  IconMoon,
   IconPanel,
   IconPerson,
   IconPlay,
   IconReceipt,
   IconRun,
   IconSeal,
+  IconSun,
 } from "./Icons";
 import { OfflineBanner } from "./OfflineBanner";
 import { ToastProvider } from "./Toast";
@@ -167,8 +176,14 @@ export function AppShell({
   children: ReactNode;
 }) {
   const mode = dataMode();
+  const theme = useTheme();
   const [collapsed, setCollapsed] = useState(storedCollapsed);
   const [open, setOpen] = useState(false);
+
+  /* The appearance the press produces, which is what the button says and draws.
+     The store owns the switch; the shell only has to know which of the two words
+     to print. */
+  const nextTheme = otherTheme(theme);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((was) => {
@@ -364,6 +379,37 @@ export function AppShell({
             >
               <IconPlay size={15} />
               <span className="tour-label">Recorrido</span>
+            </button>
+
+            {/* The appearance, next to the recorrido and in the same strip, for
+              the same reason: it is furniture that belongs to the whole app and
+              this is the one row on screen at every width.
+
+                The app opens light on every machine, deliberately, and this is
+              the control that says so out loud -- a judge who prefers dark has
+              one press to get there and it is remembered, and a projector that
+              somebody else set to dark mode cannot decide the first frame of a
+              demo. The word and the glyph both name the appearance the press
+              will produce rather than the one you are in, so the button reads
+              the same way to somebody who sees only the moon. */}
+            <button
+              type="button"
+              className="btn btn-sm topbar-theme"
+              /* Named on the button, like the recorrido beside it: the word is
+                 hidden below 48rem where the title needs the room, and a control
+                 whose name is a span that is not displayed has no name. */
+              aria-label={THEME_TOGGLE_LABEL}
+              title={THEME_TOGGLE_LABEL}
+              onClick={() => {
+                toggleTheme();
+              }}
+            >
+              {nextTheme === "dark" ? (
+                <IconMoon size={15} />
+              ) : (
+                <IconSun size={15} />
+              )}
+              <span className="theme-label">{THEME_LABEL[nextTheme]}</span>
             </button>
 
             {/* ADR-0002: anything generated carries a visible marker. It is a

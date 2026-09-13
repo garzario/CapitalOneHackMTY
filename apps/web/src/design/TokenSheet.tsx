@@ -37,6 +37,7 @@ import {
   STATE_ORDER,
   SYNTHETIC_LABEL,
 } from "../lib/labels";
+import { subscribeTheme } from "../lib/theme";
 
 type Group = { title: string; note: string; tokens: string[] };
 
@@ -175,9 +176,13 @@ const LAYOUT_TOKENS = [
 ];
 
 /**
- * The computed value of a list of tokens, re-read when the colour scheme
- * changes, because half of them are different in dark and a sheet that shows the
- * light value under a dark swatch is the drift this file exists to avoid.
+ * The computed value of a list of tokens, re-read when the appearance changes,
+ * because half of them are different in dark and a sheet that shows the light
+ * value under a dark swatch is the drift this file exists to avoid.
+ *
+ * It subscribes to the theme store and not to `prefers-color-scheme`: the dark
+ * palette hangs off `data-theme` now, so the operating system changing its mind
+ * moves nothing on this page and the button in the top bar moves everything.
  */
 function useTokenValues(names: string[]): Record<string, string> {
   const [values, setValues] = useState<Record<string, string>>({});
@@ -196,10 +201,9 @@ function useTokenValues(names: string[]): Record<string, string> {
 
     read();
 
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    query.addEventListener("change", read);
-
-    return () => query.removeEventListener("change", read);
+    /* The store publishes after it has written the attribute, so the values read
+       here are already the ones the page is painted in. */
+    return subscribeTheme(read);
     /* The list is a module constant on every caller, so comparing it by
        identity is correct and re-reading on every render is not. */
   }, [names]);

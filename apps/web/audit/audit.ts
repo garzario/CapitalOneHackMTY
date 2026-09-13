@@ -13,6 +13,12 @@
  * theme, and what matters is the composited pixel, not the declaration. So the
  * ratios are computed in the browser from `getComputedStyle`.
  *
+ * The two themes are reached by writing `data-theme` on the document rather than
+ * by emulating a colour scheme: the app opens light on every machine now and
+ * dark is a choice a person makes in the top bar, so the media feature no longer
+ * moves a single token and a run that emulated it would have measured the light
+ * palette twice and reported clean.
+ *
  * No dependency. Chrome is driven over the DevTools protocol, the same way
  * `../brand/shoot.ts` captures the screenshots.
  *
@@ -27,6 +33,7 @@ import {
   HERO_INSTRUCTION_IDS,
   LISTED_SUPPLIER_RFC,
 } from "../src/lib/mock-data";
+import { THEME_KEY } from "../src/lib/theme";
 
 const CHROME =
   process.env.CHROME_PATH ??
@@ -94,6 +101,20 @@ const ROUTES = [
 ];
 
 const SCHEMES = ["light", "dark"] as const;
+
+/**
+ * Puts the page in one of the two appearances, the way a person would.
+ *
+ * Not `prefers-color-scheme`, because the app no longer reads it: it opens light
+ * whatever the machine is set to, and dark is the choice `src/lib/theme.ts`
+ * keeps in storage and applies to the document before the first render. So this
+ * seeds that key and the page is measured in the appearance it actually boots
+ * in, header and controls included. The key is imported rather than written out,
+ * so the two cannot drift.
+ */
+function themeScript(scheme: (typeof SCHEMES)[number]): string {
+  return `try { localStorage.setItem(${JSON.stringify(THEME_KEY)}, ${JSON.stringify(scheme)}); } catch (error) { void error; }`;
+}
 
 /**
  * Reduced motion has to reach the tokens, not just the media query. The design
@@ -731,13 +752,21 @@ async function main(): Promise<void> {
 
     for (const scheme of SCHEMES) {
       await devtools.send("Emulation.setEmulatedMedia", {
-        features: [
-          { name: "prefers-color-scheme", value: scheme },
-          { name: "prefers-reduced-motion", value: "reduce" },
-        ],
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }],
       });
+      /* Before the navigation, so the app boots in the appearance under test
+         rather than being repainted once it is already up. */
+      const seeded = await devtools.send<{ identifier: string }>(
+        "Page.addScriptToEvaluateOnNewDocument",
+        { source: themeScript(scheme) },
+      );
+
       await devtools.send("Page.navigate", { url: `${base}#/run` });
       await wait(1800);
+
+      await devtools.send("Page.removeScriptToEvaluateOnNewDocument", {
+        identifier: seeded.identifier,
+      });
 
       const pairs =
         await devtools.evaluate<

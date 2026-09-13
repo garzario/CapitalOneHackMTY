@@ -291,9 +291,17 @@ something happened. There is no motion whose purpose is to look expensive.
 
 ## Light and dark
 
-Light is the default and dark follows the operating system. Only colour tokens
-are redefined for dark. Type, spacing, radius and motion do not change with
-theme, so a layout can never be correct in one theme and broken in the other.
+Light is the default on every machine, and dark is a choice a person makes in
+the top bar. It is not read off the operating system: the store in
+`apps/web/src/lib/theme.ts` writes `data-theme` on the document before the first
+render and the dark palette hangs off `:root[data-theme="dark"]`. The reason is
+the table this product is demonstrated at rather than a preference: a run screen
+that opens near-black because a borrowed laptop was set to dark at midnight is a
+first impression nobody in this team chose.
+
+Only colour tokens are redefined for dark. Type, spacing, radius and motion do
+not change with theme, so a layout can never be correct in one theme and broken
+in the other.
 
 Every colour token defined in `:root` has a dark counterpart. That is also
 enforced by the token test, because a colour that exists only in light renders

@@ -51,9 +51,7 @@ const printBlock = printCss.slice(printCss.indexOf("@media print"));
 function pinnedClasses(css: string): string[] {
   const found = new Set<string>();
 
-  for (const match of css.matchAll(
-    /(\.[a-z][a-z0-9-]*)[^{}]*\{([^{}]*)\}/g,
-  )) {
+  for (const match of css.matchAll(/(\.[a-z][a-z0-9-]*)[^{}]*\{([^{}]*)\}/g)) {
     const selector = match[1] as string;
     const body = match[2] as string;
 
@@ -91,7 +89,9 @@ describe("print.css", () => {
     expect(pinned.length).toBeGreaterThan(2);
 
     const unanswered = pinned.filter(
-      (selector) => !printBlock.includes(`${selector},`) && !printBlock.includes(`${selector} `),
+      (selector) =>
+        !printBlock.includes(`${selector},`) &&
+        !printBlock.includes(`${selector} `),
     );
 
     expect(unanswered).toEqual([]);
@@ -106,18 +106,21 @@ describe("print.css", () => {
   });
 
   test("the paper palette is in tokens.css, and it reaches dark mode", () => {
-    /* Dark mode here is `prefers-color-scheme` and nothing else: this app has no
-       theme attribute, so the print block has to beat a media query rather than a
-       selector. It does that by being later in the file, which is only true while
-       it stays at the end. */
+    /* Dark mode here is the attribute the theme store writes, so the print block
+       has to beat a selector rather than a media query. Two things make it win
+       and both are asserted: it names the attribute itself, so the two rules tie
+       on specificity, and it sits later in the file, which is only true while it
+       stays at the end. A print block that only said `:root` would lose to the
+       dark palette and print a black sheet. */
     const tokensCss = code(
       readFileSync(join(DESIGN_DIR, "tokens.css"), "utf8"),
     );
     const printAt = tokensCss.indexOf("@media print");
-    const darkAt = tokensCss.indexOf("@media (prefers-color-scheme: dark)");
+    const darkAt = tokensCss.indexOf(':root[data-theme="dark"]');
 
-    expect(printAt).toBeGreaterThan(-1);
+    expect(darkAt).toBeGreaterThan(-1);
     expect(printAt).toBeGreaterThan(darkAt);
+    expect(tokensCss.slice(printAt)).toContain(":root[data-theme]");
     expect(tokensCss.slice(printAt)).toContain("--c-canvas");
     expect(tokensCss.slice(printAt)).toContain("--c-ink");
   });

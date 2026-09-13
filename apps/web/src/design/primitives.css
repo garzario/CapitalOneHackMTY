@@ -2447,6 +2447,17 @@
     gap: var(--space-2);
   }
 
+  /* The appearance switch, beside the recorrido and built out of the same two
+     rules, because they are the same kind of object: a control that belongs to
+     the whole app rather than to the screen under it. The word goes at the
+     width where the title and the synthetic mark need the room and the glyph
+     stays, and the button keeps its own `aria-label`, so the name does not go
+     with the word. */
+  .topbar-theme {
+    flex: none;
+    gap: var(--space-2);
+  }
+
   /* The other corner, taken when the spotlight is on the left of the screen. The
      card moves rather than covering the thing it is pointing at, and the rule is
      above the phone breakpoint because down there the card is the full width of
@@ -2476,7 +2487,8 @@
       gap: var(--space-2);
     }
 
-    .topbar-tour .tour-label {
+    .topbar-tour .tour-label,
+    .topbar-theme .theme-label {
       display: none;
     }
   }

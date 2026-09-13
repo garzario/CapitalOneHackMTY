@@ -17,6 +17,18 @@ section landed after that tag was cut.
 
 ### Added
 
+- **The app opens light, and the appearance is a switch in the top bar** (issue #216). The dark
+  palette used to be an `@media (prefers-color-scheme: dark)` block, so the first frame a judge saw
+  was decided by whatever the machine in front of them was set to, and a borrowed laptop in night
+  mode opened the payment run near-black. Light is now the default everywhere and dark hangs off
+  `:root[data-theme="dark"]` in `apps/web/src/design/tokens.css`, written by `apps/web/src/lib/theme.ts`
+  and remembered in `localStorage` under `sentryone:theme`. `main.tsx` applies the stored choice
+  before the first render, so a browser that chose dark never flashes white. The control is a
+  sun-and-moon button beside **Recorrido**, named `Cambiar apariencia`, showing the appearance the
+  press produces. `theme.test.ts` covers the default, the persistence and the attribute, and both
+  `brand/shoot.ts` and `audit/audit.ts` reach the two palettes through the attribute, so the
+  screenshots and the contrast report still cover light and dark.
+
 - **El recorrido: nine stops over the running product, and the telephone call that ends it** (issue
   #216). The app opened on ninety-two rows of pesos and explained itself to nobody. A visitor who
   presses **Recorrido** in the top bar, or the banner that greets a first visit to `#/entrada`, now

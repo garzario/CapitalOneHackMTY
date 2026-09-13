@@ -108,6 +108,8 @@ src/
     tour.ts           the nine stops of the recorrido, and the line it is about
     tour-call.ts      the call of the last stop: the number, the outcome, the refusals
     tour-store.ts     whether the recorrido is open, and that this browser has seen it
+    theme.ts          light or dark, as a choice a person makes and this browser
+                      remembers, never read off the operating system
   components/         AppShell (the rail and the top bar), Wordmark,
                       Icons (Rune Icons, Apache-2.0, vendored as paths; the active one draws
                       once per section change),
@@ -485,8 +487,12 @@ invented. The long version is `docs/design.md`; the short version:
   informational tone and not green, because money that left is a fact and not a verdict.
   Never a probability and never the word "seguro" in either, which `src/lib/labels.test.ts`
   enforces over the whole dictionary and then over every source file.
-- Light is the default, dark follows the operating system, and only colour tokens change
-  between them. The rail palette is the exception and is identical in both.
+- **Light is the default, on every machine, and dark is a choice.** The app opens light
+  whatever the operating system is set to, and the switch is the sun-and-moon button in the
+  top bar, remembered in `localStorage` under `sentryone:theme` by `src/lib/theme.ts`. The
+  dark palette hangs off `:root[data-theme="dark"]` rather than `prefers-color-scheme`, and
+  `main.tsx` writes the attribute before the first render so there is no flash. Only colour
+  tokens change between the two. The rail palette is the exception and is identical in both.
 - **Icons come from Rune Icons** (Apache-2.0, copyright Nexvyn) and from nowhere else. No
   icon library is installed: the paths are vendored into `Icons.tsx`. The active rail icon
   draws itself once per section change, over `--motion-draw` and on `--ease-draw`.

@@ -148,6 +148,35 @@ export function IconPlay(props: IconProps) {
   return <Glyph {...props} d="M9 7.5L17 12L9 16.5L9 7.5Z" />;
 }
 
+/**
+ * The appearance: a sun for light, a moon for dark.
+ *
+ * The pair sits beside the recorrido in the top bar and each one is drawn on the
+ * appearance the press will produce, not on the one you are in. A control that
+ * shows the state it is in and a control that shows the state it offers are both
+ * defensible and mixing them is not, so the word beside the glyph says the same
+ * thing the glyph does: press the moon marked `Oscuro` and the page goes dark.
+ *
+ * Written by hand on the same 24-unit grid and at the same stroke weight as the
+ * Rune drawings, because the vendored subset carries neither shape, and each as
+ * one path so the draw in `primitives.css` treats them like every other one.
+ */
+export function IconSun(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M12 16A4 4 0 1 0 12 8A4 4 0 0 0 12 16M12 2V4M12 20V22M4.93 4.93L6.34 6.34M17.66 17.66L19.07 19.07M2 12H4M20 12H22M4.93 19.07L6.34 17.66M17.66 6.34L19.07 4.93"
+    />
+  );
+}
+
+/** The other appearance. A crescent, cut by the same circle that draws it. */
+export function IconMoon(props: IconProps) {
+  return (
+    <Glyph {...props} d="M21 12.79A9 9 0 1 1 11.21 3A7 7 0 0 0 21 12.79Z" />
+  );
+}
+
 /** The rail's own collapse control. */
 export function IconPanel(props: IconProps) {
   return (
