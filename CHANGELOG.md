@@ -422,6 +422,33 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- The one-cent verification, walked end to end over real HTTP and reconciled against what the
+  repository says about it (issue #165). Three claims were wrong and are now what the sandbox and
+  the code actually do. `packages/rail/src/nessie.ts` said `GET /accounts` answers the key's two
+  mirror accounts with the reconciled one first, so the probe landed "on the same account
+  `bank_reconciliation` reads", and `docs/09-api.md` repeated it: reading the sandbox on 2026-09-12
+  with `GET` only, the first account is `3fce172e-1591-43b8-b112-08e4491e3651`, the one abandoned during development in issue
+  #45, and the reconciled mirror `ad2841a5-c274-47e4-84c8-e830667feea6` is second, so both live probes are on the older
+  account. The selection is unchanged and still deterministic; what changed is that nothing claims
+  the reconciliation any more, and the same read confirmed the counts issue #45 recorded, 3 customers
+  and 2 accounts, so the probes created neither. `docs/10-demo-script.md` still told the manual story
+  in beat 4, a person sending a cent and reading a clave off a statement, which is exactly what issue
+  #165 removed: the beat is now the button, the states it walks, which half is the Nessie mirror and
+  which half is Banxico, and the seal read out as reported. Its rules said the CEP on screen was real
+  data; every CEP this repository holds is synthetic, and the rule now says so.
+- The CEP screen showed a released payment beside a registry of verified beneficiaries still reading
+  "registro vacio" (issue #165). Storing the CEP is what writes that row, and the registry is a second
+  resource loaded on mount, so nothing re-read it. `storedCepAt` in `apps/web/src/lib/verification.ts`
+  is the rule, keyed on the instant the CEP landed so it fires once per document rather than on every
+  step the machine takes afterwards, and never for the offline run, where no row reached any registry.
+- Stale counts that a judge checks in five seconds. `README.md` claimed 1023 tests across 59 files and
+  `docs/01-rubric-mapping.md` claimed 1,467 across 87; the suite is 1,623 tests across 95 files with no
+  network, no database and no key, with 109 database cases that skip. `apps/api/README.md` told the
+  reader to run the Postgres half as `TEST_DATABASE_URL=... bun test` over the whole tree: six files
+  share that one database and each migrates and empties it in its own `beforeAll`, so a whole-tree run
+  fails somewhere different every time. It now says one workspace at a time, which is what was
+  verified: `bun test apps/api` against local PostgreSQL 18.6 is 237 tests green.
+
 - The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
   synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the
   running API the name comparison, which is the entire point of showing a CEP, printed "no

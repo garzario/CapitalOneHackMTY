@@ -41,7 +41,10 @@ screen.
 
 - Stops a payment to a supplier the SAT has listed, and quantifies the ISR and IVA already exposed.
 - Catches a CLABE that differs from the supplier's history, fails its check digit or changed bank without a payment complement behind it.
-- Proves who owns the destination account with a Banxico-signed CEP and keeps it as evidence.
+- Proves who owns the destination account with a Banxico-signed CEP and keeps it as evidence. One
+  cent travels inside the same payment run, the clave de rastreo comes back from the bank instead of
+  from a keyboard, and the large payment is released or blocked by the engine when the signed CEP
+  arrives. Nobody types anything.
 - Flags duplicate invoices and suppliers whose billing behaviour changed.
 - Decides hold, verify or release by expected loss, and always leaves the final call to a person.
 
@@ -101,10 +104,12 @@ live and how much of it is migrated and seeded, and closes on whether this lapto
 the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
 warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
-Three commands worth knowing about. `bun test` runs 1023 tests across 59 files with no network, no
-database and no API key, which is the fastest way to check that the intelligence is real. `bun run
-eval` scores the six controls against 30 labelled holdout cases and prints precision, recall and
-the false positive rate per control. `bun run demo` drives the demo path headless and must be green
+Three commands worth knowing about. `bun test` runs 1,627 tests across 95 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real. The 109
+database cases skip themselves unless `TEST_DATABASE_URL` names a database they may empty, and they
+share one, so run them a workspace at a time rather than all at once. `bun run eval` scores the six
+controls against 30 labelled holdout cases and prints precision, recall and the false positive rate
+per control. `bun run demo` drives the demo path headless and must be green
 before any rehearsal or judge visit.
 
 The consortium network is opt-in, because it is the only part of the product that talks to a second
@@ -147,6 +152,7 @@ Fit for purpose is graded, so each row ties a tool to this problem rather than t
 | `packages/engine` | n/a | The six controls behind one call, `runControls`. It exists for a dependency direction and not for taste: `packages/sat` and `packages/cep` already depend on `core`, so `core` cannot import them back without a cycle. Adapters only, no algorithm. |
 | `packages/sat` with a committed snapshot | n/a | The complete official Article 69-B listing, 4.5 MB, dated and committed with its provenance, so `GET /api/v1/sat/lookup` answers an RFC a judge picks themselves with no network and no conference Wi-Fi. |
 | `packages/cep` | n/a | XMLDSig against the Banxico certificate, byte-exact, reporting `unconfirmed_scheme` rather than claiming a seal it cannot prove. |
+| `packages/rail` | n/a | The only place that sends money, and it sends one amount, 0.01 MXN. Mexico has no confirmation-of-payee API, so the one document that names an account holder is the CEP Banxico signs for a SPEI, and the cent is what makes one exist. `NessieRail` writes it to the company's bank mirror and has run live; `StpRail` is the SPEI participant that would produce a real CEP, written out with its cadena original and its RSA signature and refusing to run without `STP_*`, so nothing here can pretend to be contracted; `FakeRail` is the in-process one, and every event it produces carries `simulated: true`. |
 | Hono | 4.13.7 | Small, standards-based HTTP. The API stays thin transport with no business logic in it. |
 | zod plus `@hono/zod-validator` | 4.5.4 / 0.9.1 | One schema per endpoint, validated at the edge, typed on both sides of the wire. |
 | Postgres via `postgres` | 3.4.9 | Raw SQL, no ORM. When a judge asks how the forecast works, the answer is the query. |

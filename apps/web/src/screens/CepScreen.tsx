@@ -155,7 +155,11 @@ export function CepScreen() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] [&>*]:min-w-0">
         <div className="flex flex-col gap-5">
-          <VerifyAccountPanel key={fromLink} instructionId={fromLink} />
+          <VerifyAccountPanel
+            key={fromLink}
+            instructionId={fromLink}
+            onCepStored={reloadRegistry}
+          />
 
           <section
             aria-labelledby="verify-heading"
