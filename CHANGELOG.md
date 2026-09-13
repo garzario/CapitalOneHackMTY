@@ -1344,6 +1344,30 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- **The level and the state are words now, not chips** (issue #216). Both were pills: a rounded
+  container with a tinted fill, a border, and a glyph inside it, a three step meter on the level and a
+  dot on the state. On a run of ninety-two lines that is ninety-two filled capsules in two columns,
+  competing for attention with the amounts, which are the numbers a clerk is actually scanning. They
+  are the word in its colour now, everywhere both appear, because both render through
+  `ConfidenceBadge` and `TransactionStateBadge` and neither screen paints its own.
+
+  It costs no channel, which was the thing worth checking before doing it. The channel was never the
+  container: `confiable`, `precaucion` and `alerta` are three different words, and `pendiente` says in
+  a language what its dashed border used to say in a shape, so a reader who cannot separate the red
+  from the amber, which is roughly one man in twelve, reads these exactly as well as anyone else.
+  Colour is the second channel and it stays.
+
+  Contrast was measured before the change rather than after, over all sixteen combinations: the ink
+  tokens sit on the fill no longer rendered at between 6.45 and 10.55, and on the surfaces they now
+  sit on at between 7.16 and 12.71. Every one improved, because a tinted fill was always closer to the
+  ink than the page is. `bun run audit:web` measures the pairs that render now, ink on `--c-surface`
+  for the run table and ink on `--c-canvas` for a detail panel, rather than the ink-on-soft pairs that
+  passed green while describing nothing on screen.
+
+  `CONFIDENCE_BARS` and the two tests over it are gone with the meter they fed.
+
+### Changed
+
 - **The payments line sounds natural, says what it is, and hangs up** (issue #250, closing #247 with
   it). The verification call worked and it did not sound like anybody you would stay on the phone with:
   nine and five second silences after every answer, the same two word either-or at the end of the
