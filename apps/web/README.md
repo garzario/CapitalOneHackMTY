@@ -43,9 +43,8 @@ src/
     fonts.css         Hanken Grotesk, self-hosted, one variable file per subset
     tokens.css        colour, type scale, weights, spacing, radius, motion, light and dark
     base.css          element rules, in Tailwind's base layer
-    primitives.css    .shell .rail .topbar .panel .tile .metric-row .run-bar .segmented .decision
-                      .data-table .open-table .btn .btn-pill .chip .badge .watermark, in the
-                      components layer
+    primitives.css    .well .well-panel .card-dark .btn-pill .segmented .decision .badge
+                      .data-table .btn .chip .watermark, in the components layer
     tokens.test.ts    the enforcement: no colour outside tokens.css, no token without a dark pair
   lib/
     api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE)
@@ -58,7 +57,8 @@ src/
   components/         AppShell (the rail and the top bar), Wordmark,
                       Icons (Rune Icons, Apache-2.0, vendored as paths; the active one draws
                       once per section change),
-                      RunVerdict (the one figure), RunFilter, Controls (the six controls),
+                      RunVerdict (the one figure), RunDonut (how the run splits),
+                      RunFilter, Controls (the six controls),
                       States, Primitives, Evidence, Decision, Findings, SupplierDrawer,
                       StatusCard, IntakeQr, QrCode
   screens/            RunScreen, InstructionScreen, IntakeScreen, SatScreen, CepScreen,
@@ -148,10 +148,11 @@ invented. The long version is `docs/design.md`; the short version:
 - **The rail has its own palette** (`--c-rail*`) because it is a navy brand panel and every
   ink token on the page is dark on dark inside it. That includes the focus ring, which is
   inverted by `.rail :focus-visible`.
-- **One tinted surface per screen** (`--c-accent-tint`), under the single figure the screen
-  exists for. It is brand blue and not a status colour, because the status colours are in
-  the table below it.
-- Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`, `.figure-value`),
+- **One dark card per screen** (`--c-card-dark`), under the single figure the screen exists
+  for. It is the rail's navy with a dot grain, not a status colour, because the status
+  colours are in the table below it. Everything else sits in a pale well (`--c-well`), with
+  a white panel (`.well-panel`) inside the dense ones.
+- Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`),
   so a column of pesos lines up digit over digit. `<Amount size="inherit">` takes the size of
   the block around it.
 - Light is the default, dark follows the operating system, and only colour tokens change
@@ -159,6 +160,10 @@ invented. The long version is `docs/design.md`; the short version:
 - **Icons come from Rune Icons** (Apache-2.0, copyright Nexvyn) and from nowhere else. No
   icon library is installed: the paths are vendored into `Icons.tsx`. The active rail icon
   draws itself once per section change, over `--motion-draw` and on `--ease-draw`.
+- **Charts are Recharts, styled only through the tokens**: `var(--…)` strings for every fill
+  and stroke, and the `useToken` hook in `src/lib/tokens.ts` for the few props that have to be
+  numbers. Two of them ship, both on the run: the donut that splits the week's money and the
+  bars that show the pesos at risk per control.
 - Reduced motion switches every duration token to 1ms, so CSS transitions stop in one
   place. Components that animate in JavaScript read the same preference through
   `useReducedMotion` from `motion/react`.
@@ -190,9 +195,6 @@ From ADR-0002, and they are not negotiable:
   the ledger month by month and lighting up each newly listed supplier is the next step.
 - **A QR image.** Generating one needs a dependency, and the rule is zero new dependencies.
   The intake URL is a plain hash link that any QR generator can take.
-- **`recharts`** draws exactly one chart, the pesos at risk per control on the run. It is
-  the mono-charts geometry (rounded bars, no axis lines, no grid) painted with the tokens.
-  It costs about 100 kB gzipped, which is the price of six bars until the app splits chunks.
 
 ## Accessibility
 

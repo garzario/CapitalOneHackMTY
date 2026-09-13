@@ -23,6 +23,11 @@
  * The chart is not the accessible copy of this information. A screen reader gets
  * the same six lines as words, which is what the list used to be and what an SVG
  * of rectangles cannot be.
+ *
+ * It renders no heading and no section of its own. The block around it is a
+ * well, the title and the count sit on the well's own ground above the panel
+ * this chart fills, and a component that drew a second head inside that panel
+ * would be titling the shelf it was standing on.
  */
 
 import type { Detector } from "@hackmty/core";
@@ -132,19 +137,7 @@ export function ControlsPanel({ items }: { items: readonly PaymentRunItem[] }) {
   const labelGap = useToken("--space-2", 8);
 
   return (
-    <section
-      aria-labelledby="controls-heading"
-      className="flex min-w-0 flex-col"
-    >
-      <div className="section-head">
-        <h2 id="controls-heading" className="t-lg">
-          Controles
-        </h2>
-        <span className="subtle t-sm">
-          {formatPlural(items.length, "instruccion")} revisadas
-        </span>
-      </div>
-
+    <>
       {/* The words, for anyone the rectangles cannot reach. */}
       <ul className="sr-only">
         {data.map((control) => (
@@ -246,6 +239,6 @@ export function ControlsPanel({ items }: { items: readonly PaymentRunItem[] }) {
           </ResponsiveContainer>
         </div>
       </div>
-    </section>
+    </>
   );
 }

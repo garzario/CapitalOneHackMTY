@@ -33,13 +33,17 @@ const PORT = 9334;
 /** The widths issue #96 names: a small phone, a tablet, a laptop, a projector. */
 const WIDTHS = [390, 768, 1440, 1920];
 
+/* Hash paths. The app is a hash router: a bare `/sat` serves index.html, the
+   app finds an empty hash and redirects to the run, and the audit measures
+   the payment run six times while reporting six screens. `brand/shoot.ts`
+   carries the fragment for the same reason. */
 const ROUTES = [
-  { path: "/run", name: "payment run" },
-  { path: "/instructions/ins-2026w37-002", name: "instruction detail" },
-  { path: "/intake", name: "QR intake" },
-  { path: "/sat", name: "Article 69-B" },
-  { path: "/cep", name: "CEP viewer" },
-  { path: "/metrics", name: "metrics" },
+  { path: "#/run", name: "payment run" },
+  { path: "#/instructions/ins-2026w37-002", name: "instruction detail" },
+  { path: "#/intake", name: "QR intake" },
+  { path: "#/sat", name: "Article 69-B" },
+  { path: "#/cep", name: "CEP viewer" },
+  { path: "#/metrics", name: "metrics" },
 ];
 
 const SCHEMES = ["light", "dark"] as const;
@@ -351,17 +355,6 @@ const CONTRAST_PROBE = `(() => {
     ["--c-verify-ink", "--c-surface", 4.5, "verify figure as text"],
     ["--c-release-ink", "--c-surface", 4.5, "release figure as text"],
     ["--c-watermark-ink", "--c-surface", 4.5, "the synthetic watermark"],
-    // The tinted card under the run's headline figure is a third ground, and
-    // every pair above measures against white. A surface that only one screen
-    // uses is exactly the one that ships unchecked.
-    ["--c-ink", "--c-accent-tint", 4.5, "the run figure on its tinted card"],
-    ["--c-ink-muted", "--c-accent-tint", 4.5, "supporting text on the tint"],
-    ["--c-ink-subtle", "--c-accent-tint", 4.5, "the totals' labels on the tint"],
-    // The run bar is three non-text indicators on that same tint, which is the
-    // only ground in the app where they are not measured against white.
-    ["--c-hold", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
-    ["--c-verify", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
-    ["--c-release", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
     // The marked row on the 69-B sweep: the supplier an evidence link arrived
     // at, tinted so it is found without reading the list. Its subtle ink is
     // lifted to muted by primitives.css, which is why muted is what is
@@ -376,11 +369,21 @@ const CONTRAST_PROBE = `(() => {
     // is on the report rather than in an argument, and so the day somebody
     // puts this border on an input the pair is already here to be raised.
     ["--c-border", "--c-canvas", 1, "the pill button's boundary, and the bar of a control with no hits"],
-    // The run's soft tiles and its round icon tiles: a ground that only this
-    // screen uses, which is exactly the kind that ships unmeasured.
-    ["--c-ink", "--c-tile", 4.5, "text on a soft tile"],
-    ["--c-ink-muted", "--c-tile", 4.5, "secondary text on a soft tile"],
-    ["--c-ink-subtle", "--c-tile", 4.5, "subtle text on a soft tile"],
+    // The well: the ground every block on the run stands on, and the third
+    // surface in the app after the page and the panel. All three inks are worn
+    // on it -- a label, a caption and a count in the same cell.
+    ["--c-ink", "--c-well", 4.5, "text on a well"],
+    ["--c-ink-muted", "--c-well", 4.5, "a well's label"],
+    ["--c-ink-subtle", "--c-well", 4.5, "a well's caption and glyph"],
+    // The one dark card, which carries its own two inks the way the rail does.
+    // Nothing else in the app is set on this ground.
+    ["--c-card-dark-ink", "--c-card-dark", 4.5, "the figure on the dark card"],
+    ["--c-card-dark-ink-muted", "--c-card-dark", 4.5, "the sentence and the link under it"],
+    // The line around a well is a boundary between two surfaces and never the
+    // edge of a control, so WCAG 1.4.11 does not reach it -- the same argument
+    // as the pill button's border below. Recorded at 1.0 so the number is on
+    // the report instead of in an argument.
+    ["--c-well-line", "--c-canvas", 1, "the well's own boundary, a non-text edge"],
     // The chart sits straight on the page: the bar of a control with hits is
     // a non-text indicator on the canvas, and the label at the end of a quiet
     // bar is the sentence that says nothing was found.
@@ -452,7 +455,7 @@ async function main(): Promise<void> {
         await devtools.send("Emulation.setEmulatedMedia", {
           features: [{ name: "prefers-reduced-motion", value: "reduce" }],
         });
-        await devtools.send("Page.navigate", { url: `${base}${route.path}` });
+        await devtools.send("Page.navigate", { url: `${base}/${route.path}` });
         await wait(1800);
 
         const probe = await devtools.evaluate<{
@@ -492,7 +495,7 @@ async function main(): Promise<void> {
     });
 
     for (const route of ROUTES) {
-      await devtools.send("Page.navigate", { url: `${base}${route.path}` });
+      await devtools.send("Page.navigate", { url: `${base}/${route.path}` });
       await wait(1800);
 
       const probe = await devtools.evaluate<{

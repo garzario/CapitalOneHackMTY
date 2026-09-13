@@ -33,33 +33,33 @@ export function IntakeQr({ origin }: IntakeQrProps) {
   const link = intakeLink(origin ?? currentOrigin());
 
   return (
-    <section
-      aria-labelledby="intake-qr-heading"
-      className="tile flex flex-col items-center gap-3 text-center"
-    >
-      <h2 id="intake-qr-heading" className="eyebrow">
-        Alta desde tu telefono
-      </h2>
+    <section aria-labelledby="intake-qr-heading" className="well">
+      <div className="well-body flex flex-col items-center gap-3 text-center">
+        <h2 id="intake-qr-heading" className="eyebrow">
+          Alta desde tu telefono
+        </h2>
 
-      {link.reachable ? (
-        <QrCode
-          value={link.url}
-          size={144}
-          label="Codigo QR con la direccion de la pagina de alta de instrucciones"
-        />
-      ) : (
-        /* Plain text, not a sunken box. A box inside a tile is the nesting
-           this screen took the borders off to avoid, and the sentence is
-           already the only thing standing where the code would be. */
-        <p className="muted m-0 t-sm">{link.reason}</p>
-      )}
+        {link.reachable ? (
+          <QrCode
+            value={link.url}
+            size={144}
+            label="Codigo QR con la direccion de la pagina de alta de instrucciones"
+          />
+        ) : (
+          /* Plain text, not a panel. This well holds four short lines and
+             nothing dense enough to earn a white shelf of its own, and the
+             sentence is already the only thing standing where the code would
+             be. */
+          <p className="muted m-0 t-sm">{link.reason}</p>
+        )}
 
-      <p className="code subtle m-0 t-xs" style={{ wordBreak: "break-all" }}>
-        {link.url}
-      </p>
-      <p className="muted m-0 t-xs">
-        Escanea el codigo. La instruccion aparece aqui.
-      </p>
+        <p className="code subtle m-0 t-xs" style={{ wordBreak: "break-all" }}>
+          {link.url}
+        </p>
+        <p className="muted m-0 t-xs">
+          Escanea el codigo. La instruccion aparece aqui.
+        </p>
+      </div>
     </section>
   );
 }

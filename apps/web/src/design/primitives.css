@@ -24,6 +24,99 @@
     border-radius: var(--radius-md);
   }
 
+  /*
+   * Wells and panels: the depth strategy, in three classes.
+   *
+   * A well is a pale container with a faint line, one step below the page. A
+   * panel is the white shelf inside it, one step above the well, and it only
+   * appears where the content is dense enough to need a ground of its own --
+   * a table, a chart. Two surfaces and a hairline each, no hard shadow
+   * anywhere, so the eye reads a shelf rather than a stack of frames.
+   *
+   * The radii are concentric and that is the whole reason the panel's is the
+   * smaller one: the well is 24 and pads its contents by 12, so a panel drawn
+   * at 12 keeps a constant 12px of well visible all the way around its
+   * corner. Stamp the same radius on both and the corner goes thin on the
+   * diagonal, which is the detail that makes nested boxes look glued on.
+   */
+  .well {
+    background-color: var(--c-well);
+    border: var(--border-width) solid var(--c-well-line);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-3);
+  }
+
+  /* The title row inside the well, above the panel. It sits on the well's own
+     ground, so it is inset by a little more than the panel it introduces. */
+  .well-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  .well-panel {
+    background-color: var(--c-surface-raised);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+
+  /* The panel a table lives in. A table already pads itself -- twelve pixels
+     in every cell, and a row whose height the two-line supplier cell sets --
+     so the panel only has to keep the first and last rows off its own hairline. The
+     full padding here would be a margin inside a margin, and the column of
+     amounts would stop lining up with the head above it. */
+  .well-panel-table {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  /* For a well whose content is a handful of words and a number: no panel,
+     because there is nothing dense enough to need its own ground, and a white
+     rectangle behind three lines of text is a box for the sake of a box. */
+  .well-body {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  /*
+   * The one dark card. It is the focal point of the screen and it is dark for
+   * the same reason the figure on it is the biggest: a single inversion on a
+   * pale page is the strongest hierarchy available, and it only works while
+   * there is exactly one of them.
+   *
+   * The grain is a dot every `--grain-pitch`, a few percent of light. It is
+   * the only texture in the app, it is dots and never lines, and at arm's
+   * length it does not read as pattern at all -- it reads as the difference
+   * between a surface and a fill.
+   */
+  .card-dark {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--c-card-dark);
+    color: var(--c-card-dark-ink);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    background-image: radial-gradient(
+      var(--grain-dot) var(--border-width),
+      transparent var(--border-width)
+    );
+    background-size: var(--grain-pitch) var(--grain-pitch);
+  }
+
+  /* The card's two muted inks are further down, next to the page's own: a
+     rule that overrides `.muted` has to be written after it or the cascade
+     does not reach it. */
+
+  .card-dark a {
+    color: inherit;
+  }
+
+  .card-dark :focus-visible {
+    outline-color: var(--c-card-dark-ink);
+  }
+
   /* The row a link arrived at. Someone who followed an evidence link off a
      finding should not have to read the list to find the supplier they came
      for, so the row they came for is tinted. Brand blue and not a status
@@ -116,6 +209,15 @@
      ink on that tint is under AA in dark, and the RFC is the line wearing it. */
   [data-highlight="true"] .subtle {
     color: var(--c-ink-muted);
+  }
+
+  /* Every ink token on the page is dark on dark inside the dark card, the same
+     way it is inside the rail, so the card carries its own two. Both of the
+     page's muted inks collapse to one up there: a third step of grey on navy
+     is a step nobody can see. */
+  .card-dark .muted,
+  .card-dark .subtle {
+    color: var(--c-card-dark-ink-muted);
   }
 
   /* --------------------------------------------------------------- numerals */
@@ -242,12 +344,20 @@
     border-color: var(--c-border);
     border-radius: var(--radius-pill);
     padding-inline: var(--space-5);
+    /* White, and lifted. On a page of wells a secondary button has to read as
+       something sitting on the ground rather than a shape cut into it, and
+       the raised shadow is the whole of that claim. The hover is `.btn`'s own
+       and is left alone: a whisper that deepens under the pointer stops being
+       a whisper, and a control that rises while you aim at it is worse. */
+    background-color: var(--c-surface-raised);
+    box-shadow: var(--shadow-raised);
   }
 
   .btn-accent {
     background-color: var(--c-accent);
     border-color: var(--c-accent);
     color: var(--c-accent-ink);
+    box-shadow: var(--shadow-raised);
   }
 
   .btn-accent:hover:not(:disabled) {
@@ -422,42 +532,18 @@
     white-space: nowrap;
   }
 
+  /* The sticky header rides on whatever it is stuck to, and inside a well it
+     is stuck to the panel. `--c-surface` and `--c-surface-raised` are the same
+     white on a light page and a step apart on a dark one, where the generic
+     surface shows as a band across the top of the table. */
+  .well-panel .data-table th {
+    background-color: var(--c-surface-raised);
+  }
+
   .data-table td {
     padding: var(--space-3);
     border-bottom: var(--border-width) solid var(--c-grid);
     vertical-align: middle;
-  }
-
-  /* ---------------------------------------------------------- the open list */
-
-  /*
-   * The run's table with the panel taken off it.
-   *
-   * It is still a real `<table>` -- scoped headers, a caption, four columns a
-   * screen reader can name -- because what it holds is tabular and dressing it
-   * as a list of divs would cost that for nothing. Only the chrome changed:
-   * the header is a line of small subtle words over one hairline, rows are
-   * 64px tall and separated by the faintest rule in the palette, and the last
-   * one has none at all so the list ends in air rather than on a border.
-   */
-  .open-table th {
-    background-color: var(--c-canvas);
-    padding-inline: 0;
-    padding-block: 0 var(--space-2);
-    border-bottom: var(--border-width) solid var(--c-border);
-  }
-
-  /* Only the geometry is overridden. The hairline under a row, the missing one
-     under the last, and the row's hover are `.data-table`'s own and are the
-     same here; restating them would be two rules that have to agree. */
-  .open-table td {
-    height: 4rem;
-    padding-inline: var(--space-4) 0;
-    padding-block: var(--space-4);
-  }
-
-  .open-table td:first-child {
-    padding-inline-start: 0;
   }
 
   /* The three decision buttons stay on one line whatever the column width,
@@ -931,6 +1017,10 @@
   .rail-item[aria-current="page"] {
     background-color: var(--c-rail-active);
     color: var(--c-rail-active-ink);
+    /* Raised, like every other current thing in the app. On the navy the
+       shadow is nearly invisible and that is the correct amount: it stops the
+       active row reading as a flat patch of a second blue. */
+    box-shadow: var(--shadow-raised);
   }
 
   .rail-item svg {
@@ -1271,18 +1361,17 @@
   /*
    * The run's own column.
    *
-   * Four blocks -- the greeting, the metrics, the list, and the pair of
-   * columns under it -- separated by 32px of nothing. The screen's own gap is
-   * 24px and every gap inside a block is smaller than that, so this one is the
-   * widest space on the page and the eye groups on it without a single border
-   * being drawn. That is the whole depth strategy on this screen: no panels,
-   * a hairline only where a boundary carries meaning, and two soft tiles for
-   * the two asides.
+   * The greeting, then four blocks that are all wells, separated by 24px. The
+   * air used to be 32px because it was the only thing grouping the blocks;
+   * now every block draws its own soft container and a gap that wide leaves
+   * the page reading as loose cards. The depth strategy is the well and the
+   * panel inside it -- one step below the page, one step above the well -- and
+   * exactly one dark card at the top for the figure the screen exists for.
    */
   .run-stack {
     display: flex;
     flex-direction: column;
-    gap: var(--space-8);
+    gap: var(--space-6);
   }
 
   /* The greeting. One large light line naming the ritual, the week and the
@@ -1323,135 +1412,6 @@
     gap: var(--space-3) var(--space-4);
   }
 
-  /* The head of a section that is no longer a card: the title on the left, one
-     control or one caption on the right, and no padding of its own because
-     there is no box for it to sit inside any more. */
-  .section-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-  }
-
-  /* ----------------------------------------------------------- the metrics */
-
-  /*
-   * The three numbers the run opens with, as one row bounded by two hairlines.
-   *
-   * This used to be a tinted card and the tint was doing the grouping. The
-   * rules do it now: two horizontal hairlines say "these three belong
-   * together" and a vertical one between the cells says "these are three", and
-   * nothing is painted behind anything. The first cell is the focal point by
-   * size alone -- its value is 38px where the other two are 24px -- which is
-   * the hierarchy that survives being squinted at.
-   */
-  .metric-row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin: 0;
-    padding: var(--space-6) 0;
-    border-top: var(--border-width) solid var(--c-border);
-    border-bottom: var(--border-width) solid var(--c-border);
-  }
-
-  .metric {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding-inline: var(--space-6);
-  }
-
-  .metric:first-child {
-    padding-inline-start: 0;
-  }
-
-  /* The rule between cells, on the cell that follows it, so a one-column
-     layout drops it by changing one rule rather than three. */
-  .metric + .metric {
-    border-inline-start: var(--border-width) solid var(--c-border);
-  }
-
-  .metric-head {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  /* The soft round ground under a glyph. It is the only shape on the screen
-     that is not type, a rule or a bar, which is what keeps three of them from
-     reading as decoration. */
-  .metric-tile {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
-    border-radius: var(--radius-pill);
-    background-color: var(--c-tile);
-    color: var(--c-ink);
-  }
-
-  .metric-label {
-    color: var(--c-ink-muted);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-  }
-
-  .metric-lead .metric-label {
-    color: var(--c-ink);
-  }
-
-  .metric-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    margin: 0;
-  }
-
-  .metric-value {
-    font-size: var(--text-xl);
-    /* Light, not thin. Capital One sets display copy at 100, but these are
-       digits a person is about to act on: at 100 the strokes of a 5 and a 6
-       start agreeing with each other, and this is the amount of money that is
-       not leaving the company's account. 300 keeps the airy Capital One
-       register without asking anyone to squint at pesos. */
-    font-weight: var(--weight-light);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-display);
-    font-variant-numeric: var(--numeric-tabular);
-    color: var(--c-ink);
-  }
-
-  .metric-value-lead {
-    font-size: var(--text-3xl);
-  }
-
-  .metric-bar {
-    margin-top: var(--space-4);
-    margin-bottom: var(--space-2);
-  }
-
-  /* Three cells side by side stop being three cells when each one is 120px
-     wide. Under 40rem they stack, and the rule between them turns with them. */
-  @media (max-width: 40rem) {
-    .metric-row {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-5);
-    }
-
-    .metric {
-      padding-inline: 0;
-    }
-
-    .metric + .metric {
-      border-inline-start: 0;
-      border-top: var(--border-width) solid var(--c-border);
-      padding-top: var(--space-5);
-    }
-  }
-
   /*
    * How the run's money splits between held, awaiting verification and
    * released.
@@ -1459,8 +1419,8 @@
    * It is the one object on this screen that could not belong to any other
    * product, and it is not decoration: the sentence below it states the same
    * split in words, and this says it in the channel the eye reads first. Six
-   * pixels tall and unlabelled, so it stays under the metrics rather than
-   * competing with them. The track is the page's own hairline, so a run with a
+   * pixels tall and unlabelled, so it stays under the figure rather than
+   * competing with it. The track is the page's own hairline, so a run with a
    * rounding gap between segments shows a line and not a hole.
    */
   .run-bar {
@@ -1493,6 +1453,34 @@
 
   .run-bar-release {
     background-color: var(--c-release);
+  }
+
+  /*
+   * The same bar on the dark card, in the card's own ink at three opacities.
+   *
+   * The decision colours are not used here and that is deliberate: they are
+   * tuned to be read on white, they are the loudest thing in the table below,
+   * and three saturated bars across a navy card would outshout the figure
+   * they belong to. Monochrome keeps the card one object.
+   *
+   * The track goes too. On the page it is the hairline, so a rounding gap
+   * reads as a line; on the card the ground behind the bar is the card
+   * itself, and a warm grey line drawn across navy is not a whisper.
+   */
+  .run-bar-dark {
+    background-color: transparent;
+  }
+
+  .run-bar-dark .run-bar-hold {
+    background-color: var(--c-bar-dark-1);
+  }
+
+  .run-bar-dark .run-bar-verify {
+    background-color: var(--c-bar-dark-2);
+  }
+
+  .run-bar-dark .run-bar-release {
+    background-color: var(--c-bar-dark-3);
   }
 
   /* ---------------------------------------------------------- the open list */
@@ -1532,24 +1520,6 @@
     color: var(--c-release-ink);
   }
 
-  /* ------------------------------------------------------------- the tiles */
-
-  /*
-   * The two asides under the run: the QR and the API's health.
-   *
-   * They are the only boxes left on the screen and they are boxes on purpose:
-   * neither is the run, both are furniture the clerk uses once, and a soft
-   * ground with no border is how the reference says "this is beside the work"
-   * without drawing another rectangle around it. Nothing is nested inside
-   * them -- a sunken box inside a tile is the pile of frames this screen took
-   * the borders off to escape.
-   */
-  .tile {
-    background-color: var(--c-tile);
-    border-radius: var(--radius-2xl);
-    padding: var(--space-6);
-  }
-
   /* --------------------------------------------------------------- charts */
 
   /* The detector names do not shrink below their own width, so on a phone the
@@ -1568,6 +1538,86 @@
 
   .chart-canvas {
     min-width: 28rem;
+  }
+
+  /*
+   * The donut and the list that names its three arcs.
+   *
+   * The list is the accessible copy of the chart and it is also the part a
+   * person actually reads: an arc says "about a third", the row next to it
+   * says which third and how many pesos. They wrap under 40rem -- chart on
+   * top, list under -- because side by side in 390px neither is legible.
+   */
+  .donut-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-5);
+  }
+
+  /* The chart's own box, at the size the geometry in RunDonut.tsx is drawn
+     for. `relative` is what the centre stat is positioned against.
+
+     The auto margins are for the wrapped case only: beside the list there is
+     no free space left on the line once the list has grown into it, and on a
+     phone, where the donut is alone on its line, they centre it. */
+  .donut-figure {
+    position: relative;
+    flex: none;
+    margin-inline: auto;
+  }
+
+  .donut-centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    /* The arcs take the pointer, not the label sitting on top of them. */
+    pointer-events: none;
+  }
+
+  .donut-legend {
+    display: flex;
+    flex: 1 1 14rem;
+    min-width: 0;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Rows separated by the faintest rule in the palette, and none under the
+     last one, so the list ends in air the way the table does. */
+  .donut-legend-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: var(--border-width) solid var(--c-grid);
+  }
+
+  .donut-legend-row:last-child {
+    border-bottom: 0;
+  }
+
+  .donut-legend-main {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* Three amounts of three different lengths can only be compared on their
+     right edge, which is the same reason the table's Importe column is there. */
+  .donut-legend-amount {
+    flex: none;
+    margin-inline-start: auto;
+    text-align: end;
+    white-space: nowrap;
   }
 
   /* The tooltip, and the one floating object the chart has. It is the only
@@ -1626,6 +1676,14 @@
   .decision-release .decision-dot {
     background-color: var(--c-release);
   }
+
+  /* The donut's legend borrows the dot and nothing else: the word beside it is
+     the legend's own, at its own size. Seven pixels against a fifteen-pixel
+     line need the nudge a flex row cannot work out for itself -- the dot
+     belongs on the middle of the label, not on the top of a two-line cell. */
+  .donut-legend-row .decision {
+    margin-top: var(--space-2);
+  }
 }
 
 @layer components {
@@ -1682,7 +1740,9 @@
     z-index: 0;
     border-radius: var(--radius-pill);
     background-color: var(--c-surface);
-    box-shadow: var(--shadow-2);
+    /* The same lift the pill buttons carry: the thumb is the one part of the
+       control that is proud of its track. */
+    box-shadow: var(--shadow-raised);
   }
 
   .segment-face {

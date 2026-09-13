@@ -160,16 +160,31 @@
   --c-surface: #ffffff;
   --c-surface-raised: #ffffff;
   --c-surface-sunken: #f7f4ee;
-  /* The soft round ground of an icon tile, and of the two aside tiles on the
-     run. It started as its own value, one step cooler than the sunken surface
-     so that a tile laid on a cream track would still read as a separate
-     object. Measured in the browser, that value was #f5f2ec against #f7f4ee:
-     two points per channel, which is under the threshold anyone can see, and
-     there is no place in the app where the two actually touch. So it is an
-     alias and says so. It keeps its own name because a tile and a sunken panel
-     are different objects and the day one of them moves, only one name has to
-     change. */
-  --c-tile: var(--c-surface-sunken);
+  /* Wells. The run screen is a set of soft containers on the page: a pale
+     well with a faint line, and inside the dense ones a white panel with the
+     ordinary hairline. The well is one step below the page and the panel one
+     step above the well, so the eye reads a shelf, not a border. */
+  --c-well: #f7f5f1;
+  --c-well-line: #ece8e0;
+
+  /* The one dark card, and its grain: a dot every --grain-pitch, a few
+     percent of light, so the surface reads as material rather than paint.
+     One card per screen, and on this screen it is the money that is not
+     leaving -- the single thing the clerk opens the run to see. */
+  --c-card-dark: #013d5b;
+  --c-card-dark-ink: #f2f7fa;
+  --c-card-dark-ink-muted: #b7cbd6;
+  --grain-dot: rgba(255, 255, 255, 0.1);
+  --grain-pitch: 4px;
+
+  /* The split bar on the dark card is monochrome so it does not argue with
+     the navy: three opacities of the card's own ink. The three decision
+     colours still say hold, verify and release everywhere else on the screen,
+     and three saturated bars on a navy ground would be the loudest object on
+     a page whose loudest object is supposed to be the figure above them. */
+  --c-bar-dark-1: rgba(242, 247, 250, 0.95);
+  --c-bar-dark-2: rgba(242, 247, 250, 0.55);
+  --c-bar-dark-3: rgba(242, 247, 250, 0.25);
 
   /* Text. Warm, from Gravity's neutral-emphasis-high. */
   --c-ink: #14110c;
@@ -193,12 +208,6 @@
   --c-accent: #013d5b;
   --c-accent-ink: #ffffff;
   --c-accent-soft: #e7f0f4;
-  /* The lighter end of the same Gravity blue ramp. It is not a second accent:
-     it never carries an action. It tints the one surface on each screen that
-     holds the number the screen exists for, which is the job a flat white card
-     cannot do and a saturated one overdoes. */
-  --c-accent-tint: #edf6fb;
-  --c-accent-tint-line: #cfe4ef;
 
   /* Capital One's swoosh red, from their own lockup. It appears in exactly one
      place -- the attribution in the rail -- and never as a UI colour, because a
@@ -289,6 +298,15 @@
   --shadow-2: 0 1px 2px rgba(20, 17, 12, 0.05);
   --shadow-3:
     0 2px 6px rgba(20, 17, 12, 0.08), 0 24px 60px rgba(20, 17, 12, 0.16);
+
+  /* A lift for the things that sit proud of a well: pill buttons, the
+     segmented thumb, the current rail item. Two layers, both quiet -- a
+     contact shadow that says the object is not painted on, and a wider one
+     that says how far above the ground it is. It is not `--shadow-2` with
+     more blur: that one separates a tooltip from the page, and this one is
+     the only elevation the resting state of a control is allowed. */
+  --shadow-raised:
+    0 1px 2px rgba(20, 17, 12, 0.06), 0 2px 8px rgba(20, 17, 12, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -297,7 +315,23 @@
     --c-surface: #1c1913;
     --c-surface-raised: #24201a;
     --c-surface-sunken: #23201a;
-    --c-tile: var(--c-surface-sunken);
+
+    --c-well: #1a1712;
+    --c-well-line: #2a2620;
+
+    /* The rail navy one step down, so the card still sits above the dark page
+       rather than merging with the furniture on its left. Its ink and its
+       grain do not move: the card carries its own palette in both themes, the
+       way the rail does. */
+    --c-card-dark: #0b2f45;
+    --c-card-dark-ink: #f2f7fa;
+    --c-card-dark-ink-muted: #b7cbd6;
+    --grain-dot: rgba(255, 255, 255, 0.1);
+    --grain-pitch: 4px;
+
+    --c-bar-dark-1: rgba(242, 247, 250, 0.95);
+    --c-bar-dark-2: rgba(242, 247, 250, 0.55);
+    --c-bar-dark-3: rgba(242, 247, 250, 0.25);
 
     --c-ink: #f5f1e9;
     --c-ink-muted: #b3ac9f;
@@ -313,8 +347,6 @@
     --c-accent: #7fd4ff;
     --c-accent-ink: #14110c;
     --c-accent-soft: #102c3b;
-    --c-accent-tint: #121f28;
-    --c-accent-tint-line: #1e3644;
 
     --c-brand-red: #f07577;
 
@@ -355,6 +387,10 @@
     --shadow-1: none;
     --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.45);
     --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+    /* Deeper than the light pair, because a shadow on a near-black ground has
+       almost no room to darken and a whisper there is nothing at all. */
+    --shadow-raised:
+      0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
 

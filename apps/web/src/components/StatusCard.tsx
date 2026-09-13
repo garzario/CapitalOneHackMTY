@@ -72,46 +72,45 @@ export function StatusCard() {
   }, [check]);
 
   return (
-    <section
-      aria-labelledby="api-status-heading"
-      className="tile flex flex-col gap-3"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h2 id="api-status-heading" className="eyebrow">
-          Estado de la API
-        </h2>
-        {/* The dot breathes only while a request is actually in flight, so the
-            movement is the answer to "is it doing something", not decoration
-            that runs forever. */}
-        <span
-          aria-hidden="true"
-          data-checking={isChecking ? "true" : "false"}
-          className="status-dot mt-1"
-          style={{ backgroundColor: DOT_COLOR[status.kind] }}
-        />
-      </div>
+    <section aria-labelledby="api-status-heading" className="well">
+      <div className="well-body flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <h2 id="api-status-heading" className="eyebrow">
+            Estado de la API
+          </h2>
+          {/* The dot breathes only while a request is actually in flight, so
+              the movement is the answer to "is it doing something", not
+              decoration that runs forever. */}
+          <span
+            aria-hidden="true"
+            data-checking={isChecking ? "true" : "false"}
+            className="status-dot mt-1"
+            style={{ backgroundColor: DOT_COLOR[status.kind] }}
+          />
+        </div>
 
-      <div aria-live="polite" className="flex flex-col gap-1">
-        <p className="t-md font-semibold">{LABEL[status.kind]}</p>
-        <p className="muted t-sm">{detail(status)}</p>
-      </div>
+        <div aria-live="polite" className="flex flex-col gap-1">
+          <p className="t-md font-semibold">{LABEL[status.kind]}</p>
+          <p className="muted t-sm">{detail(status)}</p>
+        </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="subtle t-xs">
-          {status.kind === "checking"
-            ? "Sin respuesta todavia"
-            : `Consultado a las ${status.checkedAt.toLocaleTimeString("es-MX")}`}
-        </p>
-        <button
-          type="button"
-          aria-busy={isChecking}
-          onClick={() => {
-            void check();
-          }}
-          className="btn btn-pill"
-        >
-          {isChecking ? "Consultando" : "Consultar de nuevo"}
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="subtle t-xs">
+            {status.kind === "checking"
+              ? "Sin respuesta todavia"
+              : `Consultado a las ${status.checkedAt.toLocaleTimeString("es-MX")}`}
+          </p>
+          <button
+            type="button"
+            aria-busy={isChecking}
+            onClick={() => {
+              void check();
+            }}
+            className="btn btn-pill"
+          >
+            {isChecking ? "Consultando" : "Consultar de nuevo"}
+          </button>
+        </div>
       </div>
     </section>
   );

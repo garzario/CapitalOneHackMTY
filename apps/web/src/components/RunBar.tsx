@@ -10,9 +10,19 @@
  * It is an image with a sentence for its name rather than three labelled
  * elements, because a screen reader walking three unlabelled spans learns
  * nothing and the sentence is what the bar actually says.
+ *
+ * The tone is which ground it is drawn on and nothing else. On the page the
+ * segments are the three decision colours; on the dark card they are three
+ * opacities of the card's own ink, because a colour tuned to be read on white
+ * is not the same colour on navy and three saturated bars up there would be
+ * louder than the figure they belong to. The split, the geometry and the name
+ * a screen reader gets are identical either way.
  */
 
 import type { RunVerdict } from "../lib/run-view";
+
+/** Which ground the bar is drawn on. */
+export type RunBarTone = "light" | "dark";
 
 /** Whole numbers for the label, so the sentence a screen reader gets is one
     a person would say out loud. */
@@ -20,7 +30,13 @@ function percent(part: number, whole: number): number {
   return Math.round((part / whole) * 100);
 }
 
-export function RunBar({ verdict }: { verdict: RunVerdict }) {
+export function RunBar({
+  verdict,
+  tone = "light",
+}: {
+  verdict: RunVerdict;
+  tone?: RunBarTone;
+}) {
   const { totalAmount, heldAmount, toVerifyAmount, releasedAmount } = verdict;
 
   /* An empty run has no composition, and dividing by its total would paint
@@ -45,7 +61,7 @@ export function RunBar({ verdict }: { verdict: RunVerdict }) {
 
   return (
     <div
-      className="run-bar"
+      className={tone === "dark" ? "run-bar run-bar-dark" : "run-bar"}
       role="img"
       aria-label={`${label} del total de la corrida`}
     >

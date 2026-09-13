@@ -7,13 +7,13 @@
  * Everything else on this screen is subordinate to those three, and this file
  * is mostly a record of what was removed to make that true.
  *
- * The boxes are gone. Every block on this screen used to be a bordered panel
- * with a card head on it, which is five rectangles telling the eye that five
- * things of equal importance start here. They are not of equal importance. The
- * screen is now one column with air between its blocks, a hairline where a
- * boundary is genuinely load-bearing, and exactly two soft tiles, for the two
- * asides that are furniture rather than the run. Hierarchy comes from size and
- * from space, which is the only way it survives a screenshot.
+ * The bordered panels are gone and what replaced them is not a border. Every
+ * block is a well -- a pale warm container one step below the page -- and where
+ * the content is dense enough to need a ground of its own, a white panel sits
+ * inside the well with a smaller, concentric radius. Nothing on this screen
+ * stands on bare white and nothing casts a hard shadow. The hierarchy is
+ * carried by the one dark card at the top, by size, and by which surface a
+ * thing is standing on, which is the kind that survives a screenshot.
  *
  * The three decision buttons are gone from the table. Every row carried
  * Retener, Verificar and Liberar in three different colours; thirteen rows made
@@ -23,11 +23,10 @@
  * instruction, next to the finding that explains it, which is the product's own
  * argument applied to its own interface.
  *
- * The decision chip is gone too, and so is the 3 px mark the row used to carry
- * on its left edge: with no panel around the table that mark was a stripe
- * floating in the margin of the page. A row's state is the round tile at its
- * head, tinted by the decision, and the word in its own column, so colour is
- * never the only signal.
+ * The 3 px mark the row used to carry on its left edge is gone: a stripe in the
+ * margin of a row is a line used as decoration, and this screen has none. A
+ * row's state is the round tile at its head, tinted by the decision, and the
+ * soft chip in its own column, so colour is never the only signal.
  *
  * The alert rail is gone. It listed the same findings the table was already
  * sorted by. In its place the six controls say what they found, including the
@@ -45,6 +44,7 @@ import { ControlsPanel } from "../components/Controls";
 import { SourceIcon } from "../components/Icons";
 import { IntakeQr } from "../components/IntakeQr";
 import { Amount } from "../components/Primitives";
+import { RunDonut } from "../components/RunDonut";
 import { RunFilterControl } from "../components/RunFilter";
 import { RunVerdict } from "../components/RunVerdict";
 import {
@@ -63,7 +63,12 @@ import {
   formatDate,
   formatPlural,
 } from "../lib/format";
-import { ACTION_LABEL, SOURCE_ICON, SOURCE_LABEL } from "../lib/labels";
+import {
+  ACTION_BADGE,
+  ACTION_LABEL,
+  SOURCE_ICON,
+  SOURCE_LABEL,
+} from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
@@ -133,10 +138,10 @@ export function RunScreen() {
       ) : null}
 
       {run && verdict ? (
-        /* One column, four blocks, 32px of air between them and no borders in
-           between. The gap is the whole layout: it is wider than the gap
-           inside any block, so the four read as four even though nothing is
-           drawn around them. */
+        /* One column: the greeting, the three figures, the two charts, the
+           list, and the two asides. Every one of them after the greeting is a
+           well, so the grouping is drawn rather than implied, and 24px of air
+           is enough between containers that already have edges. */
         <div className="run-stack">
           <header className="run-hero">
             <div>
@@ -180,8 +185,50 @@ export function RunScreen() {
 
           <RunVerdict verdict={verdict} />
 
-          <section aria-labelledby="run-table-heading" className="min-w-0">
-            <div className="section-head">
+          {/* The two charts. The donut gets the wider column because its
+              legend is four columns of text; the controls get the narrower one
+              because six bars only need to be longer than each other. They
+              stack under 80rem, where neither of them is a chart any more. */}
+          {/* Two equal columns, not three-to-two: the controls chart has a floor
+              of 28rem and a narrower column pushed its longest label out of
+              view between 1280 and 1570 wide. */}
+          <div className="grid gap-4 xl:grid-cols-2">
+            <section
+              aria-labelledby="composition-heading"
+              className="well min-w-0"
+            >
+              <div className="well-head">
+                <h2 id="composition-heading" className="t-lg">
+                  Composicion de la corrida
+                </h2>
+              </div>
+
+              <div className="well-panel min-w-0">
+                <RunDonut verdict={verdict} />
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="controls-heading"
+              className="well min-w-0"
+            >
+              <div className="well-head">
+                <h2 id="controls-heading" className="t-lg">
+                  Controles
+                </h2>
+                <span className="subtle t-sm">
+                  {formatPlural(run.items.length, "instruccion")} revisadas
+                </span>
+              </div>
+
+              <div className="well-panel min-w-0">
+                <ControlsPanel items={run.items} />
+              </div>
+            </section>
+          </div>
+
+          <section aria-labelledby="run-table-heading" className="well min-w-0">
+            <div className="well-head">
               <h2 id="run-table-heading" className="t-lg">
                 Instrucciones
               </h2>
@@ -196,151 +243,167 @@ export function RunScreen() {
             </div>
 
             {run.items.length === 0 ? (
-              <EmptyBlock
-                title="No hay instrucciones esta semana"
-                description="Cuando llegue la primera instruccion por correo, portal o la pagina de alta, aparece aqui."
-                action={
-                  <Link to="/intake" className="btn btn-pill">
-                    Dar de alta una instruccion
-                  </Link>
-                }
-              />
+              <div className="well-panel">
+                <EmptyBlock
+                  title="No hay instrucciones esta semana"
+                  description="Cuando llegue la primera instruccion por correo, portal o la pagina de alta, aparece aqui."
+                  action={
+                    <Link to="/intake" className="btn btn-pill">
+                      Dar de alta una instruccion
+                    </Link>
+                  }
+                />
+              </div>
             ) : (
-              <div className="table-scroll">
-                <table className="data-table open-table">
-                  <caption className="sr-only">
-                    Instrucciones de pago de la semana, con su cuenta y su
-                    decision.
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Proveedor</th>
-                      <th scope="col" className="align-end">
-                        Importe
-                      </th>
-                      <th scope="col">Cuenta destino</th>
-                      <th scope="col">Decision</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/*
-                     * The filter change is animated per row: the new set fades
-                     * and lifts into place with a stagger capped so that even
-                     * ninety-two rows have settled inside a fifth of a second.
-                     *
-                     * The key carries the filter, which is the whole trick.
-                     * React then treats a filter change as a new set of rows
-                     * rather than an edit to the old one, so every visible row
-                     * mounts fresh and animates. The first attempt used
-                     * `AnimatePresence` with an `exit` so leaving rows could
-                     * fade out too, and it did not work: exiting `<tr>`s were
-                     * never unmounted, so switching back to "No salen" left
-                     * all ninety-two rows on screen with the filter claiming
-                     * seven. Animating only the entrance costs nothing you can
-                     * see -- the outgoing rows are replaced under an incoming
-                     * animation -- and it cannot strand a row.
-                     *
-                     * Only opacity and transform move, never height or layout,
-                     * so the column widths hold still and the table does not
-                     * shiver while it changes.
-                     */}
-                    {rows.map((item, index) => {
-                      const { action } = item.decision;
+              /* The panel is the ground and the box inside it is what
+                 scrolls: a scroll container that is also the padded surface
+                 drops its own trailing padding the moment the content
+                 overflows it. */
+              <div className="well-panel well-panel-table">
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <caption className="sr-only">
+                      Instrucciones de pago de la semana, con su cuenta y su
+                      decision.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Proveedor</th>
+                        <th scope="col" className="align-end">
+                          Importe
+                        </th>
+                        <th scope="col">Cuenta destino</th>
+                        <th scope="col">Decision</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/*
+                       * The filter change is animated per row: the new set fades
+                       * and lifts into place with a stagger capped so that even
+                       * ninety-two rows have settled inside a fifth of a second.
+                       *
+                       * The key carries the filter, which is the whole trick.
+                       * React then treats a filter change as a new set of rows
+                       * rather than an edit to the old one, so every visible row
+                       * mounts fresh and animates. The first attempt used
+                       * `AnimatePresence` with an `exit` so leaving rows could
+                       * fade out too, and it did not work: exiting `<tr>`s were
+                       * never unmounted, so switching back to "No salen" left
+                       * all ninety-two rows on screen with the filter claiming
+                       * seven. Animating only the entrance costs nothing you can
+                       * see -- the outgoing rows are replaced under an incoming
+                       * animation -- and it cannot strand a row.
+                       *
+                       * Only opacity and transform move, never height or layout,
+                       * so the column widths hold still and the table does not
+                       * shiver while it changes.
+                       */}
+                      {rows.map((item, index) => {
+                        const { action } = item.decision;
 
-                      return (
-                        <motion.tr
-                          key={`${filter}-${item.instruction.id}`}
-                          initial={
-                            filterTouched ? { opacity: 0, y: -4 } : false
-                          }
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{
-                            duration: reduceMotion ? 0 : 0.22,
-                            delay: reduceMotion
-                              ? 0
-                              : Math.min(index * 0.012, 0.18),
-                            ease: [0.2, 0.8, 0.2, 1],
-                          }}
-                        >
-                          <td className="cell-supplier">
-                            <div className="row-lead">
-                              {/* Two facts in one object: the tint is the
+                        return (
+                          <motion.tr
+                            key={`${filter}-${item.instruction.id}`}
+                            initial={
+                              filterTouched ? { opacity: 0, y: -4 } : false
+                            }
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: reduceMotion ? 0 : 0.22,
+                              delay: reduceMotion
+                                ? 0
+                                : Math.min(index * 0.012, 0.18),
+                              ease: [0.2, 0.8, 0.2, 1],
+                            }}
+                          >
+                            <td className="cell-supplier">
+                              <div className="row-lead">
+                                {/* Two facts in one object: the tint is the
                                   decision and the glyph is the channel the
                                   instruction arrived by. Neither is the only
                                   place either fact appears -- the word is in
                                   the last column and the channel is spelled
                                   out under the name. */}
-                              <span className={`row-tile row-tile-${action}`}>
-                                <SourceIcon
-                                  glyph={SOURCE_ICON[item.instruction.source]}
-                                  size={18}
-                                />
-                              </span>
-                              <span className="flex min-w-0 flex-col">
-                                <Link
-                                  to={instructionPath(item.instruction.id)}
-                                  className="link-quiet t-base font-medium"
-                                >
-                                  {item.supplier.legalName}
-                                </Link>
-                                <span className="t-xs">
-                                  <button
-                                    type="button"
-                                    className="code link-quiet subtle"
-                                    onClick={() =>
-                                      setDrawerRfc(item.supplier.rfc)
-                                    }
+                                <span className={`row-tile row-tile-${action}`}>
+                                  <SourceIcon
+                                    glyph={SOURCE_ICON[item.instruction.source]}
+                                    size={18}
+                                  />
+                                </span>
+                                <span className="flex min-w-0 flex-col">
+                                  <Link
+                                    to={instructionPath(item.instruction.id)}
+                                    className="link-quiet t-base font-medium"
                                   >
-                                    {item.supplier.rfc}
-                                  </button>
-                                  <span className="subtle">
-                                    {" · "}
-                                    {SOURCE_LABEL[item.instruction.source]}
-                                    {" · "}
-                                    {formatDate(item.instruction.receivedAt)}
+                                    {item.supplier.legalName}
+                                  </Link>
+                                  <span className="t-xs">
+                                    <button
+                                      type="button"
+                                      className="code link-quiet subtle"
+                                      onClick={() =>
+                                        setDrawerRfc(item.supplier.rfc)
+                                      }
+                                    >
+                                      {item.supplier.rfc}
+                                    </button>
+                                    <span className="subtle">
+                                      {" · "}
+                                      {SOURCE_LABEL[item.instruction.source]}
+                                      {" · "}
+                                      {formatDate(item.instruction.receivedAt)}
+                                    </span>
                                   </span>
                                 </span>
-                              </span>
-                            </div>
-                          </td>
-                          <td className="align-end">
-                            {/* The amount carries the same weight as the
+                              </div>
+                            </td>
+                            <td className="align-end">
+                              {/* The amount carries the same weight as the
                                 legal name above it. The name is the link;
                                 the amount is what the clerk is deciding
                                 about, and it should not be the lighter of
                                 the two things in the row. */}
-                            <Amount
-                              value={item.instruction.amount}
-                              className="font-medium"
-                            />
-                          </td>
-                          <td>
-                            <span className="code code-nowrap">
-                              {formatClabe(item.instruction.clabe)}
-                            </span>
-                            <span className="subtle block t-xs">
-                              {bankName(item.instruction.clabe)}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`decision decision-${action}`}>
-                              <span className="decision-dot" />
-                              {ACTION_LABEL[action]}
-                            </span>
-                            {item.findings.length > 0 ? (
-                              <Link
-                                to={instructionPath(item.instruction.id)}
-                                className="subtle block t-xs underline"
-                              >
-                                {formatPlural(item.findings.length, "hallazgo")}
-                              </Link>
-                            ) : null}
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              <Amount
+                                value={item.instruction.amount}
+                                className="font-medium"
+                              />
+                            </td>
+                            <td>
+                              <span className="code code-nowrap">
+                                {formatClabe(item.instruction.clabe)}
+                              </span>
+                              <span className="subtle block t-xs">
+                                {bankName(item.instruction.clabe)}
+                              </span>
+                            </td>
+                            <td>
+                              {/* The soft chip the rest of the app uses for a
+                                decision. On a white panel a tinted pill is
+                                legible at a glance where a 7px dot beside a
+                                word was a detail you had to look for, and it
+                                is the same object a judge just saw on the
+                                instruction screen. */}
+                              <span className={ACTION_BADGE[action]}>
+                                {ACTION_LABEL[action]}
+                              </span>
+                              {item.findings.length > 0 ? (
+                                <Link
+                                  to={instructionPath(item.instruction.id)}
+                                  className="subtle block t-xs underline"
+                                >
+                                  {formatPlural(
+                                    item.findings.length,
+                                    "hallazgo",
+                                  )}
+                                </Link>
+                              ) : null}
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* A filter that matches nothing has to say so. The common
                     case is the good one: a week where nothing was stopped
@@ -373,13 +436,13 @@ export function RunScreen() {
             )}
           </section>
 
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <ControlsPanel items={run.items} />
-
-            <aside className="flex min-w-0 flex-col gap-4">
-              <IntakeQr />
-              <StatusCard />
-            </aside>
+          {/* The two asides: the QR the judge scans and the API's health.
+              Neither is the run -- both are furniture the clerk uses once --
+              so they are wells with no panel inside them, side by side under
+              everything that is. */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <IntakeQr />
+            <StatusCard />
           </div>
         </div>
       ) : null}
