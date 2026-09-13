@@ -20,8 +20,12 @@
  */
 
 import type {
+  Actor,
+  ActorRole,
   Cep,
   Cfdi,
+  Confidence,
+  ConfidenceRule,
   Decision,
   EvidenceValue,
   Finding,
@@ -38,11 +42,14 @@ import type {
   SealState,
   Supplier,
   SweepResult,
+  TransactionState,
+  TransactionStateRule,
   VerificationOutcome,
   VerificationState,
   VerificationStateName,
   VerificationTurn,
 } from "@hackmty/core";
+import { ACTOR_NAME_MAX_LENGTH, ACTOR_ROLES } from "@hackmty/core";
 import {
   CENT_AMOUNT,
   CLAVE_RASTREO_MAX_LENGTH,
@@ -129,6 +136,16 @@ export const cfdiSchema = z.object({
   total: amountSchema,
   paymentMethod: z.enum(["PUE", "PPD"]),
   paymentForm: z.string().min(1).optional(),
+  /**
+   * CFDI 4.0 LugarExpedicion, five digits. Validated as a postal code here and
+   * not just as a string, because control 2 maps it to a state and a place that
+   * cannot be read has to be refused at the edge rather than silently ignored
+   * inside the engine.
+   */
+  issuePlace: z
+    .string()
+    .regex(/^\d{5}$/, "issuePlace is a five-digit postal code")
+    .optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cfdi>;
 
@@ -242,9 +259,6 @@ export const detectorSchema = z.enum([
 
 export const severitySchema = z.enum(["info", "warning", "critical"]);
 
-/** The three words a line reads at. ADR-0009 owns the rule table behind them. */
-export const confidenceSchema = z.enum(["confiable", "precaucion", "alerta"]);
-
 /**
  * What the consortium holds for the account an instruction pays, from the local
  * snapshot. Issue #164, and `packages/consortium/README.md` says what is and is
@@ -306,6 +320,25 @@ export const findingSchema = z.object({
 export const actionSchema = z.enum(["hold", "verify", "release"]);
 
 /**
+ * Who is acting, the shape the `X-Actor` header parses into and the shape the
+ * ledger stores.
+ *
+ * The roles come from `ACTOR_ROLES` in @hackmty/core rather than from a literal
+ * here, so a third role would be a compile error in this file instead of an
+ * endpoint that silently refuses it. Same reason the name cap is the constant:
+ * the header parser, this schema and `decisions.decided_by` have to agree, or a
+ * name the API accepts is a name the ledger truncates.
+ */
+export const actorRoleSchema = z.enum(
+  ACTOR_ROLES as readonly [ActorRole, ...ActorRole[]],
+);
+
+export const actorSchema = z.object({
+  name: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
+  role: actorRoleSchema,
+}) satisfies z.ZodType<Actor>;
+
+/**
  * Longest reason a person may write on a decision.
  *
  * Long enough for the sentence an auditor needs ("el proveedor confirmo por
@@ -324,9 +357,93 @@ export const decisionSchema = z.object({
   findings: z.array(findingSchema),
   decidedAt: instantSchema,
   decidedBy: z.string().min(1).optional(),
+  /** The role that name was acting in. Absent on the engine's own decision. */
+  decidedByRole: actorRoleSchema.optional(),
   /** Why the person chose it. Absent on the engine's own proposal. */
   reason: z.string().min(1).max(REASON_MAX).optional(),
 }) satisfies z.ZodType<Decision>;
+
+/* -------------------------------------------------------------------------- */
+/* The level and the state, which travel with every line                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The level one payment is read at, and never a number.
+ *
+ * `metricsSchema` reads it too, because `Metrics.perLevel` of issue #201 reports
+ * the blind evaluation the way a clerk reads the screen. One enum for both, so a
+ * fourth word could not be added to one of them alone.
+ *
+ * Three words. ADR-0009 is binding on this and docs/09-api.md says it twice: the
+ * expected-loss arithmetic is an upper bound on the evidence and says so in its
+ * own comment, so a figure next to a supplier's name would be a precision nobody
+ * earned, and the word "seguro" would be a guarantee nobody can give about a
+ * transfer that cannot be recalled.
+ */
+export const confidenceSchema = z.enum([
+  "confiable",
+  "precaucion",
+  "alerta",
+]) satisfies z.ZodType<Confidence>;
+
+/** Which rule produced the level, so a panel can show the level with its reason. */
+export const confidenceRuleSchema = z.enum([
+  "sat_definitive",
+  "critical_finding",
+  "new_account_without_history",
+  "pending_verification",
+  "warning_finding",
+  "no_open_signal",
+]) satisfies z.ZodType<ConfidenceRule>;
+
+/**
+ * Where one payment stands. The three the screens show plus the two the run has
+ * always counted internally, which is what stops an honest answer being rounded
+ * to a colour.
+ */
+export const transactionStateSchema = z.enum([
+  "rojo",
+  "cancelado",
+  "enviado",
+  "pendiente",
+  "liberado",
+]) satisfies z.ZodType<TransactionState>;
+
+/** Which rule produced the state, in the vocabulary of the ADR-0009 table. */
+export const transactionStateRuleSchema = z.enum([
+  "executed",
+  "execution_cancelled",
+  "verification_blocked",
+  "sat_definitive",
+  "stopped_for_a_person",
+  "execution_failed",
+  "released",
+  "undecided",
+]) satisfies z.ZodType<TransactionStateRule>;
+
+/**
+ * The five keys the level and the state travel as, on a run line and on the
+ * instruction detail.
+ *
+ * Flat and not nested, because `jq '{confidence, state}'` is the shape
+ * docs/09-api.md promises a judge can paste. Every one of them is derived by
+ * `assessLine` in `@hackmty/core` and none of them is stored:
+ * `0012_assistant_and_payment_events.sql` deliberately adds no column for either,
+ * because a stored level can disagree with the findings it was computed from and a
+ * derived one cannot.
+ *
+ * `confidenceFindingIds` is what makes the level showable. A level with no
+ * evidence under it is not a thing this product puts on a screen, so the findings
+ * that produced it travel with it and the panel renders their evidence chips next
+ * to the word.
+ */
+export const lineLevelsSchema = z.object({
+  confidence: confidenceSchema,
+  confidenceRule: confidenceRuleSchema,
+  confidenceFindingIds: z.array(z.string().min(1)),
+  state: transactionStateSchema,
+  stateRule: transactionStateRuleSchema,
+});
 
 /** One turn of a verification call, as the voice provider reported it. */
 export const verificationTurnSchema = z.object({
@@ -358,6 +475,8 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     type: z.literal("instruction_received"),
     at: instantSchema,
     instruction: paymentInstructionSchema,
+    /** Who posted it. Absent on the rows the generator wrote. */
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("payment_sent"),
@@ -366,10 +485,20 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     claveRastreo: z.string().min(1).optional(),
   }),
   z.object({
+    type: z.literal("payment_cancelled"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    reason: z.string().min(1).max(1000),
+    runId: z.string().min(1).optional(),
+    /** Absent exactly when nobody dropped the line by hand. */
+    actor: actorSchema.optional(),
+  }),
+  z.object({
     type: z.literal("sat_list_published"),
     at: instantSchema,
     listVersion: z.string().min(1),
     entries: z.array(satListEntrySchema),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("cent_sent"),
@@ -381,6 +510,7 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     amount: z.literal(CENT_AMOUNT),
     clabeLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
     simulated: z.boolean(),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("cep_awaited"),
@@ -396,6 +526,7 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     at: instantSchema,
     cep: cepSchema,
     supplierRfc: rfcSchema,
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("verification_call"),
@@ -410,7 +541,8 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     conversationId: z.string().min(1).max(200).optional(),
     manual: z.boolean(),
     /** Who typed the outcome in, on a hand-recorded call. */
-    recordedBy: z.string().min(1).max(120).optional(),
+    recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH).optional(),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("decision_made"),
@@ -527,14 +659,41 @@ export const paymentRunTotalsSchema = z.object({
   retroactive69bBase: z.number().nonnegative(),
   /** ISR plus IVA that reverses on that subtotal. No fraud is needed for it. */
   retroactive69bExposure: z.number().nonnegative(),
+  /* The run summarised by level and by state, from `runLevels` in
+     `@hackmty/core`. Counts and never an average, for the reason `runMoney` gives
+     for never summing an amount at risk inside a line: the mean of three words is
+     not a word, and a run reported as `precaucion` as a whole would hide the one
+     `alerta` line the clerk opened the screen for. The three levels add up to
+     `instructions` and so do the five states, because every line has one of each. */
+  confiable: z.number().int().nonnegative(),
+  precaucion: z.number().int().nonnegative(),
+  alerta: z.number().int().nonnegative(),
+  rojo: z.number().int().nonnegative(),
+  cancelado: z.number().int().nonnegative(),
+  enviado: z.number().int().nonnegative(),
+  pendiente: z.number().int().nonnegative(),
+  liberado: z.number().int().nonnegative(),
 });
 
-export const paymentRunItemSchema = z.object({
+/**
+ * One line of the run as a repository joins it: the four objects and no
+ * derivation.
+ *
+ * Split out from `paymentRunItemSchema` so each repository builds the join and
+ * hands it to `levelled` in `src/levels.ts`, which is the one place the level and
+ * the state are attached. A repository that attached them itself would be the
+ * second implementation ADR-0009 exists to remove.
+ */
+export const paymentRunLineSchema = z.object({
   instruction: paymentInstructionSchema,
   supplier: supplierSchema,
   decision: decisionSchema.nullable(),
   findings: z.array(findingSchema),
 });
+
+export const paymentRunItemSchema = paymentRunLineSchema.extend(
+  lineLevelsSchema.shape,
+);
 
 export const paymentRunSchema = z.object({
   id: z.string().min(1),
@@ -588,6 +747,7 @@ export const holdWindowSchema = z.object({
  */
 export const instructionDetailResponseSchema = instructionDetailSchema.extend({
   hold: holdWindowSchema.nullable(),
+  ...lineLevelsSchema.shape,
 });
 
 export const verifiedBeneficiarySchema = z.object({
@@ -806,7 +966,7 @@ export const createInstructionBodySchema = z
  */
 export const decideBodySchema = z.object({
   action: actionSchema,
-  decidedBy: z.string().min(1).max(120),
+  decidedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
   reason: z.string().min(1).max(REASON_MAX).optional(),
 });
 
@@ -873,7 +1033,7 @@ export const verifyCallBodySchema = z.union([
     outcome: verificationOutcomeSchema,
     /** What the person heard, quoted. Optional, because silence is an outcome. */
     evidence: z.string().min(1).max(4000).optional(),
-    recordedBy: z.string().min(1).max(120),
+    recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
   }),
 ]);
 
@@ -941,6 +1101,8 @@ export const ledgerQuerySchema = z.object({
 /* -------------------------------------------------------------------------- */
 
 export type PaymentRunTotals = z.infer<typeof paymentRunTotalsSchema>;
+export type PaymentRunLine = z.infer<typeof paymentRunLineSchema>;
+export type LineLevels = z.infer<typeof lineLevelsSchema>;
 export type PaymentRunItem = z.infer<typeof paymentRunItemSchema>;
 export type PaymentRun = z.infer<typeof paymentRunSchema>;
 export type InstructionDetail = z.infer<typeof instructionDetailSchema>;

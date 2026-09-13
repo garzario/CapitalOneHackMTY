@@ -345,12 +345,12 @@ export function VerifyAccountPanel({
 
 /** The colour of the state, from the same palette the decisions use. */
 const STATE_DOT: Record<VerificationState["state"], string> = {
-  not_started: "var(--c-ink-subtle)",
-  cent_sent: "var(--c-verify)",
-  awaiting_cep: "var(--c-verify)",
-  cep_signed: "var(--c-accent)",
-  released: "var(--c-release)",
-  blocked: "var(--c-hold)",
+  not_started: "dot-neutral",
+  cent_sent: "dot-verify",
+  awaiting_cep: "dot-verify",
+  cep_signed: "dot-accent",
+  released: "dot-release",
+  blocked: "dot-hold",
 };
 
 /**
@@ -386,8 +386,7 @@ export function VerificationCard({
         <span className="flex items-center gap-2">
           <span
             aria-hidden="true"
-            className="status-dot"
-            style={{ backgroundColor: STATE_DOT[state.state] }}
+            className={`status-dot ${STATE_DOT[state.state]}`}
           />
           <span className="eyebrow">Verificacion de la cuenta</span>
         </span>

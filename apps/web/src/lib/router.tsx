@@ -16,23 +16,28 @@ import { useMemo, useSyncExternalStore } from "react";
 
 export type Route =
   | { name: "run" }
+  | { name: "payments" }
   | { name: "instruction"; id: string }
   | { name: "intake" }
   | { name: "sat" }
   | { name: "cep" }
   | { name: "verifyCall" }
   | { name: "metrics" }
+  /* The token sheet. A reference page, deliberately not in the navigation. */
+  | { name: "design" }
   | { name: "notFound"; path: string };
 
 export type RouteName = Route["name"];
 
 export const PATHS = {
   run: "/run",
+  payments: "/payments",
   intake: "/intake",
   sat: "/sat",
   cep: "/cep",
   verifyCall: "/verify-call",
   metrics: "/metrics",
+  design: "/design",
 } as const;
 
 export const DEFAULT_PATH = PATHS.run;
@@ -47,9 +52,28 @@ export function verifyCallPath(instructionId: string): string {
 }
 
 /**
+ * The 69-B screen with the lookup box prefilled. Never runs the lookup itself:
+ * ADR-0002 puts the official list behind a button a person presses, so a link
+ * may carry the RFC but may not ask the SAT anything on arrival.
+ */
+export function satPath(rfc: string): string {
+  return `${PATHS.sat}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/** The CEP screen with the supplier prefilled in the verification form. */
+export function cepPath(rfc: string): string {
+  return `${PATHS.cep}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/**
  * The CEP page with one instruction already selected, so the one-cent
  * verification is one click from the instruction detail and nobody retypes a
  * folio in front of a judge.
+ *
+ * A second query key on the same screen rather than a second screen: `rfc` fills
+ * the form a person verifies a beneficiary in, `instruction` picks the payment
+ * the cent is about, and the CEP page answers both because they are the same
+ * page a judge lands on from two different findings.
  */
 export function verifyAccountPath(instructionId: string): string {
   return `${PATHS.cep}?instruction=${encodeURIComponent(instructionId)}`;
@@ -92,6 +116,8 @@ export function parsePath(target: string): Route {
     switch (segments[0]) {
       case "run":
         return { name: "run" };
+      case "payments":
+        return { name: "payments" };
       case "intake":
         return { name: "intake" };
       case "sat":
@@ -102,6 +128,8 @@ export function parsePath(target: string): Route {
         return { name: "verifyCall" };
       case "metrics":
         return { name: "metrics" };
+      case "design":
+        return { name: "design" };
       default:
         return { name: "notFound", path };
     }

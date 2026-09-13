@@ -21,13 +21,18 @@ import type {
 import { SYSTEM_DECIDER } from "./domain";
 import {
   assessConfidence,
+  assessLine,
   assessTransactionState,
+  blockedByCep,
   type ConfidenceRule,
   confidenceOf,
+  definitiveListingReason,
   executionLineOf,
   isAccountWithoutHistory,
   isDefinitiveSatListing,
+  type LevelLine,
   releasedByAPerson,
+  runLevels,
   SAT_49BIS_ARTICLE,
   type TransactionStateRule,
   transactionStateOf,
@@ -455,5 +460,212 @@ describe("executionLineOf", () => {
     );
 
     expect(state).toBe("enviado");
+  });
+});
+
+/** A `beneficiary_cep` finding in the shape `beneficiaryCepAdapter` writes it. */
+function cepFinding(severity: Severity): Finding {
+  return finding({
+    id: `cep-${INSTRUCTION}`,
+    detector: "beneficiary_cep",
+    severity,
+    evidence: { nameMatch: severity === "critical" ? "mismatch" : "match" },
+  });
+}
+
+/** A 49 Bis finding in the shape `sat49BisAdapter` writes it. */
+function bisFinding(): Finding {
+  return finding({
+    id: "sat49bis:SYN080910HI8:2026-09-01",
+    detector: "sat_69b",
+    severity: "critical",
+    subject: { kind: "supplier", id: "SYN080910HI8" },
+    evidence: {
+      article: SAT_49BIS_ARTICLE,
+      rfc: "SYN080910HI8",
+      publishedAt: "2026-09-01",
+      oficio: "500-05-2026-1234",
+    },
+  });
+}
+
+describe("blockedByCep", () => {
+  it("is true on the critical finding control 5 writes", () => {
+    expect(blockedByCep([cepFinding("critical")])).toBe(true);
+  });
+
+  it("is false when the CEP agreed with the documents", () => {
+    expect(blockedByCep([cepFinding("info")])).toBe(false);
+  });
+
+  it("is false when no CEP was ever read, which is not a clean one", () => {
+    expect(blockedByCep([severe("critical")])).toBe(false);
+  });
+});
+
+describe("assessLine", () => {
+  it("answers both halves with the rule behind each", () => {
+    const line: LevelLine = {
+      findings: [satFinding("definitivo")],
+      decision: decision({ action: "hold" }),
+    };
+
+    expect(assessLine(line)).toEqual({
+      confidence: {
+        level: "alerta",
+        rule: "sat_definitive",
+        findingIds: ["sat69b:SYN080910HI8:2026-09-12:definitivo"],
+      },
+      state: { state: "cancelado", rule: "sat_definitive" },
+    });
+  });
+
+  it("reads the definitive listing off the line and not off the decision", () => {
+    /* `recordEngineDecision` unions findings into the line's index, so the index
+       is the wider set. A decision that remembers weighing nothing must not turn
+       a cancelled line green. */
+    const line: LevelLine = {
+      findings: [satFinding("definitivo")],
+      decision: { action: "hold", findings: [] },
+    };
+
+    expect(assessLine(line).state.state).toBe("cancelado");
+  });
+
+  it("reads the blocked verification off the findings with no fold handed in", () => {
+    const line: LevelLine = {
+      findings: [cepFinding("critical")],
+      decision: decision({ action: "hold" }),
+    };
+
+    expect(assessLine(line).state).toEqual({
+      state: "cancelado",
+      rule: "verification_blocked",
+    });
+  });
+
+  it("prefers a folded verification over the one the findings imply", () => {
+    const line: LevelLine = {
+      findings: [cepFinding("critical")],
+      decision: decision({ action: "hold" }),
+      verification: { state: "cep_signed" },
+    };
+
+    expect(assessLine(line).state.state).toBe("rojo");
+  });
+
+  it("lets a named owner reopen a line a definitive listing cancelled", () => {
+    const reopened: LevelLine = {
+      findings: [bisFinding()],
+      decision: decision({
+        action: "release",
+        decidedBy: "Mariana Trevino",
+        reason: "La resolucion se impugno y el proveedor entrego el acuse.",
+      }),
+    };
+
+    expect(assessLine(reopened).state).toEqual({
+      state: "liberado",
+      rule: "released",
+    });
+    // The level does not move. The listing is still on the line.
+    expect(assessLine(reopened).confidence.level).toBe("alerta");
+  });
+
+  it("does not let the engine's own release reopen one", () => {
+    const line: LevelLine = {
+      findings: [bisFinding()],
+      decision: decision({ action: "release", decidedBy: SYSTEM_DECIDER }),
+    };
+
+    expect(assessLine(line).state.state).toBe("cancelado");
+  });
+
+  it("answers pendiente for a line nothing has decided", () => {
+    expect(assessLine({ findings: [] }).state).toEqual({
+      state: "pendiente",
+      rule: "undecided",
+    });
+  });
+});
+
+describe("runLevels", () => {
+  const lines: LevelLine[] = [
+    { findings: [], decision: decision({ action: "release" }) },
+    { findings: [severe("warning")], decision: decision({ action: "hold" }) },
+    {
+      findings: [satFinding("definitivo")],
+      decision: decision({ action: "hold" }),
+    },
+    { findings: [] },
+  ];
+
+  it("counts every line once per level and once per state", () => {
+    expect(runLevels(lines)).toEqual({
+      confiable: 2,
+      precaucion: 1,
+      alerta: 1,
+      rojo: 1,
+      cancelado: 1,
+      enviado: 0,
+      pendiente: 1,
+      liberado: 1,
+    });
+  });
+
+  it("adds up to the number of lines on both halves", () => {
+    const totals = runLevels(lines);
+
+    expect(totals.confiable + totals.precaucion + totals.alerta).toBe(
+      lines.length,
+    );
+    expect(
+      totals.rojo +
+        totals.cancelado +
+        totals.enviado +
+        totals.pendiente +
+        totals.liberado,
+    ).toBe(lines.length);
+  });
+
+  it("answers zeroes for a run with no lines", () => {
+    expect(Object.values(runLevels([])).every((count) => count === 0)).toBe(
+      true,
+    );
+  });
+});
+
+describe("definitiveListingReason", () => {
+  it("names article 69-B, the version and the publication date", () => {
+    const reason = definitiveListingReason([
+      satFinding("definitivo", {
+        listVersion: "2026-09-12",
+        publishedAt: "2026-09-12",
+      }),
+    ]);
+
+    expect(reason).toContain("articulo 69-B");
+    expect(reason).toContain("version 2026-09-12");
+    expect(reason).toContain("publicada el 2026-09-12");
+    expect(reason).toContain("Solo el propietario puede reabrirla");
+  });
+
+  it("names article 49 Bis and the oficio when that is the listing", () => {
+    const reason = definitiveListingReason([bisFinding()]);
+
+    expect(reason).toContain(`articulo ${SAT_49BIS_ARTICLE}`);
+    expect(reason).toContain("oficio 500-05-2026-1234");
+  });
+
+  it("never says the word this product may not say", () => {
+    const reason = definitiveListingReason([satFinding("definitivo")]) ?? "";
+
+    expect(reason.toLowerCase()).not.toContain("seguro");
+    expect(reason).not.toContain("%");
+  });
+
+  it("answers undefined when no listing is definitive", () => {
+    expect(definitiveListingReason([satFinding("presunto")])).toBeUndefined();
+    expect(definitiveListingReason([])).toBeUndefined();
   });
 });

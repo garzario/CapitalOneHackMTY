@@ -7,17 +7,56 @@
  * exact `decidedAt` instead of matching a regular expression against `now`.
  */
 
+import type { Actor } from "@hackmty/core";
 import { NO_RAIL } from "@hackmty/rail";
 import { createApp } from "./app";
 import { acceptOnlyCepSource, staticCepInbox } from "./cep";
 import { offConsortiumSource } from "./consortium";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
 import { UNAVAILABLE_EXTRACTOR } from "./extraction";
+import { ACTOR_HEADER } from "./middleware/actor";
 import type { PipelineClock } from "./pipeline";
 import { MemoryRepository } from "./repo";
 import type { VoiceDeps } from "./routes/verify-call";
 
 export const TEST_NOW = "2026-09-12T03:00:00.000Z";
+
+/**
+ * The two people in the synthetic company, for the suite.
+ *
+ * Every write endpoint requires an `X-Actor`, so every write in the suite carries
+ * one, and the two identities are named here rather than spelled out in forty
+ * test files: a test about a refusal then says which of the two it is about
+ * instead of building a header string nobody reads twice.
+ *
+ * Lupita is the persona of `docs/02-persona.md`. The owner is invented for the
+ * same synthetic company out of the name catalog in `packages/seed`, and is named
+ * nowhere in the product documentation, because who the owner of a fictional
+ * metalmecanica is is a test fixture and not a persona claim.
+ */
+export const TEST_CLERK: Actor = { name: "Lupita Elizondo", role: "clerk" };
+export const TEST_OWNER: Actor = { name: "Gerardo Villarreal", role: "owner" };
+
+/** The `X-Actor` value for one of them, in the form docs/09-api.md documents. */
+export function actorHeader(actor: Actor = TEST_CLERK): string {
+  return `role=${actor.role}; name=${actor.name}`;
+}
+
+/**
+ * Headers for a JSON write: the content type and the actor.
+ *
+ * A test that wants to see the refusal for a missing or malformed header builds
+ * its own headers instead of calling this, which is what keeps those cases
+ * honest: they are the only writes in the suite that do not go through here.
+ */
+export function writeHeaders(
+  actor: Actor = TEST_CLERK,
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    [ACTOR_HEADER.toLowerCase()]: actorHeader(actor),
+  };
+}
 
 export function createTestClock(now: string = TEST_NOW): PipelineClock {
   let counter = 0;

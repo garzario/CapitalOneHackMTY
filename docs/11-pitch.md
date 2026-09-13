@@ -100,7 +100,7 @@ than being corrected.
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
 | The blind evaluation | 35 labelled cases and 24 labelled expectations over six controls, scored as 213 counts. Precision 87.0 percent, recall 83.3 percent, false-positive rate 1.6 percent, and the engine chose the labelled action on 33 of the 35 | `bun run eval`, re-read on 2026-09-13. **Re-run it before quoting it.** Say 35 cases, never a pair count: six controls on thirty-five cases looks like 210 slots, and the matrix sums to 213 because a control that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
 | The evaluation per level | Of 35 lines, `confiable` 12 expected and 12 right, `precaucion` 12 and 11, `alerta` 11 and 10. Two lines read one level away from the label and both are the severity arguments already on the table | `bun run eval`, the second table. The row to defend is `confiable` at 100 percent: a line called trustworthy that was not is the mistake this product cannot make twice |
-| Tests | 1,983 tests across 104 files on 2026-09-13: 1,870 passing, 113 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge. **Not said in the stand pitch at all**, because at least seven pull requests land the night before it and the terminal says it better than a presenter can |
+| Tests | 2,238 tests across 114 files on 2026-09-13: 2,122 passing, 116 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge. **Not said in the stand pitch at all**, because at least seven pull requests land the night before it and the terminal says it better than a presenter can |
 | The buyer's own clock, and it is new | Article 49 Bis, in force since 1 January 2026, orders the SAT to publish the taxpayer whose CFDI it determined false, and every third party who gave those CFDI fiscal effect has **thirty natural days from the DOF publication** to reverse it or the authority restricts **their own** certificado de sello digital under article 17-H Bis, fraccion XIV. So the second retroactive clock points at the buyer | CFF articles 49 Bis and 17-H Bis, `docs/04-market.md` source [4] and `#what-we-cover-on-49-bis-and-what-nobody-can`. Say the clock. **Never say we sweep that list**: the SAT publishes it as 14 DOF notes naming 14 taxpayers between 10 July and 28 August 2026, with no file at all |
 | What the rail itself requires, and what it refuses to check | Regla 12a makes the 18-digit CLABE and the amount the only mandatory data and leaves the beneficiary name optional; Regla 25a obliges the bank to show that name back exactly as the payer typed it, followed by "(Dato no verificado por esta institucion)"; Regla 18a makes the order firme e irrevocable at settlement | Reglas del SPEI, `docs/04-market.md` source [29] and `#how-much-money-goes-through-the-door-we-are-standing-in`. This is the gap proved out of the rail operator's own rulebook instead of asserted |
 | How big the door is | **More than 7,300 million SPEI transfers in 2025, up 36.8 percent**, and 94 percent of them were for 1,500 UDIS or less, about MXN 13,200, which leaves a residual on the order of **440 million** transfers a year where a supplier invoice lives | Banco de Mexico's Governor before the Senate, `docs/04-market.md` source [19]. The 440 million is our arithmetic on those two published figures and is said as ours |
@@ -226,7 +226,7 @@ them. One sentence each is enough; the evidence column is what you open when the
 | # | Control | Said out loud | Open this |
 |---|---|---|---|
 | 1 | `sat_69b` | "Cruzamos cada RFC contra la lista oficial del articulo 69-B, con todas sus versiones, y cuando hay publicacion nueva reproducimos la bitacora para poner precio a lo que ya pagamos y ya dedujimos" | `packages/engine/src/sat69b.ts`, `packages/sat/src/sweep.ts` |
-| 2 | `clabe_forensics` | "Revisamos el digito verificador con los pesos 3-7-1, el banco y la plaza, y la distancia contra las cuentas en las que si le hemos pagado a ese proveedor, con las confusiones tipicas de OCR" | `packages/core/src/clabe.ts` |
+| 2 | `clabe_forensics` | "Revisamos el digito verificador con los pesos 3-7-1, el banco, la plaza con su ciudad y su estado contra las plazas en las que si le hemos pagado y contra el lugar de expedicion de la factura, y la distancia contra las cuentas en las que si le hemos pagado a ese proveedor, con las confusiones tipicas de OCR" | `packages/core/src/clabe.ts` |
 | 3 | `duplicate_invoice` | "Mismo emisor, mismo monto, misma ventana de fechas, o el mismo folio o UUID dos veces" | `packages/core/src/duplicates.ts` |
 | 4 | `supplier_behaviour` | "Cambio de comportamiento del proveedor contra su propia historia, y si no hay muestra suficiente lo decimos en vez de inventar una senal" | `packages/core/src/behaviour.ts` |
 | 5 | `beneficiary_cep` | "Comparamos el nombre del titular en el comprobante que firma Banxico contra la razon social del CFDI que estamos pagando, y guardamos el XML firmado tal cual llego" | `packages/cep/src/name-match.ts`, `signature.ts` |
@@ -322,9 +322,10 @@ the CEP in one click, the run leaving with receipts. The numbers, the competitio
 guarantee come afterwards, one breath each, because a number said before the screen is a number a
 judge can falsify and a screen that already worked is an argument that cannot be.
 
-**The clock, measured rather than wished.** 770 spoken words, counted off this file. At 150 words a
-minute, the rate to rehearse against, that is 5:08 of speech; 4:40 at 165 and 5:30 at 140. The cut
-ladder that brings it to 3:18 is pre-declared in `docs/10-demo-script.md#the-cut-ladder-pre-declared`
+**The clock, measured rather than wished.** 786 spoken words, counted off this file. At 150 words a
+minute, the rate to rehearse against, that is 5:14 of speech; 4:46 at 165 and 5:37 at 140. Rung 1 of
+the cut ladder comes off by default and lands it at 4:59, and the ladder that brings it to 3:25 is
+pre-declared in `docs/10-demo-script.md#the-cut-ladder-pre-declared`
 and the two timed rehearsals that decide which rung is used are
 `docs/14-process.md#the-75-rehearsal-protocol`. **A per-beat second count in this file is arithmetic on
 a word count and not a measurement.** The stopwatch is.
@@ -333,15 +334,15 @@ a word count and not a measurement.** The stopwatch is.
 |---|---|---|---|---|
 | 1 | Las dos perdidas, no screen | 0:00 to 0:44 | Patricio | Two irreversibilities, the 46 percent, the thirty days, and that the publication creates the exposure |
 | 2 | La corrida en pesos | 0:44 to 1:12 | Fabricio | Who Lupita is, that the data is synthetic, and that the hero figure is the money that is not leaving |
-| 3 | La foto de WhatsApp, y la propuesta | 1:12 to 1:49 | Fabian | The product works, the model only transcribes, and a person executes |
-| 4 | El SAT publica | 1:49 to 2:14 | Adan | The loss that needs no fraud, priced, and the list is real |
-| 5 | El centavo y el CEP | 2:14 to 2:46 | Adan | Nobody can fake this beat, and the sandbox and the unverified seal are said by us |
-| 6 | La corrida sale | 2:46 to 3:02 | Fabian | Money leaves with a CFDI, a decision and a name, and we hold no funds |
-| 7 | Como decide | 3:02 to 3:30 | Patricio | Six controls, one expected-loss decision, pure functions, no model in that path |
-| 8 | La competencia | 3:30 to 3:53 | Fabricio | Four names from us before they ask, and the union claim at its honest width |
-| 9 | Mercado y modelo | 3:53 to 4:23 | Fabricio | The segment small first, the price, the break-even and the channel |
-| 10 | Cuando nos equivocamos | 4:23 to 4:39 | Fabricio | Three actions and no fourth, four layers, and that no lawyer has read three of them |
-| 11 | La peticion | 4:39 to 5:08 | Patricio | Ten real runs, nobody has signed anything, the stop condition, and the loss instead of the minutes |
+| 3 | La foto de WhatsApp, y la propuesta | 1:12 to 1:55 | Fabian | The product works, the model only transcribes, and a person executes |
+| 4 | El SAT publica | 1:55 to 2:20 | Adan | The loss that needs no fraud, priced, and the list is real |
+| 5 | El centavo y el CEP | 2:20 to 2:52 | Adan | Nobody can fake this beat, and the sandbox and the unverified seal are said by us |
+| 6 | La corrida sale | 2:52 to 3:08 | Fabian | Money leaves with a CFDI, a decision and a name, and we hold no funds |
+| 7 | Como decide | 3:08 to 3:37 | Patricio | Six controls, one expected-loss decision, pure functions, no model in that path |
+| 8 | La competencia | 3:37 to 4:00 | Fabricio | Four names from us before they ask, and the union claim at its honest width |
+| 9 | Mercado y modelo | 4:00 to 4:30 | Fabricio | The segment small first, the price, the break-even and the channel |
+| 10 | Cuando nos equivocamos | 4:30 to 4:45 | Fabricio | Three actions and no fourth, four layers, and that no lawyer has read three of them |
+| 11 | La peticion | 4:45 to 5:14 | Patricio | Ten real runs, nobody has signed anything, the stop condition, and the loss instead of the minutes |
 
 ### The words, in order
 
@@ -365,47 +366,48 @@ while it is said.
 > **3, 1:12, the assistant panel.** Asi llega un pago: una foto en WhatsApp, y la arrastro al chat. El
 > unico modelo aqui transcribe, y sus siete herramientas son de lectura: una que escriba no existe en
 > el tipo. Ya hay instruccion, con nivel y evidencia: difiere en dos digitos de la cuenta en la que le
-> hemos pagado cincuenta y dos veces, y no tiene un pago atras. Pregunto por que esta en rojo y termina
-> en una propuesta, el cuerpo exacto de la peticion, con un boton. Lee y propone; ejecuta una persona,
-> con su nombre.
+> hemos pagado cincuenta y dos veces, y uno de esos digitos es la plaza: esta se abrio en la Ciudad de
+> Mexico, la de siempre en Apodaca. Pregunto por que esta en rojo y termina en una propuesta, el cuerpo
+> exacto de la peticion, con un boton. Lee y propone; ejecuta una persona, con su nombre.
 >
-> **4, 1:49, `#/sat`.** Reproducimos ocho meses de bitacora en pesos: ochocientos setenta y ocho mil de
-> base ya deducida y cuatrocientos cuatro mil de exposicion. Y mira la corrida: esa linea se volvio a
-> decidir sola mientras estabamos en la otra pestana. Teclea tu un RFC real, la lista es la oficial:
+> **4, 1:55, `#/sat`.** Reproducimos ocho meses de bitacora en pesos: ochocientos setenta y ocho mil de
+> base ya deducida y cuatrocientos cuatro mil de exposicion. Y mira la corrida: esa linea no
+> quedo retenida, se cancelo sola mientras estabamos en la otra pestana. Teclea tu un RFC real, la
+> lista es la oficial:
 > catorce mil doscientos treinta y cuatro renglones, aparte de nuestras facturas sinteticas.
 >
-> **5, 2:14, `#/cep`.** Mexico no tiene API de confirmacion de beneficiario: el unico documento que
+> **5, 2:20, `#/cep`.** Mexico no tiene API de confirmacion de beneficiario: el unico documento que
 > dice quien tiene una cuenta es el que firma el banco central. Un centavo viaja dentro de la corrida y
 > la clave de rastreo regresa del riel, no de un teclado. El motor libero este pago y bloqueo aquel,
 > porque el titular es otra empresa. El centavo queda en Nessie, un sandbox y no un banco, y el sello
 > dice no verificado porque no tenemos el certificado de Banxico.
 >
-> **6, 2:46, `#/payments`.** Ahora si sale la corrida, con el nombre de quien la manda: ochenta y seis
+> **6, 2:52, `#/payments`.** Ahora si sale la corrida, con el nombre de quien la manda: ochenta y seis
 > pagos con su clave y su recibo, y las retenidas fuera con su razon. No custodiamos fondos,
 > instruimos al participante de la propia empresa.
 >
-> **7, 3:02, the detector beside its test file.** Seis controles sobre tres fuentes: las facturas de la
+> **7, 3:08, the detector beside its test file.** Seis controles sobre tres fuentes: las facturas de la
 > empresa, las dos listas del SAT contra un proveedor y el comprobante de Banxico. Los seis quedan en
 > corrio o en no corrio con su razon. Encima, una decision de perdida esperada que pesa los pesos en
 > riesgo contra lo que cuesta retrasar ese pago un dia. Son funciones puras, y una prueba lee nuestro
 > codigo y falla si aparece la palabra decide.
 >
-> **8, 3:30, the two-camps sheet.** La competencia la nombramos nosotros: ValidX y Portal de
+> **8, 3:37, the two-camps sheet.** La competencia la nombramos nosotros: ValidX y Portal de
 > Proveedores retienen sobre las listas del SAT y nunca ven la cuenta; Clara dispersa cientos de SPEI
 > sin verificar a quien recibe; CONTPAQi tiene las dos mitades y su changelog muestra que no se cruzan
 > al pagar. No encontramos a nadie que las venda juntas en una decision.
 >
-> **9, 3:53, the segment and price sheets.** Seis mil cuatrocientas setenta y seis empresas de once a
+> **9, 4:00, the segment and price sheets.** Seis mil cuatrocientas setenta y seis empresas de once a
 > doscientos cincuenta en Nuevo Leon, contadas una por una en el directorio del INEGI; doscientos
 > cuarenta y seis mil es el total nacional. Ochocientos noventa y nueve pesos al mes la empresa y tres
 > mil novecientos el despacho que trae veinte; se paga con una factura detenida de veintitres mil
 > cuatrocientos cincuenta y dos al ano. Vendemos a compras y a finanzas, por despacho contable.
 >
-> **10, 4:23, the four-layer sheet.** Tiene tres acciones: retener, verificar o liberar, y no hay una
+> **10, 4:30, the four-layer sheet.** Tiene tres acciones: retener, verificar o liberar, y no hay una
 > cuarta. Cuando nos equivocamos hay cuatro capas, y la que existe hoy es el expediente con un nombre.
 > Nada de las otras tres lo ha visto un abogado.
 >
-> **11, 4:39, back on `#/run`.** Una peticion: diez corridas de pago reales en modo sombra, porque la
+> **11, 4:45, back on `#/run`.** Una peticion: diez corridas de pago reales en modo sombra, porque la
 > tasa de falsos positivos con datos que no generamos nosotros es lo unico que no sabemos. Nadie ha
 > firmado nada con nosotros, y si doscientos barridos gratuitos destapan menos del cinco por ciento,
 > paramos. El jueves Lupita va a apretar enviar noventa y dos veces. No la hacemos mas rapida: le
@@ -425,7 +427,7 @@ y cuales liberar."* Then go back to the **second** loss rather than abandoning t
 Ten single breaths, in order of value, each one also a Q&A card in `docs/12-judge-qa.md#qa-cards`, so
 nothing is lost by leaving them out. The text of each one is in
 `docs/10-demo-script.md#the-clauses-that-go-back-in-when-the-judge-stays` with its beat and its word
-count. The full version is 1,029 words, 6:52 at 150 words a minute, and at that length it is a
+count. The full version is 1,045 words, 6:58 at 150 words a minute, and at that length it is a
 conversation and not a pitch.
 
 The first three, because they are the ones worth the most: the one-page letter for the accountant at
@@ -840,14 +842,14 @@ positives, why Nessie at all, and how do you know it works. All four are in `doc
 - **Never say "lo que nadie instrumenta", or any sentence in that family.** It is "nadie hace esto"
   with one word changed and it breaks on the same search. The replacement is "no encontramos a nadie
   que le ponga precio a lo que ya dedujiste cuando el SAT publica".
-- **Never say "cancelado" about `INS-2026-09-07-070` until #204 is merged and the screen says it.**
-  On the code that exists today the re-score moves that line from `Verificar` to `Retener`, signed
-  `system`, which is what `docs/10-demo-script.md` carries. It is the one claim a judge checks with one
-  `curl`.
-- **Never narrate the plaza on the hero line.** Both hero accounts are `012180100091764613` and
-  `012180101391764613`: same bank 012, same plaza 180, differing at positions 9 and 10 inside the
-  account number, so the plaza finding cannot fire there whatever #203 lands. Say the two digits and
-  the 52 payments, and show the plaza on a line that carries it.
+- **Say `cancelado` only while the screen says `cancelado`.** Since #204 the re-scored line reaches
+  that state through `sat_definitive` and not through a hold, which is rule 4 of the ADR-0009 state
+  table, so the word is now true on a merged build and it is still the one claim a judge checks with
+  one `curl`. On any build whose chip reads `Retener`, say `Retener`.
+- **Name only the places the screen names.** Since #233 the seeded hero account is
+  `012180102091764611` against the `012580100091764611` it has been paid on, so two digits differ at
+  positions 4 and 9 and one of them is the plaza: the screen says `APODACA, NL` and
+  `DISTRITO FEDERAL, DF`. Those two, in those words, and never a city the screen did not print.
 - **Never say "IA decide", in any form.** The assistant reads and proposes, a person executes, and
   `confidenceOf`, `transactionStateOf`, `decide` and the six controls are deterministic and unit
   tested. ADR-0007.

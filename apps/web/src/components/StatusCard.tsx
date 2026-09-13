@@ -16,11 +16,11 @@ const LABEL: Record<Status["kind"], string> = {
   offline: "API no responde",
 };
 
-const DOT_COLOR: Record<Status["kind"], string> = {
-  checking: "var(--c-ink-subtle)",
-  skipped: "var(--c-ink-subtle)",
-  online: "var(--c-release)",
-  offline: "var(--c-hold)",
+const DOT_CLASS: Record<Status["kind"], string> = {
+  checking: "dot-neutral",
+  skipped: "dot-neutral",
+  online: "dot-release",
+  offline: "dot-hold",
 };
 
 function detail(status: Status): string {
@@ -105,42 +105,44 @@ export function StatusCard() {
   }, [check]);
 
   return (
-    <section
-      aria-labelledby="api-status-heading"
-      className="panel flex flex-col gap-3 p-5"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h2 id="api-status-heading" className="eyebrow">
-          Estado de la API
-        </h2>
-        <span
-          aria-hidden="true"
-          className="status-dot mt-1"
-          style={{ backgroundColor: DOT_COLOR[status.kind] }}
-        />
-      </div>
+    <section aria-labelledby="api-status-heading" className="well">
+      <div className="well-body flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <h2 id="api-status-heading" className="eyebrow">
+            Estado de la API
+          </h2>
+          {/* The dot breathes only while a request is actually in flight, so
+              the movement is the answer to "is it doing something", not
+              decoration that runs forever. */}
+          <span
+            aria-hidden="true"
+            data-checking={isChecking ? "true" : "false"}
+            className={`status-dot mt-1 ${DOT_CLASS[status.kind]}`}
+          />
+        </div>
 
-      <div aria-live="polite" className="flex flex-col gap-1">
-        <p className="t-md font-semibold">{LABEL[status.kind]}</p>
-        <p className="muted t-sm">{detail(status)}</p>
-      </div>
+        <div aria-live="polite" className="flex flex-col gap-1">
+          <p className="t-md font-semibold">{LABEL[status.kind]}</p>
+          <p className="muted t-sm">{detail(status)}</p>
+        </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="subtle t-xs">{stamp(status)}</p>
-        {/* No button in the offline mode: the only thing it could do is break
-            the promise the mode made. */}
-        {status.kind === "skipped" ? null : (
-          <button
-            type="button"
-            aria-busy={isChecking}
-            onClick={() => {
-              void check();
-            }}
-            className="btn"
-          >
-            {isChecking ? "Consultando" : "Consultar de nuevo"}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="subtle t-xs">{stamp(status)}</p>
+          {/* No button in the offline mode: the only thing it could do is break
+              the promise the mode made. */}
+          {status.kind === "skipped" ? null : (
+            <button
+              type="button"
+              aria-busy={isChecking}
+              onClick={() => {
+                void check();
+              }}
+              className="btn btn-pill"
+            >
+              {isChecking ? "Consultando" : "Consultar de nuevo"}
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );

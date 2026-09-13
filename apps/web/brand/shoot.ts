@@ -15,6 +15,10 @@
  *
  * Usage, with the app already served somewhere:
  *   bun run apps/web/brand/shoot.ts http://localhost:4173
+ *   bun run apps/web/brand/shoot.ts http://localhost:4173 --only payments
+ *
+ * `CHROME_PATH` names the browser and `SHOOT_PORT` the DevTools port. Set the port
+ * when somebody else may be shooting at the same time; see the constant below.
  */
 
 import { spawn } from "node:child_process";
@@ -26,7 +30,17 @@ const CHROME =
   process.env.CHROME_PATH ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-const PORT = 9333;
+/**
+ * The DevTools port, overridable, and that is not a convenience.
+ *
+ * `pageSocket` attaches to whatever answers `/json/list` on this port. When two
+ * people run this script at once the second one attaches to the FIRST one's
+ * browser, navigates it to its own base URL and captures a page of somebody else's
+ * build, with no error anywhere: that is how `payments-light.png` was first written
+ * showing a screen this branch does not have. `SHOOT_PORT` is the way out, and the
+ * profile directory follows it so two browsers never share one lock either.
+ */
+const PORT = Number(process.env.SHOOT_PORT ?? 9333);
 
 /**
  * The line the finding screenshot is of, read off the synthetic run.
@@ -69,6 +83,19 @@ interface Shot {
  */
 const SHOTS: Shot[] = [
   { path: "#/run", name: "run", width: 1440, height: 1000, both: true },
+  /* The payments screen is captured offline, and it is the only one that has to
+     be. Every other shot renders the same whether or not an API answers, but this
+     one prints what the run did on the rail, so with a server reachable the file
+     would carry whatever that server happened to have executed, and with a broken
+     one it would carry its error notice. `?data=mock` is the deterministic state
+     and the page says out loud that it is synthetic. */
+  {
+    path: "?data=mock#/payments",
+    name: "payments",
+    width: 1440,
+    height: 1200,
+    both: true,
+  },
   {
     path: DETAIL_PATH,
     name: "finding",
@@ -78,10 +105,20 @@ const SHOTS: Shot[] = [
   },
   { path: "#/run", name: "run-tablet", width: 768, height: 1100 },
   { path: "#/run", name: "run-phone", width: 390, height: 900 },
+  {
+    path: "?data=mock#/payments",
+    name: "payments-phone",
+    width: 390,
+    height: 1000,
+  },
   { path: "#/intake", name: "intake-phone", width: 390, height: 900 },
   { path: "#/sat", name: "sat", width: 1440, height: 1000 },
   { path: "#/cep", name: "cep", width: 1440, height: 1000 },
   { path: "#/metrics", name: "metrics", width: 1440, height: 1000 },
+  /* The token sheet, in both themes, because the sheet's whole claim is that the
+     system holds up in whichever one the browser is in. It is the tall capture
+     of the set: every token and every base component is on that page. */
+  { path: "#/design", name: "tokens", width: 1440, height: 5020, both: true },
 ];
 
 /**
@@ -200,9 +237,22 @@ async function pageSocket(): Promise<string> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const frames = args.includes("--frames");
-  const base = (
-    args.find((a) => !a.startsWith("--")) ?? "http://localhost:4173"
-  ).replace(/\/$/, "");
+  const positional = args.filter((a) => !a.startsWith("--"));
+  const base = (positional[0] ?? "http://localhost:4173").replace(/\/$/, "");
+  /* `--only <name>` captures one entry of SHOTS and leaves the rest of
+     `assets/screenshots` untouched. A new screen otherwise means rewriting all
+     ten files, and ten PNGs that differ by a pixel of font rendering is a diff
+     nobody can review for the one file that was actually meant to change. */
+  const only = args.includes("--only") ? positional[1] : undefined;
+  const shots = only
+    ? SHOTS.filter(
+        (shot) => shot.name === only || shot.name.startsWith(`${only}-`),
+      )
+    : SHOTS;
+
+  if (only && shots.length === 0) {
+    throw new Error(`no shot named ${only}`);
+  }
 
   const chrome = spawn(
     CHROME,
@@ -211,7 +261,7 @@ async function main(): Promise<void> {
       "--disable-gpu",
       "--hide-scrollbars",
       `--remote-debugging-port=${PORT}`,
-      "--user-data-dir=/tmp/sentryone-shoot",
+      `--user-data-dir=/tmp/sentryone-shoot-${PORT}`,
       "about:blank",
     ],
     { stdio: "ignore" },
@@ -230,7 +280,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    for (const shot of SHOTS) {
+    for (const shot of shots) {
       for (const scheme of shot.both ? SCHEMES : (["light"] as const)) {
         await devtools.send("Emulation.setDeviceMetricsOverride", {
           width: shot.width,

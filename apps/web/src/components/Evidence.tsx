@@ -112,7 +112,7 @@ export function BankChangeBlock({
       <span className="t-base">
         <span className="muted">{change.from}</span>
         <span className="subtle"> a </span>
-        <span style={{ color: "var(--c-hold-ink)" }}>{change.to}</span>
+        <span className="ink-hold">{change.to}</span>
       </span>
     </div>
   );

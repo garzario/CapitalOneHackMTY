@@ -149,7 +149,7 @@ commands rather than off this table if the hour matters.
 |---|---|---|
 | CI run | Run `34690867244` on `dev`, `verify` green in 36 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
 | Test suite | `bun test`: 1116 pass, 0 fail, 65 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
-| Blind evaluation | `bun run eval`: 30 labelled cases, 85.0 percent precision, 81.0 percent recall, 1.9 percent false positive rate | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
+| Blind evaluation | `bun run eval`: 35 labelled cases, 87.0 percent precision, 83.3 percent recall, 1.6 percent false positive rate, and 12 of 12 confiable lines right | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
 | Rubric score trend | `docs/01-rubric-mapping.md#self-score` | M1, 2026-09-12 04:54 CST: **85 of 100** under the stated G/Y/R rule. M2, M3 and M4 go here as they are scored |
 | Changelog | `CHANGELOG.md`, `[Unreleased]` | Appended by whoever merges, in the same commit |
 
@@ -208,7 +208,7 @@ stopwatch is a reading.
 
 The script is `docs/11-pitch.md#the-stand-pitch-three-to-five-minutes` and the operating sheet is
 `docs/10-demo-script.md#the-stand-pitch-three-to-five-minutes`. **Neither file's per-beat seconds are a
-measurement.** They are arithmetic on a word count at 150 words a minute, 770 words and 5:08, and the
+measurement.** They are arithmetic on a word count at 150 words a minute, 786 words and 5:14, and the
 whole point of this protocol is to replace that arithmetic with two stopwatch readings before anybody
 decides what to cut.
 
