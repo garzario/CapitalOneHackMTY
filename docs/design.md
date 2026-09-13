@@ -411,12 +411,14 @@ One token moved as a result, and it was not a close call:
 | `--c-state-cancelado` | `--c-border-strong` | `--c-ink-subtle` | 2.99 against the sunken fill this chip has, under a floor of 3 for the boundary of a non-text element. `--c-border-strong` is tuned against a panel, and this chip's border is the thing that says the line is closed |
 
 A third hazard is not in the app at all but cost a wrong screenshot, so it is
-written down here: `brand/shoot.ts` and `audit/audit.ts` now take `CDP_PORT` and
-`CHROME_PROFILE` from the environment. Two Chromes launched with the same
-`--user-data-dir` are one Chrome, the second caller drives the first caller's
-page, and on a build night with four people on one machine the shutter fires on
-somebody else's screen. The capture that caught it came back holding another
-branch's not-found page, in the wrong theme, under our file name.
+written down here: `brand/shoot.ts` takes `SHOOT_PORT` and `audit/audit.ts` takes
+`AUDIT_PORT`, each deriving its own profile directory from the port. Two Chromes
+launched with the same `--user-data-dir` are one Chrome, the second caller drives
+the first caller's page, and on a build night with four people on one machine the
+shutter fires on somebody else's screen with no error anywhere. It cost two wrong
+screenshots on two branches before either of them was believed: one capture of
+this token sheet came back holding another branch's not-found page, in the wrong
+theme, under our file name.
 
 Four values had moved earlier, in the run that closed #96, and they were not
 close calls either:

@@ -34,11 +34,15 @@
  */
 
 import type {
+  Actor,
   Cfdi,
   Decision,
   Finding,
   LedgerEvent,
   Metrics,
+  PaymentExecution,
+  PaymentExecutionLine,
+  PaymentReceipt,
   Rfc,
   SatListEntry,
   Supplier,
@@ -57,8 +61,10 @@ import type {
   VerifiedBeneficiary,
 } from "./contract";
 import {
+  ACTOR,
   CEP_VERIFICATION,
   DECISIONS,
+  EXECUTION,
   FINDING_IDS_BY_INSTRUCTION,
   FINDINGS,
   CFDIS as GENERATED_CFDIS,
@@ -74,6 +80,7 @@ import {
   INSTRUCTIONS,
   INTAKE_EXAMPLE,
   METRICS,
+  RECEIPTS,
   RUN_ID,
   SWEEP,
   TOTALS,
@@ -470,4 +477,60 @@ export function mockFindings(): Finding[] {
   return [...FINDINGS].sort(
     (left, right) => right.amountAtRisk - left.amountAtRisk,
   );
+}
+
+/* --------------------------------------------------------- the payment run */
+
+/**
+ * Who sends the run offline.
+ *
+ * `docs/02-persona.md` names her and the generator already carries her, so this is
+ * a re-export and not a second persona: a name invented here would end up on an
+ * `X-Actor` header and on a ledger entry with no document behind it. ADR-0008 is
+ * why there is a name at all, because nothing in this product leaves without a
+ * person, and the screen shows whose name it is about to use before anything
+ * happens.
+ */
+export const DEMO_ACTOR: Actor = ACTOR;
+
+/**
+ * What the run did on the rail, offline: the 86 lines of the 92 that nothing
+ * stopped.
+ *
+ * `MemoryRepository` folds this out of the ledger and the generator folded the same
+ * projection out of the same decisions and verifications, so the offline screen
+ * reads the execution the API would answer for this run. The blocked beneficiary is
+ * `cancelled` with the two names the CEP comparison read, the partial match is
+ * `queued`, the last line handed over is `sent` because a rail acknowledges in its
+ * own time, and the rest are `settled`. No line is `failed`: nothing in this company
+ * produces a rail refusal and inventing a bank error to fill a state would be
+ * inventing evidence.
+ */
+export function mockExecution(): PaymentExecution {
+  return EXECUTION;
+}
+
+/**
+ * The same lines in the order the stream would push them.
+ *
+ * The payments screen walks this offline instead of opening a connection, which is
+ * what `?data=mock` promises. It is the real sequence and not a flourish: each line
+ * arrives with the state the generator derived for it, so the one `sent` among 83
+ * `settled` is still the line a judge can ask about.
+ */
+export function mockExecutionLines(): readonly PaymentExecutionLine[] {
+  return EXECUTION.lines;
+}
+
+/**
+ * One receipt, by the id the execution line carries.
+ *
+ * 84 of them, one per line that left, and none for a line that did not: a receipt
+ * for a payment that never happened is the document this product may not produce.
+ * `sealState` is `not_checked` on every one, which is the honest answer on the
+ * mirror rather than a gap, because Nessie is a sandbox and there is no Banxico
+ * document to check.
+ */
+export function mockReceipt(receiptId: string): PaymentReceipt | null {
+  return RECEIPTS.find((receipt) => receipt.id === receiptId) ?? null;
 }

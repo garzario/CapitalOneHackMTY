@@ -30,14 +30,13 @@ const CHROME =
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 /**
- * Overridable for the reason `../brand/shoot.ts` states at its own constant: two
- * Chromes launched with one `--user-data-dir` are one Chrome, and the second
- * caller ends up driving the first caller's page. On a build night with four
- * people on one machine that turns an audit of this branch into an audit of
- * somebody else's.
+ * Overridable for the reason `../brand/shoot.ts` states at its own constant, and
+ * named the same way: two Chromes launched with one `--user-data-dir` are one
+ * Chrome, and the second caller ends up driving the first caller's page. On a
+ * build night with four people on one machine that turns an audit of this branch
+ * into an audit of somebody else's, with no error anywhere.
  */
-const PORT = Number(process.env.CDP_PORT ?? 9334);
-const PROFILE = process.env.CHROME_PROFILE ?? `/tmp/sentryone-audit-${PORT}`;
+const PORT = Number(process.env.AUDIT_PORT ?? 9334);
 
 /**
  * The line the audit opens, read off the synthetic run rather than written down.
@@ -68,6 +67,7 @@ const ROUTES = [
   { path: "#/sat", name: "Article 69-B" },
   { path: "#/cep", name: "CEP viewer" },
   { path: "#/metrics", name: "metrics" },
+  { path: "#/payments", name: "payments" },
   /* The token sheet, which is not in the navigation. It is audited because it
      is the one route where every chip, button and state is on screen at once,
      so a component that overflows at 390 or a control nobody named is caught
@@ -527,7 +527,7 @@ async function main(): Promise<void> {
       "--disable-gpu",
       "--hide-scrollbars",
       `--remote-debugging-port=${PORT}`,
-      `--user-data-dir=${PROFILE}`,
+      `--user-data-dir=/tmp/sentryone-audit-${PORT}`,
       "about:blank",
     ],
     { stdio: "ignore" },

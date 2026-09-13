@@ -488,6 +488,15 @@
     color: var(--c-ink-muted);
   }
 
+  /* `liberado` and a queued line: nothing is wrong and nothing has left yet.
+     It reuses the informational tokens the severity chips already carry, so the
+     fifth badge introduces no fifth colour meaning. */
+  .badge-info {
+    background-color: var(--c-info-soft);
+    border-color: var(--c-info);
+    color: var(--c-info-ink);
+  }
+
   .status-dot {
     width: 0.625rem;
     height: 0.625rem;
@@ -930,6 +939,36 @@
 
   .skeleton-line {
     height: 0.875rem;
+  }
+
+  /*
+   * How far a payment run has got, as a bar.
+   *
+   * It is a bar and never a figure. ADR-0009 forbids a percentage on any screen of
+   * this product, so the width here is the only proportion in the interface and the
+   * label beside it counts lines: "34 de 86". The element carries
+   * `role="progressbar"` with the two counts on it, which is what a screen reader
+   * reads instead of the width.
+   */
+  .meter {
+    height: 0.5rem;
+    width: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-surface-sunken);
+  }
+
+  .meter-fill {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-accent);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .meter-fill {
+      transition: none;
+    }
   }
 
   @keyframes pulse {

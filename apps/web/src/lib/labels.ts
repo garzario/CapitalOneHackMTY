@@ -28,6 +28,7 @@ import type {
 import type {
   CepSealState,
   NameMatch,
+  PaymentLineState,
   VerificationRail,
   VerificationStateName,
 } from "./contract";
@@ -366,15 +367,52 @@ export const STATE_BADGE: Record<TransactionState, string> = {
 };
 
 /**
- * One sentence per state, for the token sheet and for anywhere a chip needs to
- * explain itself. A state with no explanation is a colour.
+ * What each state means, for the one question the words alone do not answer:
+ * whether anybody still has to do something about this line.
  */
 export const STATE_HELP: Record<TransactionState, string> = {
   pendiente: "Nadie ha decidido esta linea todavia.",
-  liberado: "Nada la detiene. El dinero todavia no sale.",
-  rojo: "Esta detenida y frente a una persona.",
-  cancelado: "No sale con esta evidencia.",
-  enviado: "El dinero ya salio. Un SPEI no regresa.",
+  rojo: "Esta detenida y enfrente de una persona.",
+  cancelado: "No sale en esta corrida, y el motivo va junto al estado.",
+  liberado: "Nada la detiene y todavia no sale. Entra en la corrida.",
+  enviado: "El dinero salio. Es lo unico aqui que no se puede deshacer.",
+};
+
+/**
+ * What the rail did with one line, and the five states are never four.
+ *
+ * This is a different question from `STATE_LABEL` and that is why it is a second
+ * dictionary rather than a merge: the state is where the payment stands for the
+ * company, and this is what the rail said about it. `sent` and `settled` keep
+ * different words and different colours because they are two different claims,
+ * the first that we asked and the second that the rail says it happened, and
+ * ADR-0008 calls collapsing them the one thing the demo must not do, since the CEP
+ * exists to prove exactly that difference.
+ */
+export const PAYMENT_LINE_LABEL: Record<PaymentLineState, string> = {
+  queued: "En cola",
+  sent: "Enviado",
+  settled: "Liquidado",
+  failed: "Rechazado",
+  cancelled: "Cancelado",
+};
+
+export const PAYMENT_LINE_BADGE: Record<PaymentLineState, string> = {
+  queued: "badge badge-info",
+  sent: "badge badge-verify",
+  settled: "badge badge-release",
+  failed: "badge badge-hold",
+  cancelled: "badge badge-neutral",
+};
+
+export const PAYMENT_LINE_HELP: Record<PaymentLineState, string> = {
+  queued: "El riel la acepto y todavia no sale.",
+  sent: "Salio. El riel aun no la reconoce, y eso es otra afirmacion.",
+  settled:
+    "El riel reconocio la transferencia. Hasta aqui el recibo esta completo.",
+  failed: "El riel la rechazo. El motivo va en la misma linea.",
+  cancelled:
+    "Se quedo fuera antes de enviar nada. El motivo va en la misma linea.",
 };
 
 /**

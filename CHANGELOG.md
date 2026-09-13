@@ -261,6 +261,55 @@ then the screens, then the narrative, then the plumbing.
   clerk's identity is personal data about an employee and is treated under the obligations of 4.2
   like everything else on that page.
 
+- The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
+  `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
+  level and their state, "Enviar corrida" behind a second press and a name, the progress line by line
+  as the rail answers, the receipt of every payment that left, the run constancia and the bank layout
+  export. The lines the run does not take sit in their own table with the sentence that says why,
+  because a payment that disappears quietly is a payment somebody believes they made.
+
+  The part worth reading is `apps/web/src/lib/payments.ts`, which answers two different questions with
+  two different fields instead of collapsing them into one. Whether the run TAKES a line is the
+  decision, because `POST /api/v1/run/:id/execute` hands the rail every released line and nothing
+  else; whether a line the run took will be PAID is `transactionStateOf`, because a released line
+  whose beneficiary came back blocked, or whose supplier is definitively listed with nobody's
+  signature over it, reads `cancelado` and comes back off the rail as a `cancelled` line carrying a
+  reason. Collapsing the two is how a screen either hides a payment that was refused or offers one the
+  API was never going to send, and the generated run has one line of each kind, so both cases are on
+  screen rather than in a comment. Neither the level nor the state is computed here: `confidenceOf`
+  and `transactionStateOf` in `packages/core` answer both, the API's own `confidence` and `state` are
+  used when the payload carries them, and the module adds only the Spanish sentence under a state,
+  quoting the engine's own `explanation` or the rail's own `reason` rather than composing a second
+  account of one event.
+
+  Nothing leaves without a person and the screen is built so that is visible rather than claimed. The
+  name of whoever sends the run is a field on the page, it travels on `X-Actor`, the ledger records it
+  per line, and the button refuses to work without it. The confirmation press names the count and the
+  pesos and says that a SPEI does not come back. `GET /api/v1/rails` is what lets the screen say which
+  rail is live without reading an environment file: on the Nessie mirror it states that the sandbox
+  registers the outflow, moves no pesos and produces no CEP, which is why the receipt reads "sello no
+  verificado", and on STP it says the rail has never run live from this repository. A server with no
+  rail repeats the sentence `packages/rail` wrote instead of a paraphrase.
+
+  The layout export is the no-API path a small company actually uses: a CSV in SentryOne's own
+  columns, one row per line, and the screen says out loud that every bank publishes its own template
+  so the file is adjusted to the portal before it is uploaded. It carries only a line that may be paid
+  and that no rail is holding, which are the same two refusals the execute endpoint follows: a file
+  with a held payment in it would be the control being bypassed by the export, and a file repeating a
+  transfer already on the rail is how a supplier gets paid twice.
+
+  The stream rides `streamSse` and `sse.ts`, which the assistant panel landed for the same reason
+  this needed them: `EventSource` issues a bare GET and the execute stream starts with `confirm: true`
+  and an actor header. `executeRun` adds only what a frame means, a `line` per payment and a `done`
+  carrying the whole `PaymentExecution`, and it never retries, because a retried execute is a second
+  request to move money and the endpoint is idempotent per instruction precisely so a person decides
+  that rather than a client. The screen also listens on `GET /api/v1/events` and re-reads the
+  execution on any `payment_*` event, so a second screen watching the run moves with the first, and
+  folding a line is idempotent per instruction so the two channels delivering the same payment cannot
+  double it. Under `?data=mock` nothing opens at all: the generated execution is replayed line by line
+  in the browser, so the review, the progress, the receipts and the export are demonstrable on a phone
+  in a corridor.
+
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now
   carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same
@@ -360,10 +409,11 @@ then the screens, then the narrative, then the plumbing.
   pairings clear their floor in both themes. One token moved to get there: `--c-state-cancelado` measured
   2.99 against the sunken fill its chip has, under the floor of 3 for the boundary of a non-text
   element, so it is `--c-ink-subtle` rather than `--c-border-strong`, which is tuned against a panel.
-  `brand/shoot.ts` and the audit now take `CDP_PORT` and `CHROME_PROFILE` from the environment,
-  because two Chromes launched with one `--user-data-dir` are one Chrome and the second caller drives
-  the first caller's page: a capture of the token sheet came back holding another branch's not-found
-  page, in the wrong theme, under our file name. `docs/design.md` carries all of it.
+  The audit now takes `AUDIT_PORT` from the environment, next to the `SHOOT_PORT` the payments
+  front added to `brand/shoot.ts` for the same reason on the same night, because two Chromes
+  launched with one `--user-data-dir` are one Chrome and the second caller drives the first
+  caller's page: a capture of the token sheet came back holding another branch's not-found page,
+  in the wrong theme, under our file name. `docs/design.md` carries all of it.
 
 - `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
   problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one

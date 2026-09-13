@@ -7,6 +7,7 @@
 import type {
   Action,
   Confidence,
+  PaymentLineState,
   Severity,
   TransactionState,
 } from "@hackmty/core";
@@ -19,6 +20,9 @@ import {
   CONFIDENCE_BARS,
   CONFIDENCE_HELP,
   CONFIDENCE_LABEL,
+  PAYMENT_LINE_BADGE,
+  PAYMENT_LINE_HELP,
+  PAYMENT_LINE_LABEL,
   SEVERITY_BADGE,
   SEVERITY_LABEL,
   STATE_BADGE,
@@ -130,25 +134,11 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
  * rule table, and the level never appears without the findings behind it, which is
  * the caller's job and is why this component takes no evidence of its own.
  */
-export function ConfidenceBadge({
-  level,
-  withHint = false,
-}: {
-  level: Confidence;
-  /**
-   * Puts the one-line explanation in a `title`. Off by default, because a
-   * tooltip is not an accessible way to carry meaning: the screens that need the
-   * sentence render `CONFIDENCE_HELP` as text next to the findings instead.
-   */
-  withHint?: boolean;
-}) {
+export function ConfidenceBadge({ level }: { level: Confidence }) {
   const filled = CONFIDENCE_BARS[level];
 
   return (
-    <span
-      className={CONFIDENCE_BADGE[level]}
-      title={withHint ? CONFIDENCE_HELP[level] : undefined}
-    >
+    <span className={CONFIDENCE_BADGE[level]} title={CONFIDENCE_HELP[level]}>
       {/* The meter repeats the word, so it is hidden from a screen reader
           rather than read out as three empty spans. */}
       <span aria-hidden="true" className="level-meter">
@@ -169,20 +159,31 @@ export function ConfidenceBadge({
  * Where the payment stands. Three states a clerk reads plus the two the run counts
  * internally, because a line nobody has looked at is not green.
  */
-export function TransactionStateBadge({
-  state,
-  withHint = false,
-}: {
-  state: TransactionState;
-  withHint?: boolean;
-}) {
+export function TransactionStateBadge({ state }: { state: TransactionState }) {
   return (
-    <span
-      className={STATE_BADGE[state]}
-      title={withHint ? STATE_HELP[state] : undefined}
-    >
+    <span className={STATE_BADGE[state]} title={STATE_HELP[state]}>
       <span aria-hidden="true" className="status-dot" />
       {STATE_LABEL[state]}
+    </span>
+  );
+}
+
+/**
+ * What the rail did with one line of an executed run.
+ *
+ * Separate from `TransactionStateBadge` on purpose, because they answer different
+ * questions and a judge asks the second one: the state is where the payment stands
+ * for the company, and this is what the rail said about it. It is also the one
+ * place `sent` and `settled` are visibly two claims, which is the difference the
+ * CEP exists to prove and the one ADR-0008 says a demo must not collapse.
+ */
+export function PaymentLineBadge({ state }: { state: PaymentLineState }) {
+  return (
+    <span
+      className={PAYMENT_LINE_BADGE[state]}
+      title={PAYMENT_LINE_HELP[state]}
+    >
+      {PAYMENT_LINE_LABEL[state]}
     </span>
   );
 }
