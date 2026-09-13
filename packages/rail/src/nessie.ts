@@ -11,12 +11,14 @@
  *
  * What this rail is, said plainly so nothing in the demo has to be hedged: Nessie
  * is a sandbox, it is not a bank, and it does not move pesos or produce a CEP.
- * What it proves is the shape of the flow end to end, on the same account the
- * reconciliation control reads: the cent is a real write against the real API with
- * our own key, the object id it answers with becomes the clave de rastreo, and the
- * whole pipeline from the cent to the decision hangs off that clave. The rail that
- * would produce a Banxico CEP is `StpRail`, which is documented and refuses to
- * pretend it is configured.
+ * What it proves is the shape of the flow end to end, on a bank mirror account
+ * this key holds: the cent is a real write against the real API with our own key,
+ * the object id it answers with becomes the clave de rastreo, and the whole
+ * pipeline from the cent to the decision hangs off that clave. Which of the key's
+ * two mirror accounts it lands on is written out on `pickMirrorAccount` below,
+ * because it is not the one `bank_reconciliation` reconciles and saying otherwise
+ * on stage would be a claim nobody earned. The rail that would produce a Banxico
+ * CEP is `StpRail`, which is documented and refuses to pretend it is configured.
  *
  * Three things it never does.
  *
@@ -203,12 +205,21 @@ export class NessieRail implements PaymentRail {
  * and no nickname is ambiguous, and charging the wrong one is worse than refusing,
  * so it refuses.
  *
- * Verified on 2026-09-12: our key holds TWO accounts with that nickname, because
- * the mirror has been pushed under two customers, and `GET /accounts` answers them
- * in a stable order with the one that carries the mirror purchases first. So the
- * first match is taken rather than reported as ambiguous: alternating between two
- * accounts would put the probe somewhere the reconciliation control is not looking.
- * A deployment that wants a specific account passes `accountId`.
+ * Our key holds TWO accounts under that nickname, because the mirror was pushed
+ * under two customers, and the two are indistinguishable through the key: same
+ * nickname, same type, same balance, different `account_number` and different
+ * owner. The first match is taken, which is deterministic and never alternates
+ * between them, and that is the whole of the claim.
+ *
+ * What it is NOT is a claim about which of the two the reconciliation reads.
+ * Verified on 2026-09-12 by reading the sandbox: `GET /accounts` answers
+ * `3fce172e-1591-43b8-b112-08e4491e3651` first, which is the account abandoned
+ * during development (issue #45), and the mirror `bun run nessie:mirror` keeps
+ * reconciled is `ad2841a5-c274-47e4-84c8-e830667feea6`. So the probe lands on the
+ * older account, and a deployment that needs it on the reconciled one passes
+ * `accountId`. Nothing downstream reads the probe as reconciliation evidence: the
+ * clave de rastreo is what the pipeline hangs off, and `bank_reconciliation` reads
+ * `ledger_tx` rather than this row.
  */
 export function pickMirrorAccount(
   accounts: readonly NessieAccount[],

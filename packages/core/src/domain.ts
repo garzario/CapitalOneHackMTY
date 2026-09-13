@@ -135,6 +135,96 @@ export interface SatListEntry {
   listVersion: string;
 }
 
+/**
+ * How the SAT notified the resolution behind a 49 Bis publication, as the Anexo
+ * of the published oficio states it. Two columns, and the one that carries a
+ * date is the one that applies.
+ */
+export type Sat49BisNotice = "buzon_tributario" | "estrados";
+
+/**
+ * One taxpayer published under Article 49 Bis, fraccion X of the CFF: the SAT
+ * carried out the express visit of article 42, fraccion V, inciso g), resolved
+ * that the taxpayer did not rebut the presumption that its CFDI are false, and
+ * published the name and the RFC.
+ *
+ * This is NOT a `SatListEntry` with another status, and the difference is the
+ * statute rather than a modelling preference. Article 69-B publishes four
+ * situations and corrects itself in both directions, which is why a 69-B row
+ * carries a `SatListStatus` and a history. Article 49 Bis fraccion X orders the
+ * publication of exactly one outcome, the resolution of fraccion VIII inciso b)
+ * (or of fraccion III, second paragraph, when the visit could not be carried
+ * out), and provides for no published clearing at all: the other outcome, inciso
+ * a), lifts the suspension of the taxpayer's own invoicing and is not published.
+ * So presence on this list IS the state, a row is never superseded by a later
+ * row, and nothing in this product may infer that a 49 Bis taxpayer was cleared.
+ *
+ * `publishedAt` is the DOF date of the oficio, and it is load bearing: the thirty
+ * natural days a buyer has to reverse the fiscal effect run from it, and so does
+ * the restriction of the buyer's own digital seal under article 17-H Bis,
+ * fraccion XIV when they do not.
+ */
+export interface Sat49BisEntry {
+  rfc: Rfc;
+  name: string;
+  /** DOF publication date of the oficio, `YYYY-MM-DD`. The buyer clock starts here. */
+  publishedAt: string;
+  /** The resolution oficio, verbatim, e.g. `500-05-00-00-00-2026-24472`. */
+  oficio: string;
+  /**
+   * Which of the two notice columns carried a readable date. Absent when neither
+   * did, which is reported as a warning rather than guessed at: the taxpayer is
+   * published either way, and the row must not be lost over a missing date.
+   */
+  notifiedBy?: Sat49BisNotice;
+  /** The day the notification took effect, when the Anexo states a readable one. */
+  noticeEffectiveAt?: string;
+  /** Identifier of the publication this row came from, for the retroactive sweep. */
+  listVersion: string;
+}
+
+/** Result of the retroactive sweep after a SAT publication. */
+export interface SweepResult {
+  listVersion: string;
+  newlyListed: Array<{
+    supplier: Supplier;
+    status: SatListStatus;
+    paidCfdis: Cfdi[];
+    /** Sum of subtotals already deducted. */
+    deductedBase: number;
+    isrExposure: number;
+    ivaExposure: number;
+  }>;
+  totalExposure: number;
+}
+
+/**
+ * Result of the retroactive sweep after a 49 Bis publication.
+ *
+ * The same arithmetic as `SweepResult`, priced by the same function, plus the one
+ * field 69-B has no equivalent of: the last day the buyer can still file the
+ * complementary return. Article 69-B gives thirty days from the publication to
+ * prove the operation happened OR to correct; article 49 Bis, fraccion X gives
+ * thirty natural days to correct, full stop, and then restricts the seal.
+ */
+export interface Sat49BisSweepResult {
+  listVersion: string;
+  /** DOF date of the publication being swept, `YYYY-MM-DD`. */
+  publishedAt: string;
+  /** Last day of the thirty natural days, `YYYY-MM-DD`. */
+  correctBy: string;
+  newlyListed: Array<{
+    supplier: Supplier;
+    entry: Sat49BisEntry;
+    paidCfdis: Cfdi[];
+    /** Sum of subtotals already deducted. */
+    deductedBase: number;
+    isrExposure: number;
+    ivaExposure: number;
+  }>;
+  totalExposure: number;
+}
+
 /** Comprobante Electronico de Pago issued by Banxico for a SPEI transfer. */
 export interface Cep {
   claveRastreo: string;
@@ -537,21 +627,6 @@ export type LedgerEvent =
       recordedBy?: string;
     }
   | { type: "decision_made"; at: string; decision: Decision };
-
-/** Result of the retroactive sweep after a SAT publication. */
-export interface SweepResult {
-  listVersion: string;
-  newlyListed: Array<{
-    supplier: Supplier;
-    status: SatListStatus;
-    paidCfdis: Cfdi[];
-    /** Sum of subtotals already deducted. */
-    deductedBase: number;
-    isrExposure: number;
-    ivaExposure: number;
-  }>;
-  totalExposure: number;
-}
 
 /** Blind evaluation of the detectors against labelled cases nobody on the detector side saw. */
 export interface Metrics {

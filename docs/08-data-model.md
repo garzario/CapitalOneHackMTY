@@ -197,8 +197,10 @@ the honest version of the multi-tenancy answer in `docs/07-architecture.md`.
 
 ### Where the storage shape differs from the domain shape, and why
 
-Seven places, all deliberate. The API returns the domain shape in every case, per `docs/09-api.md`,
-and `packages/db/src/rows.ts` is the only file that translates between the two.
+Eight places, all deliberate. Seven of them are a storage shape that differs, and the API returns the
+domain shape in every case, per `docs/09-api.md`, with `packages/db/src/rows.ts` the only file that
+translates between the two. The eighth is a domain type with no storage at all, which is the same
+question answered the other way.
 
 | Domain | Storage | Why |
 |---|---|---|
@@ -209,6 +211,7 @@ and `packages/db/src/rows.ts` is the only file that translates between the two.
 | `Cep` | Columns on `verified_beneficiaries`, not a table of its own | A CEP only exists here as evidence that one supplier was really paid on one account, so the registry row and the document are the same fact. There is no orphan CEP to store. `clave_rastreo` carries a unique index, so one Banxico receipt can prove exactly one row |
 | `COMPANY` | A one-row table, absent from `domain.ts` | Every pure function is called with one company's context already selected, so the tenant key never reaches the intelligence lane. That is what makes a detector testable with ten lines of fixture. The multi-tenant path is written out in `docs/07-architecture.md` |
 | `NetworkSignal` | `consortium_snapshot` plus the one-row `consortium_pull` | The domain object is one answer about one pair, and it is computed from three stored facts: the pull, the pair row and how many accounts the network holds for that RFC. The split is what lets "the network was not read" and "the network read and knows nothing" be different answers. `apps/api/src/consortium.ts` is the only file that assembles one, and it hashes the RFC and the CLABE on the way in, so no raw identifier ever reaches these tables |
+| `Sat49BisEntry` | Nothing. There is no table | Issue #180, and the absence is the design. `sat_list_entries` is keyed `(list_version, rfc, status)` and article 49 Bis has no status: fraccion X publishes one outcome and provides for no published clearing, so a row there would need a fifth `status` value that means "this is a different statute". More to the point, there is nothing to store: the SAT publishes that list one oficio at a time as a DOF note and ships no machine-readable file, so nothing in this repository can hold a 49 Bis version it did not transcribe by hand. `packages/sat/src/art49bis.ts` reads publications passed to it, `official49BisListing()` reports the coverage, and the day a file exists this row becomes a migration rather than a silent schema we guessed at in advance |
 
 ## Migrations
 

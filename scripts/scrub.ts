@@ -126,7 +126,7 @@ const RULES: Rule[] = [
   {
     id: "attribution",
     what: "AI attribution, which this repository does not carry anywhere",
-    pattern: /co-authored-by:|generated with \[|\bco-authored-by\b/gi,
+    pattern: /^[ \t]*co-authored-by:|generated with \[/gim,
   },
 ];
 

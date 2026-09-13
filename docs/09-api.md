@@ -14,7 +14,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. See "The hold window" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
-| GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. Rate limited per client |
+| GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source, lists }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. `lists` answers for both SAT lists, article 69-B and article 49 Bis, and says which one could answer. Rate limited per client |
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
 | GET | `/api/v1/consortium/signal?rfc=&clabe=` | `{ rfc, clabe, network: NetworkSignal }` | what the SentryOne consortium holds for one beneficiary pair, read from the LOCAL snapshot and never from Snowflake. Both halves of the pair are required. `503 service_unavailable` when `ALLOW_CONSORTIUM` is unset, `404 not_found` when the network has never seen the pair or when nothing has been pulled. See "The consortium, and what the network can say" below |
@@ -36,7 +36,10 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 - The RFC is normalised before validation: upper-cased and stripped of spaces, dots, slashes, underscores and hyphens. `&` and `Ñ` are kept, because both are legitimate in the name portion of a moral person's RFC. `rfc` in the response is the normalised form, so the screen echoes what was searched.
 - `listed` is true only when the newest situation is `presunto` or `definitivo`. A taxpayer who was published and then cleared their name is not listed, and `entries` still carries the whole history so a clerk can see both rows.
 - `effective` is the newest row, absent when the RFC appears on no version we hold.
-- `source` names the snapshot that answered: `{ listVersion, retrievedAt, url, taxpayers, rows }`. It is present on an empty answer too, so "not listed" can never be read as "no list was loaded".
+- `source` names the snapshot that answered: `{ article: "69-B", listVersion, retrievedAt, url, taxpayers, rows }`. It is present on an empty answer too, so "not listed" can never be read as "no list was loaded".
+- `lists` is the whole answer, one block per SAT list, and the four keys above are the 69-B block repeated at the top level so nothing that already read them breaks. Every block carries `article` and `answered`.
+  - `{ article: "69-B", answered: true, listed, entries, effective?, source }`. It answers from the committed download plus any posted version, which is what the top-level keys say.
+  - `{ article: "49 Bis", answered: false, coverage: "not_published_machine_readable", entries: [], note, publications }`. `note` is the sentence in Spanish a screen shows, and `publications` is `{ oficios, taxpayers, firstPublishedAt, lastPublishedAt, surveyedAt, url }`. **`answered: false` is the point of the field.** Article 49 Bis has been in force since 1 January 2026 and the SAT publishes that list one oficio at a time as a DOF note, with no CSV and no open-data dataset: fourteen oficios naming fourteen taxpayers between 10 July and 28 August 2026, counted at the DOF on 2026-09-12. A screen that rendered an empty `entries` as "no esta listado" would claim a check nobody ran, so the block refuses to carry a `listed` key at all. When a machine-readable listing exists the block becomes `{ answered: true, coverage: "loaded", listed, entries, effective?, source }` and nothing else on this endpoint changes. Provenance and the manual steps are in `packages/sat/src/snapshot/README.md`.
 - Rate limited per client: 30 requests per minute, answered with `429 rate_limited` plus `Retry-After`. Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. The counter is per process and keyed on the forwarded client address, which is caller-controlled: it stops one machine enumerating the list, and it is not a defence against a distributed client.
 - Nothing on this path touches a synthetic invoice. ADR-0002 keeps a real RFC to this box and to nothing else.
 
@@ -152,7 +155,13 @@ digits of the account rather than the CLABE.
 cent as a withdrawal on the company's bank mirror with our own team key. Nessie is a
 sandbox and not a bank: no pesos move and no CEP is produced, and a cent sent that way
 cannot even build a portal query, because Nessie is not a SPEI participant and has no
-clave SPEI. It proves the flow, on the same account `bank_reconciliation` reads.
+clave SPEI. It proves the flow and nothing about the pesos. Which account it lands on is
+stated rather than assumed: our key holds two accounts under the mirror nickname, the
+rail takes the first one `GET /accounts` answers, and on 2026-09-12 that was
+`3fce172e-1591-43b8-b112-08e4491e3651`, the account abandoned during development in issue
+#45, and not `ad2841a5-c274-47e4-84c8-e830667feea6`, the mirror `bun run nessie:mirror`
+keeps reconciled. Nothing downstream reads the probe as reconciliation evidence, because
+`bank_reconciliation` reads `ledger_tx` and the pipeline hangs off the clave de rastreo.
 `RAIL=stp` is the rail that produces a Banxico-signed CEP, it is written out in
 `packages/rail/src/stp.ts` with its `registraOrden` request, its cadena original and its
 RSA signature, and it refuses to run without `STP_*` configuration, so nothing here can
@@ -240,6 +249,9 @@ out of Postgres. The boot log says which of the two is live.
 
 ```bash
 curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' | jq
+# Both SAT lists, and which of the two could answer at all.
+curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' \
+  | jq '.lists | map({article, answered, coverage, listed})'
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
   -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
@@ -261,7 +273,7 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
   | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
 ```
 
-## Where the 69-B rows a control sees come from
+## Where the SAT rows a control sees come from
 
 Two sources, and the difference is binding under ADR-0002. `sat_69b` is handed the versions this
 instance has been posted, plus the rows the committed official snapshot holds **for that one RFC**.
@@ -269,6 +281,20 @@ Every supplier in the seeded company is synthetic and a synthetic RFC is on no r
 official snapshot contributes nothing to any of them and a real RFC never stands next to a
 fabricated invoice. What the second source buys is that an instruction naming an RFC that is on the
 official list is caught by the control rather than only by the lookup box.
+
+The same control reads a second list. `sat_69b` is control 1 of ADR-0002 and control 1 is the SAT
+lists cross-check, so a supplier published under article 49 Bis produces a **second finding** from the
+same detector, with an id prefixed `sat49bis:` and `article: "49 Bis"` in its evidence. The detector
+id does not change: it is persisted in `decision_findings`, constrained by a CHECK in
+`0003_sentryone.sql` and counted per detector by the metrics harness, and ADR-0002 has six controls
+rather than seven. A supplier on both lists gets both findings, which is correct rather than
+duplication: two statutes voided the same invoices on two different clocks and the clerk has a
+complementary return to file under each. The 49 Bis finding names the article, the DOF publication
+date, the days left of the thirty natural days of fraccion X and the restriction of the company's own
+digital seal under article 17-H Bis fraccion XIV, and it is always `comprobable`, because fraccion X
+publishes a resolution that is already final. Today `composeInputFor` adds no 49 Bis rows, because
+`official49BisListing()` reports the list as not published in a machine-readable form, so the finding
+appears on a seeded instance only when a caller supplies the rows.
 
 ## Nessie, verified quirks
 
@@ -284,14 +310,20 @@ The POST that creates the customer is what validates the key, since an invalid k
 
 `--import` replaces the generator's `ledger_tx` rows for the company account with the rows Nessie answered, scoped by account and by source, and the delete and the insert run inside one transaction so a failure between them cannot leave the company with a ledger shorter than its bank. It needs `--limit=0`, because the import replaces the mirror rather than adding to it, and the imported rows carry the bank's whole-peso amounts. It refuses outright when the push reported failures, when the read-back threw or was partly rejected, or when the reconciliation reported any differing day: a replacement built on a partial push is a ledger that is quietly short of the bank, and every rolling baseline the engine computes off it moves with it.
 
-One kind of row on that account is not mirror history: the one-cent verification writes a
-WITHDRAWAL, because the probe must name nobody and a withdrawal carries no payee at all.
+One kind of row is not mirror history: the one-cent verification writes a WITHDRAWAL,
+because the probe must name nobody and a withdrawal carries no payee at all.
 Verified on 2026-09-12 with our own key: `POST /accounts/{id}/withdrawals` with
 `{medium: "balance", transaction_date: "<Monterrey day>", amount: 0.01, status:
 "pending", description: "Verificacion de cuenta SPEI 0.01 MXN"}` answers a row whose
 `_id` becomes the clave de rastreo, and the amount reads back as `0` because Nessie
 stores a whole number. The exact centavo is in our ledger, like every other amount. No
-customer and no account is ever created by that path: the account is the one
-`bun run nessie:mirror` made, found by its nickname through `GET /accounts`.
+customer and no account is ever created by that path: the account is one the key already
+holds, found by its nickname through `GET /accounts`. Re-read on 2026-09-12 while closing
+issue #165, with `GET` only: the key holds 3 customers and 2 accounts, which is exactly
+what issue #45 recorded, so the probes created neither. Both probes sit on
+`3fce172e-1591-43b8-b112-08e4491e3651` (390 purchases, the account abandoned during
+development) rather than on `ad2841a5-c274-47e4-84c8-e830667feea6` (206 purchases, the
+reconciled mirror), because the two carry the same nickname and the rail takes the first
+one listed. Cleaning that up is the sandbox's problem and not the pipeline's.
 
 A re-seed undoes an import, on purpose and without doubling anything. `bun run seed` loads the company through `PostgresRepository.load`, which deletes the company account's `ledger_tx` rows by account id and writes the generator's mirror back, so after a `bun run seed` the ledger holds the generator's rows with their exact centavos again and `bun run nessie:mirror --import --limit=0` has to run once more to put Nessie's whole-peso rows back. The row count for the account equals the generator's mirror either way.

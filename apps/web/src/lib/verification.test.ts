@@ -18,6 +18,7 @@ import {
   isSettled,
   notStartedVerification,
   sealVerdictOf,
+  storedCepAt,
   syntheticClaveRastreo,
   verificationFailure,
 } from "./verification";
@@ -109,6 +110,30 @@ describe("the state machine", () => {
     expect(state.sealState).toBeNull();
     expect(state.nameMatch).toBeNull();
     expect(state.decision).toBeNull();
+  });
+});
+
+describe("storedCepAt", () => {
+  const stored = { cepAt: "2026-09-12T09:15:42-06:00" };
+
+  test("answers the instant the CEP landed, so the registry is re-read once", () => {
+    expect(storedCepAt(stored, "api")).toBe(stored.cepAt);
+  });
+
+  test("is the same instant while the machine walks on to released or blocked", () => {
+    /* The reload effect is keyed on this value, so a state name that changed
+       under an unchanged CEP must not look like a second document. */
+    expect(storedCepAt(stored, "api")).toBe(storedCepAt({ ...stored }, "api"));
+  });
+
+  test("is null before a CEP, so nothing is re-read on a cent that is still out", () => {
+    expect(storedCepAt({ cepAt: null }, "api")).toBeNull();
+    expect(storedCepAt(null, "api")).toBeNull();
+  });
+
+  test("is null offline, because a browser stored nothing in any registry", () => {
+    expect(storedCepAt(stored, "mock")).toBeNull();
+    expect(storedCepAt(stored, null)).toBeNull();
   });
 });
 

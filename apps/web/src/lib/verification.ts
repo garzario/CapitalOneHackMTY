@@ -96,6 +96,28 @@ export function isInFlight(state: VerificationStateName): boolean {
 }
 
 /**
+ * Whether a row has just entered the registry of verified beneficiaries.
+ *
+ * The CEP screen renders that registry next to this panel, out of a second
+ * resource that was loaded on mount, and storing the CEP is exactly what writes
+ * the row. Without this the screen shows a released payment beside a registry
+ * still reading "registro vacio", which is the one reading of that panel that is
+ * false.
+ *
+ * It keys on `cepAt` rather than on the state name because the instant is what
+ * changes once per document: `cep_signed`, `released` and `blocked` all carry the
+ * same stored CEP, so a state name would fire the reload again on every step the
+ * machine takes afterwards. And it is false for the offline run, because a row
+ * the browser invented never reached a registry.
+ */
+export function storedCepAt(
+  state: Pick<VerificationState, "cepAt"> | null,
+  source: "api" | "mock" | null,
+): string | null {
+  return source === "api" ? (state?.cepAt ?? null) : null;
+}
+
+/**
  * What the screen shows for an instruction nobody has verified.
  *
  * The API answers this shape itself, and the offline run needs the same one, so

@@ -1,5 +1,5 @@
 /**
- * Control 1 of ADR-0002, the Article 69-B cross-check, adapted to `ComposeInput`.
+ * Control 1 of ADR-0002, the SAT lists cross-check, adapted to `ComposeInput`.
  *
  * The control is two questions asked of data somebody else owns: `matchRfc` in
  * `@hackmty/sat` says which situation is in force for this supplier across every
@@ -18,6 +18,12 @@
  *    published it and the deduction is void by law, not because we decided
  *    anything about the supplier. `presunto` asks for verification, since the
  *    taxpayer's own clock to answer is still running.
+ *
+ * Since issue #180 this control reads TWO lists. Article 49 Bis, in force since
+ * 1 January 2026, publishes a taxpayer whose CFDI were determined false, on its
+ * own clock and with its own consequence, and it produces its own finding out of
+ * `sat49bis.ts`. Same control and same detector id, because ADR-0002 has six
+ * controls and the id is persisted; different article, different copy.
  */
 
 import type {
@@ -30,6 +36,7 @@ import type {
 } from "@hackmty/core";
 import { detectorRan, formatAmount, sumAmounts } from "@hackmty/core";
 import { matchRfc, normalizeRfc, SAT_STATUS_LABELS } from "@hackmty/sat";
+import { sat49BisFinding } from "./sat49bis";
 
 /** How the finding reads for each situation the list can report. */
 const SEVERITY_BY_STATUS: Readonly<Record<SatListStatus, Severity>> = {
@@ -86,31 +93,50 @@ export function sweptExposureFor(
 }
 
 /**
- * Article 69-B, control 1.
+ * The SAT lists, control 1: article 69-B and article 49 Bis.
  *
  * An RFC on no version we hold produces no finding at all, and that is a result
  * rather than a skip: "este proveedor no aparece en ninguna version que tenemos"
  * is the answer to the question the clerk asked. Whether a list is loaded at all
- * is a different question, and `GET /api/v1/sat/versions` is where it is asked.
+ * is a different question, and `GET /api/v1/sat/versions` and the `coverage` field
+ * of `GET /api/v1/sat/lookup` are where it is asked.
+ *
+ * A supplier on both lists produces TWO findings, and that is correct rather than
+ * duplication: two statutes voided the same invoices on two different clocks, and
+ * the clerk has a complementary return to file under each.
  */
 export const sat69bAdapter: DetectorAdapter = {
   detector: "sat_69b",
   run: (input) => {
+    const findings: Finding[] = [];
+
     const match = matchRfc(input.satEntries, input.instruction.supplierRfc);
     const { effective } = match;
-    if (effective === undefined) {
-      return detectorRan([]);
+    if (effective !== undefined) {
+      findings.push(
+        buildFinding({
+          effective,
+          rows: match.entries.length,
+          listed: match.listed,
+          instructionAmount: input.instruction.amount,
+          now: input.now,
+          swept: sweptExposureFor(match.rfc, input.sweep),
+        }),
+      );
     }
-    return detectorRan([
-      buildFinding({
-        effective,
-        rows: match.entries.length,
-        listed: match.listed,
-        instructionAmount: input.instruction.amount,
-        now: input.now,
-        swept: sweptExposureFor(match.rfc, input.sweep),
-      }),
-    ]);
+
+    const falseInvoices = sat49BisFinding({
+      entries: input.sat49BisEntries ?? [],
+      supplierRfc: input.instruction.supplierRfc,
+      instructionAmount: input.instruction.amount,
+      now: input.now,
+      ...(input.sweep49Bis === undefined ? {} : { sweep: input.sweep49Bis }),
+    });
+    if (falseInvoices !== undefined) {
+      findings.push(falseInvoices);
+    }
+
+    return detectorRan(findings);
   },
 };
 
