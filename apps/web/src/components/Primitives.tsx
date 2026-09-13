@@ -4,14 +4,23 @@
  * six screens and so the watermark can never be forgotten on one of them.
  */
 
-import type { Action, Severity } from "@hackmty/core";
+import type {
+  Action,
+  Confidence,
+  Severity,
+  TransactionState,
+} from "@hackmty/core";
 import type { ReactNode } from "react";
 import { formatMoney, formatMoneyShort } from "../lib/format";
 import {
   ACTION_BADGE,
   ACTION_LABEL,
+  CONFIDENCE_BADGE,
+  CONFIDENCE_LABEL,
   SEVERITY_BADGE,
   SEVERITY_LABEL,
+  STATE_BADGE,
+  STATE_LABEL,
   SYNTHETIC_LABEL,
 } from "../lib/labels";
 
@@ -96,6 +105,31 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
   return (
     <span className={SEVERITY_BADGE[severity]}>{SEVERITY_LABEL[severity]}</span>
   );
+}
+
+/**
+ * The level of one payment: `confiable`, `precaucion` or `alerta`, and never a
+ * percentage, a score or the word "seguro".
+ *
+ * It is a primitive for the reason `confidenceOf` is one function in
+ * `packages/core`: the same three words appear on the run, on the detail, in the
+ * assistant panel and on the documents, and a level painted one way on one screen
+ * and another way on the next is issue 125 with a slower fuse. ADR-0009 carries the
+ * rule table, and the level never appears without the findings behind it, which is
+ * the caller's job and is why this component takes no evidence of its own.
+ */
+export function ConfidenceBadge({ level }: { level: Confidence }) {
+  return (
+    <span className={CONFIDENCE_BADGE[level]}>{CONFIDENCE_LABEL[level]}</span>
+  );
+}
+
+/**
+ * Where the payment stands. Three states a clerk reads plus the two the run counts
+ * internally, because a line nobody has looked at is not green.
+ */
+export function TransactionStateBadge({ state }: { state: TransactionState }) {
+  return <span className={STATE_BADGE[state]}>{STATE_LABEL[state]}</span>;
 }
 
 type FieldProps = {

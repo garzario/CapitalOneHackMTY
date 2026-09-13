@@ -5,6 +5,7 @@
 
 import { useEffect } from "react";
 import { AppShell } from "./components/AppShell";
+import { AssistantDock } from "./components/AssistantDock";
 import { EmptyBlock } from "./components/States";
 import { DEFAULT_PATH, href, PATHS, type Route, useRoute } from "./lib/router";
 import { CepScreen } from "./screens/CepScreen";
@@ -76,9 +77,15 @@ export default function App() {
     }
   }, []);
 
+  /* The assistant is mounted beside the shell and not inside a route, because it
+     reads the line the clerk is already looking at: opening it must not replace
+     the screen underneath, or the question loses its subject. */
   return (
-    <AppShell route={route} title={TITLES[route.name]}>
-      {screenFor(route)}
-    </AppShell>
+    <>
+      <AppShell route={route} title={TITLES[route.name]}>
+        {screenFor(route)}
+      </AppShell>
+      <AssistantDock />
+    </>
   );
 }
