@@ -155,9 +155,10 @@ commands rather than off this table if the hour matters.
 
 ## Live integrations verified
 
-Three parts of this product leave the repository and reach somebody else's production system. Each
-was exercised against the real provider on 2026-09-12, and the ids below are what turns "the code
-path is merged and tested against a stub" into "we ran it". A judge can ask us to open any of them.
+Four parts of this product leave the repository and reach somebody else's production system. Each
+was exercised against the real provider, three of them on 2026-09-12 and the payment run on
+2026-09-13, and the ids below are what turns "the code path is merged and tested against a stub" into
+"we ran it". A judge can ask us to open any of them.
 
 ### The verification call, ElevenLabs over Twilio
 
@@ -198,6 +199,21 @@ because the table there prices two models this product does not configure. Issue
 
 The key is in each local `.env` and in no file here: `.env` and `.env.*` are ignored and
 `.env.example` carries the names with empty values.
+
+### The payment run, Nessie
+
+| | |
+|---|---|
+| What ran | One whole execution of the seeded run through `POST /api/v1/run/:id/execute` with the real `NessieRail`, 2026-09-13 |
+| What left | 86 lines, 1,388,920.90 MXN, one withdrawal per line on the company's bank mirror, each with the clave de rastreo minted from the object id Nessie answered. 0 failed, 0 cancelled |
+| What did not | 6 lines the engine is holding and nobody signed a release over. They were reported per line with the reason and nothing was appended for them |
+| The second press | `409`, and the ledger did not move |
+| What was not created | Nothing. 3 customers and 2 accounts before and after, which is what issue #45 recorded |
+| What it proves and what it does not | The flow end to end on a real API with our own key. Nessie is a sandbox and not a bank: no pesos moved, the balance did not change, an amount reads back as a whole number, and no CEP exists, so every receipt from that run says "firma no verificada". `packages/rail/README.md` carries the counts and the quirk a probe of this issue found, which is that a withdrawal posted with no `status` makes Nessie refuse to list that account's withdrawals at all |
+
+The rail that produces a Banxico-signed CEP is `StpRail` and it has never run: we hold no `empresa`
+contract, so its constructor refuses on every machine. That line is in `packages/rail/README.md`, in
+`GET /api/v1/rails` and in ADR-0008, which is three places on purpose.
 
 ## Judge visits, and what each one changed
 

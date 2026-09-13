@@ -10,17 +10,20 @@ import { describe, expect, it } from "bun:test";
 import {
   assertClaveRastreo,
   assertNoIdentity,
+  assertPaymentAmount,
   CENT_AMOUNT,
   CENT_DESCRIPTION,
   CLAVE_RASTREO_MAX_LENGTH,
   claveRastreoFrom,
   FakeRail,
   NO_RAIL,
+  PAYMENT_DESCRIPTION,
   RailConfigError,
   railNameFrom,
   resolveRail,
   STP_NOT_CONFIGURED,
   syntheticClave,
+  syntheticPaymentClave,
   unknownRail,
 } from "./index";
 
@@ -124,6 +127,69 @@ describe("FakeRail", () => {
     });
 
     expect(sent.claveRastreo).toBe("SYNINS7");
+  });
+
+  it("settles a payment in process and keeps saying it simulated it", async () => {
+    const rail = new FakeRail({ now: () => "2026-09-12T03:00:00.000Z" });
+
+    const sent = await rail.send({
+      instructionId: "INS-1",
+      runId: "run-2026w37",
+      beneficiaryAccount: "012180101391764613",
+      amount: 42180.5,
+    });
+
+    expect(sent).toEqual({
+      rail: "nessie",
+      state: "settled",
+      claveRastreo: syntheticPaymentClave(1),
+      sentAt: "2026-09-12T03:00:00.000Z",
+      amount: 42180.5,
+      instructionId: "INS-1",
+      simulated: true,
+    });
+    const confirmed = await rail.confirm([sent]);
+    expect(confirmed[0]?.state).toBe("settled");
+  });
+
+  it("refuses the instruction ids the suite told it to refuse", async () => {
+    const rail = new FakeRail({
+      refuse: { "INS-9": "la cuenta CLABE no existe en el banco receptor" },
+    });
+
+    await expect(
+      rail.send({
+        instructionId: "INS-9",
+        runId: "run-2026w37",
+        beneficiaryAccount: "012180101391764613",
+        amount: 100,
+      }),
+    ).rejects.toThrow(/CLABE no existe/);
+    expect(rail.dispersed).toEqual([]);
+  });
+});
+
+describe("assertPaymentAmount", () => {
+  it("takes any positive whole number of centavos, because the amount is the instruction's", () => {
+    expect(assertPaymentAmount(0.01)).toBe(0.01);
+    expect(assertPaymentAmount(42180.5)).toBe(42180.5);
+    expect(assertPaymentAmount(1_234_567.89)).toBe(1_234_567.89);
+  });
+
+  it("refuses zero, a negative, an infinity and a third decimal", () => {
+    expect(() => assertPaymentAmount(0)).toThrow(RailConfigError);
+    expect(() => assertPaymentAmount(-1)).toThrow(RailConfigError);
+    expect(() => assertPaymentAmount(Number.POSITIVE_INFINITY)).toThrow(
+      RailConfigError,
+    );
+    expect(() => assertPaymentAmount(10.005)).toThrow(/centavos/);
+  });
+});
+
+describe("the payment description", () => {
+  it("says what the movement is and nothing about who it is to", () => {
+    expect(PAYMENT_DESCRIPTION).toBe("Dispersion SPEI de corrida de pagos");
+    expect(assertNoIdentity(PAYMENT_DESCRIPTION)).toBe(PAYMENT_DESCRIPTION);
   });
 });
 

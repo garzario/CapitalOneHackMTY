@@ -364,6 +364,12 @@ describe("POST verify-account, the pipeline", () => {
               "the cent was not recorded on the bank mirror",
             );
           },
+          send: async () => {
+            throw new RailSendError(
+              "nessie",
+              "this rail refuses everything, the payment included",
+            );
+          },
         },
       }),
     });

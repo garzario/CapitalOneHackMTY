@@ -18,6 +18,54 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The payment run leaves, on a rail, with a receipt per line (issue #198, ADR-0008). This is the half
+  of the product that did not exist: SentryOne stopped payments and the SPEI left from the company's
+  own banking portal, which left the honest answer to "why would Lupita upload the screenshot" at
+  "because we asked her to". Now the instruction is the payment order, so every peso that leaves has a
+  CFDI, a decision and a name behind it in the append-only ledger.
+
+  `packages/rail` grows `send(order)` next to the probe, and `PaymentOrder` is the ADR expressed as a
+  type: the instruction this product already holds, its own amount, and the account that instruction
+  names. There is no shape of that object that expresses an amount the instruction did not carry.
+  `NessieRail` records each line as a withdrawal on the company's bank mirror and mints the clave de
+  rastreo from the object id Nessie answers, `StpRail` signs the same `registraOrden` with the
+  instruction's amount and still refuses to exist without `STP_*`, and `LayoutRail` is new: the
+  dispersal CSV a bank portal takes and the reader of the response file it hands back, which is the
+  no-API path a PyME actually has. It has no `RailId` and that is the honest answer rather than an
+  omission, because the participant that executes the file is the company's own bank and this product
+  is not it. `PaymentSent.state` is the rail's own claim and nothing upgrades it, and `confirm` asks
+  "can you answer for this movement" as its own question, so a rail that cannot be asked leaves its
+  lines on `sent` and silence is never read as a settlement.
+
+  `POST /api/v1/run/:id/execute` answers `202` and a stream: one `line` per payment, one `skipped` per
+  line the run deliberately left alone with the ADR-0009 rule that decided it, and a `done` carrying
+  the whole `PaymentExecution`. `planRunExecution` in `packages/core/src/execution.ts` is the selection
+  rule and it asks exactly one question per line, through `assessTransactionState`: `liberado` goes,
+  `cancelado` is dropped before anything is sent with a `payment_cancelled` that carries no actor
+  because the evidence dropped it rather than a person, `rojo` and `pendiente` are left in front of a
+  person, and `enviado` is already gone. Idempotence is per instruction and not per request, and it
+  reads the whole ledger rather than only this run's events, so a SPEI the company sent from its own
+  portal before ADR-0008 can never be sent a second time. `instructionIds` only narrows, and a request
+  that names a line the decisions stop is a `409` that says which one. `GET .../execution`,
+  `GET /api/v1/payments/:id/receipt` as JSON and as a PDF, `GET /api/v1/rails`,
+  `GET .../layout` and `POST .../layout/response` land with it, the run constancia grows the table of
+  what left with a clave de rastreo per row, and `bun run demo` gains the beat where money leaves.
+
+  Three things are in the code rather than in a promise. Nothing is appended for a send that did not
+  happen: a server with no rail answers `503` and writes nothing, because a `payment_sent` for a
+  payment that never left is the one entry this ledger must not hold. The outflow is written to the
+  company's own bank mirror as a `LedgerTx`, which is what lets control 6 reconcile the payment instead
+  of reporting it as `payment_not_in_mirror`. And `X-Actor` is required, parsed in
+  `apps/api/src/actor.ts`, so the ledger answers who: a name with a semicolon in it is refused rather
+  than truncated, because half a name on a ledger entry is worse than a `400`.
+
+  Verified live on 2026-09-13: one execution of the seeded run on the Nessie sandbox, 86 lines for
+  1,388,920.90 MXN, 6 held lines left alone with their reasons, 0 failed, a `409` on the second press,
+  and 3 customers and 2 accounts before and after. `packages/rail/README.md` carries the counts, what
+  it proves and what it does not, and the quirk a probe of this issue found and paid for: Nessie
+  accepts a withdrawal with no `status` and then refuses to list that account's withdrawals at all,
+  with no route that deletes a single row.
+
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
   moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;

@@ -75,15 +75,15 @@ If the ADR is changed, change this section in the same PR.
   import them back. Adapters only: every rule lives in core.
 - `packages/nessie`, the only place that talks to Nessie. Read "Nessie quirks" before touching it.
   Tests run against recorded fixtures in `src/fixtures/`, with no network.
-- `packages/rail`, the only place that sends money, and it sends one amount: the 0.01 MXN
-  verification probe. `NessieRail` writes it to the company's bank mirror (verified live),
-  `StpRail` is the documented production path that refuses to run without `STP_*`, and
-  `FakeRail` is the in-process one the suite and `bun run demo` use. Read `README.md` in that
-  folder before quoting any of it: it says which rail has run live and which has not. ADR-0008 adds
-  the payment run to what a rail may send, one line of one instruction for that instruction's own
-  amount to the account it names, which is why the instruction has to exist here before money moves;
-  the adapter work is a follow-on of #195, so until it lands the probe is still the only thing this
-  package actually sends.
+- `packages/rail`, the only place that sends money, and it sends two things: the 0.01 MXN
+  verification probe and one line of one payment instruction for exactly that instruction's own
+  amount to exactly the account it names (ADR-0008), which is why the instruction has to exist here
+  before money moves. `NessieRail` writes both to the company's bank mirror (the probe verified live
+  on 2026-09-12, the run on 2026-09-13 with 86 lines), `StpRail` is the documented production path
+  that refuses to run without `STP_*`, `LayoutRail` writes the dispersal file a bank portal takes and
+  reads the response file it hands back, and `FakeRail` is the in-process one the suite and
+  `bun run demo` use. Read `README.md` in that folder before quoting any of it: it says which rail
+  has run live and which has not, and it carries the counts.
 - `packages/consortium`, the only place that talks to the cross-tenant network on Snowflake: the
   hashing that is the privacy boundary, the key-pair JWT, the SQL REST API with an injectable
   `fetch`, the DDL, the push and the pull, and the deterministic synthetic network the demo reads.
@@ -149,7 +149,15 @@ and CI goes green having checked nothing.
 - On a CREATE: merchant `category` is a bare string (the array `GET /merchants` returns is
   refused with `400 category str type expected`), and an address `state` is at most two
   characters, so "NL" and never "Nuevo Leon". Verified 2026-09-12 while seeding the mirror.
-- `status` is observed as `"completed"` and `"pending"`. Treat it as an open string set.
+- `status` is observed as `"completed"` and `"pending"`. Treat it as an open string set, and it is
+  OURS on the way in: the value posted is echoed back unchanged, so a status on a row we created is
+  never the sandbox acknowledging anything. **Always post one.** A withdrawal created with no
+  `status` is accepted and then breaks every read of that collection:
+  `GET /accounts/{id}/withdrawals` answers `400 "1 validation error for Withdrawal / status / field
+  required"` for the whole account, no route deletes a single withdrawal, and the only way back is
+  the bulk `DELETE /data?type=`. Verified 2026-09-13 while closing #198, on
+  `3fce172e-1591-43b8-b112-08e4491e3651`, whose withdrawal listing is refused for that reason;
+  `packages/rail/README.md` carries the detail.
 - `/enterprise/*` is a GLOBAL pool shared with every other team and it is contaminated.
   Never compute on it. Read only our own key's data. Never POST anything identifying there.
 

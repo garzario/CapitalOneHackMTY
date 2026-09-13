@@ -215,6 +215,77 @@ describe("registering it", () => {
   });
 });
 
+describe("sending a line of the run", () => {
+  const ORDER = {
+    instructionId: "INS-47",
+    runId: "run-2026w37",
+    beneficiaryAccount: CLABE,
+    amount: 42180.5,
+  };
+
+  it("registers the instruction's own amount and signs it the same way", async () => {
+    const { rail: instance, bodies } = rail();
+
+    const sent = await instance.send(ORDER);
+
+    expect(sent.rail).toBe("stp");
+    expect(sent.state).toBe("sent");
+    expect(sent.amount).toBe(42180.5);
+    expect(sent.instructionId).toBe("INS-47");
+    expect(sent.senderSpeiKey).toBe(STP_SPEI_KEY);
+    expect(sent.simulated).toBe(false);
+    expect(sent.claveRastreo).toMatch(/^STP[A-Z0-9]+$/);
+
+    const body = bodies[0] as {
+      monto?: number;
+      nombreBeneficiario?: string;
+      firma?: string;
+    };
+    expect(body.monto).toBe(42180.5);
+    // The order names nobody, for the payment as for the probe: the name on the CEP
+    // is the holder the receiving bank knows, and that is the answer control 5 reads.
+    expect(body.nombreBeneficiario).toBe("");
+    expect(typeof body.firma).toBe("string");
+  });
+
+  /**
+   * `sent` and never `settled`, and there is no `confirm` on this class. An order STP
+   * accepted is an order STP accepted: the proof the transfer happened is the CEP
+   * Banxico publishes for the clave, and asking STP to restate its own acceptance
+   * would be the same claim twice wearing a different name.
+   */
+  it("offers no confirmation, because the CEP is what proves a settlement", () => {
+    const { rail: instance } = rail();
+
+    expect(
+      (instance as unknown as { confirm?: unknown }).confirm,
+    ).toBeUndefined();
+  });
+
+  it("reads a negative id as a refusal on a payment too", async () => {
+    const { rail: instance } = rail(
+      () =>
+        new Response(
+          JSON.stringify({ id: -1, descripcionError: "Saldo insuficiente" }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+
+    const failure = await instance.send(ORDER).catch((cause: unknown) => cause);
+
+    expect(failure).toBeInstanceOf(RailSendError);
+    expect((failure as RailSendError).message).toContain("Saldo insuficiente");
+  });
+
+  it("refuses an amount that is not a whole number of centavos", async () => {
+    const { rail: instance } = rail();
+
+    await expect(instance.send({ ...ORDER, amount: 10.005 })).rejects.toThrow(
+      /centavos/,
+    );
+  });
+});
+
 describe("speiKeyOfClabe", () => {
   it("puts the participant class in front of the institution code", () => {
     expect(speiKeyOfClabe("012180101391764613")).toBe("40012");

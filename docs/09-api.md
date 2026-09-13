@@ -28,6 +28,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/run/:id/execution` | `PaymentExecution` | what this run did on the payment rail, folded out of the ledger. `current` is accepted as the id. A run nobody has executed answers `200` with `lines: []` and `totals` at zero, because "nothing has been sent" is an answer and a `404` there would read as "no such run" |
 | GET | `/api/v1/payments/:id/receipt` | `PaymentReceipt` or `application/pdf` | the receipt of one payment. `:id` is the `receiptId` the execution line carries. JSON by default and the PDF on `Accept: application/pdf` or `?format=pdf`, and the two are the same object. See "The receipt and the carta" below |
 | GET | `/api/v1/instructions/:id/carta` | `application/pdf` | the one-page evidence letter of one instruction: the level with its findings, the decision and the name against it. See "The receipt and the carta" below |
+| GET | `/api/v1/run/:id/layout` | `text/csv` | the dispersal file of the released lines, for a clerk whose bank has a portal and no API. Exactly the lines `POST .../execute` would send, through the same `planRunExecution`, because a file that held a line the run would not send would be the control bypassed by an export button. Nothing is appended: writing a file sends nothing. `X-Layout-Lines` carries the count |
 | GET | `/api/v1/rails` | `{ active, rails, message? }` | which payment rails this server holds, which one is active and which of them has ever moved money. No key, no secret, no account. See "Which rails this server holds" below |
 
 `PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings }> }`.
@@ -61,6 +62,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
 | POST | `/api/v1/assistant/messages` | `multipart/form-data` or `{ sessionId?, text, images?: string[] }` | one turn of the assistant panel. Answers `text/event-stream` with `token`, `tool_call`, `tool_result`, `proposal` and `done`. It reads and it proposes, and it writes nothing but the conversation: no decision, no cent, no payment. See "The assistant, and what it may not do" below |
 | POST | `/api/v1/run/:id/execute` | `{ instructionIds?, confirm: true }` | the payment run leaves on the configured rail. `202` and `text/event-stream`, one `line` event per payment and a final `done` carrying the `PaymentExecution`. Nothing is sent without `confirm: true` and an `X-Actor`. See "The payment execution" below |
+| POST | `/api/v1/run/:id/layout/response` | `{ file: string }` | the file the bank portal handed back after somebody uploaded the dispersal layout. `readLayoutResponse` in `packages/rail` parses it, and each row becomes a `payment_sent` plus a `payment_settled` carrying the clave de rastreo the bank filed, or a `payment_failed` with the portal's own sentence. Answers `{ applied, unknown, execution }`. `422` when the file carries no reference and clave at all, because then there is nothing to record. See "The payment execution" below |
 
 ### The actor on every write
 
@@ -327,11 +329,33 @@ further, never widen it past what the decisions allow. A request that names a he
 `409 conflict` and says which one, because silently dropping it would let a clerk believe they paid
 somebody they did not.
 
+**Nothing is sent twice.** Idempotence is per instruction and not per request: a line the ledger
+already says was paid reads `enviado` through the same `transactionStateOf`, so it is never offered
+to a rail again. That includes a `payment_sent` this endpoint did not write, which is every SPEI the
+company sent from its own banking portal before ADR-0008, and it is why the run is read against the
+whole ledger and not only against its own events. A line released after a first execution is new
+work and goes out on the second call; a run with nothing left to send is `409`.
+
 **The response.** `202` and `text/event-stream`: on a real rail the transfer is acknowledged after
 the response is written, so the work is not finished when the status code is chosen. One
-`event: line` per payment carrying a `PaymentExecutionLine`, then one `event: done` carrying the
-whole `PaymentExecution`. Every one of them is also an ordinary ledger event on
+`event: line` per payment carrying a `PaymentExecutionLine`, one `event: skipped` per line the run
+deliberately left alone, then one `event: done` carrying
+`{ execution, skipped, rail }`. Every `line` is also an ordinary ledger event on
 `GET /api/v1/events`, so a second screen watching the run moves with the first.
+
+A `skipped` row is `{ instructionId, amount, state, rule, reason }` and it is on the stream rather
+than in `PaymentExecution`, because a line nobody released was never part of what the run did on the
+rail: it is on the run screen, `rojo`, in front of a person. What a clerk watching the execution
+needs is to see that it was left out on purpose rather than lost, and `rule` is the row of the
+ADR-0009 state table that decided it, so the answer is auditable against the table. Nothing is
+appended for a skipped line: a `payment_cancelled` against a line nobody released would claim the
+run made a decision that nobody made.
+
+**A `cancelled` line is a statement and a `skipped` one is not.** The run cancels exactly the line
+whose decision says release and whose evidence says no: a definitive SAT listing nobody signed a
+release over, or a beneficiary verification that came back blocked. That is a `payment_cancelled`
+with the reason on it and no actor, because the evidence dropped the line rather than a person. A
+line the run already cancelled is not cancelled again on a second call.
 
 **The five line states.** `queued` accepted and not yet sent, `sent` gone, `settled` acknowledged by
 the rail, `failed` refused with a sentence a clerk can act on, `cancelled` dropped before anything
@@ -351,6 +375,31 @@ carries `sealState: "not_checked"` for the honest reason that there is no Banxic
 `RAIL=stp` is the rail that produces a signed CEP and it refuses to run without `STP_*`. The README
 in `packages/rail` says which one has run live, and `GET /api/v1/rails` answers the same thing over
 HTTP.
+
+**What `settled` means on the mirror, stated so nobody has to shorten it.** The `status` on a Nessie
+row is the one we posted: the sandbox echoes it back unchanged, so it can never be the sandbox
+acknowledging anything, and writing "completed" there would be us signing a settlement on our own
+behalf. What the sandbox can answer is whether the row is on the account, and that is the second
+question `confirm` asks: one listing for the whole run, and a line it answers becomes `settled`.
+That is the strongest thing a sandbox can acknowledge, no pesos moved, and the receipt still reads
+"firma no verificada". A listing that fails is nothing confirmed rather than a failure, so those
+lines stay `sent`. `StpRail` offers no `confirm` at all and that is the honest answer rather than an
+omission: the proof an STP order became a transfer is the CEP Banxico publishes for its clave, and
+asking STP to restate its own acceptance would be the same claim twice wearing a different name.
+
+**The outflow reaches the company's own statement.** A sent line is written to the bank mirror as a
+`LedgerTx` debit, keyed on a uuid derived from the clave de rastreo, because that is what lets
+control 6 reconcile the payment instead of reporting it as `payment_not_in_mirror`. The row names no
+payee, exactly like the rail's own row, and a second write of the same transfer is the same row: two
+rows for one payment is control 6's `cfdi_paid_twice` finding raised by our own bookkeeping.
+
+**The file path, for a company whose bank has a portal and no API.** `GET /api/v1/run/:id/layout`
+hands over the dispersal CSV of exactly the lines the execution would send, and
+`POST /api/v1/run/:id/layout/response` reads the file the portal hands back and records the clave de
+rastreo per line. The rule the package is built on survives it: the clave arrives from the bank and
+never from a keyboard, and a row the portal reports as paid with no clave on it is dropped rather
+than recorded. The layout itself is generic, six columns every portal asks for, and
+`packages/rail/README.md` says plainly that no named bank's exact file has been seen.
 
 ### The receipt and the carta
 
@@ -475,7 +524,7 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 
 - `Content-Type: application/pdf`, `Content-Disposition: inline` with a filename, and `Cache-Control: no-store`. A constancia is a statement about a moment, and a cached one would hand back yesterday's exposure after a new list version landed.
 - The sweep constancia carries the company, the list version and its DOF publication date, where the snapshot came from, how many suppliers were checked against it, the newly listed suppliers with their deducted base and ISR plus IVA exposure, and the digest of the ledger range.
-- The run constancia carries the company, the run and its week, the number of instructions and the amount reviewed, the resolution counts, one row per instruction and the full explanation of every finding, and the same digest block.
+- The run constancia carries the company, the run and its week, the number of instructions and the amount reviewed, the resolution counts, one row per instruction and the full explanation of every finding, and the same digest block. Since ADR-0008 it also carries what left the bank: who executed the run, the counts per line state, the pesos that actually went out, and one row per line with its clave de rastreo, which is the column that makes the page worth filing because it is what an auditor asks Banxico about. A run nothing has sent says so in one sentence rather than printing an empty table.
 - Both print a SHA-256 digest of the canonicalised ledger range they describe. The page calls it a huella and states, on the document, that it is not an electronic signature: it proves two printings of the same range describe the same facts, and it does not prove who produced the file.
 - A version or a run this instance never held answers `404 not_found`. A constancia for something that does not exist would be a fabricated document.
 - Synthetic figures are watermarked on the page itself, from `synthetic: true` on the record.
@@ -484,7 +533,7 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 
 `GET /api/v1/events` is Server-Sent Events. Every appended `LedgerEvent` is pushed as `event: ledger`, so the payment-run screen and the sweep animation update without polling. That includes `cent_sent` and `cep_awaited`: the verification is not on a private channel, and the screen re-reads `GET /api/v1/instructions/:id/verification` whenever an event names that instruction. It also includes the five kinds of issues #195 and #196: `payment_sent`, `payment_settled`, `payment_failed`, `payment_cancelled` and `assistant_message`, so a second screen watching the run moves with the first one and the timeline holds the conversation next to the payments it is about.
 
-Three endpoints stream on their own connection rather than through that one, because each of them is one piece of work a caller started and is waiting on: `POST /api/v1/assistant/messages` (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `POST /api/v1/run/:id/execute` (`line` per payment, then `done`), and `POST /api/v1/instructions/:id/verify-account`, which answers `202` with the state it reached and leaves the rest to the ledger channel. What those two new streams push is also appended to the ledger, so nothing is only visible to whoever happened to hold the connection.
+Three endpoints stream on their own connection rather than through that one, because each of them is one piece of work a caller started and is waiting on: `POST /api/v1/assistant/messages` (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `POST /api/v1/run/:id/execute` (`line` per payment, `skipped` per line the run left alone, then `done`), and `POST /api/v1/instructions/:id/verify-account`, which answers `202` with the state it reached and leaves the rest to the ledger channel. What those two new streams push is also appended to the ledger, so nothing is only visible to whoever happened to hold the connection.
 
 ## Curl a judge can paste
 
@@ -540,6 +589,12 @@ curl -sN -X POST https://<host>/api/v1/run/current/execute \
   -H 'content-type: application/json' -H 'x-actor: role=clerk; name=Lupita Elizondo' \
   -d '{"confirm":true}'
 curl -s https://<host>/api/v1/run/current/execution | jq '.totals'
+# The receipt of one payment, as the accountant files it. The id is the receiptId the
+# execution line carries, and the seal reads not_checked on a rail that produces no CEP.
+curl -s https://<host>/api/v1/payments/rcp-NSS43633C642E8B4EAD833CCA4A94B/receipt   | jq '{claveRastreo, rail, amount, sealState, beneficiaryAccountLast4, executedBy}'
+# The dispersal file, for a bank with a portal and no API. Exactly the lines the run
+# would send, and writing it sends nothing.
+curl -s https://<host>/api/v1/run/current/layout
 ```
 
 ## Where the SAT rows a control sees come from

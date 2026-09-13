@@ -25,12 +25,18 @@ Beat 1 and beat 3 are stage 3 of `docs/03-user-journey.md`, the moment that is t
 is the one to protect if time is lost, because a judge who sent the instruction themselves does not
 need to be convinced that the product runs.
 
-`bun run demo` checks seven things rather than these five, and neither extra one is a beat this
-sheet is missing. It asserts the CEP parser and the name comparison on their own before it runs the
-cent through the pipeline, because a document that fails to parse and an account that fails to match
-are two different failures and the headless check says which, while on stage they are one screen;
-and it puts the consortium network into a decision offline, which on stage is the chip inside beat
-3 rather than a stop of its own.
+`bun run demo` checks eight things rather than these five, and none of the extra three is a beat
+this sheet is missing. It asserts the CEP parser and the name comparison on their own before it runs
+the cent through the pipeline, because a document that fails to parse and an account that fails to
+match are two different failures and the headless check says which, while on stage they are one
+screen; it puts the consortium network into a decision offline, which on stage is the chip inside
+beat 3 rather than a stop of its own; and it executes the run, which is the half of ADR-0008 that
+has no screen yet. That last one is the gate that matters most before a rehearsal, because it is the
+only beat where money leaves: it asserts that the released lines go and the held ones do not, that
+every sent line comes back with a clave de rastreo and a receipt, that the five peso buckets add up
+to the execution to the centavo, and that a second press of the button answers `409` and moves
+nothing. TODO(FabriBanda): when the payments screen of #212 lands, this becomes a stage beat and the
+sheet above gains a row.
 
 ### Walk-up variants, because judging is continuous
 
@@ -227,6 +233,7 @@ the difference between looking real and looking like a prototype.
       `ALLOW_CONSORTIUM` is unset on purpose and the finding says the network was not consulted, which
       is also green. Never pull inside the demo window
 - [ ] The CEP fixture parses and the name comparison answers. TODO(garzario) issue #57: swap in the real CEP and its certificate, and only then say the signature was validated
+- [ ] The run has not been executed on the instance the judges will see. `GET /api/v1/run/current/execution` must answer `lines: []`, because a second execute answers 409 and a run that already left has nothing to show. Re-seed if it does not
 - [ ] Beat 4 has not been run yet on the instance the judges will see. The cent is sent once per instruction and a second press answers 409, so `GET /api/v1/instructions/INS-2026-09-07-047/verification` must still say `not_started` when the window opens. Re-seed if it does not
 - [ ] One browser window, demo tabs in order, every other window closed
 - [ ] The printed card is on the table: QR code, the CLABE to photograph, the clave de rastreo, the real RFC

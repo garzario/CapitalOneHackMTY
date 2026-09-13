@@ -637,6 +637,54 @@ export async function readVerificationEvents(
   return rows.map(ledgerEventFromRow);
 }
 
+/**
+ * The payment events a `PaymentExecution` is folded out of, in append order.
+ *
+ * Targeted for the same reason `readVerificationEvents` is: `readLedger` answers the
+ * OLDEST 500 events and the seeded company has thousands, so a payment that left a
+ * minute ago would never be in the page.
+ *
+ * The `runId` filter is what keeps an executed run apart from the company's own
+ * history. Every SPEI before ADR-0008 left from the company's own banking portal, and
+ * the seed records those as `payment_sent` with no run on them, so filtering on the
+ * run answers what THIS run did. The clave filter is the receipt lookup, which is
+ * addressed by the clave de rastreo and holds no run id of its own.
+ *
+ * Neither filter set answers nothing rather than everything. A filter that silently
+ * became "the whole ledger" is how a read of one receipt turns into a scan of every
+ * payment the company ever made.
+ */
+export async function readPaymentEvents(
+  sql: Db,
+  query: {
+    runId?: string;
+    claveRastreo?: string;
+    instructionIds?: readonly string[];
+  },
+): Promise<LedgerEvent[]> {
+  const ids =
+    query.instructionIds === undefined ? null : [...query.instructionIds];
+  if (
+    query.runId === undefined &&
+    query.claveRastreo === undefined &&
+    ids === null
+  ) {
+    return [];
+  }
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type in ('payment_sent', 'payment_settled', 'payment_failed', 'payment_cancelled')
+      and (${query.runId ?? null}::text is null
+           or payload ->> 'runId' = ${query.runId ?? null})
+      and (${query.claveRastreo ?? null}::text is null
+           or payload ->> 'claveRastreo' = ${query.claveRastreo ?? null})
+      and (${ids}::text[] is null
+           or payload ->> 'instructionId' = any(${ids}::text[]))
+    order by at asc, seq asc
+  `;
+  return rows.map(ledgerEventFromRow);
+}
+
 /** How many events the ledger holds, for the doctor and the seed summary. */
 export async function countLedgerEvents(sql: Db): Promise<number> {
   const rows = await sql<{ count: number }[]>`

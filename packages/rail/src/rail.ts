@@ -1,33 +1,43 @@
 /**
- * What a payment rail is, and what the one-cent probe is allowed to carry.
+ * What a payment rail is, and what it is allowed to carry.
  *
  * SentryOne verifies a beneficiary by sending one centavo to the account the
  * instruction names and reading the CEP that Banxico signs for it. Mexico has no
  * confirmation-of-payee API, so the cent is the only way to make the central bank
- * state, in a signed document, who holds that account. This package is the part
- * that sends it: one small interface, one adapter per rail, and nothing else.
+ * state, in a signed document, who holds that account. Since ADR-0008 the same
+ * seam also carries the payment run itself, which is what makes the instruction the
+ * payment order rather than a copy of one: one small interface, one adapter per
+ * rail, and nothing else.
  *
- * Four rules the interface exists to hold.
+ * Five rules the interface exists to hold.
  *
- * 1. **The cent is 0.01 MXN and the rail may not choose another amount.**
- *    `CENT_AMOUNT` is the only amount any adapter here may send, because an
- *    amount is the one field of a transfer that cannot be taken back.
+ * 1. **A rail sends the probe or the amount of an instruction this product holds,
+ *    and nothing else.** `CENT_AMOUNT` is the probe and it is the only constant
+ *    amount in the package; a payment's amount arrives on `PaymentOrder` from the
+ *    instruction, to the account that instruction names, because an amount is the
+ *    one field of a transfer that cannot be taken back. ADR-0008 made that rule
+ *    narrower than it sounds rather than looser.
  * 2. **Nothing identifying leaves with it.** A rail receives the account, the
  *    amount and nothing else: no supplier name, no legal name, no invoice. The
- *    description a rail writes on its own row carries the amount and the word
- *    verification, and `assertNoIdentity` is the guard that fails the build of
- *    any adapter that drifts from that.
+ *    description a rail writes on somebody else's system is fixed and nameless, and
+ *    `assertNoIdentity` is the guard that fails the send of any adapter that drifts
+ *    from that. The one exception is `LayoutRail`, which writes a file the company
+ *    itself uploads to its own bank and says so in its own header.
  * 3. **The clave de rastreo comes back from the rail, never from a keyboard.**
  *    It is the string the CEP is filed under at Banxico, so whoever sent the
  *    transfer is the only one who can know it. `claveRastreo` on the result is
  *    therefore the rail's answer and not an argument.
- * 4. **A rail that cannot run says so at construction.** `StpRail` refuses
+ * 4. **"We asked" and "the rail says it happened" are two different claims.**
+ *    `PaymentSent.state` is what the rail itself reached, and `confirm` is the
+ *    second question asked separately. A rail that cannot be asked does not
+ *    implement it, which is not the same as a rail that answers no.
+ * 5. **A rail that cannot run says so at construction.** `StpRail` refuses
  *    without its configuration rather than failing on the first request, which is
  *    the same rule `createCepSource` and `createExtractor` follow in apps/api: a
  *    request must never be the thing that discovers the server is misconfigured.
  */
 
-import type { Clabe, RailId } from "@hackmty/core";
+import type { Clabe, PaymentLineState, RailId, Rfc } from "@hackmty/core";
 
 /**
  * The amount of the probe, in MXN major units like the rest of the domain.
@@ -86,20 +96,137 @@ export interface CentSent {
   simulated: boolean;
 }
 
+/* -------------------------------------------------------------------------- */
+/* The payment run                                                             */
+/* -------------------------------------------------------------------------- */
+
 /**
- * A rail that can send the one-cent probe.
+ * Who is being paid, for the rails that write a file the company itself uploads to
+ * its own bank portal.
  *
- * Deliberately one method. Everything else about a payment rail (balances,
- * statements, reversals) is outside what this product does, and an interface that
- * offered them would invite a route handler to use them.
+ * It is deliberately absent from what reaches a third party's API. A bank portal
+ * layout needs the beneficiary name and a reference, because the person uploading
+ * the file is the company's own clerk and the file never leaves their computer until
+ * they hand it to their own bank. An STP order and a Nessie row get neither, which
+ * is what rule 2 at the top of this file means.
  */
-export interface PaymentRail {
-  readonly rail: RailId;
+export interface PaymentBeneficiary {
+  /** Legal name on the supplier's CFDI, which is the name being paid. */
+  legalName: string;
+  rfc: Rfc;
+  /** The CFDI this line settles, for the reference column of a dispersal file. */
+  cfdiUuids: readonly string[];
+}
+
+/**
+ * One line of a payment run, as the rail is told about it.
+ *
+ * ADR-0008 in one type: the instruction this product already holds, its own amount,
+ * and the account that instruction names. There is no shape of this object that
+ * expresses an amount the instruction did not carry or an account it did not name,
+ * which is the point.
+ */
+export interface PaymentOrder {
+  /** The instruction this line pays. */
+  instructionId: string;
+  /** The run it belongs to, so a line can be traced back without a join. */
+  runId: string;
+  /** The account the instruction names, as the instruction printed it. */
+  beneficiaryAccount: Clabe;
+  /** Pesos of this line, exact to the centavo, from the instruction. */
+  amount: number;
+  /** Only for a rail that writes a file the company uploads itself. */
+  beneficiary?: PaymentBeneficiary;
+}
+
+/**
+ * What a rail answers about one line it accepted.
+ *
+ * `state` is the rail's own claim and the API never upgrades it. `queued` is a line
+ * written into a file nobody has uploaded yet, `sent` is a line the rail took, and
+ * `settled` is a rail saying the movement is on the account. A `queued` line carries
+ * no clave de rastreo, because the clave is what the bank answers when the file is
+ * processed, which is also why `claveRastreo` is optional here and on the
+ * `payment_sent` ledger event.
+ */
+export interface PaymentSent {
   /**
-   * Human-readable name of where the cent actually goes, for the boot log and the
+   * Which rail carried it. Absent on a rail that names no participant: a dispersal
+   * file is executed by the company's own bank, and this product is not it.
+   */
+  rail?: RailId;
+  /** How far the rail itself got. Never `failed`: a refusal throws. */
+  state: Extract<PaymentLineState, "queued" | "sent" | "settled">;
+  /** The clave the transfer is filed under. Absent while the line is `queued`. */
+  claveRastreo?: string;
+  /** When the rail accepted it, ISO 8601. */
+  sentAt: string;
+  /** Pesos the rail was asked for, echoed so the caller adds up one number. */
+  amount: number;
+  /** The instruction this line pays, echoed so a result needs no index. */
+  instructionId: string;
+  /** The rail's own identifier for the row it created, when it has one. */
+  reference?: string;
+  /** Clave SPEI of the sending participant, when the rail is one. */
+  senderSpeiKey?: string;
+  /** True when no real rail moved money. Travels onto every event. */
+  simulated: boolean;
+}
+
+/** What a rail answers when it is asked about a line it already accepted. */
+export interface PaymentConfirmation {
+  instructionId: string;
+  /** `settled` when the rail can answer for the movement, `sent` when it cannot. */
+  state: Extract<PaymentLineState, "sent" | "settled">;
+  /** When the rail answered, ISO 8601. */
+  at: string;
+  /** One sentence about what the rail actually said. */
+  detail: string;
+}
+
+/**
+ * A rail that can disperse a payment run.
+ *
+ * Separate from `PaymentRail` because the two capabilities are not the same
+ * question. A dispersal file can carry eighty-six payments and cannot verify one
+ * account, since its clave de rastreo only exists once the bank has answered the
+ * file; a SPEI participant can do both. Splitting the interface is what lets
+ * `LayoutRail` exist without inventing a `RailId` for a file, which is the same
+ * argument `FakeRail` makes for taking its rail as an argument.
+ */
+export interface DispersalRail {
+  /**
+   * Human-readable name of where the money actually goes, for the boot log and the
    * demo output. It never claims more than the adapter does.
    */
   readonly describe: string;
+  /**
+   * Sends one line of one instruction for that instruction's own amount.
+   *
+   * @throws RailSendError when the rail refused it. Nothing is appended to the
+   *   ledger on a throw: a `payment_sent` for a payment that never left is the one
+   *   entry this ledger must not hold.
+   */
+  send(order: PaymentOrder): Promise<PaymentSent>;
+  /**
+   * Asks the rail which of the lines it accepted it can now answer for.
+   *
+   * Optional, and the absence is the statement: a rail that cannot be asked does
+   * not offer the method, and the caller leaves those lines on `sent` rather than
+   * reading silence as a settlement.
+   */
+  confirm?(sent: readonly PaymentSent[]): Promise<PaymentConfirmation[]>;
+}
+
+/**
+ * A rail that can send the one-cent probe, and therefore also a payment.
+ *
+ * Everything else about a payment rail (balances, statements, reversals) is outside
+ * what this product does, and an interface that offered them would invite a route
+ * handler to use them.
+ */
+export interface PaymentRail extends DispersalRail {
+  readonly rail: RailId;
   sendCent(request: CentRequest): Promise<CentSent>;
 }
 
@@ -185,4 +312,39 @@ export function assertNoIdentity(description: string): string {
     );
   }
   return description;
+}
+
+/**
+ * The words a rail writes on a payment of the run.
+ *
+ * Same rule as `CENT_DESCRIPTION` and for the same reason: the row lands in somebody
+ * else's system, so it says what the movement is and nothing about who it is to. The
+ * supplier, the invoice and the account stay in our own ledger, where the receipt
+ * reads them from.
+ */
+export const PAYMENT_DESCRIPTION = "Dispersion SPEI de corrida de pagos";
+
+/**
+ * Fails when the amount is not one this product may send.
+ *
+ * Positive, finite, and a whole number of centavos. The last one matters more than
+ * it looks: a float with a third decimal is an amount no SPEI field can hold, and a
+ * rail that rounded it would send a number nobody decided. The amount itself is
+ * never checked against a limit here, because the limit is the instruction: ADR-0008
+ * allows exactly the amount the instruction carries and `PaymentOrder` is the only
+ * way to state one.
+ */
+export function assertPaymentAmount(amount: number): number {
+  const cents = Math.round(amount * 100);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new RailConfigError(
+      `${amount} is not an amount this rail may send: a payment is a positive, finite number of pesos`,
+    );
+  }
+  if (Math.abs(amount * 100 - cents) > 1e-6) {
+    throw new RailConfigError(
+      `${amount} is not a whole number of centavos, and a rail that rounded it would send an amount nobody decided`,
+    );
+  }
+  return amount;
 }
