@@ -18,14 +18,6 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
-- `bun run offline`, the rehearsal for the Wi-Fi dying (issue #71). It runs `doctor` and then the
-  whole demo with `fetch` replaced by one that throws on anything that is not loopback, so a call
-  that leaves the machine fails with its URL in the message instead of hanging out a socket timeout
-  in front of the room. The keys stay in `.env`, because a dead uplink is not a missing key. The
-  local Postgres is untouched: it is a socket, not a fetch, and it is the reason the demo works
-  offline at all. `docs/10` carries the measured cold-clone path, twenty seconds of machine time
-  from `git clone` to seven green beats on a laptop that already has bun and Postgres.
-
 - The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
   cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
   clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
@@ -36,6 +28,61 @@ then the screens, then the narrative, then the plumbing.
   labelled from what the case is rather than derived through the rule table the engine applies. On
   thirty-five cases: precision 87.0, recall 83.3, false positive rate 1.6, action agreement 33 of 35,
   and `confiable` right on 12 of 12. The numbers in docs/11 and docs/12 are that run's.
+
+- The assistant drawer in `apps/web`, which is the front door of the product for the person who uses
+  it (issue #211). Lupita drops the screenshot that arrived on WhatsApp, asks why a line is red, and
+  presses the button on what the app proposes, without leaving the screen she is on: `AssistantDock`
+  mounts beside the shell rather than on a route, so the panel can read the line underneath it and a
+  question with no folio in it still has a subject.
+
+  The part worth reviewing is where ADR-0007 stops being a paragraph. `decodeToolCall` in
+  `apps/web/src/lib/assistant.ts` refuses any frame whose `tool` is outside the seven reads and any
+  frame whose `readOnly` is not the literal `true`, so a tool call that writes cannot be rendered even
+  when the bytes come off a socket, and `forbiddenVerdict` drops a token, a proposal summary or a
+  stored turn that says "seguro" in either language or states a probability, a percentage or a score,
+  which ADR-0009 forbids on any screen of this product. Dropped frames are counted and the panel says
+  how many, because an assistant that quietly loses a read is answering from its own memory. The same
+  function is run over the panel's own sources by `apps/web/src/lib/assistant.test.ts`: the vocabulary
+  rule is about what a component renders and not only about what a model sends.
+
+  Nothing in the drawer executes itself. `ProposalCard` prints the method, the path and the body of
+  the ordinary endpoint that would run, and the write happens in a click handler and nowhere else:
+  `confirmProposal` calls the endpoint that already existed for that action, sends `X-Actor`, and puts
+  the name of whoever pressed the button into `decidedBy` or `recordedBy`, because docs/09-api.md
+  refuses a body and a header that disagree about who acted. A release over a finding asks for the
+  owner's name and a written reason before the button enables, which is the role rule of
+  `docs/02-persona.md` visible on screen rather than only in the API. `execute_run` is the one
+  proposal the panel does not run: the payment run leaves from its own screen, which follows its own
+  stream line by line, and a second client for the one endpoint that moves money that is not a cent is
+  one too many. The level and the state on every card come from `assessConfidence` and
+  `transactionStateOf` in `packages/core`, so a line in the drawer reads the same as that line in the
+  table.
+
+  `apps/web/src/lib/sse.ts` is the decoder the panel needed and `EventSource` cannot provide, because
+  `EventSource` only ever issues a GET and this endpoint streams a reply to a POST. It is a state
+  machine over lines rather than a `split` over the body, which is the whole reason it exists: a chunk
+  boundary lands wherever the network put it, and a regex over one chunk drops every frame that
+  straddles one, which in practice is the long ones, which here are the tool results. `sse.test.ts`
+  feeds the same stream one character at a time and asserts the same frames.
+
+  Under `?data=mock` the drawer opens on the three-turn conversation `bun run web:mock` generated out
+  of this run's own finding and answers every turn out of the synthetic run with no request and no
+  model, which is what makes it demonstrable on a phone in a corridor. What it will not do is pretend:
+  a dropped screenshot is answered by saying the extraction runs on the server, and the fields it
+  shows are the dataset's own intake example rather than a reading of a file nothing read. Under
+  `?data=api` a failure is reported as a failure, and under `auto` it falls back to the synthetic
+  answer with the reason printed, exactly like `useResource`. Voice input is the browser's own
+  dictation in `es-MX` and this app uploads no audio: the assistant endpoint takes `text` and `images`,
+  so a recording would mean inventing a part the contract does not have, and the transcription path in
+  `packages/extract` stays where docs/06 section 6.2.1 documents it, on the intake.
+
+- `bun run offline`, the rehearsal for the Wi-Fi dying (issue #71). It runs `doctor` and then the
+  whole demo with `fetch` replaced by one that throws on anything that is not loopback, so a call
+  that leaves the machine fails with its URL in the message instead of hanging out a socket timeout
+  in front of the room. The keys stay in `.env`, because a dead uplink is not a missing key. The
+  local Postgres is untouched: it is a socket, not a fetch, and it is the reason the demo works
+  offline at all. `docs/10` carries the measured cold-clone path, twenty seconds of machine time
+  from `git clone` to seven green beats on a laptop that already has bun and Postgres.
 
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
