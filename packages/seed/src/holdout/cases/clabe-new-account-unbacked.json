@@ -57,5 +57,6 @@
       "because": "The account is new, sits at a different bank from every account this supplier has ever been paid on, and no payment complement or CEP establishes it. The check digit is valid, which is why the arithmetic alone cannot decide this."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "alerta"
 }
