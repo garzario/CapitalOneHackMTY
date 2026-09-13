@@ -44,6 +44,25 @@ export function dataMode(): DataMode {
     : readDataMode(window.location.search);
 }
 
+/**
+ * Whether this page load may open a connection to the API at all.
+ *
+ * `?data=mock` is documented as "no request leaves the browser", and that has to
+ * be true of everything the page opens rather than only of the screens that load
+ * through `useResource`. Two things reach the network on their own: the run
+ * screen's event stream and the API status card. Both were opening under
+ * `?data=mock`, so a run that said "Datos: solo datos sinteticos" said "Flujo de
+ * eventos conectado" beside it and the status card reported on a server the page
+ * had promised not to ask. On a phone in a corridor with no API those two read
+ * as a broken build rather than as the offline mode working.
+ *
+ * `auto` is deliberately allowed to try and fail: it is API first by definition,
+ * and a stream that failed is what the fallback notice is about.
+ */
+export function reachesApi(mode: DataMode = dataMode()): boolean {
+  return mode !== "mock";
+}
+
 export type UseResourceOptions<T> = {
   /**
    * The synthetic stand-in. Must be stable across renders: pass a module level
