@@ -51,6 +51,7 @@ import {
   IconList,
   IconMetrics,
   IconPanel,
+  IconReceipt,
   IconRun,
   IconSeal,
 } from "./Icons";
@@ -78,6 +79,14 @@ const NAV_GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
            instruction of the run, and the rail should not go dark under it. */
         match: ["run", "instruction", "verifyCall"],
         Icon: IconRun,
+      },
+      {
+        /* The run is where the money is decided and this is where it leaves, so
+           they are one group and this one sits directly under it. */
+        to: PATHS.payments,
+        label: "Pagos",
+        match: ["payments"],
+        Icon: IconReceipt,
       },
       { to: PATHS.intake, label: "Alta", match: ["intake"], Icon: IconIntake },
     ],

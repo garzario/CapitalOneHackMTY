@@ -773,6 +773,14 @@ export function parseCfdi(
   if (paymentForm !== undefined) {
     cfdi.paymentForm = paymentForm;
   }
+  /* LugarExpedicion is the postal code the invoice was issued from and it is the
+     only geography a CFDI carries. Kept only when it is five digits: control 2
+     maps it to a state and a malformed place has to read as no place at all
+     rather than as a place that disagrees with every account. */
+  const issuePlace = attribute(root, "LugarExpedicion");
+  if (issuePlace !== undefined && /^\d{5}$/.test(issuePlace)) {
+    cfdi.issuePlace = issuePlace;
+  }
   return { ok: true, value: cfdi };
 }
 

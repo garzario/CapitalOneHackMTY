@@ -33,7 +33,6 @@ import {
   beneficiariesResponseSchema,
   cepVerifyResponseSchema,
   decideResponseSchema,
-  executionDoneSchema,
   instructionDetailSchema,
   intakeResponseSchema,
   ledgerResponseSchema,
@@ -1247,10 +1246,10 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
         const block = text
           .split("\n\n")
           .find((part) => part.includes("event: done"));
-        const done = executionDoneSchema.parse(
+        const done = paymentExecutionSchema.parse(
           JSON.parse(/^data:\s*(.+)$/m.exec(block ?? "")?.[1] ?? "null"),
         );
-        expect(done.execution.totals.lines).toBeGreaterThan(0);
+        expect(done.totals.lines).toBeGreaterThan(0);
 
         const read = paymentExecutionSchema.parse(
           await (
@@ -1259,7 +1258,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
             )
           ).json(),
         );
-        expect(read).toEqual(done.execution);
+        expect(read).toEqual(done);
 
         // Control 6 reads the statement, so the outflows have to be on it.
         expect((await pg.bankMirror()).length).toBe(

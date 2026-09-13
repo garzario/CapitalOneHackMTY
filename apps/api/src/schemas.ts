@@ -137,6 +137,16 @@ export const cfdiSchema = z.object({
   total: amountSchema,
   paymentMethod: z.enum(["PUE", "PPD"]),
   paymentForm: z.string().min(1).optional(),
+  /**
+   * CFDI 4.0 LugarExpedicion, five digits. Validated as a postal code here and
+   * not just as a string, because control 2 maps it to a state and a place that
+   * cannot be read has to be refused at the edge rather than silently ignored
+   * inside the engine.
+   */
+  issuePlace: z
+    .string()
+    .regex(/^\d{5}$/, "issuePlace is a five-digit postal code")
+    .optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cfdi>;
 
@@ -803,14 +813,6 @@ export const skippedLineSchema = z.object({
   reason: z.string().min(1).max(1000).optional(),
 });
 
-/** The `done` event of the execution stream: the whole execution, plus the skips. */
-export const executionDoneSchema = z.object({
-  execution: paymentExecutionSchema,
-  skipped: z.array(skippedLineSchema),
-  /** What the rail says it is, so the screen never has to guess. */
-  rail: z.string().min(1),
-});
-
 /**
  * `GET /api/v1/rails`. No key, no account, no fingerprint.
  *
@@ -1216,6 +1218,6 @@ export type VerificationStateResponse = z.infer<typeof verificationStateSchema>;
 export type PaymentExecutionResponse = z.infer<typeof paymentExecutionSchema>;
 export type PaymentReceiptResponse = z.infer<typeof paymentReceiptSchema>;
 export type ExecuteBody = z.infer<typeof executeBodySchema>;
-export type ExecutionDoneEvent = z.infer<typeof executionDoneSchema>;
+export type SkippedLine = z.infer<typeof skippedLineSchema>;
 export type LayoutResponseBody = z.infer<typeof layoutResponseBodySchema>;
 export type RailsResponse = z.infer<typeof railsResponseSchema>;

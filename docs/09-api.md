@@ -372,9 +372,9 @@ work and goes out on the second call; a run with nothing left to send is `409`.
 **The response.** `202` and `text/event-stream`: on a real rail the transfer is acknowledged after
 the response is written, so the work is not finished when the status code is chosen. One
 `event: line` per payment carrying a `PaymentExecutionLine`, one `event: skipped` per line the run
-deliberately left alone, then one `event: done` carrying
-`{ execution, skipped, rail }`. Every `line` is also an ordinary ledger event on
-`GET /api/v1/events`, so a second screen watching the run moves with the first.
+deliberately left alone, then one `event: done` carrying the whole `PaymentExecution` and nothing
+wrapped around it. Every `line` is also an ordinary ledger event on `GET /api/v1/events`, so a second
+screen watching the run moves with the first.
 
 A `skipped` row is `{ instructionId, amount, state, rule, reason }` and it is on the stream rather
 than in `PaymentExecution`, because a line nobody released was never part of what the run did on the
@@ -427,12 +427,24 @@ payee, exactly like the rail's own row, and a second write of the same transfer 
 rows for one payment is control 6's `cfdi_paid_twice` finding raised by our own bookkeeping.
 
 **The file path, for a company whose bank has a portal and no API.** `GET /api/v1/run/:id/layout`
-hands over the dispersal CSV of exactly the lines the execution would send, and
-`POST /api/v1/run/:id/layout/response` reads the file the portal hands back and records the clave de
-rastreo per line. The rule the package is built on survives it: the clave arrives from the bank and
-never from a keyboard, and a row the portal reports as paid with no clave on it is dropped rather
-than recorded. The layout itself is generic, six columns every portal asks for, and
-`packages/rail/README.md` says plainly that no named bank's exact file has been seen.
+hands over the dispersal CSV of exactly the lines the execution would send, through the same
+`planRunExecution`, and `POST /api/v1/run/:id/layout/response` reads the file the portal hands back
+and records the clave de rastreo per line. The rule the package is built on survives it: the clave
+arrives from the bank and never from a keyboard, and a row the portal reports as paid with no clave on
+it is dropped rather than recorded. The layout itself is generic, six columns every portal asks for,
+and `packages/rail/README.md` says plainly that no named bank's exact file has been seen.
+
+**There are two dispersal files in this repository right now, and that is one too many.**
+`apps/web/src/lib/payments.ts` builds one in the browser, which is what the export button on the
+payments screen downloads and what works with the API unplugged, and it carries the instruction id,
+the legal name, the RFC, the bank, the CLABE, the amount and the CFDI. The endpoint above builds the
+other, and its extra column is the one that makes the round trip close: a numeric `referencia` per
+line, which is what a portal echoes in its response file and therefore what
+`POST .../layout/response` joins the clave de rastreo back on. The browser file cannot be answered,
+because nothing in it is the reference the bank will hand back. TODO(FabriBanda): point the export
+button at `GET /api/v1/run/:id/layout` and keep the browser builder as the offline fallback only, or
+say that the response path is not wanted and this endpoint goes. Two column orders for one bank file
+is the kind of thing a judge finds by downloading both.
 
 ### The receipt and the carta
 
@@ -596,7 +608,7 @@ curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' \
   | jq '.lists | map({article, answered, coverage, listed})'
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
-  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
+  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180102091764611","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' \
   | jq '{totalExposure, rescored: [.rescored[] | {instructionId, before, after: .decision.action}]}'

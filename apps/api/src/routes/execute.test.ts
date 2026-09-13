@@ -12,9 +12,9 @@
 import { describe, expect, it } from "bun:test";
 import { FakeRail } from "@hackmty/rail";
 import {
-  executionDoneSchema,
   paymentExecutionSchema,
   paymentReceiptSchema,
+  skippedLineSchema,
 } from "../schemas";
 import { RUN_ID } from "../synthetic";
 import { createTestApp, TEST_NOW } from "../test-app";
@@ -70,6 +70,22 @@ function execute(
   });
 }
 
+/**
+ * The `done` frame, which is the `PaymentExecution` itself, and the `skipped` frames
+ * next to it. `apps/web/src/lib/api.ts` reads exactly this shape.
+ */
+function doneOf(rows: readonly Frame[]) {
+  return paymentExecutionSchema.parse(
+    rows.find((row) => row.event === "done")?.data,
+  );
+}
+
+function skippedOf(rows: readonly Frame[]) {
+  return rows
+    .filter((row) => row.event === "skipped")
+    .map((row) => skippedLineSchema.parse(row.data));
+}
+
 /** One SSE frame, as the client reads them. */
 interface Frame {
   event: string;
@@ -100,33 +116,26 @@ describe("POST /api/v1/run/:id/execute", () => {
 
     const rows = await frames(response);
     const lines = rows.filter((row) => row.event === "line");
-    const done = rows.find((row) => row.event === "done");
-
-    expect(done).toBeDefined();
-    const payload = executionDoneSchema.parse(done?.data);
+    const execution = doneOf(rows);
 
     // The three lines nothing stops, and only those.
-    expect(payload.execution.lines.map((line) => line.instructionId)).toEqual(
-      SENDABLE,
-    );
-    expect(payload.execution.totals.settled).toBe(3);
-    expect(payload.execution.totals.sent).toBe(0);
-    expect(payload.execution.totals.failed).toBe(0);
-    expect(payload.execution.totals.lines).toBe(3);
-    expect(payload.execution.totals.amount).toBe(SENDABLE_AMOUNT);
+    expect(execution.lines.map((line) => line.instructionId)).toEqual(SENDABLE);
+    expect(execution.totals.settled).toBe(3);
+    expect(execution.totals.sent).toBe(0);
+    expect(execution.totals.failed).toBe(0);
+    expect(execution.totals.lines).toBe(3);
+    expect(execution.totals.amount).toBe(SENDABLE_AMOUNT);
     expect(lines.length).toBeGreaterThanOrEqual(3);
 
     // Every sent line carries a clave de rastreo and a receipt.
-    for (const line of payload.execution.lines) {
+    for (const line of execution.lines) {
       expect(line.claveRastreo).toBeDefined();
       expect(line.receiptId).toBeDefined();
     }
 
     // The pesos decompose exactly, which is the check a judge does with a calculator.
-    expect(payload.execution.totals.settledAmount).toBe(
-      payload.execution.totals.amount,
-    );
-    expect(payload.execution.startedBy).toEqual({
+    expect(execution.totals.settledAmount).toBe(execution.totals.amount);
+    expect(execution.startedBy).toEqual({
       name: "Lupita Elizondo",
       role: "clerk",
     });
@@ -136,30 +145,25 @@ describe("POST /api/v1/run/:id/execute", () => {
     const { app } = withRail();
 
     const rows = await frames(await execute(app, { confirm: true }));
-    const done = executionDoneSchema.parse(
-      rows.find((row) => row.event === "done")?.data,
-    );
-    const skipped = rows.filter((row) => row.event === "skipped");
+    const execution = doneOf(rows);
+    const skipped = skippedOf(rows);
 
     // Nine lines left alone, each with a sentence a clerk can act on.
-    expect(done.skipped).toHaveLength(SKIPPED_LINES);
     expect(skipped).toHaveLength(SKIPPED_LINES);
-    for (const line of done.skipped) {
+    for (const line of skipped) {
       expect(["rojo", "enviado"]).toContain(line.state);
       expect(line.reason ?? "").not.toBe("");
     }
     /* And the two the company paid from its own banking portal are named as already
        sent rather than offered to a rail a second time. */
     expect(
-      done.skipped
+      skipped
         .filter((line) => line.rule === "executed")
         .map((line) => line.instructionId),
     ).toEqual(["ins-2026w37-03", "ins-2026w37-09"]);
     // And none of them is in the execution, because a held line was never released.
-    const sent = new Set(
-      done.execution.lines.map((line) => line.instructionId),
-    );
-    for (const line of done.skipped) {
+    const sent = new Set(execution.lines.map((line) => line.instructionId));
+    for (const line of skipped) {
       expect(sent.has(line.instructionId)).toBe(false);
     }
   });
@@ -222,11 +226,7 @@ describe("POST /api/v1/run/:id/execute", () => {
   it("sends nothing new on a second call", async () => {
     const { app, deps } = withRail();
 
-    const first = executionDoneSchema.parse(
-      (await frames(await execute(app, { confirm: true }))).find(
-        (row) => row.event === "done",
-      )?.data,
-    );
+    const first = doneOf(await frames(await execute(app, { confirm: true })));
     const second = await execute(app, { confirm: true });
     const body = (await second.json()) as ErrorBody;
 
@@ -238,7 +238,7 @@ describe("POST /api/v1/run/:id/execute", () => {
     const events = await deps.repo.paymentEvents({ runId: RUN_ID });
     expect(
       events.filter((event) => event.type === "payment_sent"),
-    ).toHaveLength(first.execution.totals.lines);
+    ).toHaveLength(first.totals.lines);
   });
 
   it("refuses a request that names a line the decisions stop, and names it", async () => {
@@ -277,12 +277,10 @@ describe("POST /api/v1/run/:id/execute", () => {
         instructionIds: [SENDABLE[0] as string],
       }),
     );
-    const done = executionDoneSchema.parse(
-      rows.find((row) => row.event === "done")?.data,
-    );
+    const execution = doneOf(rows);
 
-    expect(done.execution.lines).toHaveLength(1);
-    expect(done.execution.lines[0]?.instructionId).toBe(SENDABLE[0]);
+    expect(execution.lines).toHaveLength(1);
+    expect(execution.lines[0]?.instructionId).toBe(SENDABLE[0]);
   });
 
   /**
@@ -308,20 +306,16 @@ describe("POST /api/v1/run/:id/execute", () => {
     const { app: failing } = withRail({
       refuse: { [refused]: "la cuenta CLABE no existe en el banco receptor" },
     });
-    const done = executionDoneSchema.parse(
-      (await frames(await execute(failing, { confirm: true }))).find(
-        (row) => row.event === "done",
-      )?.data,
+    const execution = doneOf(
+      await frames(await execute(failing, { confirm: true })),
     );
 
-    const line = done.execution.lines.find(
-      (row) => row.instructionId === refused,
-    );
+    const line = execution.lines.find((row) => row.instructionId === refused);
     expect(line?.state).toBe("failed");
     expect(line?.reason).toContain("CLABE no existe");
     expect(line?.claveRastreo).toBeUndefined();
-    expect(done.execution.totals.failed).toBe(1);
-    expect(done.execution.totals.settled).toBe(2);
+    expect(execution.totals.failed).toBe(1);
+    expect(execution.totals.settled).toBe(2);
   });
 
   it("writes the outflows to the bank mirror so control 6 reads them back", async () => {
@@ -365,33 +359,29 @@ describe("GET /api/v1/run/:id/execution", () => {
   it("answers the same execution the stream ended with", async () => {
     const { app } = withRail();
 
-    const done = executionDoneSchema.parse(
-      (await frames(await execute(app, { confirm: true }))).find(
-        (row) => row.event === "done",
-      )?.data,
+    const execution = doneOf(
+      await frames(await execute(app, { confirm: true })),
     );
     const read = paymentExecutionSchema.parse(
       await (await app.request("/api/v1/run/current/execution")).json(),
     );
 
-    expect(read).toEqual(done.execution);
+    expect(read).toEqual(execution);
   });
 });
 
 describe("GET /api/v1/payments/:id/receipt", () => {
   async function executed() {
     const { app } = withRail();
-    const done = executionDoneSchema.parse(
-      (await frames(await execute(app, { confirm: true }))).find(
-        (row) => row.event === "done",
-      )?.data,
+    const execution = doneOf(
+      await frames(await execute(app, { confirm: true })),
     );
-    return { app, done };
+    return { app, execution };
   }
 
   it("answers the receipt of one payment as JSON", async () => {
-    const { app, done } = await executed();
-    const receiptId = done.execution.lines[0]?.receiptId as string;
+    const { app, execution } = await executed();
+    const receiptId = execution.lines[0]?.receiptId as string;
 
     const response = await app.request(
       `/api/v1/payments/${encodeURIComponent(receiptId)}/receipt`,
@@ -409,8 +399,8 @@ describe("GET /api/v1/payments/:id/receipt", () => {
   });
 
   it("answers the same object as a PDF on Accept: application/pdf", async () => {
-    const { app, done } = await executed();
-    const receiptId = done.execution.lines[0]?.receiptId as string;
+    const { app, execution } = await executed();
+    const receiptId = execution.lines[0]?.receiptId as string;
 
     const response = await app.request(
       `/api/v1/payments/${encodeURIComponent(receiptId)}/receipt`,

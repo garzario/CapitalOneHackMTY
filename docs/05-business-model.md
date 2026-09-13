@@ -128,10 +128,26 @@ This layer exists now and needs no counsel, no reserve and no partner.
   returns the finding set of `sat_69b`, `clabe_forensics`, `duplicate_invoice`, `supplier_behaviour`,
   `beneficiary_cep` and `bank_reconciliation`, and each finding carries its own evidence as
   machine-readable values plus an explanation in plain Spanish.
+- **Geography, named, on control 2.** Digits 4 to 6 of a CLABE are the plaza the account was opened
+  in, and `clabe_forensics` compares that plaza both against the plazas of the accounts the company
+  has actually paid that supplier on and against the state of the CFDI `LugarExpedicion`. The
+  explanation names both places and prints both codes, "la cuenta conocida esta en la plaza 580
+  (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF)", so the question a clerk asks the
+  supplier is one sentence they can read off the screen and check against the catalogue committed at
+  `packages/core/src/snapshot/`. What it is not is a verdict: the plaza is a `warning`, it never makes
+  a line critical on its own, and the catalogue is allowed to put a name on three digits and nothing
+  else, because its provenance is a SPEI participant rather than Banco de Mexico and the README in
+  that folder says so in its first paragraph.
 - **The holder name when we obtained it, and the word `not_checked` when we did not.** `nameMatch`
   answers `match`, `partial` or `mismatch` against the legal name on the CFDI, and `SealState` is
   `valid`, `not_checked` or `invalid`, where `not_checked` means the check could not be made and is
   never dressed up as a pass.
+- **Missing information raises the level, and says that is what it is.** An account with no payment
+  history behind it is `precaucion` under the rule `new_account_without_history`, whatever the
+  severity table says, and the evidence carries the sentence that explains it: "no hay plazas previas
+  de este proveedor con las que comparar esta cuenta, asi que el nivel sube por falta de informacion
+  y no por una senal en contra". A product that reported silence as calm would be selling the one
+  thing this one refuses to sell.
 - **An append-only ledger.** `LedgerEvent` in `domain.ts` only grows, the retroactive sweep is a
   replay over it rather than a recomputation, and `decision_made` carries the action, the expected
   loss, the findings, who decided and why. A release cannot be rewritten after the loss, which is the

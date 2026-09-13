@@ -162,14 +162,16 @@ export function executeRoutes(deps: ApiDeps) {
               });
             }
 
+            /* The `done` frame is the `PaymentExecution` and nothing wrapped around
+               it, which is what docs/09-api.md promised and what `executeRun` in
+               `apps/web/src/lib/api.ts` reads. The lines the run left alone are their
+               own `skipped` frames above, and which rail this server holds is
+               `GET /api/v1/rails`: neither belongs inside a payload a screen reads as
+               the execution. */
             await stream.writeSSE({
               event: DONE_EVENT_NAME,
               id: nextId(),
-              data: JSON.stringify({
-                execution: outcome.execution,
-                skipped: outcome.skipped,
-                rail: outcome.rail,
-              }),
+              data: JSON.stringify(outcome.execution),
             });
           },
           async (error, stream) => {
