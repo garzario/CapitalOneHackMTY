@@ -308,6 +308,25 @@ export const VERIFICATION_HELP: Record<VerificationStateName, string> = {
     "El pago grande no sale. La evidencia del CEP no sostiene que la cuenta sea del proveedor.",
 };
 
+export const VERIFICATION_TRACK_TITLE = "Recorrido del centavo";
+
+export const VERIFICATION_TRACK_HELP =
+  "Los primeros cuatro pasos son comunes. El CEP termina en una de las dos rutas del pago.";
+
+export const VERIFICATION_STEP_STATUS_LABEL = {
+  complete: "Completado",
+  current: "Ahora",
+  pending: "Por recorrer",
+  alternate: "Ruta alternativa",
+} as const;
+
+export const VERIFICATION_PAYMENT_STATE_LABEL = "Estado final del pago";
+
+export const SEAL_PARSER_STATE_LABEL = "Estado reportado por el parser";
+
+export const SEAL_CONFIGURATION_NOTE =
+  "Este resultado describe la configuracion de esta instancia. Sin BANXICO_CEP_CERT_PEM, el parser reporta not_checked; eso no afirma que el documento sea invalido.";
+
 /**
  * The cent is ours and the CEP is Banxico's, so the rail is named out loud.
  * In the demo the outflow is recorded on the company's Nessie mirror; STP is

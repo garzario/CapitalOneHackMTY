@@ -21,6 +21,7 @@ import {
   storedCepAt,
   syntheticClaveRastreo,
   verificationFailure,
+  verificationTrackOf,
 } from "./verification";
 
 const STATES: VerificationStateName[] = [
@@ -110,6 +111,34 @@ describe("the state machine", () => {
     expect(state.sealState).toBeNull();
     expect(state.nameMatch).toBeNull();
     expect(state.decision).toBeNull();
+  });
+
+  test("the visible track names all six states and one current state", () => {
+    for (const current of STATES) {
+      const track = verificationTrackOf(current);
+
+      expect(track.map((step) => step.state)).toEqual(STATES);
+      expect(track.filter((step) => step.status === "current")).toEqual([
+        { state: current, status: "current" },
+      ]);
+    }
+  });
+
+  test("a final route completes the shared path and leaves the other ending alternative", () => {
+    const released = verificationTrackOf("released");
+    const blocked = verificationTrackOf("blocked");
+
+    expect(
+      released.slice(0, 4).every((step) => step.status === "complete"),
+    ).toBe(true);
+    expect(released.at(-1)).toEqual({
+      state: "blocked",
+      status: "alternate",
+    });
+    expect(blocked.at(-2)).toEqual({
+      state: "released",
+      status: "alternate",
+    });
   });
 });
 
