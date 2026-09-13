@@ -128,7 +128,8 @@ describe("POST /api/v1/instructions/:id/verify-call, without keys", () => {
 
     expect(body.error.code).toBe("unprocessable");
     expect(body.error.message).toContain("ELEVENLABS_API_KEY");
-    expect(body.script?.question).toContain("6812");
+    expect(body.script?.clabeLast4).toBe("6812");
+    expect(body.script?.question).toContain("6 8 1 2");
     expect(body.script?.firstMessage).toContain(
       "Aceros y Perfiles del Norte SA de CV",
     );
@@ -169,11 +170,39 @@ describe("POST /api/v1/instructions/:id/verify-call, placing the call", () => {
     expect(body.conversationId).toBe("conv-1");
     expect(body.releasesPayment).toBe(false);
     expect(seen[0]?.url).toContain("/v1/convai/twilio/outbound-call");
-    expect(seen[0]?.body).toEqual({
-      agent_id: "agent-1",
-      agent_phone_number_id: "phnum-1",
-      to_number: "+528112345678",
+
+    const sent = seen[0]?.body as Record<string, unknown>;
+
+    expect(sent.agent_id).toBe("agent-1");
+    expect(sent.agent_phone_number_id).toBe("phnum-1");
+    expect(sent.to_number).toBe("+528112345678");
+  });
+
+  /**
+   * Issue #206. The agent stored at the provider holds the rules and empty
+   * slots; this instruction's own words travel per call, so the four digits that
+   * reach the telephone are the four digits of this account and never a sample.
+   */
+  it("sends this instruction's words as dynamic variables, with no CLABE", async () => {
+    const { deps: voiceDeps, seen } = voice({
+      body: { success: true, message: "ok", conversation_id: "conv-1" },
     });
+    const { app } = createTestApp({}, voiceDeps);
+
+    await app.request(path(), json({ toNumber: "+528112345678" }));
+
+    const sent = seen[0]?.body as Record<string, unknown>;
+    const client = sent.conversation_initiation_client_data as Record<
+      string,
+      unknown
+    >;
+    const variables = client.dynamic_variables as Record<string, string>;
+
+    expect(variables.account_last4).toBe("6 8 1 2");
+    expect(variables.question).toContain("6 8 1 2");
+    expect(variables.question).toContain("si ustedes cambiaron su cuenta");
+    expect(JSON.stringify(sent)).not.toContain(CLABE);
+    expect(JSON.stringify(sent)).not.toMatch(/\d{18}/);
   });
 
   /**
