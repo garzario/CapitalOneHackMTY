@@ -431,6 +431,40 @@ export const sweepResultSchema = z.object({
   totalExposure: z.number().nonnegative(),
 }) satisfies z.ZodType<SweepResult>;
 
+/**
+ * What `POST /api/v1/sat/publish` answers: the sweep, plus the lines of the
+ * current run the publication re-scored.
+ *
+ * `rescored` is issue #175 made visible to a judge with `curl`. A publication
+ * prices the whole ledger, and the lines of this week's run the engine scored
+ * before the list existed have to be scored again, or the run totals keep
+ * reporting zero retroactive exposure in the same minute `totalExposure` reports
+ * hundreds of thousands of pesos. So the publication states what it moved: one
+ * row per line, with the action that stood on it before and the decision the
+ * engine reached after.
+ *
+ * It carries no pesos of its own, on purpose. The retroactive exposure is priced
+ * per supplier and one supplier can sit on several lines of the same run, so a
+ * figure per line is an invitation to add the same voided deductions twice.
+ * `totals.retroactive69bBase` and `totals.retroactive69bExposure` on
+ * `GET /api/v1/run/current` are the run-level pair, counted once per RFC by
+ * `runMoney`, and `totalExposure` here is the whole-ledger one.
+ *
+ * An empty array is an ordinary answer and not a failure: a list that names
+ * suppliers this week's run does not pay changes nothing about this week's run.
+ */
+export const satPublishResponseSchema = sweepResultSchema.extend({
+  rescored: z.array(
+    z.object({
+      instructionId: z.string().min(1),
+      supplierRfc: rfcSchema,
+      /** Null when nothing had decided the line yet. */
+      before: actionSchema.nullable(),
+      decision: decisionSchema,
+    }),
+  ),
+});
+
 export const metricsSchema = z.object({
   cases: z.number().int().nonnegative(),
   truePositives: z.number().int().nonnegative(),
@@ -915,6 +949,7 @@ export type IntakeResponse = z.infer<typeof intakeResponseSchema>;
 export type CreateInstructionBody = z.infer<typeof createInstructionBodySchema>;
 export type DecideBody = z.infer<typeof decideBodySchema>;
 export type SatPublishBody = z.infer<typeof satPublishBodySchema>;
+export type SatPublishResponse = z.infer<typeof satPublishResponseSchema>;
 export type CepVerifyBody = z.infer<typeof cepVerifyBodySchema>;
 export type VerifyCallBody = z.infer<typeof verifyCallBodySchema>;
 export type VerifyCallResponse = z.infer<typeof verifyCallResponseSchema>;

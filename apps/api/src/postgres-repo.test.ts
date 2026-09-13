@@ -21,6 +21,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { syntheticCepFor, syntheticCepXml } from "@hackmty/cep";
 import type { Cep, LedgerEvent } from "@hackmty/core";
+import { SYSTEM_DECIDER } from "@hackmty/core";
 import { createSql, type Sql } from "@hackmty/db";
 import { FakeRail } from "@hackmty/rail";
 import { RUN_SIZE_MAX, RUN_SIZE_MIN } from "@hackmty/seed";
@@ -37,6 +38,7 @@ import {
   ledgerResponseSchema,
   metricsSchema,
   paymentRunSchema,
+  satPublishResponseSchema,
   satVersionsResponseSchema,
   seedResponseSchema,
   supplierDetailSchema,
@@ -419,6 +421,110 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
       expect(pdf.headers.get("content-type")).toBe("application/pdf");
       expect((await pdf.arrayBuffer()).byteLength).toBeGreaterThan(0);
     });
+
+    /**
+     * Issue #175 on the store that is not the one the screens were built against.
+     *
+     * The re-score writes findings and a decision through `recordEngineDecision`,
+     * which is one statement on the memory path and a transaction over two inserts
+     * here, so "the run counter climbs" has to be asserted on Postgres and not only
+     * in a route test. It is checked against `MemoryRepository` given the same
+     * publication, because a Postgres run that agreed with itself and disagreed
+     * with the store the screenshots came from is the second product this suite
+     * exists to refuse.
+     */
+    it(
+      "POST /api/v1/sat/publish re-scores the run, and both stores read the same pair",
+      async () => {
+        const listVersion = "2026-09-19-rescore";
+        const entries = [
+          {
+            rfc: LISTED_RFC,
+            name: "MATERIALES SINTETICOS OCHO SA DE CV",
+            status: "definitivo" as const,
+            publishedAt: "2026-09-19",
+            listVersion,
+          },
+        ];
+
+        const onPostgres = harness().app;
+        const onMemory = createTestApp({
+          repo: new MemoryRepository(SEED, sentryoneDataset),
+        }).app;
+
+        const published = await Promise.all(
+          [onPostgres, onMemory].map(async (app) =>
+            satPublishResponseSchema.parse(
+              await (
+                await app.request(
+                  "/api/v1/sat/publish",
+                  json({ listVersion, entries }),
+                )
+              ).json(),
+            ),
+          ),
+        );
+        const runs = await Promise.all(
+          [onPostgres, onMemory].map(async (app) =>
+            paymentRunSchema.parse(
+              await (await app.request("/api/v1/run/current")).json(),
+            ),
+          ),
+        );
+
+        const [fromPostgres, fromMemory] = published;
+        const [runFromPostgres, runFromMemory] = runs;
+
+        /* The seeded line that pays this supplier is re-scored on both stores and
+           reaches the same action. Two things are deliberately NOT compared, and
+           both are artefacts of this file sharing one database rather than parity
+           failures: the lists of ids, because earlier tests post intakes for the
+           same RFC onto Postgres, and `before`, because on Postgres the earlier
+           publication already moved this line to `hold` and signed it `system`,
+           which is exactly the state a second publication is allowed to re-score. */
+        const seeded = (row?: (typeof published)[number]) =>
+          row?.rescored.find(
+            (line) => line.instructionId === "INS-2026-09-07-070",
+          );
+        expect(seeded(fromPostgres)?.decision.action).toBe(
+          seeded(fromMemory)?.decision.action,
+        );
+        expect(seeded(fromPostgres)?.decision.action).toBe("hold");
+        expect(seeded(fromMemory)?.before).toBe("verify");
+
+        /* The identity the acceptance of #175 is written as: the run-level pair is
+           the part of the whole-ledger sweep that belongs to the suppliers the
+           re-score touched, on both stores, to the centavo. */
+        const subject = fromPostgres?.newlyListed[0];
+        expect(runFromPostgres?.totals.retroactive69bBase).toBe(
+          subject?.deductedBase,
+        );
+        expect(runFromPostgres?.totals.retroactive69bExposure).toBe(
+          fromPostgres?.totalExposure,
+        );
+        expect(runFromPostgres?.totals.retroactive69bBase).toBe(
+          runFromMemory?.totals.retroactive69bBase,
+        );
+        expect(runFromPostgres?.totals.retroactive69bExposure).toBe(
+          runFromMemory?.totals.retroactive69bExposure,
+        );
+
+        /* The findings were stored and not only returned: a second reader of the
+           same database has to see the priced evidence on the line. */
+        const line = await pg.instructionDetail("INS-2026-09-07-070");
+        const priced = line?.findings.find(
+          (finding) =>
+            finding.detector === "sat_69b" &&
+            finding.evidence.listVersion === listVersion,
+        );
+        expect(priced?.evidence.deductedBase).toBe(subject?.deductedBase);
+        expect(priced?.evidence.retroactiveExposure).toBe(
+          fromPostgres?.totalExposure,
+        );
+        expect(line?.decision?.decidedBy).toBe(SYSTEM_DECIDER);
+      },
+      REMOTE_TIMEOUT_MS,
+    );
 
     it("POST /api/v1/cep/verify answers from the registry the repository stored", async () => {
       const { app, deps } = harness();

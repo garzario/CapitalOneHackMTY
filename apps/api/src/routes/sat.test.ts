@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import type { LedgerEvent } from "@hackmty/core";
+import { SYSTEM_DECIDER } from "@hackmty/core";
 import {
+  paymentRunSchema,
   satLookupResponseSchema,
+  satPublishResponseSchema,
   satVersionsResponseSchema,
   sweepResultSchema,
 } from "../schemas";
@@ -311,7 +314,6 @@ describe("POST /api/v1/sat/publish", () => {
       json({ simulate: true, rfcs: ["SYN010101AAA"], status: "definitivo" }),
     );
 
-    expect(seen).toHaveLength(1);
     const event = seen[0];
     expect(event?.type).toBe("sat_list_published");
     if (event?.type === "sat_list_published") {
@@ -321,5 +323,197 @@ describe("POST /api/v1/sat/publish", () => {
         "Aceros y Perfiles del Norte SA de CV",
       );
     }
+    /* The publication comes first and its consequences after it, so a replay a
+       year later cannot show a payment re-decided by a list nobody had posted. */
+    expect(seen.slice(1).map((row) => row.type)).toEqual(["decision_made"]);
+  });
+});
+
+/**
+ * Issue #175. The publication does not only price the ledger, it re-scores the
+ * lines of this week's run that belong to the suppliers it names, so the run
+ * totals climb in the same request instead of reading zero next to a
+ * `totalExposure` in six figures.
+ */
+describe("the re-score POST /api/v1/sat/publish runs on the current run", () => {
+  /** SYN010101AAA is paid by two lines of the fixture: 01 holds, 09 was released. */
+  const LISTED = "SYN010101AAA";
+
+  async function publish(app: ReturnType<typeof createTestApp>["app"]) {
+    const res = await app.request(
+      "/api/v1/sat/publish",
+      json({ simulate: true, rfcs: [LISTED], status: "definitivo" }),
+    );
+    expect(res.status).toBe(200);
+    return satPublishResponseSchema.parse(await res.json());
+  }
+
+  async function currentRun(app: ReturnType<typeof createTestApp>["app"]) {
+    return paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+  }
+
+  it("makes the run's retroactive pair climb to the part of the sweep this run pays", async () => {
+    const { app } = createTestApp();
+
+    expect((await currentRun(app)).totals.retroactive69bBase).toBe(0);
+    const published = await publish(app);
+    const { totals } = await currentRun(app);
+
+    const subject = published.newlyListed.find(
+      (row) => row.supplier.rfc === LISTED,
+    );
+    expect(subject?.deductedBase).toBe(104870.69);
+    /* One arithmetic, one source: the run-level pair is the sweep's own figures
+       for the suppliers this run pays, not a second computation of them. */
+    expect(totals.retroactive69bBase).toBe(subject?.deductedBase ?? 0);
+    expect(totals.retroactive69bExposure).toBe(published.totalExposure);
+    expect(totals.retroactive69bExposure).toBe(48240.52);
+  });
+
+  it("prices a supplier once however many lines of the run pay it", async () => {
+    /* A second pending line for the same supplier, so the re-score has two lines
+       to write the priced finding onto. `runMoney` keys the pair on the RFC, so
+       the voided deductions are added once and not twice. That is the invariant a
+       judge's calculator finds, and it is the reason this arithmetic is a function
+       in `packages/core` rather than two additions in a route. */
+    const { app } = createTestApp();
+    const intake = await app.request(
+      "/api/v1/instructions",
+      json({
+        supplierRfc: LISTED,
+        amount: 12000,
+        clabe: "012180001234567899",
+        source: "whatsapp",
+      }),
+    );
+    expect(intake.status).toBe(201);
+
+    const published = await publish(app);
+    const run = await currentRun(app);
+
+    const priced = run.items
+      .filter((item) => item.instruction.supplierRfc === LISTED)
+      .flatMap((item) =>
+        item.findings.filter(
+          (finding) =>
+            finding.detector === "sat_69b" &&
+            finding.evidence.deductedBase === 104870.69,
+        ),
+      );
+
+    expect(published.rescored).toHaveLength(2);
+    expect(priced).toHaveLength(2);
+    expect(run.totals.retroactive69bBase).toBe(104870.69);
+    expect(run.totals.retroactive69bExposure).toBe(48240.52);
+  });
+
+  it("re-scores the pending line and leaves the released one alone", async () => {
+    const { app } = createTestApp();
+    const before = await currentRun(app);
+    const published = await publish(app);
+    const after = await currentRun(app);
+
+    // ins-2026w37-01 holds on an engine decision; -09 was released by a person.
+    expect(published.rescored.map((line) => line.instructionId)).toEqual([
+      "ins-2026w37-01",
+    ]);
+    expect(published.rescored[0]?.before).toBe("hold");
+    expect(published.rescored[0]?.decision.action).toBe("hold");
+
+    const released = (id: string) => (run: typeof before) =>
+      run.items.find((item) => item.instruction.id === id)?.decision;
+    expect(released("ins-2026w37-09")(after)).toEqual(
+      released("ins-2026w37-09")(before),
+    );
+  });
+
+  it("stores the findings it scored, so the line carries the priced evidence", async () => {
+    const { app } = createTestApp();
+    await publish(app);
+    const run = await currentRun(app);
+
+    const line = run.items.find(
+      (item) => item.instruction.id === "ins-2026w37-01",
+    );
+    const priced = line?.findings.find(
+      (finding) =>
+        finding.detector === "sat_69b" &&
+        finding.evidence.status === "definitivo",
+    );
+
+    expect(priced?.evidence.deductedBase).toBe(104870.69);
+    expect(priced?.evidence.retroactiveExposure).toBe(48240.52);
+    /* The pesos about to leave plus the deductions the publication voids. They
+       are different money, which is why this one total legitimately exceeds the
+       instruction's own amount. */
+    expect(priced?.amountAtRisk).toBe(184300 + 48240.52);
+  });
+
+  it("announces every re-scored line on the stream, and nothing else", async () => {
+    const { app, deps } = createTestApp();
+    const seen: LedgerEvent[] = [];
+    deps.events.subscribe((event) => seen.push(event));
+
+    const published = await publish(app);
+    const decided = seen.filter((event) => event.type === "decision_made");
+
+    expect(decided).toHaveLength(published.rescored.length);
+    expect(
+      decided.map((event) =>
+        event.type === "decision_made" ? event.decision.instructionId : "",
+      ),
+    ).toEqual(published.rescored.map((line) => line.instructionId));
+    for (const event of decided) {
+      if (event.type === "decision_made") {
+        // The engine reached this, nobody pressed a button. `system`, like the
+        // decision the one-cent verification signs.
+        expect(event.decision.decidedBy).toBe(SYSTEM_DECIDER);
+      }
+    }
+  });
+
+  it("leaves the run alone when the publication names nobody this run pays", async () => {
+    /* SYN110202KKK is on a list version the fixture already holds and no
+       instruction of this run pays it, so a re-publication moves nothing. The
+       honest zero stays a zero. */
+    const { app } = createTestApp();
+    const res = await app.request(
+      "/api/v1/sat/publish",
+      json({ simulate: true, rfcs: ["SYN110202KKK"], status: "definitivo" }),
+    );
+    const published = satPublishResponseSchema.parse(await res.json());
+    const { totals } = await currentRun(app);
+
+    expect(published.rescored).toEqual([]);
+    expect(totals.retroactive69bBase).toBe(0);
+    expect(totals.retroactive69bExposure).toBe(0);
+  });
+
+  it("does not overwrite a decision a person signed", async () => {
+    const { app } = createTestApp();
+    await app.request(
+      "/api/v1/instructions/ins-2026w37-01/decide",
+      json({
+        action: "verify",
+        decidedBy: "ana@ensambles.mx",
+        reason: "El proveedor confirmo la cuenta por telefono.",
+      }),
+    );
+
+    const published = await publish(app);
+    const run = await currentRun(app);
+    const line = run.items.find(
+      (item) => item.instruction.id === "ins-2026w37-01",
+    );
+
+    expect(published.rescored).toEqual([]);
+    expect(line?.decision?.decidedBy).toBe("ana@ensambles.mx");
+    expect(line?.decision?.action).toBe("verify");
+    /* And the run totals stay honest about it: nothing re-scored means nothing
+       priced, rather than a pair quietly filled in from the sweep behind the
+       person's decision. */
+    expect(run.totals.retroactive69bExposure).toBe(0);
   });
 });

@@ -48,6 +48,33 @@ then the screens, then the narrative, then the plumbing.
   note in `packages/seed/src/sentryone/scenarios.ts` now counts the set the base was summed over, and
   the two docs say 24 of 31.
 
+- The newest 69-B sweep folded into the run totals, so the retroactive exposure climbs while the list
+  publishes instead of reading zero next to it (issue #175). `POST /api/v1/sat/publish` used to price
+  the whole ledger and stop there, which left `totals.retroactive69bBase` and
+  `totals.retroactive69bExposure` on `GET /api/v1/run/current` at zero in the same minute
+  `SweepResult.totalExposure` answered MXN 404,152.59: two figures that are both correct and look
+  contradictory next to each other, which is exactly what a judge picks at. Now the same request
+  re-scores the pending lines of the current run whose supplier the publication names, through
+  `rescoreSweptLines` in `apps/api/src/pipeline.ts`: the six controls run again with the sweep on
+  `ComposeInput.sweep`, so the `sat_69b` finding carries `deductedBase` and `retroactiveExposure`, the
+  findings are stored, `decide` reaches the action again and a `decision_made` signed `system` is
+  appended per line, after the `sat_list_published` and never before it, so a replay can never show a
+  payment re-decided by a list that had not been posted. Those events go out on `GET /api/v1/events`,
+  which is what makes the run screen move while the publication lands. A released line and a line a
+  person decided are never touched, because that is money the run already let go and a decision with
+  somebody's name on it; a decision the engine signed `system` is re-scorable, since a second
+  publication is new evidence. The response gains `rescored`, one row per line moved, and it carries no
+  pesos of its own on purpose: the exposure is priced per supplier, one supplier can sit on several
+  lines of the same week, and `runMoney` keys the pair on the RFC so it is counted once. Read off a
+  fresh run at seed 69, the seeded run goes from zero on both fields to MXN 878,592.59 of base and MXN
+  404,152.59 of exposure, `amountAtRisk` climbs by exactly that exposure from MXN 799,209.86 to MXN
+  1,203,362.45, and one line moves: `INS-2026-09-07-070` from `verify` to `hold`. The alternative, a
+  read-time join of the newest sweep onto the run, was rejected in the ADR-0002 amendment of
+  2026-09-12, because two sources of one number is what `packages/core/src/exposure.ts` exists to
+  prevent. `docs/09-api.md` carries the contract under "What a publication re-scores", `bun run demo`
+  beat 3 asserts the identity between the two figures rather than the direction of the change, and the
+  Postgres half of it is checked against `MemoryRepository` on the same publication.
+
 - `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
   problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one
   line each, the business model in three sentences, and the six objections of 2026-09-12 with the

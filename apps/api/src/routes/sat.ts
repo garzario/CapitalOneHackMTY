@@ -13,7 +13,7 @@ import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { rejectInvalid } from "../http";
 import { createRateLimit } from "../middleware/rate-limit";
-import { runRetroactiveSweep } from "../pipeline";
+import { rescoreSweptLines, runRetroactiveSweep } from "../pipeline";
 import {
   type SatPublishBody,
   satLookupQuerySchema,
@@ -62,6 +62,15 @@ import {
  * standing next to fabricated evidence, and both `satPublishBodySchema` here and
  * `simulatePublication` in the package enforce it, rather than trusting whoever
  * is driving the laptop.
+ *
+ * That endpoint also finishes what it starts, which is issue #175 and the
+ * amendment to ADR-0002. Pricing the ledger is only half a publication: the lines
+ * of this week's run were scored before the list existed, so in the same request
+ * the pending ones belonging to the suppliers it names are scored again with the
+ * sweep in hand, their findings are stored, and a `decision_made` goes out per
+ * line so the SSE stream announces them. `rescored` on the response says which
+ * lines moved and where they moved to. Released lines and lines a person decided
+ * are not touched.
  *
  * That is also the line between the two endpoints, and it is the ADR: the
  * official list is read here and joined to nothing, and the only publication
@@ -144,7 +153,30 @@ export function satRoutes(deps: ApiDeps) {
           entries,
         });
 
-        return c.json(sweep);
+        /* The publication is not finished when it is priced. Issue #175: the
+           lines of this week's run were scored before this list existed, so they
+           are scored again here, inside the same request, and the findings that
+           come back are stored. That is what makes the retroactive pair on
+           `GET /api/v1/run/current` climb in the same second the list lands
+           instead of staying at zero next to a `totalExposure` in six figures.
+           Released lines and lines a person decided are left alone; see
+           `rescoreSweptLines`. */
+        const rescored = await rescoreSweptLines(deps, sweep);
+        /* After `sat_list_published` and never before it: the ledger has to read
+           as the publication and then its consequences, so a replay a year later
+           cannot show a payment re-decided by a list that had not been posted. */
+        for (const line of rescored) {
+          await deps.emit({
+            type: "decision_made",
+            at: line.decision.decidedAt,
+            decision: line.decision,
+          });
+        }
+
+        /* `RescoredLine` is the wire shape, stated once in `satPublishResponseSchema`
+           and asserted there by the route tests, so it is spread rather than
+           remapped into an identical object. */
+        return c.json({ ...sweep, rescored });
       },
     );
 }
