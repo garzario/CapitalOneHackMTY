@@ -4,20 +4,35 @@
  * six screens and so the watermark can never be forgotten on one of them.
  */
 
-import type { Action, Severity } from "@hackmty/core";
+import type {
+  Action,
+  Confidence,
+  Severity,
+  TransactionState,
+} from "@hackmty/core";
 import type { ReactNode } from "react";
 import { formatMoney, formatMoneyShort } from "../lib/format";
 import {
   ACTION_BADGE,
   ACTION_LABEL,
+  CONFIDENCE_BADGE,
+  CONFIDENCE_LABEL,
   SEVERITY_BADGE,
   SEVERITY_LABEL,
+  STATE_BADGE,
+  STATE_LABEL,
   SYNTHETIC_LABEL,
 } from "../lib/labels";
 
-type AmountSize = "sm" | "base" | "lg" | "xl";
+type AmountSize = "inherit" | "sm" | "base" | "lg" | "xl";
 
 const AMOUNT_CLASS: Record<AmountSize, string> = {
+  /* Tabular figures and nothing else, for an amount whose size belongs to the
+     block around it. Without this the only way to render money was to pick a
+     step off the scale, so the run's headline figure sat inside a 48px
+     `.figure-value` and printed itself at 15px, because the span the component
+     renders set its own size and won. */
+  inherit: "num",
   sm: "num t-sm",
   base: "num t-base",
   lg: "num-lg",
@@ -92,6 +107,31 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
   );
 }
 
+/**
+ * The level of one payment: `confiable`, `precaucion` or `alerta`, and never a
+ * percentage, a score or the word "seguro".
+ *
+ * It is a primitive for the reason `confidenceOf` is one function in
+ * `packages/core`: the same three words appear on the run, on the detail, in the
+ * assistant panel and on the documents, and a level painted one way on one screen
+ * and another way on the next is issue 125 with a slower fuse. ADR-0009 carries the
+ * rule table, and the level never appears without the findings behind it, which is
+ * the caller's job and is why this component takes no evidence of its own.
+ */
+export function ConfidenceBadge({ level }: { level: Confidence }) {
+  return (
+    <span className={CONFIDENCE_BADGE[level]}>{CONFIDENCE_LABEL[level]}</span>
+  );
+}
+
+/**
+ * Where the payment stands. Three states a clerk reads plus the two the run counts
+ * internally, because a line nobody has looked at is not green.
+ */
+export function TransactionStateBadge({ state }: { state: TransactionState }) {
+  return <span className={STATE_BADGE[state]}>{STATE_LABEL[state]}</span>;
+}
+
 type FieldProps = {
   label: string;
   children: ReactNode;
@@ -124,13 +164,13 @@ export function SectionHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex flex-col gap-1">
-        {/* h1, once per screen. Every screen renders exactly one of these and
-            the app had no h1 at all, so a screen reader's document outline
-            started at level two with nothing above it and "jump to the main
-            heading" landed nowhere. The visual size is a token, not the tag. */}
-        <h1 id={id} className="t-lg">
+        {/* h2, because the shell's top bar carries the page's h1: it names the
+            section you are in, on every screen, which is exactly what an h1 is
+            for. Two h1s would leave "jump to the main heading" ambiguous. The
+            visual size is a token, not the tag. */}
+        <h2 id={id} className="t-lg">
           {title}
-        </h1>
+        </h2>
         {description ? (
           <p className="muted max-w-prose t-sm">{description}</p>
         ) : null}

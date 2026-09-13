@@ -1,7 +1,8 @@
 /*
  * The only stylesheet the app entry point imports. It pulls Tailwind first so
  * its cascade layers (theme, base, components, utilities) exist, then the
- * design system on top of them: tokens, base element rules, primitives.
+ * design system on top of them: the typefaces, tokens, base element rules,
+ * primitives.
  *
  * Order matters. Tokens have to be defined before anything reads them, and the
  * design system files declare their own `@layer`, so a Tailwind utility always
@@ -9,6 +10,7 @@
  */
 
 @import "tailwindcss";
+@import "./design/fonts.css";
 @import "./design/tokens.css";
 @import "./design/base.css";
 @import "./design/primitives.css";

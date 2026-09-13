@@ -18,7 +18,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
 | GET | `/api/v1/consortium/signal?rfc=&clabe=` | `{ rfc, clabe, network: NetworkSignal }` | what the SentryOne consortium holds for one beneficiary pair, read from the LOCAL snapshot and never from Snowflake. Both halves of the pair are required. `503 service_unavailable` when `ALLOW_CONSORTIUM` is unset, `404 not_found` when the network has never seen the pair or when nothing has been pulled. See "The consortium, and what the network can say" below |
-| GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand |
+| GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand. `perDetector` and `perLevel` |
 | GET | `/api/v1/ledger?since=` | `{ events: LedgerEvent[] }` | append-only ledger, for the timeline |
 | GET | `/api/v1/sat/constancia?listVersion=` | `application/pdf` | constancia of the retroactive sweep for one loaded list version |
 | GET | `/api/v1/run/:id/constancia` | `application/pdf` | constancia of one weekly payment run. `current` is accepted as the id |
@@ -501,6 +501,19 @@ answer, and what happens if the payment is urgent.
   product arguing against its own finding.
 - `null` rather than a zero-hour window when the action is `release`. A payment that was let go is not
   a hold that ran out.
+
+### The blind evaluation, per control and per level
+
+`GET /api/v1/metrics` answers the same `Metrics` the terminal prints, computed by the same function over the same labelled cases, so `bun run eval` and the screen can never disagree.
+
+It carries two views of one evaluation and they answer different questions.
+
+- `perDetector` is what a detector author fixes: did control 2 fire on the case that expected it.
+- `perLevel` is what a judge asks: did the line come out `alerta` when it should have. A control can be right and the payment still read `precaucion` when the documents say `alerta`, and the per-control table cannot show that. One case contributes to exactly one expected level and one predicted level, so both columns sum to `cases`. Precision on a level is "of the lines we called this, how many were", recall is "of the lines that were, how many we called".
+
+The row to defend is `confiable`. A line the product called trustworthy and that was not is the one mistake it cannot make twice, and a test on the endpoint fails if that precision ever drops below one.
+
+An `info` finding is scored as context and never as a false positive: a supplier that cleared its name and a beneficiary already verified with a CEP are both good news, and counting them as alerts would report a false-positive rate the product does not have.
 
 ### The constancias
 

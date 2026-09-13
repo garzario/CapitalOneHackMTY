@@ -1,0 +1,69 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "sat-49bis-listed-supplier",
+  "title": "The supplier is published under article 49 Bis, which has no clearing to wait for",
+  "kind": "positive",
+  "notes": "The second SAT list, and it is not a second flavour of 69-B. Article 49 Bis, fraccion X publishes one outcome per oficio and publishes no clearing: there is no desvirtuado column to move into later. So a published taxpayer stays published, the buyer has thirty natural days from the DOF date to correct, and nothing in this product may report a 49 Bis taxpayer as cleared. The account and the amount are ordinary on purpose, exactly like the headline 69-B case: what is wrong is fiscal, not the payment.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-128",
+      "supplierRfc": "SYN292121S31",
+      "cfdiUuids": ["000000cb-0000-4d00-8a00-0000000000cb"],
+      "clabe": "072180100044556672",
+      "amount": 156600.0,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN292121S31",
+      "legalName": "Comercializadora de Insumos Linares SA de CV",
+      "firstInvoiceAt": "2022-03-14T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "072180100044556672",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2022-04-01T15:30:00.000Z",
+          "timesPaid": 48
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "000000cb-0000-4d00-8a00-0000000000cb",
+        "serie": "A",
+        "folio": "740",
+        "issuedAt": "2026-08-18T15:30:00.000Z",
+        "issuerRfc": "SYN292121S31",
+        "issuerName": "Comercializadora de Insumos Linares SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 135000.0,
+        "iva": 21600.0,
+        "total": 156600.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "sat49BisEntries": [
+      {
+        "rfc": "SYN292121S31",
+        "name": "COMERCIALIZADORA DE INSUMOS LINARES SA DE CV",
+        "publishedAt": "2026-08-28",
+        "oficio": "500-05-00-00-00-2026-99001",
+        "listVersion": "2026-08-28"
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "sat_69b",
+      "state": "comprobable",
+      "severity": "critical",
+      "because": "The taxpayer is named in a published oficio under article 49 Bis, which is provable from the DOF, and the statute publishes no clearing for it, so there is no later status that could soften this one."
+    }
+  ],
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
+}

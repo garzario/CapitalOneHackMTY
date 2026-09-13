@@ -158,10 +158,10 @@ is a statistic. And that any of this validates Lupita: it sizes the population s
 |---|---|
 | What do you own | The deterministic generator (#43), the labelled holdout cases and the metrics harness (#55), the SAT list loader and the retroactive sweep (#35), the real CEP evidence (#57), and `assets/` |
 | The one file to open on screen | A holdout case JSON next to the metrics output, because the pair is the evaluation story |
-| The data in three sentences | One fixed seed, byte-identical output asserted in a test, a demo company of 28 employees and about 42 suppliers over eight months, and a watermark flag on every generated object. The labelled cases that measure the detectors are written by me and are not read by the person who writes the detectors until those are merged, so the precision and recall are blind. The hard negatives are deliberate: a legitimate bank change backed by a payment complement, a legitimate new supplier ramping up, a round-number invoice, and a partial legal-name match that is fine |
+| The data in three sentences | One fixed seed, byte-identical output asserted in a test, a demo company of 28 employees and about 42 suppliers over eight months, and a watermark flag on every generated object. The thirty-five labelled cases that measure the controls come from ADR-0002 and the domain types rather than from reading the control source, and no case has been edited to make a control pass. The hard negatives are deliberate and there are twelve of them: a legitimate bank change backed by a payment complement, a legitimate plaza move with the complement to say so, a new supplier ramping up, a round-number retainer, and a partial legal-name match that is fine |
 | Why the labels are separate from the generator | Because a generator that creates both the data and the answer key measures nothing except itself |
-| The current honest gap | TODO(Apanawa), refresh at every milestone |
-| What is next | TODO(Apanawa) |
+| The current honest gap | The evaluation is less blind than the protocol first promised: the controls were merged before the labels were written. What holds the number up is the second rule, that no case was edited to make a control pass, and the four labels that still disagree are counted against us. `beneficiary_cep` reads 0.0 percent because both its expectations are severity arguments, not a control going silent |
+| What is next | The level matrix is the view a clerk reads and it is one release old: `perLevel` is on `GET /api/v1/metrics` and no screen renders it yet |
 
 ### Fabricio (`FabriBanda`), product surface, narrative and market
 
@@ -236,11 +236,18 @@ deploy are separate open issues (#62, #33 to #39, #40, #44).
 committed seed, plus the Nessie sandbox as the company's bank mirror for reconciliation. No real
 personal data anywhere, including in screenshots and issues. Methodology in `docs/08-data-model.md`.
 
-**How do you know it works.** The metrics page reports precision, recall and false-positive rate per
-detector with the case count next to them, computed over labelled cases written by someone who does
-not write the detectors, in a folder the detector author does not open until the code is merged. The
-git history is the evidence that the separation held. We also state the thresholds we would refuse
-to ship at, and we wrote them before the first run.
+**How do you know it works.** The metrics page reports precision, recall and false-positive rate two
+ways: per control, which is what a detector author fixes, and per confidence level, which is what a
+clerk experiences. A control can be right and the line still read `precaucion` when the documents say
+`alerta`, and only the second table shows that. Thirty-five labelled cases, and the row to defend is
+`confiable`: on this run nothing the product called trustworthy turned out not to be.
+
+Be precise about how blind it is, because the repository is. The controls were merged before the
+labels were written, and the labels come from ADR-0002 and the domain types rather than from reading
+the control source. The rule that holds the number up is the other one: no case has been edited to
+make a control pass, four labels still disagree with the engine, and all four are counted against us
+with both arguments written down in `packages/seed/src/holdout/README.md`. We also state the
+thresholds we would refuse to ship at, and we wrote them before the first run.
 
 **What happens at ten times the volume.** The read path is one indexed query per company over a time
 window, and on Timescale the ledger is a hypertable with a continuous aggregate doing the weekly
@@ -536,9 +543,10 @@ is recorded at all. Verified in `apps/api/src/routes/instructions.test.ts`: the 
 > pantalla y decide una persona. Y uno de los seis controles no estima nada, es un hecho documental: que
 > un RFC este o no en la lista del 69-B, con la fecha de la publicacion de la que salio.
 >
-> De los numeros: treinta casos etiquetados por quien no escribe los detectores, ochenta y cinco por
-> ciento de precision, ochenta y uno de recall, uno punto nueve por ciento de falsos positivos, y el
-> motor eligio la accion etiquetada en veintiocho de treinta. Son casos sinteticos y lo decimos. La
+> De los numeros: treinta y cinco casos etiquetados, ochenta y siete por ciento de precision, ochenta
+> y tres de recall, uno punto seis por ciento de falsos positivos, y el motor eligio la accion
+> etiquetada en treinta y tres de treinta y cinco. Leido como lo lee la clerk: de doce lineas que
+> debian salir confiables, las doce salieron confiables. Son casos sinteticos y lo decimos. La
 > calibracion de verdad es despues del hackathon: modo sombra con un socio de diseno, sobre corridas
 > reales, y si despues de doscientos barridos menos del cinco por ciento destapa algo, paramos.
 
@@ -611,8 +619,8 @@ defended when it is found. One more rule this round earned, in section 9: **a nu
 that no source in this repository holds is written down as banned, with its replacement, in the same
 pass that finds it.** A wrong number is cheaper to retract in a file than on stage. The issue number is
 on each subsection, and the numbered sources continue one sequence so that one number means one
-document everywhere: 1 to 48 and 67 to 74 are owned by `docs/04-market.md#sources`, and 49 to 66 by
-`docs/05-business-model.md#sources`.
+document everywhere: 1 to 48 and 67 to 74 are owned by `docs/04-market.md#sources`, and 49 to 66 plus
+75 to 91 by `docs/05-business-model.md#sources`.
 
 ### 7. "Esta interesante. Ahora acota el mercado, y dinos exactamente quien lo vende y por cual canal"
 
@@ -670,28 +678,70 @@ against the hit rate instead: a month of work can measure that one.
 Asked with a second half: should the subscription include an insurance policy covering losses up to an
 amount per tier.
 
-> El producto nunca dice seguro. Retiene, verifica o libera, y cada liberacion lleva la evidencia de
-> los seis controles, el nombre de quien decidio y su razon, en una bitacora que solo crece. Eso es lo
-> primero que tiene el cliente cuando nos equivocamos, y es el expediente que lleva a su banco, a un
-> asegurador o al SAT dentro de los treinta dias del 69-B. Encima va lo que si podemos fondear: cuatro
-> semanas en modo sombra sin cobrar, credito de servicio, y un make whole con tope de doce meses de
-> suscripcion, 10,788 pesos, nunca mas de lo que nos pago y solo si corrieron los seis controles y la
-> liberacion fue del motor. La poliza de verdad la escribe una aseguradora autorizada, porque la ley
-> de seguros nos prohibe suscribirla y lo castiga con prision. Nuestro papel ahi es el insumo de
-> suscripcion que hoy ninguna aseguradora recibe de una empresa de veintiocho personas.
->
-> Y el error contrario, que es el que se siente cada semana: si retenemos un pago bueno, el retraso ya
-> esta acotado, tres dias de retencion y uno de verificacion, que es exactamente el retraso que la
-> decision cobro. El responsable del pago libera cuando quiera, con su nombre y su razon escrita. Y el
-> dia ya tiene precio por proveedor, de 101.98 a 4,611.27 pesos, asi que sobre ese precio proponemos
-> credito de servicio con tope de un mes por evento. Las capas dos, tres y cuatro son propuestas por
-> validar con abogado. La primera ya existe en el producto.
+**Thirty seconds.** Three things that pay today, and a precedent so that the first question back is
+about the cap and not about whether anybody has ever done this.
+
+> El producto nunca dice seguro: retiene, verifica o libera, y cada liberacion lleva la evidencia de
+> los seis controles y el nombre de quien decidio, en una bitacora que solo crece. Tres cosas pagan
+> hoy. Cuatro semanas en modo sombra sin cobrar. Credito de servicio si el producto no estuvo cuando
+> corria el pago. Y un make whole de hasta 10,788 pesos, doce meses de suscripcion, nunca mas de lo que
+> nos pagaron, y solo si corrieron los seis controles, el CEP coincidio y libero el motor, nunca
+> despues de que una persona anulara la decision. Y no lo inventamos nosotros: Eftsure publica un
+> millon de dolares con la misma condicion, que su propio motor haya aprobado el pago. La poliza de
+> verdad la escribe una aseguradora autorizada, porque la ley de seguros nos prohibe suscribirla y lo
+> castiga con prision.
+
+**If they ask about the opposite error**, which is the one a payables desk meets every week.
+
+> Si retenemos un pago bueno, el retraso ya esta acotado: tres dias de retencion y uno de verificacion,
+> que es exactamente el retraso que la decision cobro. El responsable libera cuando quiera, con su
+> nombre y su razon escrita. Y el dia ya tiene precio por proveedor, de 101.98 a 4,611.27 pesos, asi que
+> sobre ese precio proponemos credito de servicio con tope de un mes por evento y dos al ano.
+
+**If they push on the money**, which is the question the menu in `docs/05` was written for.
+
+> La reserva es el diez por ciento de lo cobrado, y el tope por evento es exactamente diez veces lo que
+> cada cliente aporta a la reserva en un ano, porque uno es doce meses de cuota y el otro es la decima
+> parte de doce meses de cuota. O sea que aguanta diez eventos por cada cien clientes al ano, en
+> cualquier mezcla y a cualquier tamano, y el INEGI mide 5.22 fraudes por cada cien unidades economicas
+> al ano. Casi el doble de margen. Donde se rompe no es la frecuencia sino la mezcla: el tope directo es
+> 4.61 veces el del despacho, y si todos los eventos caen en cuentas directas el punto de quiebre baja a
+> 3.74 por cada cien, por debajo de lo publicado. Ese pedazo no lo cubre una reserva, lo cubre una
+> aseguradora autorizada.
 
 Correct the premise in one sentence and then answer anyway, because the question under it is real.
 `Action` in `packages/core/src/domain.ts` is `hold`, `verify` or `release` and there is no fourth value
 meaning safe. The four layers and their arithmetic are in
-`docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets` and the law is in
+`docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets`, the eight options
+with the precedent and the weakness of each are in
+`docs/05-business-model.md#the-options-and-the-one-we-would-defend`, and the law is in
 `docs/06-regulatory-privacy.md#22-what-we-may-promise-when-a-released-payment-turns-out-to-be-fraud`.
+
+| Allowed to say | Source |
+|---|---|
+| Eftsure publishes "indemnity of up to $1 million against payment fraud losses caused by social engineering fraud", included in the subscription for customers who signed after 10 March 2025, and it attaches only to payments its own engine gave a "green thumb" of approval | [79] |
+| Trustpair indemnifies "up to a defined amount" and publishes no amount, no condition and no exclusion, to "over 400 of the world's largest corporations" | [57] |
+| Verificamex, the Mexican comparable, takes the opposite position: "el más amplio deslinde de responsabilidad que en derecho proceda" | [61] |
+| The United Kingdom has made a capped reimbursement compulsory since 7 October 2024, split 50/50 between sending and receiving firm, two exceptions only, five business days, GBP 100 maximum excess, 13-month window, GBP 85,000 cap, and it covers microenterprises and charities as well as individuals | [75] |
+| Over eighteen months the UK regime reimbursed 88 percent, GBP 316 million, of in-scope money lost, and rejected 3 percent of claims for the customer not taking enough care | [77] |
+| An independent evaluation published by that regulator found APP fraud losses fell by about GBP 73 million a year with nearly 35,000 fewer scams, a short-term net benefit of GBP 17 million to GBP 29 million, and "no evidence of market exits or reckless consumer behaviour" | [78] |
+| Insurance already conditions payment on this: a real claim went to discovery over whether the insured had followed an "established and documented verification procedure", and it had "no documented procedure or protocol", only an "unwritten protocol" of email | [80] |
+| Social engineering sublimits commonly run USD 25,000 to USD 250,000, far below the crime policy limit, and in that case it was USD 100,000 against a USD 2,000,000 funds-transfer endorsement, 5 percent | [80] [82] |
+| A carrier's own marketing says the control the market demands is spoofable: "Some messages even amend phone numbers in the email panel, so a call back to a phone number is directed to the fraudster, who will of course verify the information" | [81] |
+| A Mexican broker sells crime cover listing supplier fraud, funds transfer and social engineering, and says "Muchas pólizas no lo cubrirán porque el pago se ha realizado legítimamente: a ojos del banco, es real" | [89] |
+| Condusef's electronic channel cannot take a complaint that involves more than one financial institution or where no contractual relationship with the institution is shown, so it is an in-person appointment and, for a company, a notarial instrument | [86] |
+| The reserve arithmetic: the per-event cap is exactly ten times the annual reserve per company at every tier, so the break-even is 10.0 events per 100 companies a year against INEGI's 5.22, and 3.74 in the adverse mix | [14] [15] and `docs/05-business-model.md` |
+| Under article 102 LISF a persona moral may contract adhesion-contract insurance with no agente de seguros, paid for services the law does not reserve to agents, with the services contract registered with the CNSF beforehand and CNSF inspection of those operations | [62] |
+
+**Do not say.** That we are a licensed or authorised promoter, broker or agent of insurance: article
+102 is the route that needs **no** licence, and the licensed route, article 93, is the one we are not
+taking [62]. That we would reinsure the tail, because reinsurance is cover an insurer buys and we are
+not an insurer; the word is a stop-loss or the client's own endorsement, and which one is counsel's
+question. That Eftsure's USD 1 million is comparable in size to MXN 10,788, or any conversion between
+them, because no dated exchange rate lives in this repository: the precedent is the shape. That the
+United Kingdom's regime would cover our persona, because its microenterprise is fewer than ten
+employees and EUR 2 million [76] and ours is 11 to 250 people. That Mexico has any reimbursement duty,
+because it has none. And that any insurer, broker or bank has agreed to anything, because none has.
 
 Rests on: the evidence layer is `runControls` in `packages/engine/src/index.ts` and the append-only
 `LedgerEvent` in `domain.ts`, where `decision_made` carries the action, the expected loss, the
@@ -718,19 +768,48 @@ Five gaps to volunteer, in this order, because each one is cheaper said than fou
   `beneficiary_cep` reads 0.0 percent in the blind evaluation while the seal reads `not_checked` until
   the real Banxico certificate lands (#57). The commitment turns on when the evidence is complete and
   not a day earlier.
-- **The market answer is specific and it is not "nobody does this".** Trustpair publishes an indemnity
-  with no amount, no condition and no exclusion on the page, and sells it to "over 400 of the world's
-  largest corporations" [57]. Verificamex, the Mexican comparable, takes the opposite position and has
-  the user grant it "el más amplio deslinde de responsabilidad que en derecho proceda" [61]. A capped
-  commitment at this price is therefore a differentiator and not table stakes.
-- **No Mexican insurer page we opened prices this loss.** The closest wording, BBVA's `Fraude Digital`
-  for PyME, excludes it twice: our loss is a transfer the client's own clerk authorised from the bank's
-  own portal with no OTP handed to anybody, and the cover requires the opposite of both [65]. Say the
-  policy does not exist off the shelf yet.
+- **The market answer is specific, it is not "nobody does this", and one earlier version of it was
+  wrong.** Eftsure publishes a capped, subscription-included indemnity gated on its own positive
+  verdict [79], which is the architecture we would ship, and the afternoon entry that said nothing
+  could be attributed to Eftsure was a failed retrieval on our side, corrected in
+  `docs/05-business-model.md#sources` rather than defended. Trustpair publishes an indemnity with no
+  amount, no condition and no exclusion, to "over 400 of the world's largest corporations" [57].
+  Verificamex, the Mexican comparable, takes the opposite position and has the user grant it "el más
+  amplio deslinde de responsabilidad que en derecho proceda" [61]. So the claim is that one company
+  does this, in dollars, outside Mexico, and that no Mexican provider of this control assumes any of
+  the loss.
+- **The reserve is frequency-solvent and severity-fragile, and the second half is volunteered.** The
+  per-event cap is exactly ten times what one company accrues to the reserve in a year, so the
+  break-even is 10.0 qualifying events per 100 companies a year at any size and any mix, against
+  INEGI's published 5.22 [14] [15]. But the direct cap is 4.61 times the channel cap, so if the events
+  land on direct accounts the break-even falls to 3.74 per 100, below the published incidence, and at
+  300 companies three unexpected direct events empty the reserve. That tail needs an authorised
+  insurer, and ENVE is the wrong population for this product anyway, a national average over about 4.8
+  million mostly micro units [14], used because it is the only published per-company incidence there
+  is. Shadow mode replaces it.
+- **No Mexican insurer page we opened prices this loss, and the one Mexican offer we found is a
+  broker's.** The closest insurer wording, BBVA's `Fraude Digital` for PyME, excludes it twice: our loss
+  is a transfer the client's own clerk authorised from the bank's own portal with no OTP handed to
+  anybody, and the cover requires the opposite of both [65]. Howden México, a broker and not an insurer,
+  does list supplier fraud, funds transfer and social engineering and says the loss is uninsured by
+  default because "a ojos del banco, es real" [89], and Chubb's Mexican crime product frames the same
+  peril around employee and contracted-third-party dishonesty rather than an impersonated supplier [90].
+  AIG, Zurich, Lockton and Marsh México returned nothing usable, so they are unverified in both
+  directions and never described as absent. Say the policy does not exist off the shelf yet.
+- **The United Kingdom precedent is directional and not identical, and that is said before a judge says
+  it.** The regime's own microenterprise is fewer than ten employees with turnover or balance sheet
+  under EUR 2 million [76], so our 11 to 250 person persona sits outside its scope; the binding
+  obligations live in the regulator's legal instruments rather than in the policy statement we quote,
+  which says so itself [75]; and Mexico has no equivalent duty at all, which is the gap rather than a
+  detail. The only adjacent Mexican measure that surfaced, the Monto Transaccional de Usuario from
+  January 2026, is a ceiling on transfer amounts and not a right to anything, and it reached us only
+  through news coverage, so it is not quoted until the underlying circular is read.
 - **The false-positive cap is priced on synthetic data and the screen is not ready for it.** Six of 92
-  lines stopped on one generated run and three of twenty findings were false over thirty labelled
-  cases, which is what shadow mode replaces. The name and the role are enforced on every write since
-  issue #199 and an override with no reason is refused, so the release under a named person is no
+  lines stopped on one generated run and three of the twenty-three findings the blind evaluation raised
+  were false over thirty-five labelled cases, 13.0 percent, which is what shadow mode replaces. The
+  projection in `docs/05` moved with it, about 41 wrongly stopped payments a year rather than 47, and it
+  was restated rather than left at the old number. The name and the role are enforced on every write
+  since issue #199 and an override with no reason is refused, so the release under a named person is no
   longer only an API fact; what the screens still owe is the identity selector and asking for the
   reason before the click rather than after the refusal (#174).
 

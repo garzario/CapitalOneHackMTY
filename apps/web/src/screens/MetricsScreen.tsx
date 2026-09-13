@@ -18,7 +18,6 @@
 
 import type { Detector } from "@hackmty/core";
 import { useCallback } from "react";
-import { SectionHeader } from "../components/Primitives";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -45,10 +44,10 @@ export function MetricsScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Evaluacion ciega"
-        description="Precision, recall y tasa de falsos positivos de los seis detectores contra casos etiquetados que el lado de los detectores no vio."
-      />
+      <p className="muted max-w-prose t-sm">
+        Precision, recall y falsos positivos de los seis controles contra casos
+        etiquetados que no vieron.
+      </p>
 
       {resource.status === "loading" ? (
         <div className="panel">
@@ -207,57 +206,12 @@ export function MetricsScreen() {
             </>
           )}
 
-          <section
-            aria-labelledby="refused-heading"
-            className="panel flex flex-col gap-3 p-5"
-          >
-            <h2 id="refused-heading" className="t-lg">
-              Lo que medimos y lo que no quisimos mandar
-            </h2>
-            <ul className="muted m-0 flex list-disc flex-col gap-2 pl-5 t-sm">
-              <li>
-                Que tan ciega es esta evaluacion, dicho completo: los detectores
-                ya estaban escritos cuando se escribieron las etiquetas, y las
-                etiquetas salieron de ADR-0002 y de los tipos del dominio, no de
-                leer el codigo de los detectores. Lo que sostiene el numero es
-                la otra regla: ningun caso se edito para que un detector pasara.
-              </li>
-              <li>
-                Cuatro etiquetas no coinciden con el motor y las cuatro siguen
-                contadas en contra, con el argumento escrito en
-                packages/seed/src/holdout/README.md. Un conjunto que se edita
-                hasta que coincide no mide nada.
-              </li>
-              <li>
-                Un hallazgo informativo no cuenta como falso positivo. Que un
-                beneficiario ya este verificado, o que un proveedor haya
-                desvirtuado su situacion, es contexto para la persona que
-                decide: no detiene un pago y no infla esta tasa.
-              </li>
-              <li>
-                Un detector con precision baja nunca retiene por si solo: pide
-                verificar. Retener el pago de un proveedor honesto tambien
-                cuesta dinero, y la tasa de falsos positivos es la que hay que
-                defender antes que el recall.
-              </li>
-              <li>
-                Ningun modelo de lenguaje participa en la decision de un pago.
-                El texto de un mensaje se muestra como contexto y nunca entra al
-                calculo.
-              </li>
-              <li>
-                Ningun hallazgo acusa a nadie. Los estados son comprobable y
-                requiere verificacion, y siempre decide una persona.
-              </li>
-            </ul>
-
-            <p className="subtle m-0 t-xs">
-              Los mismos numeros salen de{" "}
-              <span className="code">bun run eval</span> en la terminal y de{" "}
-              <span className="code">GET /api/v1/metrics</span>. Es la misma
-              funcion sobre los mismos casos.
-            </p>
-          </section>
+          <p className="subtle m-0 t-xs">
+            Los mismos numeros salen de{" "}
+            <span className="code">bun run eval</span> y de{" "}
+            <span className="code">GET /api/v1/metrics</span>. Es la misma
+            funcion sobre los mismos casos.
+          </p>
         </>
       ) : null}
     </>

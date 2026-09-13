@@ -369,5 +369,6 @@
       "because": "Seven invoices in a window where the baseline predicts one is a Poisson tail far below the alpha the detector uses, and the baseline has enough invoices to be tested."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

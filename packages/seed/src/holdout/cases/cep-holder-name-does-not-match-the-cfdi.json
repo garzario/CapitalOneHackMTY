@@ -68,5 +68,6 @@
       "because": "The CEP is a Banxico-signed document naming the account holder, and the holder shares no name core with the supplier on the CFDI."
     }
   ],
-  "expectedAction": "hold"
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
 }

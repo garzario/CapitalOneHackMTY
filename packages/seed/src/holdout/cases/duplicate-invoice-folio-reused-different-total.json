@@ -69,5 +69,6 @@
       "because": "Two CFDI of the same issuer carry the same serie and folio, and because the totals differ a person has to confirm which one is still current."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

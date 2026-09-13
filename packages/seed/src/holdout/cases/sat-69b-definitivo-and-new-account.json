@@ -70,5 +70,6 @@
       "because": "The account is at a different bank from the only account this supplier has ever been paid on and no complement or CEP establishes it."
     }
   ],
-  "expectedAction": "hold"
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
 }

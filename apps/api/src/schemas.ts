@@ -245,6 +245,9 @@ export const detectorSchema = z.enum([
 
 export const severitySchema = z.enum(["info", "warning", "critical"]);
 
+/** The three words a line reads at. ADR-0009 owns the rule table behind them. */
+export const confidenceSchema = z.enum(["confiable", "precaucion", "alerta"]);
+
 /**
  * What the consortium holds for the account an instruction pays, from the local
  * snapshot. Issue #164, and `packages/consortium/README.md` says what is and is
@@ -518,6 +521,17 @@ export const metricsSchema = z.object({
       tp: z.number().int().nonnegative(),
       fp: z.number().int().nonnegative(),
       fn: z.number().int().nonnegative(),
+    }),
+  ),
+  /** The same evaluation read the way a clerk reads the screen, per level. */
+  perLevel: z.record(
+    confidenceSchema,
+    z.object({
+      expected: z.number().int().nonnegative(),
+      predicted: z.number().int().nonnegative(),
+      agreed: z.number().int().nonnegative(),
+      precision: z.number().min(0).max(1),
+      recall: z.number().min(0).max(1),
     }),
   ),
 }) satisfies z.ZodType<Metrics>;
