@@ -18,6 +18,8 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- A narrated backup video of the stand beats, attached to the release, and the section in `docs/10-demo-script.md` that says how it was made (issue #73).
+
 - The payment run in pesos, with the level and the state on every line and an exposure counter that
   climbs while nobody touches the keyboard (issue #208). The screen opens on four figures beside the
   dark card, all of them from `runMoney` in `packages/core`, which is the arithmetic behind
