@@ -19,6 +19,11 @@ current browser without a build step.
 - `repo-qr.png`: QR code for `https://github.com/garzario/CapitalOneHackMTY`, generated and decoded
   locally before commit.
 - `print.css`: shared print styles with exact physical page dimensions.
+- `devpost-fields.md`: not a print artifact. It is the Devpost submission copy cut into one fenced
+  block per field of the form, Spanish first then English, with no markdown inside the blocks, so a
+  person opens it beside the browser and pastes. `docs/13-devpost.md` is its source and holds the
+  reasoning, the category gates, the screenshot table and the source of every number; if the two ever
+  disagree, `docs/13` wins. Issue #76.
 
 ## What may go on the team card
 
