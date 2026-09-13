@@ -95,6 +95,10 @@ then the screens, then the narrative, then the plumbing.
 
   `GET /api/v1/instructions/:id/carta` is offered as a link when the payload came from the API, and
   says why it is not offered when it did not. The endpoint itself landed with #204.
+- The six states of the one-cent CEP verification as one visible path, with the shared steps and
+  both possible endings kept distinct (issue #210). The card now names the public payment state
+  through `transactionStateOf`, so a blocked verification reads `cancelado`, and exposes the seal
+  state exactly as the parser reported it beside the configuration boundary that produced it.
 
 - The level and the state on every line, the cancellation a definitive SAT listing writes, and the
   one-page evidence letter (issue #204). The contract of issue #221 said what the two words are; this

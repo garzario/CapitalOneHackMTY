@@ -20,6 +20,7 @@
  *    whole control rests on.
  */
 
+import { transactionStateOf } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { getVerification, useEvents, verifyAccount } from "../lib/api";
@@ -31,9 +32,15 @@ import {
   NAME_MATCH_BADGE,
   NAME_MATCH_LABEL,
   RAIL_LABEL,
+  SEAL_CONFIGURATION_NOTE,
+  SEAL_PARSER_STATE_LABEL,
   VERIFICATION_BADGE,
   VERIFICATION_HELP,
   VERIFICATION_LABEL,
+  VERIFICATION_PAYMENT_STATE_LABEL,
+  VERIFICATION_STEP_STATUS_LABEL,
+  VERIFICATION_TRACK_HELP,
+  VERIFICATION_TRACK_TITLE,
 } from "../lib/labels";
 import { EXAMPLE_INSTRUCTION_ID, mockVerification } from "../lib/mock";
 import { useResource } from "../lib/resource";
@@ -46,9 +53,11 @@ import {
   sealVerdictOf,
   storedCepAt,
   type VerificationFailure,
+  type VerificationStepStatus,
   verificationFailure,
+  verificationTrackOf,
 } from "../lib/verification";
-import { Amount, Field } from "./Primitives";
+import { Amount, Field, TransactionStateBadge } from "./Primitives";
 import { ErrorBlock, LoadingBlock, SourceNotice } from "./States";
 
 /** The amount the probe moves, fixed by the product and never a field. */
@@ -353,6 +362,76 @@ const STATE_DOT: Record<VerificationState["state"], string> = {
   blocked: "dot-hold",
 };
 
+const TRACK_DOT: Record<VerificationStepStatus, string> = {
+  complete: "dot-accent",
+  current: "dot-verify",
+  pending: "dot-neutral",
+  alternate: "dot-neutral",
+};
+
+/**
+ * All six states, with both endings visible and only the path taken completed.
+ *
+ * This is a track rather than six badges in the card header because the clerk
+ * needs to see where the cent came from while the state is changing under SSE.
+ * The words remain present when motion is reduced; only the entrance disappears.
+ */
+function VerificationTrack({
+  current,
+  reduceMotion,
+}: {
+  current: VerificationState["state"];
+  reduceMotion: boolean;
+}) {
+  const steps = verificationTrackOf(current);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <span className="eyebrow">{VERIFICATION_TRACK_TITLE}</span>
+        <span className="subtle t-xs">{VERIFICATION_TRACK_HELP}</span>
+      </div>
+      <ol className="m-0 grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2 lg:grid-cols-3">
+        {steps.map((step, index) => (
+          <motion.li
+            key={step.state}
+            aria-current={step.status === "current" ? "step" : undefined}
+            className="panel-sunken flex min-w-0 flex-col gap-2 p-3"
+            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={{
+              opacity:
+                step.status === "pending" || step.status === "alternate"
+                  ? 0.62
+                  : 1,
+              y: 0,
+            }}
+            transition={{
+              duration: reduceMotion ? 0 : 0.22,
+              delay: reduceMotion ? 0 : index * 0.035,
+              ease: [0.2, 0.8, 0.2, 1],
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={`status-dot ${
+                  step.status === "current"
+                    ? STATE_DOT[step.state]
+                    : TRACK_DOT[step.status]
+                }`}
+              />
+              <span className="eyebrow">
+                {VERIFICATION_STEP_STATUS_LABEL[step.status]}
+              </span>
+            </span>
+            <span className="t-sm">{VERIFICATION_LABEL[step.state]}</span>
+          </motion.li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 /**
  * One state of the beat, with the evidence that got it there.
  *
@@ -399,6 +478,17 @@ export function VerificationCard({
         {VERIFICATION_HELP[state.state]}
       </p>
 
+      <VerificationTrack current={state.state} reduceMotion={reduceMotion} />
+
+      {isSettled(state.state) ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="eyebrow">{VERIFICATION_PAYMENT_STATE_LABEL}</span>
+          <TransactionStateBadge
+            state={transactionStateOf(state.decision, state)}
+          />
+        </div>
+      ) : null}
+
       {state.claveRastreo === null && state.rail === null ? null : (
         <dl className="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {state.claveRastreo === null ? null : (
@@ -442,10 +532,14 @@ export function VerificationCard({
       {seal === null ? null : (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="eyebrow">Sello de Banxico</span>
+            <span className="flex flex-col gap-1">
+              <span className="eyebrow">{SEAL_PARSER_STATE_LABEL}</span>
+              <span className="code t-xs">{state.sealState}</span>
+            </span>
             <span className={seal.badge}>{seal.label}</span>
           </div>
           <p className="panel-sunken muted m-0 p-3 t-xs">{seal.detail}</p>
+          <p className="subtle m-0 t-xs">{SEAL_CONFIGURATION_NOTE}</p>
         </div>
       )}
 

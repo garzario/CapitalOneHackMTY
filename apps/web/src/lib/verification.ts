@@ -44,6 +44,69 @@ export interface SealVerdict {
   detail: string;
 }
 
+/** How one of the six visible verification states relates to the current one. */
+export type VerificationStepStatus =
+  | "complete"
+  | "current"
+  | "pending"
+  | "alternate";
+
+export interface VerificationTrackStep {
+  state: VerificationStateName;
+  status: VerificationStepStatus;
+}
+
+/**
+ * The six states as one track, including both possible endings.
+ *
+ * The first four states are one path. The last two are alternatives, so a
+ * released payment never paints the blocked branch as completed, and vice
+ * versa. Keeping that distinction in data is what stops a component from
+ * implying the verification passed through both outcomes.
+ */
+const VERIFICATION_TRACK: readonly VerificationStateName[] = [
+  "not_started",
+  "cent_sent",
+  "awaiting_cep",
+  "cep_signed",
+  "released",
+  "blocked",
+];
+
+const SHARED_TRACK: readonly VerificationStateName[] = [
+  "not_started",
+  "cent_sent",
+  "awaiting_cep",
+  "cep_signed",
+];
+
+/** The complete, current and possible states around one reported state. */
+export function verificationTrackOf(
+  current: VerificationStateName,
+): VerificationTrackStep[] {
+  const sharedIndex = SHARED_TRACK.indexOf(current);
+  const settled = current === "released" || current === "blocked";
+
+  return VERIFICATION_TRACK.map((state) => {
+    if (state === current) {
+      return { state, status: "current" };
+    }
+    if (settled && SHARED_TRACK.includes(state)) {
+      return { state, status: "complete" };
+    }
+    if (settled && (state === "released" || state === "blocked")) {
+      return { state, status: "alternate" };
+    }
+
+    const index = SHARED_TRACK.indexOf(state);
+    if (sharedIndex >= 0 && index >= 0 && index < sharedIndex) {
+      return { state, status: "complete" };
+    }
+
+    return { state, status: "pending" };
+  });
+}
+
 const SEAL_DETAIL: Record<CepSealState, string> = {
   valid:
     "El sello del CEP valido contra el certificado de Banxico. Es la evidencia mas fuerte que tiene este producto.",
