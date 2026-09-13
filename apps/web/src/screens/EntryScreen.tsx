@@ -66,6 +66,7 @@ import {
 } from "../lib/labels";
 import { reachesApi } from "../lib/resource";
 import { href, PATHS } from "../lib/router";
+import { markTourSeen, openTour, tourSeen } from "../lib/tour-store";
 import { railSentence } from "./PaymentsScreen";
 
 /**
@@ -134,7 +135,12 @@ function PersonPicker({
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="segmented" role="radiogroup" aria-label="Quien esta usando">
+    <div
+      className="segmented"
+      role="radiogroup"
+      aria-label="Quien esta usando"
+      data-tour="entry-person"
+    >
       {DEMO_ACTORS.map((person) => {
         const current = person.name === actor.name;
 
@@ -171,6 +177,9 @@ function PersonPicker({
 
 export function EntryScreen() {
   const actor = useActor();
+  /* Read once, synchronously, like the rail's collapsed preference: a banner that
+     renders and then disappears on the first paint is worse than no banner. */
+  const [greet, setGreet] = useState(() => !tourSeen());
   const [rails, setRails] = useState<RailsState>(() =>
     reachesApi() ? { kind: "loading" } : { kind: "skipped" },
   );
@@ -208,6 +217,49 @@ export function EntryScreen() {
 
   return (
     <>
+      {/* The first visit, and only the first.
+
+          This screen is where a person who opened the link cold arrives, and the
+          run behind it is ninety-two rows of pesos that explain nothing on their
+          own. The banner is the one invitation the app makes, it is remembered so
+          a judge is not greeted twice, and dismissing it is the same remembering:
+          somebody who said no has also seen it. */}
+      {greet ? (
+        <div className="tour-banner">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="eyebrow">Primera vez aqui?</span>
+            <p className="muted m-0 max-w-prose t-sm">
+              Abre el recorrido: nueve pasos que cuentan de que se trata, con la
+              corrida abierta debajo, y al final SentryOne te llama por telefono
+              como si fueras el dueno de la empresa.
+            </p>
+          </div>
+
+          <div className="tour-banner-actions">
+            <button
+              type="button"
+              className="btn btn-pill btn-accent"
+              onClick={() => {
+                setGreet(false);
+                openTour();
+              }}
+            >
+              Abre el recorrido
+            </button>
+            <button
+              type="button"
+              className="btn btn-pill btn-sm"
+              onClick={() => {
+                setGreet(false);
+                markTourSeen();
+              }}
+            >
+              Ahora no
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* No synthetic mark of its own. The shell's top bar carries that word
           once for the whole app, and a second copy beside this heading would be
           the same standing claim printed twice on one screen. */}

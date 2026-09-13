@@ -15,7 +15,105 @@ commands, and `bun run release-check` is the gate that runs before them.
 v1.0.0 is the HackMTY 2026 submission and the tag holds exactly what is under it. Everything in this
 section landed after that tag was cut.
 
+### Added
+
+- **El recorrido: nine stops over the running product, and the telephone call that ends it** (issue
+  #216). The app opened on ninety-two rows of pesos and explained itself to nobody. A visitor who
+  presses **Recorrido** in the top bar, or the banner that greets a first visit to `#/entrada`, now
+  gets nine stops over the real screens rather than a video: why SentryOne exists, the Thursday run,
+  the WhatsApp screenshot arriving in the assistant panel, the account and its plaza, the cent and
+  the Banxico receipt, the SAT publishing, the run leaving, who signs, and the call. Each stop
+  navigates the app itself, dims everything except the one element it is about and docks its card on
+  whichever side of that element has room, so the product is what is on screen and the tour is the
+  narration over it. `tourSteps` in `apps/web/src/lib/tour.ts` holds the copy, `Tour.tsx` the
+  overlay, and `#/run?tour=1` opens it from a link.
+
+  Nothing in it is hard-coded to a folio. The three lines it points at come from `GET /api/v1/tour`,
+  which derives them from the run on every request: the hero is the largest payment the run stopped
+  that a CLABE forensics finding is standing against, and the other two are the supplier this run
+  pays that the 69-B list names and the largest line no control stops at all. With no API the same
+  rules run over the generated run in the browser and the tour says which one it read, like every
+  other screen here.
+
+- **The call that rings the visitor as the owner of the company** (issue #216). The ninth stop takes
+  a mobile number and a ticked consent box and telephones the person who typed it as Gerardo
+  Villarreal, the owner of the synthetic company: it reads them the held payment, says the account is
+  new and reads four of its digits one at a time, names the plaza it was opened in beside the plaza
+  the supplier has always been paid in, and asks the one question the owner is the only person who
+  can answer, `¿La retenemos hasta verificarla, o la libera bajo su nombre?`. What they say is applied
+  to that line in front of them, on the ledger, with the sentence it was read from quoted against it,
+  and the run re-scores itself over the event stream while they are still holding the telephone.
+
+  Three endpoints, all in `apps/api/src/routes/tour.ts` and specified in `docs/09-api.md`:
+  `GET /api/v1/tour` for what the tour needs to drive itself, `POST /api/v1/tour/call` which answers
+  `202` with the script and a conversation id because a call that started has proved nothing, and
+  `GET /api/v1/tour/call/:conversationId`, the fallback for a browser that could not hold the event
+  stream open. A finished call appends a `verification_call` carrying `line: "owner"` and, only when
+  the owner actually gave an instruction, a `decision_made` through the very `recordDecision` that
+  `POST /api/v1/instructions/:id/decide` calls. `no_answer` and `unclear` apply nothing, which is the
+  whole of what they mean.
+
+  It reverts, and the revert is a decision rather than a deletion. Ten minutes later the tour records
+  a `hold` on the same line signed `Recorrido` with the reason `Fin del recorrido: la linea vuelve a
+  su estado`, so the next visitor sees the run the first one saw and the ledger still says what
+  happened. An append-only record that quietly forgot one of its own entries would be worth less than
+  one that records the tour undoing itself.
+
+  The visitor's number is never stored, never logged and never shown. What is kept is `phoneHash`, a
+  SHA-256 of a salt and the number, and it exists so the limiter can refuse to ring the same
+  telephone twice in ten minutes without holding the telephone number.
+  `docs/06-regulatory-privacy.md` section 4.5 is the argument in full, including the two providers
+  the number passes through and the `TODO(FabriBanda)` against their processing terms. That limiter
+  is the tour's own, separate from the write bucket on `/api/v1`, because the two protect different
+  things: twenty calls an hour from the instance, one per number per ten minutes, `429` with
+  `Retry-After`. `consent` is a literal `true` and not a boolean, so a body carrying `false` is
+  refused rather than read as a flag somebody left off.
+
+- **The owner agent, its script and its parser** (issue #216). `packages/voice` has two lines now,
+  not one, and they are separate files with separate agents at the provider because they say
+  different things to different people: a single prompt that tried to do both would end up asking a
+  supplier to authorise a payment. `buildOwnerScript` writes what is said and `parseOwnerOutcome`
+  reads what came back as `hold`, `release`, `no_answer` or `unclear`, deterministic string work and
+  not a model, for the same ADR-0004 reason the supplier parser is. It refuses a bare monosyllable,
+  which is why the question offers the two actions in words instead of asking for a yes.
+
+  The rules of the supplier call carry over unchanged and the three that matter most are pinned by
+  tests: the line says it is an automated line in its first sentence, which is also what keeps the
+  provider from refusing the prompt outright; only four digits of one account are ever spoken; and
+  nothing is promised and nobody is accused, because a control that stopped a payment has found a
+  document that does not add up and not a criminal. Two rules are this script's own: one question is
+  the whole call, and it confirms what it understood in the words of the decision about to be
+  recorded before it hangs up. `bun run voice-setup --owner` creates the agent from that config and
+  prints its id, and `bun run voice-setup --owner --dry-run` prints the prompt without touching the
+  provider.
+
 ### Changed
+
+- **Seven environment variables, and a box that rings a telephone only when it was told to** (issue
+  #216). `ELEVENLABS_OWNER_AGENT_ID` is the second agent, created by `bun run voice-setup --owner`;
+  an agent id names a configuration and authorises nothing, so it is not a secret. `ALLOW_TOUR_CALLS`
+  is the flag, off by default and deliberately opt-in, because an endpoint that telephones a real
+  number on request is not something a deployment should acquire by accident: with it unset the call
+  answers `403` and `GET /api/v1/tour` says `callsEnabled: false`, so the screen offers to read the
+  words out instead of offering a form that cannot work. `TOUR_REVERT_MS` is how long an applied
+  decision stands, default ten minutes and `0` to disable the revert, which is what a rehearsal wants
+  and never what a stand does. `TOUR_POLL_INTERVAL_MS` and `TOUR_POLL_DEADLINE_MS` are how often and
+  how long the server asks the provider whether the call has finished. `TOUR_SALT` salts the
+  telephone hash, with `CONSORTIUM_SALT` winning when both are set so that rotating one salt rotates
+  this one with it. `TOUR_ALLOW_ANY_COUNTRY` widens the number past a Mexican mobile, and the demo is
+  in Monterrey so it is off. All seven are in `.env.example` with the sentence that says what each
+  one buys, and `deploy/docker-compose.yml` and `scripts/deploy-vultr.ts` pass them through to the
+  instance.
+
+  Three smaller shapes moved with them, all backwards compatible. `verification_call` gained four
+  optional fields, `line`, `phoneHash`, `ownerOutcome` and `question`, so an event already on a
+  ledger is still a valid event and an absent `line` still means the supplier call; the owner call is
+  on that same event type rather than on a second one because what is recorded is the same thing, a
+  call that happened and what was said on it. `createApp` and `createTestApp` take a third argument
+  for the tour, defaulted so no existing call site changes, and pinned off with zero timings in tests
+  so nothing leaves a timer behind. And `readEnv` in `apps/api/src/routes/verify-call.ts` is exported
+  rather than private, so the tour reads its environment through the same function instead of keeping
+  a third copy of it.
 
 - **Entrada y ajustes reads in two columns instead of one long scroll** (issue #216). The screen was
   2620 px of stacked full-width panels, so at 1440 half the width was empty and the six control

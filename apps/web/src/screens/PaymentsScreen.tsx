@@ -558,6 +558,7 @@ export function PaymentsScreen() {
                     <button
                       type="button"
                       className="btn btn-accent btn-lg"
+                      data-tour="payments-send"
                       aria-busy={sending}
                       disabled={!canSend}
                       onClick={() => {

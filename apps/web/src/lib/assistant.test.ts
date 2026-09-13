@@ -586,6 +586,11 @@ describe("the vocabulary of what the panel renders", () => {
    */
   const FILES = [
     "lib/assistant-mock.ts",
+    /* The dock's open state, lifted into a store so the recorrido can open the
+       drawer it explains. It renders nothing, and it is on this list anyway: the
+       rule is about the files the panel is made of, and a file that is exempt
+       because it "has no copy today" is a file somebody writes copy into. */
+    "lib/assistant-dock.ts",
     "components/AssistantPanel.tsx",
     "components/AssistantCards.tsx",
     "components/AssistantDock.tsx",

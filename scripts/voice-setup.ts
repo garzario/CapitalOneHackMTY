@@ -1,9 +1,20 @@
 /**
- * bun run voice-setup [--dry-run] [--config scripts/voice-agent.json]
+ * bun run voice-setup [--owner] [--dry-run] [--config scripts/voice-agent.json]
  *
  * Creates the verification agent at the voice provider from a JSON config, or
  * updates it when `ELEVENLABS_AGENT_ID` already names one, then prints the ids
  * to paste into `.env`.
+ *
+ * **`--owner` is the second line, not a second script.** The guided tour of
+ * `apps/api/src/routes/tour.ts` telephones the OWNER of the company and asks
+ * what to do with a payment the control held, which is a different script and a
+ * different question, so it is a second agent at the provider. It is created and
+ * updated from this same file on purpose: one flag decides the name, the prompt
+ * and the environment variable, and every other field of the body is the same
+ * expression, so the two lines cannot drift apart on a turn timeout or a voice
+ * that somebody tuned on a live call. The id it prints goes in
+ * `ELEVENLABS_OWNER_AGENT_ID`, and an agent id is not a secret: it names a
+ * configuration, it authorises nothing, and the key stays the key.
  *
  * Two reasons this is a script and not a route. The agent is created once per
  * account and lives longer than any process here, so a request handler that
@@ -34,6 +45,10 @@
 import { resolve } from "node:path";
 import {
   buildAgentBody,
+  DEFAULT_OWNER_NAME,
+  OWNER_CLOSING_LINE,
+  OWNER_TEMPLATE,
+  OWNER_VARIABLE_DEFAULTS,
   VERIFICATION_CLOSING_LINE,
   VERIFICATION_TEMPLATE,
   VERIFICATION_VARIABLE_DEFAULTS,
@@ -53,10 +68,14 @@ const DEFAULT_CONFIG = `${ROOT}/scripts/voice-agent.json`;
  */
 interface AgentFile {
   name?: string;
+  /** What the owner agent is called in the dashboard, under `--owner`. */
+  ownerAgentName?: string;
   /** Fills the `{{company}}` slot when a call sends no variables of its own. */
   companyName?: string;
   /** Fills the `{{caller}}` slot on the same terms. */
   callerName?: string;
+  /** Fills the `{{owner}}` slot of the owner line, on the same terms. */
+  ownerName?: string;
   language?: string;
   maxDurationSeconds?: number;
   ttsModelId?: string;
@@ -172,17 +191,55 @@ function printDiff(live: unknown, next: Record<string, unknown>): void {
 const configPath = option("config") ?? DEFAULT_CONFIG;
 const config = await readConfig(configPath);
 const dryRun = flag("dry-run");
+const owner = flag("owner");
 const voiceId = env("ELEVENLABS_VOICE_ID");
 
-const defaults = {
-  ...VERIFICATION_VARIABLE_DEFAULTS,
-  ...(config.companyName === undefined || config.companyName === ""
-    ? {}
-    : { company: config.companyName }),
-  ...(config.callerName === undefined || config.callerName === ""
-    ? {}
-    : { caller: config.callerName }),
-};
+/** The company name every slot default shares, when the config names one. */
+const companyName =
+  config.companyName === undefined || config.companyName === ""
+    ? undefined
+    : config.companyName;
+
+/**
+ * Which of the two lines this run configures.
+ *
+ * Everything that differs between the supplier line and the owner line is in
+ * this one object, and everything that does not is the same expression below. A
+ * second script would have been a second place to forget a turn timeout.
+ */
+const line = owner
+  ? {
+      what: "owner" as const,
+      /** The variable the id goes into. Named here so it is printed correctly. */
+      idVariable: "ELEVENLABS_OWNER_AGENT_ID",
+      name: config.ownerAgentName ?? "SentryOne dueño",
+      template: OWNER_TEMPLATE,
+      closingLine: OWNER_CLOSING_LINE,
+      defaults: {
+        ...OWNER_VARIABLE_DEFAULTS,
+        ...(companyName === undefined ? {} : { company: companyName }),
+        owner:
+          config.ownerName === undefined || config.ownerName === ""
+            ? DEFAULT_OWNER_NAME
+            : config.ownerName,
+      } as Record<string, string>,
+    }
+  : {
+      what: "supplier" as const,
+      idVariable: "ELEVENLABS_AGENT_ID",
+      name: config.name ?? "SentryOne, verificacion de cuenta",
+      template: VERIFICATION_TEMPLATE,
+      closingLine: VERIFICATION_CLOSING_LINE,
+      defaults: {
+        ...VERIFICATION_VARIABLE_DEFAULTS,
+        ...(companyName === undefined ? {} : { company: companyName }),
+        ...(config.callerName === undefined || config.callerName === ""
+          ? {}
+          : { caller: config.callerName }),
+      } as Record<string, string>,
+    };
+
+const defaults = line.defaults;
 
 /** Present keys only, so an absent setting stays absent in the body. */
 function set<T>(value: T | undefined, key: string): Record<string, T> {
@@ -190,9 +247,9 @@ function set<T>(value: T | undefined, key: string): Record<string, T> {
 }
 
 const agentConfig = {
-  name: config.name ?? "SentryOne, verificacion de cuenta",
-  systemPrompt: VERIFICATION_TEMPLATE.systemPrompt,
-  firstMessage: VERIFICATION_TEMPLATE.firstMessage,
+  name: line.name,
+  systemPrompt: line.template.systemPrompt,
+  firstMessage: line.template.firstMessage,
   dynamicVariableDefaults: defaults,
   ...set(config.language, "language"),
   ...set(voiceId, "voiceId"),
@@ -216,14 +273,17 @@ const agentConfig = {
 
 console.log(`config      ${configPath}`);
 console.log(
+  `line        ${line.what === "owner" ? "the owner call of the guided tour" : "the verification call to the supplier"}`,
+);
+console.log(
   `voice       ${voiceId === undefined ? "not set. ELEVENLABS_VOICE_ID is empty, so the provider default is used" : mask(voiceId)}`,
 );
 console.log("");
 console.log("The agent is stored with the slots empty:");
-console.log(`  ${VERIFICATION_TEMPLATE.firstMessage}`);
+console.log(`  ${line.template.firstMessage}`);
 console.log("");
 console.log("And it hangs up on this line, every time:");
-console.log(`  ${VERIFICATION_CLOSING_LINE}`);
+console.log(`  ${line.closingLine}`);
 console.log("");
 console.log("With these values for a call that sends none of its own:");
 for (const [name, value] of Object.entries(defaults)) {
@@ -253,7 +313,7 @@ if (apiKey === undefined) {
 }
 
 const client = new VoiceClient({ apiKey, http: fetch });
-const existing = env("ELEVENLABS_AGENT_ID");
+const existing = env(line.idVariable);
 
 try {
   if (existing !== undefined) {
@@ -273,7 +333,18 @@ try {
   console.log(existing === undefined ? "agent created" : "agent updated");
   console.log("");
   console.log("Put these in .env:");
-  console.log(`ELEVENLABS_AGENT_ID=${agentId}`);
+  console.log(`${line.idVariable}=${agentId}`);
+
+  /* The owner line dials from the number the supplier line already uses, so
+     there is nothing new to print and listing them again would read as a second
+     number to connect. */
+  if (line.what === "owner") {
+    console.log("");
+    console.log(
+      "The owner call dials from ELEVENLABS_PHONE_NUMBER_ID, the same number the verification call uses. With ALLOW_TOUR_CALLS=1 as well, POST /api/v1/tour/call rings a visitor.",
+    );
+    process.exit(0);
+  }
 
   const numbers = await client.listPhoneNumbers();
 

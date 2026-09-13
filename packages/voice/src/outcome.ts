@@ -60,8 +60,12 @@ export function fold(text: string): string {
 /**
  * Nobody picked up, or a machine did. Checked first, because a voicemail
  * greeting is a cooperative sounding sentence that would otherwise be scored.
+ *
+ * Exported because `owner-outcome.ts` reads the same list. A machine answering
+ * is a machine answering whoever was called, and two copies of these nine
+ * phrases would be two parsers that disagree about a voicemail.
  */
-const VOICEMAIL = [
+export const VOICEMAIL_PHRASES = [
   "buzon de voz",
   "deje su mensaje",
   "despues del tono",
@@ -113,8 +117,12 @@ const DENIALS = [
  * The supplier spoke and did not answer. Checked before the denials so that
  * "no se" and "no estoy seguro" are never read as a refusal, and before the
  * confirmations so that an earlier "si" cannot outvote a later doubt.
+ *
+ * Exported for the reason `VOICEMAIL_PHRASES` is: the owner parser adds four
+ * phrases of its own to this list rather than restating it, so a doubt this one
+ * learns to read is a doubt both of them read.
  */
-const UNSURE = [
+export const UNSURE_PHRASES = [
   "no estoy seguro",
   "no estoy segura",
   "no se",
@@ -183,8 +191,14 @@ const CONFIRMATIONS = [
   "si es",
 ];
 
-/** A negation immediately before a confirmation turns it into a denial. */
-const NEGATIONS = ["no", "nunca", "jamas", "tampoco", "ni"];
+/**
+ * A negation immediately before a confirmation turns it into a denial.
+ *
+ * Exported because `owner-outcome.ts` turns a negated release into a hold with
+ * the same five words. A list of negations that existed twice would be the one
+ * place where "no lo retengas" means opposite things to two parsers.
+ */
+export const NEGATION_WORDS = ["no", "nunca", "jamas", "tampoco", "ni"];
 
 type Class = "voicemail" | "denial" | "unsure" | "confirmation";
 
@@ -291,19 +305,19 @@ function negatedAt(folded: string, at: number): boolean {
   const words = before.split(" ");
   const last = words[words.length - 1] ?? "";
 
-  return NEGATIONS.includes(last);
+  return NEGATION_WORDS.includes(last);
 }
 
 /** Classifies one clause, in the order the file header describes. */
 export function classifyClause(
   clause: Clause,
 ): { klass: Class; matched: string } | undefined {
-  const voicemail = firstMatch(clause.folded, VOICEMAIL);
+  const voicemail = firstMatch(clause.folded, VOICEMAIL_PHRASES);
   if (voicemail !== undefined) {
     return { klass: "voicemail", matched: voicemail };
   }
 
-  const unsure = firstMatch(clause.folded, UNSURE);
+  const unsure = firstMatch(clause.folded, UNSURE_PHRASES);
   if (unsure !== undefined) {
     return { klass: "unsure", matched: unsure };
   }

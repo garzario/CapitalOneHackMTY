@@ -585,7 +585,7 @@ export function NameComparison({
   legalName: string | null;
 }) {
   return (
-    <div className="panel-sunken flex flex-col gap-3 p-4">
+    <div className="panel-sunken flex flex-col gap-3 p-4" data-tour="cep-names">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="eyebrow">Comparacion de nombre</span>
         <span className={NAME_MATCH_BADGE[nameMatch]}>

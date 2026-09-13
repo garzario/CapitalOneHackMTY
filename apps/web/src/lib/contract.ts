@@ -593,6 +593,126 @@ export interface ApiErrorBody {
   };
 }
 
+/* -------------------------------------------------------------- the recorrido */
+
+/**
+ * The line the guided tour is about, as `GET /api/v1/tour` answers it.
+ *
+ * Derived by the API out of the seeded run -- the largest held amount carrying a
+ * CLABE forensics finding -- and never a folio written down, here or there. A
+ * folio in a constant is a tour that opens on an error state the day the seed
+ * moves, which is the same reason `brand/shoot.ts` reads its paths off the
+ * generated mock.
+ */
+export interface TourHero {
+  instructionId: string;
+  supplierRfc: string;
+  supplierName: string;
+  amount: number;
+  /** Four digits of the account that was proposed. Never the whole CLABE. */
+  accountLast4: string;
+  /** The plaza of the account that arrived, as the catalogue names it. */
+  plazaNew: string;
+  /** The plaza of the account this company has been paying. */
+  plazaUsual: string;
+}
+
+/** `GET /api/v1/tour`: what the recorrido can show on this deployment. */
+export interface TourConfig {
+  /**
+   * Whether this server can actually ring a telephone. False is an ordinary
+   * answer and not a failure: the tour then prints the script the agent would
+   * read, exactly as the verification call does on a deployment with no voice.
+   */
+  callsEnabled: boolean;
+  hero: TourHero;
+  /** The supplier the seeded Article 69-B publication names. */
+  listedSupplierRfc: string;
+  /** The instruction whose one-cent verification the tour stops on. */
+  cepInstructionId: string;
+  /** How long the tour's own decision stands before it reverts itself. */
+  revertAfterMs: number;
+}
+
+/**
+ * `POST /api/v1/tour/call`.
+ *
+ * `consent` is literally `true` in the type, so nothing can reach the endpoint on
+ * a default: a telephone rings because a visitor ticked a box, and the number is
+ * never stored, only a salted hash of it.
+ */
+export interface TourCallBody {
+  phone: string;
+  consent: true;
+}
+
+/** What the agent says to the owner, or what the page prints when it cannot. */
+export interface TourCallScript {
+  firstMessage: string;
+  question: string;
+  spoken: string[];
+}
+
+/** The 202 body of `POST /api/v1/tour/call`. */
+export interface TourCallStarted {
+  conversationId: string;
+  /** The hero line the call is about, so the page never guesses it. */
+  instructionId: string;
+  script: TourCallScript;
+  revertAfterMs: number;
+}
+
+/** Where one tour call has got to, in the provider's own vocabulary. */
+export type TourCallStatus =
+  | "initiated"
+  | "in-progress"
+  | "processing"
+  | "done"
+  | "failed";
+
+/**
+ * What the owner said, in four answers.
+ *
+ * `hold` and `release` are the two a person can say, and the other two are the
+ * cases a telephone produces: nobody answered, or the answer did not parse. None
+ * of the four is a verdict about the payment: the decision that follows carries
+ * the owner's name, which is the whole of ADR-0007 applied to a voice.
+ */
+export type TourOwnerOutcome = "hold" | "release" | "no_answer" | "unclear";
+
+/** `GET /api/v1/tour/call/:conversationId`. */
+export interface TourCallState {
+  conversationId: string;
+  status: TourCallStatus;
+  ownerOutcome?: TourOwnerOutcome;
+  /** The sentence the outcome was read from, quoted from the call. */
+  evidence?: string;
+  appliedAt?: string;
+  revertsAt?: string;
+}
+
+/** The same 422 body, plus the script, when the voice is not configured. */
+export interface TourCallUnavailable extends ApiErrorBody {
+  script: TourCallScript;
+}
+
+/**
+ * The fields the tour adds to a `verification_call` ledger event.
+ *
+ * The event itself is the domain's, and these are optional extras on it rather
+ * than a second event type: the call the owner answers is a verification call
+ * with a different line at the other end, so the ledger holds one shape and the
+ * screen reads `line` to tell them apart. `phoneHash` is what the product knows
+ * about the number, and the number itself is never stored anywhere.
+ */
+export interface TourVerificationCallFields {
+  line: "owner";
+  conversationId: string;
+  phoneHash: string;
+  ownerOutcome: TourOwnerOutcome;
+  question: string;
+}
+
 /* ---------------------------------------------------------------- assistant */
 
 /**

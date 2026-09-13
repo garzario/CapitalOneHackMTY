@@ -134,17 +134,29 @@
   /* A toast is read at a glance and dismissed, so it is narrower than the
      drawer and never as wide as the content it covers. */
   --toast-width: 22rem;
+  /* The recorrido's card holds three paragraphs of prose, so it is wider than a
+     toast and narrower than the drawer: wide enough for a sixty-character
+     measure, narrow enough that the table it is explaining is still readable
+     beside it. */
+  --tour-card-width: 25rem;
 
   /* The keyboard affordance, as tokens, so the ring is one value and not one
      per component. `base.css` is the only place that draws it. */
   --focus-width: 2px;
   --focus-offset: 2px;
 
-  /* Elevation */
+  /* Elevation.
+
+     The recorrido sits above the drawer and below the toasts, and both halves of
+     that are deliberate: one of its stops opens the assistant drawer and dims
+     everything except it, so the veil has to cover a panel at 50; and a toast is
+     the app answering for a write, which a tour must never hide. */
   --z-header: 20;
   --z-rail: 30;
   --z-scrim: 40;
   --z-drawer: 50;
+  --z-tour: 55;
+  --z-tour-card: 56;
   --z-toast: 60;
 
   /* Motion. Every transition in the app reads one of these three durations,
@@ -490,7 +502,6 @@
     --motion-draw: 1ms;
   }
 }
-
 
 /* Paper.
  *

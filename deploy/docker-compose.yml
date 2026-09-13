@@ -38,6 +38,17 @@ services:
       ELEVENLABS_AGENT_ID: ${ELEVENLABS_AGENT_ID:-}
       ELEVENLABS_PHONE_NUMBER_ID: ${ELEVENLABS_PHONE_NUMBER_ID:-}
       ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      # The second agent, the one the guided tour dials. Without it
+      # POST /api/v1/tour/call answers 422 carrying the script and the rest of
+      # the tour still runs.
+      ELEVENLABS_OWNER_AGENT_ID: ${ELEVENLABS_OWNER_AGENT_ID:-}
+      # And the flag that lets this instance telephone a visitor at all. Off
+      # unless it is set to 1, because a deployed endpoint that rings a real
+      # number on request is opt-in and never a default.
+      ALLOW_TOUR_CALLS: ${ALLOW_TOUR_CALLS:-}
+      # How long a decision the tour applied stands before the line goes back to
+      # where the control had it. Empty is ten minutes; 0 disables the revert.
+      TOUR_REVERT_MS: ${TOUR_REVERT_MS:-}
       # The CEP portal stays off on the deployed box for the reason .env.example
       # gives: it is an undocumented form behind a CAPTCHA, and the path docs/09
       # documents is the clerk pasting the XML. Without the Banxico certificate a

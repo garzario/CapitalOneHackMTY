@@ -1,7 +1,9 @@
 {
   "name": "SentryOne, verificacion de cuenta",
+  "ownerAgentName": "SentryOne dueño",
   "companyName": "Metálicos del Norte",
   "callerName": "Alejandro",
+  "ownerName": "Gerardo",
   "language": "es",
   "maxDurationSeconds": 150,
   "ttsModelId": "eleven_flash_v2_5",

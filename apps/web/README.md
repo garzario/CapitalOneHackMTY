@@ -103,7 +103,11 @@ src/
     sse.ts            the event-stream decoder, chunk boundaries included
     assistant.ts      the assistant contract: what a frame may say and what a click sends
     assistant-mock.ts the panel with no API, answered out of the synthetic run
+    assistant-dock.ts whether the drawer is open, as a store the tour can write
     dictation.ts      voice input through the browser's own recogniser
+    tour.ts           the nine stops of the recorrido, and the line it is about
+    tour-call.ts      the call of the last stop: the number, the outcome, the refusals
+    tour-store.ts     whether the recorrido is open, and that this browser has seen it
   components/         AppShell (the rail and the top bar), Wordmark,
                       Icons (Rune Icons, Apache-2.0, vendored as paths; the active one draws
                       once per section change),
@@ -112,7 +116,8 @@ src/
                       States, Primitives, Evidence, Decision, Findings,
                       BehaviourChart (what a supplier invoiced, week by week),
                       StatusCard, OfflineBanner, IntakeQr, QrCode, Receipt,
-                      AssistantDock, AssistantPanel, AssistantCards
+                      AssistantDock, AssistantPanel, AssistantCards,
+                      Tour (the recorrido over the real app), TourCall
   screens/            EntryScreen, RunScreen, PaymentsScreen, InstructionScreen, SupplierScreen,
                       IntakeScreen, SatScreen, CepScreen, MetricsScreen, VerifyCallScreen
 ```
@@ -292,6 +297,83 @@ Voice input is the browser's own dictation (`lib/dictation.ts`), in `es-MX`, and
 audio: the assistant endpoint takes `text` and `images`, so a recording would mean inventing a part
 the contract does not have. The transcription path in `packages/extract` stays where it is documented,
 on the intake, where a voice note arrives with a payment instruction.
+
+## The guided tour
+
+`Recorrido` is the answer to the judge who walks up while nobody is presenting. The app opens on a
+dense financial table, and ninety-two rows of pesos do not explain themselves: `docs/10-demo-script.md`
+is what a person says over this product, and the tour is what the product says when nobody is talking.
+
+Three ways in, and all three open the same thing. The `Recorrido` button sits in the top bar beside
+the title, on every screen and at every width, because a judge arriving cold is looking at the top of
+the page and because the one free corner was already spent twice over by the assistant dock and the
+toasts. `#/entrada` greets a first visit with a banner, remembered in `localStorage` under
+`sentryone:tour-seen` and remembered the same way when it is dismissed, so nobody is invited twice.
+And `#/run?tour=1` opens it on arrival, which is what a printed card or a message can carry.
+
+The nine stops are `tourSteps` in `src/lib/tour.ts`, in this order: why the product exists, the run,
+the capture arriving on WhatsApp, the account and its plaza, the cent and the Banxico receipt, the SAT
+publication, the run leaving, who signs, and the call. Each one is a title, two or three paragraphs
+and at most two things to look at; the overlay that renders them is `components/Tour.tsx`.
+
+It drives the real app rather than drawing pictures of it. Every stop navigates with `navigate`, the
+screen underneath is the screen the copy is about, and the stop that is about the assistant opens the
+real drawer -- which is why `AssistantDock` keeps its open state in a store (`lib/assistant-dock.ts`)
+instead of in itself. The spotlight is four veils around a hole rather than one box with a hole cut in
+it: the veils take the pointer so a stray click cannot derail the tour, and the gap does not, so the
+control a stop is pointing at is still pressable. The card docks in whichever bottom corner has more
+room beside that hole, because a tour card that covers its own spotlight is the oldest mistake in the
+form. Arrows move, `Escape` leaves, focus goes to the card on every step, and `useReducedMotion` is
+read where the animation is in JavaScript, exactly like the drawer.
+
+What a stop points at is a `data-tour` attribute on the real element, and the names are
+`TOUR_TARGETS` in `lib/tour.ts`. `lib/tour.test.ts` walks `src/` and fails when a name in that map is
+not on any element, because an attribute removed in a refactor fails silently: the veil covers the
+whole viewport and the step still reads fine.
+
+**Two folios and no constants.** The line the tour is about arrives from `GET /api/v1/tour`, which
+derives it the way `heroOf` does offline: the largest held amount carrying a CLABE forensics finding.
+A folio written into the tour is a tour that opens on a not-found page the day the seed moves, which
+is the rule `brand/shoot.ts` already follows.
+
+### The call
+
+The last stop rings the visitor as the owner of the company, and it is the part of the product that
+does not fit on a screen: the person who decides a held payment in a twenty-eight-employee company is
+not at a desk, he answers his telephone between two other things.
+
+- **The number is never stored.** It goes in the body of one `POST /api/v1/tour/call` and nowhere
+  else, the field is fixed at `+52` and ten digits, and the API keeps `sha256(salt + phone)` and not
+  the number. The consent sentence says so in the words a person reads, and the box has to be ticked
+  before the button enables.
+- **The actor is the owner, and the stored identity is untouched.** The request carries
+  `X-Actor: role=owner; name=Visitante`, passed explicitly, while the browser keeps acting as whoever
+  `#/entrada` selected.
+- **It follows the ledger, not a poll.** The page reads the same `GET /api/v1/events` stream the run
+  screen reads and asks `GET /api/v1/tour/call/:id` every four seconds only while that stream is not
+  open. The run screen underneath re-reads itself on the same events, which is why the figure on the
+  dark card moves while the visitor is still on the telephone.
+- **It does not release a payment.** The answer lands as a `verification_call` event and then as an
+  ordinary decision with the owner's name on it, through the same path `POST /instructions/:id/decide`
+  uses. `hold` and `release` are the two a person can say; `no_answer` and `unclear` are the telephone
+  rather than the owner and leave the line exactly where it was.
+- **It reverts itself.** The decision stands for `revertAfterMs`, ten minutes by default, and the
+  sentence on the card is computed from the number the API sent rather than written out in words.
+- **It refuses politely.** `403` says the calls are off on this server, `422` says the voice is not
+  configured and shows the script anyway, `429` says when to try again out of `Retry-After`, and a
+  `400` carries the API's own sentence. Three of those four are not failures.
+
+Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off, nothing rings: the card prints
+the script the agent would read, built from the same line by `localScript`, and offers `Retener` and
+`Liberar` as a simulation. The result card then says `simulado` on it and says that nothing was
+written to the ledger, because a simulated answer that looks like a real one is the one thing this
+stop must not do.
+
+The copy of the whole tour goes through the same rule as everything else: `lib/tour.test.ts` runs
+`forbiddenVerdict` over every string a stop can render, so the word this product may not say, a
+percentage and a probability cannot reach it, and the two loss figures in the first stop are written
+as "de cada 100 pesos" for that reason. Both of them are this repository's own numbers, cited in
+`docs/04-market.md` and `docs/05-business-model.md`.
 
 ## Picking up UI work here
 

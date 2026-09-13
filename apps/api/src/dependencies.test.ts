@@ -205,6 +205,48 @@ describe("the five rows that are configuration and say so", () => {
     expect(voice.detail).toContain("422");
   });
 
+  /**
+   * The guided tour dials a second agent, and it degrades on its own. The row is
+   * still about the verification call, so the state does not move: an instance
+   * that can telephone a supplier has its voice integration up whether or not a
+   * visitor can be rung.
+   */
+  it("names the owner agent on the voice row without moving its state", () => {
+    const missing = row(
+      report({ ...emptyDependencyConfig(), voice: true }),
+      "voice",
+    );
+
+    expect(missing.state).toBe("up");
+    expect(missing.detail).toContain("ELEVENLABS_OWNER_AGENT_ID");
+    expect(missing.detail).toContain("/api/v1/tour/call");
+
+    const present = row(
+      report({ ...emptyDependencyConfig(), voice: true, ownerAgent: true }),
+      "voice",
+    );
+
+    expect(present.state).toBe("up");
+    expect(present.detail).toContain("ALLOW_TOUR_CALLS=1");
+  });
+
+  it("reads the owner agent id on its own, never as a fourth voice variable", () => {
+    const three = readDependencyConfig({
+      ELEVENLABS_API_KEY: "a",
+      ELEVENLABS_AGENT_ID: "b",
+      ELEVENLABS_PHONE_NUMBER_ID: "c",
+    });
+
+    expect(three.voice).toBe(true);
+    expect(three.ownerAgent).toBe(false);
+    expect(
+      readDependencyConfig({ ELEVENLABS_OWNER_AGENT_ID: "d" }).ownerAgent,
+    ).toBe(true);
+    expect(
+      readDependencyConfig({ ELEVENLABS_OWNER_AGENT_ID: "  " }).ownerAgent,
+    ).toBe(false);
+  });
+
   it("keeps the CEP up with no key, because a pasted one needs none", () => {
     const cep = row(report(), "cep");
 

@@ -87,6 +87,16 @@ export interface DependencyConfig {
   gemini: boolean;
   /** All three `ELEVENLABS_*` ids. Fewer than three cannot dial. */
   voice: boolean;
+  /**
+   * `ELEVENLABS_OWNER_AGENT_ID`, the SECOND agent, the one the guided tour dials.
+   *
+   * Its own boolean rather than a fourth entry in `VOICE_VARIABLES`, because the
+   * two lines degrade separately and reporting them as one would say the
+   * verification call is unconfigured on an instance where it works. It rides on
+   * the `voice` row's detail for the same reason the CEP flags ride on the CEP
+   * row: it changes how far this instance goes, not whether the row is up.
+   */
+  ownerAgent: boolean;
   /** `ALLOW_CONSORTIUM=1`, the flag that opens the cross-tenant network. */
   consortium: boolean;
   /** A Snowflake account and a key path are named, so a pull is possible. */
@@ -115,12 +125,16 @@ export const VOICE_VARIABLES = [
   "ELEVENLABS_PHONE_NUMBER_ID",
 ] as const;
 
+/** The fourth id, which only the guided tour needs. Named for the same reason. */
+export const OWNER_AGENT_VARIABLE = "ELEVENLABS_OWNER_AGENT_ID";
+
 export function readDependencyConfig(env: EnvLike): DependencyConfig {
   return {
     database: has(env, "DATABASE_URL"),
     nessie: has(env, "NESSIE_API_KEY"),
     gemini: has(env, "GEMINI_API_KEY"),
     voice: VOICE_VARIABLES.every((name) => has(env, name)),
+    ownerAgent: has(env, OWNER_AGENT_VARIABLE),
     consortium: flagged(env, "ALLOW_CONSORTIUM"),
     snowflake:
       has(env, "SNOWFLAKE_ACCOUNT") && has(env, "SNOWFLAKE_PRIVATE_KEY_PATH"),
@@ -316,14 +330,29 @@ function cepRow(config: DependencyConfig): Omit<Dependency, "checkedAt"> {
   };
 }
 
+/**
+ * The voice row, which is about two lines and one row.
+ *
+ * `state` stays a statement about the three ids of the verification call, and
+ * nothing about the owner agent moves it: an instance where a supplier can be
+ * telephoned is an instance whose voice integration is up, whether or not the
+ * guided tour has a second agent to dial. The owner agent gets a sentence of the
+ * detail instead, naming `ELEVENLABS_OWNER_AGENT_ID` when it is missing, so
+ * `GET /health` says why `POST /api/v1/tour/call` is answering 422 without
+ * inventing an eighth row for a demo affordance.
+ */
 function voiceRow(config: DependencyConfig): Omit<Dependency, "checkedAt"> {
+  const owner = config.ownerAgent
+    ? `${OWNER_AGENT_VARIABLE} is set too, so the guided tour dials its own agent once ALLOW_TOUR_CALLS=1.`
+    : `${OWNER_AGENT_VARIABLE} is empty, so the owner call of the guided tour is not configured and POST /api/v1/tour/call answers 422 with the script. bun run voice-setup --owner creates that agent and prints the id.`;
+
   return {
     name: "voice",
     configured: config.voice,
     state: config.voice ? "up" : "not_configured",
     detail: config.voice
-      ? `${VOICE_VARIABLES.join(", ")} are all set, so the verification call can dial through packages/voice. Not probed from here.`
-      : `Fewer than three of ${VOICE_VARIABLES.join(", ")} are set, so POST /api/v1/instructions/:id/verify-call answers 422 with the script and the clerk reads it on their own telephone. The call degrading is not a failure of this instance.`,
+      ? `${VOICE_VARIABLES.join(", ")} are all set, so the verification call can dial through packages/voice. ${owner} Not probed from here.`
+      : `Fewer than three of ${VOICE_VARIABLES.join(", ")} are set, so POST /api/v1/instructions/:id/verify-call answers 422 with the script and the clerk reads it on their own telephone. ${owner} The call degrading is not a failure of this instance.`,
   };
 }
 

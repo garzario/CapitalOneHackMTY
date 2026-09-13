@@ -30,6 +30,8 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/instructions/:id/carta` | `application/pdf` | the one-page evidence letter of one instruction: the seven signals, the level with its findings, the state, the decision and the name against it. See "The receipt and the carta" below |
 | GET | `/api/v1/run/:id/layout` | `text/csv` | the dispersal file of the released lines, for a clerk whose bank has a portal and no API. Exactly the lines `POST .../execute` would send, through the same `planRunExecution`, because a file that held a line the run would not send would be the control bypassed by an export button. Nothing is appended: writing a file sends nothing. `X-Layout-Lines` carries the count |
 | GET | `/api/v1/rails` | `{ active, rails, message? }` | which payment rails this server holds, which one is active and which of them has ever moved money. No key, no secret, no account. See "Which rails this server holds" below |
+| GET | `/api/v1/tour` | `{ callsEnabled, hero, listedSupplierRfc, cepInstructionId, revertAfterMs }` | everything the guided tour needs to drive itself. The three lines it points at are derived from the run on every request rather than named, so a reseed moves the tour with it. `callsEnabled` is the whole degradation in one boolean. See "The guided tour, and the call it places" below |
+| GET | `/api/v1/tour/call/:conversationId` | `{ conversationId, status, ownerOutcome?, evidence?, appliedAt?, revertsAt? }` | where one tour call stands, for a browser that could not hold the event stream open. The registry is in memory and per process, so a conversation this process did not start answers `404` |
 
 `PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings, confidence, confidenceRule, confidenceFindingIds, state, stateRule }> }`. The last five are the level and the state, derived and never stored, and they are specified under "Confidence and state" below.
 
@@ -62,6 +64,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
 | POST | `/api/v1/assistant/messages` | `multipart/form-data` or `{ sessionId?, text, images?: string[] }` | one turn of the assistant panel. Answers `text/event-stream` with `token`, `tool_call`, `tool_result`, `proposal` and `done`. It reads and it proposes, and it writes nothing but the conversation and, when a screenshot is attached and can be attributed, the ordinary intake that screenshot becomes: no decision, no cent, no payment. Rate limited per client, 20 turns a minute. See "The assistant, and what it may not do" below |
 | POST | `/api/v1/run/:id/execute` | `{ instructionIds?, confirm: true }` | the payment run leaves on the configured rail. `202` and `text/event-stream`, one `line` event per payment and a final `done` carrying the `PaymentExecution`. Nothing is sent without `confirm: true` and an `X-Actor`. See "The payment execution" below |
+| POST | `/api/v1/tour/call` | `{ phone, consent: true }` | the guided tour telephones the visitor as the owner of the company and asks what to do with the held payment in front of them. `202 { conversationId, instructionId, script, revertAfterMs }`: the telephone is ringing and nothing is on the ledger, because a call that started has proved nothing. What was said lands later as a `verification_call` carrying `line: "owner"`, and an instruction the owner actually gave lands as a `decision_made` through the same `recordDecision` that `/decide` calls, reverted ten minutes later. The number is never stored: only a salted SHA-256 of it. `400` for a number that is not a Mexican mobile, for `consent` that is not `true`, and for an `X-Actor` that is not an owner; `403` when `ALLOW_TOUR_CALLS` is not `1`; `422` with the `script` when the voice is not configured or the provider refuses; `429` with `Retry-After` on its own limiter, which is one call per number per ten minutes and twenty an hour. See "The guided tour, and the call it places" below |
 | POST | `/api/v1/run/:id/layout/response` | `{ file: string }` | the file the bank portal handed back after somebody uploaded the dispersal layout. `readLayoutResponse` in `packages/rail` parses it, and each row becomes a `payment_sent` plus a `payment_settled` carrying the clave de rastreo the bank filed, or a `payment_failed` with the portal's own sentence. Answers `{ applied, unknown, execution }`. `422` when the file carries no reference and clave at all, because then there is nothing to record. See "The payment execution" below |
 
 ### The actor on every write
@@ -761,9 +764,47 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 - A version or a run this instance never held answers `404 not_found`. A constancia for something that does not exist would be a fabricated document.
 - Synthetic figures are watermarked on the page itself, from `synthetic: true` on the record.
 
+### The guided tour, and the call it places
+
+Three endpoints under `/api/v1/tour`, and together they are one thing: a visitor at the stand types their own mobile number, the payments line telephones them as the owner of the seeded company, and whatever they answer is applied to the run in front of them and reverted ten minutes later. `apps/api/src/routes/tour.ts` is the implementation and `packages/voice/src/owner-script.ts` is the script.
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| GET | `/api/v1/tour` | none | `{ callsEnabled, hero, listedSupplierRfc, cepInstructionId, revertAfterMs }`. Everything the tour needs to drive itself, in one read. `404` on an instance whose run has no stopped line for the tour to be about |
+| POST | `/api/v1/tour/call` | `{ phone, consent: true }` | `202 { conversationId, instructionId, script, revertAfterMs }`. The telephone is ringing and nothing is on the ledger yet |
+| GET | `/api/v1/tour/call/:conversationId` | none | `{ conversationId, status, ownerOutcome?, evidence?, appliedAt?, revertsAt? }`. `404` for a conversation this process did not start |
+
+**Nothing is hard-coded to a folio.** `hero` is derived from the run on every request: the largest payment the run stopped that a `clabe_forensics` finding is standing against, with its supplier, its amount, the last four digits of the account and the two plazas as plain place names. `listedSupplierRfc` is whoever this run pays that the `sat_69b` finding names, and `cepInstructionId` is the largest line no control stops at all, which is why the Banxico receipt is the only thing that can say anything about it. On the seeded company those are `INS-2026-09-07-029`, `SYN080910HI8` and `INS-2026-09-07-035`; a reseed moves all three, which is the point. No field of the payload carries a CLABE.
+
+**The number.** `phone` is E.164 and, unless `TOUR_ALLOW_ANY_COUNTRY=1`, a Mexican mobile: `+52` and ten digits. `consent` is a literal `true` rather than a boolean, because a body carrying `false` is not a request with a flag off, it is a request to telephone somebody who did not agree to it. The number is never stored, never logged and never displayed: what is kept is `phoneHash`, a SHA-256 of the salt and the number, and `docs/06-regulatory-privacy.md`, "El numero del visitante", carries the argument. `X-Actor` has to name an owner, because half of what this call asks is whether to release a payment something stands against and a clerk cannot answer that; a clerk is refused `400`, like a malformed number.
+
+**Its own limiter, separate from the write bucket.** One call per number per ten minutes, and twenty calls an hour from the instance, answered `429 rate_limited` with `Retry-After`. It counts a different thing from the bucket on `/api/v1`: that one protects the ledger from a loop in our own web app, and this one protects a person from their telephone ringing twice. In memory and per process, like every other limit here.
+
+**What reaches the ledger**, through `deps.emit`, so it is stored before it is published:
+
+1. A `verification_call` carrying `line: "owner"`, the `conversationId`, the `phoneHash`, the `question` word for word and `ownerOutcome`, which is what the owner said to do. `outcome` is that instruction in the ledger's one verification vocabulary: `hold` is `denied`, `release` is `confirmed`, and the two absences keep their names. The event is written whatever was said, because the call happened.
+2. A `decision_made` on the hero, and only when the owner actually gave an instruction. It goes through the same `recordDecision` that `POST /api/v1/instructions/:id/decide` calls, so it is a decision the repository made and not a raw event: `hold` with the reason `El dueno la retuvo por telefono`, `release` with `El dueno la libero por telefono`, both signed by the name on `X-Actor`. `no_answer` and `unclear` apply nothing, which is the whole of their meaning.
+3. `revertAfterMs` later, a `hold` on the hero signed `Recorrido` with the reason `Fin del recorrido: la linea vuelve a su estado`, so the next visitor sees the run the first one saw. Skipped when nothing was applied, and disabled entirely by `TOUR_REVERT_MS=0`. It is a decision and not a deletion: an append-only ledger that quietly forgot an action would be worth less than one that records the tour undoing it.
+
+Both of the first two reach the screen over `GET /api/v1/events` like every other ledger event. `GET /api/v1/tour/call/:conversationId` is the fallback for a browser that could not hold that stream open, polled every few seconds while it is closed and never otherwise.
+
+**The degradation**, which is the same shape as the verification call:
+
+| State of the instance | `GET /api/v1/tour` | `POST /api/v1/tour/call` |
+|---|---|---|
+| `ALLOW_TOUR_CALLS=1` and the four `ELEVENLABS_*` ids | `callsEnabled: true` | `202`, the telephone rings |
+| `ALLOW_TOUR_CALLS` unset | `callsEnabled: false` | `403 forbidden`, naming the flag |
+| Flag set, any of the four ids missing | `callsEnabled: false` | `422 unprocessable` plus `script`, so somebody reads the words out |
+| The provider refuses or cannot be reached | `callsEnabled: true` | `422 unprocessable` plus `script` |
+| Same number inside ten minutes, or twenty calls in the hour | unchanged | `429 rate_limited` with `Retry-After` |
+
+The fourth id is `ELEVENLABS_OWNER_AGENT_ID`, the second agent, created by `bun run voice-setup --owner`. `GET /health` says which of the two lines this instance holds on the `voice` row.
+
 ## Streaming
 
 `GET /api/v1/events` is Server-Sent Events. Every appended `LedgerEvent` is pushed as `event: ledger`, so the payment-run screen and the sweep animation update without polling. That includes `cent_sent` and `cep_awaited`: the verification is not on a private channel, and the screen re-reads `GET /api/v1/instructions/:id/verification` whenever an event names that instruction. It also includes the five kinds of issues #195 and #196: `payment_sent`, `payment_settled`, `payment_failed`, `payment_cancelled` and `assistant_message`, so a second screen watching the run moves with the first one and the timeline holds the conversation next to the payments it is about.
+
+The guided tour adds no event type and no second channel. Its call arrives as a `verification_call` with four optional fields on it, `line: "owner"`, `phoneHash`, `ownerOutcome` and `question`, and the instruction the owner gave arrives as an ordinary `decision_made`, and so does the revert ten minutes later. A `verification_call` with no `line` is the supplier call, which is every one of these events written before the owner line existed, so nothing already on a ledger has to be rewritten to be read.
 
 Three endpoints stream on their own connection rather than through that one, because each of them is one piece of work a caller started and is waiting on: `POST /api/v1/assistant/messages` (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `POST /api/v1/run/:id/execute` (`line` per payment, `skipped` per line the run left alone, then `done`), and `POST /api/v1/instructions/:id/verify-account`, which answers `202` with the state it reached and leaves the rest to the ledger channel. What those two new streams push is also appended to the ledger, so nothing is only visible to whoever happened to hold the connection.
 

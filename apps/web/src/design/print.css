@@ -44,6 +44,11 @@
    * `.form-actions` is here rather than left to the rule that hides buttons,
    * because hiding its contents leaves the bar itself: an empty strip with a top
    * border, stuck to the foot of the sheet.
+   *
+   * The three `.tour-*` entries are the guided tour, and they are the worst case
+   * of all of them: a veil is a flat fill over the whole page, so a sheet printed
+   * while the tour is open would come out as one grey rectangle with a card
+   * stamped in the corner.
    */
   .rail,
   .topbar,
@@ -51,6 +56,9 @@
   .skip-link,
   .drawer,
   .scrim,
+  .tour-veil,
+  .tour-ring,
+  .tour-card,
   .form-actions {
     display: none !important;
   }

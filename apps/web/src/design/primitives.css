@@ -2202,3 +2202,326 @@
     }
   }
 }
+
+@layer components {
+  /* ------------------------------------------------------------- recorrido */
+
+  /*
+   * The guided tour: a veil over the real app, a ring around one element of it,
+   * and a card docked in the corner nothing else uses.
+   *
+   * The veil is four rectangles and not one box with a hole cut in it. Each one
+   * takes the pointer, so a stray click during the tour cannot navigate the app
+   * out from under the step; the gap between them does not, so the control the
+   * step points at is still pressable. A `clip-path` or one enormous
+   * `box-shadow` spread would have been a single element and would have left the
+   * whole page clickable underneath it.
+   *
+   * The card is bottom left, which is the only corner of this app that is free:
+   * the assistant dock is bottom right and the toasts stack above it. Docked and
+   * not centred, because a panel in the middle of the viewport covers the thing
+   * it is describing, and the whole argument for this tour is that the product
+   * answers for itself underneath it.
+   */
+  .tour-veil {
+    position: fixed;
+    z-index: var(--z-tour);
+    background-color: var(--c-scrim);
+  }
+
+  /*
+   * The ring, in the hold red, and the one place in this app where that colour is
+   * not saying that a payment is held: here it is the tour pointing. The accent
+   * was the other candidate and it is already the focus ring and every link, so a
+   * ring in it would read as focus. It never takes the pointer, so the element it
+   * frames is still what a click lands on, and it moves under a transition, so
+   * walking from one step to the next reads as one ring travelling.
+   */
+  .tour-ring {
+    position: fixed;
+    z-index: var(--z-tour);
+    pointer-events: none;
+    border: 2px solid var(--c-hold);
+    border-radius: var(--radius-lg);
+    transition:
+      top var(--motion-base) var(--ease-standard),
+      left var(--motion-base) var(--ease-standard),
+      width var(--motion-base) var(--ease-standard),
+      height var(--motion-base) var(--ease-standard);
+  }
+
+  .tour-card {
+    position: fixed;
+    z-index: var(--z-tour-card);
+    left: var(--space-6);
+    bottom: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: min(var(--tour-card-width), calc(100vw - var(--space-8)));
+    max-height: min(44rem, calc(100svh - var(--space-10)));
+    /* The card clips and the prose inside it scrolls, which is not the same as
+       the card scrolling: the count at the top and the two controls at the foot
+       have to be on screen at every height, and a card that scrolled as one
+       block put "Siguiente" below the fold of its own corner. */
+    overflow: hidden;
+    padding: var(--space-5);
+    background-color: var(--c-surface-raised);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-3);
+  }
+
+  .tour-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .tour-eyebrow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  /* The count, for the eye. The words above it are the version a screen reader
+     gets, so the component hides this from the accessibility tree. */
+  .tour-progress {
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-well-line);
+    overflow: hidden;
+  }
+
+  .tour-progress-fill {
+    display: block;
+    height: 100%;
+    background-color: var(--c-accent);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  /* The one part of the card that scrolls. `min-height: 0` is what allows a flex
+     child to be shorter than its content; without it the body refuses to shrink
+     and pushes the foot out of the card instead of scrolling. */
+  .tour-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .tour-look {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background-color: var(--c-surface-sunken);
+    border-radius: var(--radius-md);
+  }
+
+  .tour-look-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding-left: var(--space-4);
+    list-style: disc;
+  }
+
+  .tour-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  /* --------------------------------------------- the call of the last stop */
+
+  .tour-call {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background-color: var(--c-well);
+    border: var(--border-width) solid var(--c-well-line);
+    border-radius: var(--radius-lg);
+  }
+
+  .tour-call-line {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .tour-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* The prefix is furniture and not an input: the country is fixed, so it is
+     drawn as part of the field instead of offered as something to edit. */
+  .tour-phone {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .tour-phone-prefix {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    padding: 0 var(--space-3);
+    border: var(--border-width) solid var(--c-border-strong);
+    border-right: none;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    background-color: var(--c-surface-sunken);
+    color: var(--c-ink-muted);
+  }
+
+  .tour-phone .input {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+
+  .tour-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  /* The four steps of one call. Colour is never the only signal: the steps that
+     have happened are in ink on the accent's pale ground and the ones ahead are
+     subtle, and each one says in words which it is. */
+  .tour-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .tour-strip-step {
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-pill);
+    background-color: var(--c-surface);
+    color: var(--c-ink-subtle);
+    font-size: var(--text-xs);
+  }
+
+  .tour-strip-step[data-on="true"] {
+    border-color: var(--c-accent);
+    background-color: var(--c-accent-soft);
+    color: var(--c-ink);
+  }
+
+  .tour-result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background-color: var(--c-surface);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-md);
+  }
+
+  .tour-result-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .tour-script {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: var(--border-width) solid var(--c-border);
+  }
+
+  .tour-script summary {
+    cursor: pointer;
+    color: var(--c-ink-muted);
+  }
+
+  .tour-script-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding-left: var(--space-4);
+    list-style: decimal;
+  }
+
+  .tour-simulate {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  /* ------------------------------------------------ the first-visit banner */
+
+  .tour-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background-color: var(--c-accent-soft);
+    border: var(--border-width) solid var(--c-accent);
+    border-radius: var(--radius-lg);
+  }
+
+  .tour-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  /* The control that opens the tour, beside the title. The word goes at the
+     width where the title and the synthetic mark need the room and the glyph
+     stays, which is why it is a triangle and not a letter; the button keeps its
+     own `aria-label`, so the name does not go with the word. */
+  .topbar-tour {
+    flex: none;
+    gap: var(--space-2);
+  }
+
+  /* The other corner, taken when the spotlight is on the left of the screen. The
+     card moves rather than covering the thing it is pointing at, and the rule is
+     above the phone breakpoint because down there the card is the full width of
+     the screen and there is no side to choose. */
+  @media (min-width: 48.0625rem) {
+    .tour-card[data-side="right"] {
+      left: auto;
+      right: var(--space-6);
+    }
+  }
+
+  /* On a phone the card is the bottom of the screen rather than a panel in a
+     corner, because a 25rem card on a 390px viewport is the viewport. It keeps a
+     gutter on both sides at every width and it is shorter, so the screen it is
+     explaining is still visible above it. */
+  @media (max-width: 48rem) {
+    .tour-card {
+      left: var(--space-3);
+      right: var(--space-3);
+      bottom: var(--space-3);
+      width: auto;
+      /* Three quarters of a phone, which is what the last stop needs: the
+         telephone field and the consent box have to be reachable without
+         scrolling the card, and the screen above it is still visible. */
+      max-height: min(36rem, 76svh);
+      padding: var(--space-4);
+      gap: var(--space-2);
+    }
+
+    .topbar-tour .tour-label {
+      display: none;
+    }
+  }
+}

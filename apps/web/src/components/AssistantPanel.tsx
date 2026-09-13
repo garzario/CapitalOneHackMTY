@@ -436,6 +436,7 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
         aria-labelledby="assistant-title"
         tabIndex={-1}
         className="drawer"
+        data-tour="assistant-panel"
         initial={reduceMotion ? false : { x: 32, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{

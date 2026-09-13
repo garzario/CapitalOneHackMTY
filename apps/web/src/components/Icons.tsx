@@ -131,6 +131,23 @@ export function IconPerson(props: IconProps) {
   );
 }
 
+/**
+ * The recorrido: a play triangle, on the one control that starts it.
+ *
+ * It is in the top bar next to the title, so it is furniture like the collapse
+ * control beside it rather than a seventh section. A triangle and not a question
+ * mark: this is not help, it is the product telling its own story, and the glyph
+ * has to say "start" to somebody who has not read the label.
+ *
+ * Written by hand on the same 24-unit grid as the Rune drawings, because the
+ * vendored subset carries no play shape, and as one path so the draw in
+ * `primitives.css` treats it like every other one. It closes on itself, which is
+ * what makes it read as solid at 17px even though every glyph here is a stroke.
+ */
+export function IconPlay(props: IconProps) {
+  return <Glyph {...props} d="M9 7.5L17 12L9 16.5L9 7.5Z" />;
+}
+
 /** The rail's own collapse control. */
 export function IconPanel(props: IconProps) {
   return (

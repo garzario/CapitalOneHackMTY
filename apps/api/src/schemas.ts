@@ -42,6 +42,7 @@ import type {
   Metrics,
   NameMatch,
   NetworkSignal,
+  OwnerOutcome,
   PaymentComplement,
   PaymentExecution,
   PaymentExecutionLine,
@@ -488,6 +489,22 @@ export const verificationOutcomeSchema = z.enum([
   "unclear",
 ]) satisfies z.ZodType<VerificationOutcome>;
 
+/**
+ * What the owner told the payments line to do, on the guided tour's own call.
+ *
+ * Actions and not verdicts, which is why it is a second enum and not these four
+ * words reused: the supplier line asks whether an account is theirs and the owner
+ * line asks whether a held payment stays held. `routes/tour.ts` maps one onto the
+ * other when the call reaches the ledger, so the `verification_call` event keeps
+ * one vocabulary for both lines.
+ */
+export const ownerOutcomeSchema = z.enum([
+  "hold",
+  "release",
+  "no_answer",
+  "unclear",
+]) satisfies z.ZodType<OwnerOutcome>;
+
 /* -------------------------------------------------------------------------- */
 /* The assistant panel                                                         */
 /* -------------------------------------------------------------------------- */
@@ -731,6 +748,25 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     manual: z.boolean(),
     /** Who typed the outcome in, on a hand-recorded call. */
     recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH).optional(),
+    /**
+     * Which line placed the call. Absent is the supplier line, which is every
+     * one of these events written before the owner line existed, so nothing
+     * already on a ledger has to be rewritten to be read.
+     */
+    line: z.enum(["supplier", "owner"]).optional(),
+    /**
+     * Salted SHA-256 of the number that was dialled, hex, and only on the owner
+     * line. It is the ONLY trace of that number anywhere in this product:
+     * `docs/06-regulatory-privacy.md`, "El numero del visitante".
+     */
+    phoneHash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/, "sha-256 hex")
+      .optional(),
+    /** What the owner said to do, before it is mapped onto `outcome`. */
+    ownerOutcome: ownerOutcomeSchema.optional(),
+    /** The question that was asked, word for word, so the answer has a subject. */
+    question: z.string().min(1).max(2000).optional(),
     actor: actorSchema.optional(),
   }),
   z.object({
@@ -1234,6 +1270,90 @@ export const verifyCallScriptResponseSchema = z.object({
   releasesPayment: z.literal(false),
 });
 
+/* -------------------------------------------------------------------------- */
+/* The guided tour                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one line of the seeded run the tour is about, as the screens name it.
+ *
+ * Derived from the repository on every request and never stored: the tour points
+ * at the largest held payment whose CLABE forensics finding is what held it, so a
+ * reseed with a different company moves the tour with it instead of leaving a
+ * folio nobody holds in a constant. No field here carries the CLABE; the four
+ * digits are what the call reads and what the screen shows.
+ */
+export const tourHeroSchema = z.object({
+  instructionId: z.string().min(1),
+  supplierRfc: rfcSchema,
+  supplierName: z.string().min(1),
+  amount: amountSchema,
+  accountLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+  /** Where this account was opened, as the call says it out loud. */
+  plazaNew: z.string(),
+  /** Where the accounts already paid to this supplier were opened. */
+  plazaUsual: z.string(),
+});
+
+/**
+ * What the tour needs in order to drive itself, in one read.
+ *
+ * `callsEnabled` is the whole degradation in one boolean: `ALLOW_TOUR_CALLS=1`,
+ * the three ElevenLabs ids and the owner agent id, all four present. With any of
+ * them missing the tour still runs, the form says the call is off on this
+ * instance, and nothing is hidden.
+ */
+export const tourResponseSchema = z.object({
+  callsEnabled: z.boolean(),
+  hero: tourHeroSchema,
+  /** The supplier of this run that is on the SAT list, for the sweep beat. */
+  listedSupplierRfc: z.string(),
+  /** The line whose CEP verification is the demo, for the one-cent beat. */
+  cepInstructionId: z.string(),
+  /** How long an applied decision stands before the line returns to its state. */
+  revertAfterMs: z.number().int().nonnegative(),
+});
+
+/** The words the owner hears. Four digits of one account and never the CLABE. */
+export const ownerScriptSchema = z.object({
+  firstMessage: z.string().min(1),
+  question: z.string().min(1),
+  spoken: z.array(z.string().min(1)),
+});
+
+/**
+ * `202` from `POST /api/v1/tour/call`: the telephone is ringing.
+ *
+ * Nothing is on the ledger yet and the body says nothing about an outcome,
+ * because a call that started has proved nothing. The screen follows the stream
+ * for the events, or asks `GET /api/v1/tour/call/:id` when the stream is closed.
+ */
+export const tourCallStartedSchema = z.object({
+  conversationId: z.string().min(1),
+  instructionId: z.string().min(1),
+  script: ownerScriptSchema,
+  revertAfterMs: z.number().int().nonnegative(),
+});
+
+/**
+ * Where one tour call stands, for the screen that cannot hold the event stream.
+ *
+ * The registry behind it is in memory and per process, which is the honest limit
+ * of not having a second store for something that lives for ten minutes: a
+ * conversation this process did not start answers `404`.
+ */
+export const tourCallStatusSchema = z.object({
+  conversationId: z.string().min(1),
+  status: z.enum(["initiated", "in-progress", "processing", "done", "failed"]),
+  ownerOutcome: ownerOutcomeSchema.optional(),
+  /** The sentence the outcome was read from, quoted from the transcript. */
+  evidence: z.string().min(1).optional(),
+  /** When the decision the owner asked for was recorded. */
+  appliedAt: instantSchema.optional(),
+  /** When the line goes back to the state it was in. */
+  revertsAt: instantSchema.optional(),
+});
+
 export const seedResponseSchema = z.object({
   seed: z.number().int(),
   suppliers: z.number().int().nonnegative(),
@@ -1361,6 +1481,24 @@ export const verifyCallBodySchema = z.union([
   }),
 ]);
 
+/**
+ * `POST /api/v1/tour/call`: a telephone number and the consent to ring it.
+ *
+ * Both halves are required and neither has a default. The number is E.164 here
+ * and the route narrows it to a Mexican mobile unless `TOUR_ALLOW_ANY_COUNTRY=1`,
+ * because the shape of the refusal is what tells a visitor to add the country
+ * code rather than to try again. `consent` is a literal `true` rather than a
+ * boolean: a body that carries `false` is not a request with a flag off, it is a
+ * request to telephone somebody who did not agree to it, and it is refused.
+ */
+export const tourCallBodySchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+[1-9]\d{7,14}$/, "E.164 telephone number"),
+  consent: z.literal(true),
+});
+
 export const seedBodySchema = z.object({
   seed: z
     .number()
@@ -1449,6 +1587,11 @@ export const rfcParamSchema = z.object({ rfc: typedRfcSchema });
 
 export const idParamSchema = z.object({ id: z.string().min(1).max(200) });
 
+/** `GET /api/v1/tour/call/:conversationId`. The provider's own id, echoed back. */
+export const tourConversationParamSchema = z.object({
+  conversationId: z.string().min(1).max(200),
+});
+
 /** `GET /api/v1/sat/constancia?listVersion=`. */
 export const constanciaQuerySchema = z.object({
   listVersion: z.string().min(1).max(200),
@@ -1495,6 +1638,12 @@ export type VerifyCallResponse = z.infer<typeof verifyCallResponseSchema>;
 export type VerifyCallScriptResponse = z.infer<
   typeof verifyCallScriptResponseSchema
 >;
+export type TourHero = z.infer<typeof tourHeroSchema>;
+export type TourResponse = z.infer<typeof tourResponseSchema>;
+export type OwnerScriptResponse = z.infer<typeof ownerScriptSchema>;
+export type TourCallStarted = z.infer<typeof tourCallStartedSchema>;
+export type TourCallStatus = z.infer<typeof tourCallStatusSchema>;
+export type TourCallBody = z.infer<typeof tourCallBodySchema>;
 export type SeedBody = z.infer<typeof seedBodySchema>;
 export type VerificationStateResponse = z.infer<typeof verificationStateSchema>;
 export type PaymentExecutionResponse = z.infer<typeof paymentExecutionSchema>;

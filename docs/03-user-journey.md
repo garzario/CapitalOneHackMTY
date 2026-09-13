@@ -63,6 +63,41 @@ asserted by a test rather than intended.
 | 8. Execution | She reviews the released lines, presses **Enviar corrida**, confirms, and watches it go line by line. | `POST /api/v1/run/:id/execute` needs `confirm: true` and her name on the header. `planRunExecution` asks one question per line through the ADR-0009 state table: `liberado` goes, `cancelado` is dropped before anything is sent, `rojo` and `pendiente` stay in front of a person, `enviado` is already gone. Each line that leaves appends `payment_sent` with the clave de rastreo the rail filed, `payment_settled` once the rail can answer for it, and a receipt. The outflow is written to the company's own bank mirror, so control 6 reconciles the payment instead of reporting it missing. A server with no rail answers `503` and appends nothing. | +1, committed | **Salida de la corrida**, `PaymentsScreen`, `#/payments` |
 | 9. Post-outcome | She files the receipt of each payment, the run constancia, and the one-page letter for any supplier who rings to ask why a transfer has not arrived. | `cep_verified` preserves the verified beneficiary. A later `sat_list_published` event replays the ledger, prices prior exposure and cancels any line the publication made definitive. The four documents are real PDFs produced on the server with no headless browser, each carrying a SHA-256 huella of the ledger range and the sentence that it is not an electronic signature. | +2, confident | **CEP**, `CepScreen`, `#/cep`; **Lista 69-B**, `SatScreen`, `#/sat` |
 
+## El recorrido, the same journey walked by whoever opened the link
+
+Everything above is the journey of the person who pays the suppliers. This is the journey of the
+judge, the teammate or the visitor who opens the link cold and meets ninety-two rows of pesos that
+explain nothing on their own, and it is a stage of the product rather than a page about it.
+
+**Recorrido** in the top bar, and a banner on `#/entrada` on a first visit, opens nine stops over the
+running app. The steps are `tourSteps` in `apps/web/src/lib/tour.ts`: each one navigates to the
+screen a stage above happens on, dims the page except for the one element it is about, and says in
+three paragraphs what that element is for. In order: why SentryOne exists, the Thursday run, the
+WhatsApp screenshot arriving in the assistant panel, the account and its plaza, the cent and the
+CEP, the SAT publishing, the run leaving, who signs, and the call. Every line a stop points at is
+derived from the run through `GET /api/v1/tour`, so a reseed moves the recorrido with it and no stop
+names a folio.
+
+The ninth stop is the one that is not a screen. The visitor types their own mobile number, ticks a
+box, and the payments line telephones them as Gerardo Villarreal, the owner of the synthetic
+company. It reads them the payment the CLABE control stopped, says the account is new and ends in
+four digits it reads one at a time, names the plaza it was opened in beside the plaza the supplier
+has always been paid in, and asks the one question the owner is the only person who can answer,
+whether the line stays held until it is verified or is released under their own name. What they
+answer is applied to that line as a `decision_made` carrying their name and the sentence it was read
+from, through the same `recordDecision` stage 7 uses, and ten minutes later a second decision signed
+`Recorrido` puts the line back for the next visitor.
+
+It is stage 7 argued from the other end. The stages say a person decides; the recorrido hands the
+telephone to the person in front of the screen and lets them be the one who did. The three limits
+are the ones the rest of this page already carries. No call releases anything on its own, because
+what a call produces is a decision with a name on it and the two absences, `no_answer` and
+`unclear`, apply nothing at all. The number is never stored, logged or shown: what survives is a
+salted SHA-256, which is `docs/06-regulatory-privacy.md` section 4.5. And the whole feature is off
+unless the instance carries `ALLOW_TOUR_CALLS=1`, so no deployment acquires the ability to ring a
+telephone by accident; with it unset the stop reads the script out on the screen instead and says
+so.
+
 ## The cent inside the run
 
 Stage 5 used to be a procedure with a button on top. The clerk sent one cent from the

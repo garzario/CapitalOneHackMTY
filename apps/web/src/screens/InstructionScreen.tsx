@@ -421,6 +421,7 @@ export function InstructionScreen({ id }: { id: string }) {
                 href={cartaHref(detail.instruction.id)}
                 target="_blank"
                 rel="noreferrer"
+                data-tour="instruction-carta"
               >
                 Carta de evidencia (PDF)
               </a>
@@ -449,6 +450,7 @@ export function InstructionScreen({ id }: { id: string }) {
           <section
             aria-labelledby="findings-heading"
             className="flex flex-col gap-4"
+            data-tour="instruction-findings"
           >
             <h2 id="findings-heading" className="eyebrow">
               Hallazgos

@@ -489,6 +489,7 @@ export function SatScreen() {
           <button
             type="button"
             className="btn btn-accent btn-lg"
+            data-tour="sat-simulate"
             aria-busy={isSweeping}
             disabled={isSweeping}
             onClick={() => {
@@ -673,7 +674,10 @@ export function SatScreen() {
                   frame to those totals rather than to the sum of the frames,
                   because landing a cent away from the engine is how a judge
                   stops believing the screen. */}
-              <dl className="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <dl
+                className="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3"
+                data-tour="sat-exposure"
+              >
                 <div>
                   <dt className="eyebrow">Base deducida</dt>
                   <dd className="m-0 mt-1">

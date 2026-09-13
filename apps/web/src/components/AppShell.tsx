@@ -52,12 +52,14 @@ import {
 import { SYNTHETIC_LABEL } from "../lib/labels";
 import { dataMode } from "../lib/resource";
 import { href, PATHS, type Route, type RouteName } from "../lib/router";
+import { openTour } from "../lib/tour-store";
 import {
   IconIntake,
   IconList,
   IconMetrics,
   IconPanel,
   IconPerson,
+  IconPlay,
   IconReceipt,
   IconRun,
   IconSeal,
@@ -341,6 +343,28 @@ export function AppShell({
               </span>
             </button>
             <h1 className="topbar-title">{title}</h1>
+
+            {/* The recorrido, beside the title and on every screen.
+
+                It is here rather than on a floating launcher of its own because a
+              judge who walks up to an unattended stand is looking at the top of
+              the page, and because the one corner a fixed control could have
+              taken is already spent twice over: the assistant dock is bottom
+              right and the toasts stack above it. A button in the strip that is
+              on screen at every width cannot be covered by either. */}
+            <button
+              type="button"
+              className="btn btn-sm topbar-tour"
+              /* Named on the button and not only by the word inside it: the word
+                 is hidden below 48rem, where the title and the synthetic mark
+                 need the room, and a control whose name is a span that is not
+                 displayed is a control with no name. */
+              aria-label="Abrir el recorrido"
+              onClick={openTour}
+            >
+              <IconPlay size={15} />
+              <span className="tour-label">Recorrido</span>
+            </button>
 
             {/* ADR-0002: anything generated carries a visible marker. It is a
               standing fact about the whole app rather than a property of the
