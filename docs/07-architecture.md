@@ -401,13 +401,15 @@ API's own answers rather than a second opinion. Three consequences worth knowing
 **The one number the narrowing moves, and what the screen does about it.** Carrying all 4103 invoices
 cost 208 KB gzipped against 8.8 for the 156, which is the difference between a 359 KB bundle and a
 160 KB one on a phone in a corridor. The price is that `CFDIS` is no longer the company's whole
-invoice history, and one field reads its length: "facturas en el expediente" in the supplier drawer.
-`GET /api/v1/suppliers/:rfc` still answers with the issuer's whole file, so whenever the API answered
-that count is the API's and nothing changed. When the drawer fell back, the same field would print 3
-for an issuer that has 23, and a count that changes with who answered is issue #125 itself. So the
-offline drawer labels the field "facturas de esta corrida", says in one line that only the invoices
-this run pays, the sweep prices or a finding names travel without the API, and for an issuer this
-week's run never touched it says that rather than "sin facturas".
+invoice history, and one field reads its length: "facturas en el expediente" in the supplier profile
+at `#/suppliers/:rfc`. `GET /api/v1/suppliers/:rfc` still answers with the issuer's whole file, so
+whenever the API answered that count is the API's and nothing changed. When the profile falls back,
+the same field would print 3 for an issuer that has 23, and a count that changes with who answered is
+issue #125 itself. So the offline profile labels the field "facturas de esta corrida", says in one
+line that only the invoices this run pays, the sweep prices or a finding names travel without the API,
+and for an issuer this week's run never touched it says that rather than "sin facturas". The weekly
+behaviour chart on that screen reads the same list and is narrowed with it, which is why the sentence
+under it names the endpoint the series came from.
 
 `scripts/web-mock.test.ts` is the guard. It regenerates the file and compares it byte for byte, and
 it boots a `MemoryRepository` on the same company to assert that both sides answer the same legal

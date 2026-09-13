@@ -367,6 +367,46 @@ then the screens, then the narrative, then the plumbing.
   clerk's identity is personal data about an employee and is treated under the obligations of 4.2
   like everything else on that page.
 
+- The supplier profile, which is the expediente the drawer never had room for (issue #213).
+  `#/suppliers/:rfc` in `apps/web` answers the four questions a clerk asks about a counterparty before
+  a payment leaves, on one screen: the history, every account with its plaza, what the supplier
+  invoiced week by week, and where it stands on both SAT lists. It is reachable from the RFC under the
+  legal name in the run table and from "Ver expediente del proveedor" on the instruction detail, and
+  it works under `?data=api` and `?data=mock`. The drawer is gone rather than kept beside it: two
+  renderings of one expediente is the failure of issue 125 with a slower fuse, and a sheet sliding
+  over the payment run had space for the invoice table and nothing else.
+
+  The part worth reading is `apps/web/src/lib/supplier-profile.ts`, and the reason it is a module with
+  its own tests rather than markup is that four of the sentences on this screen would be wrong in a
+  way nobody notices. The weekly series is cut on a Monday 00:00 UTC boundary, because that is what
+  `date_trunc('week', at at time zone 'UTC')` in `0007_supplier_outflow.sql` lands on and what
+  `time_bucket('7 days', at)` in `0008` counts from its 2000-01-03 origin: a week cut in Monterrey
+  would put every bar one day off the row the database holds. A week with no invoice is a filled zero
+  rather than an omitted bucket, because silence is the signal in half of these cases and closing the
+  gap draws four quiet months as four adjacent bars. A plaza is three digits with a name beside it or
+  three digits alone, `lookupPlaza` is the only table consulted, and the panel prints who published
+  the catalogue, because `packages/core/src/snapshot/README.md` answers "is this Banxico's file?" with
+  "no" in its first paragraph. And both SAT lists always answer, the way `ControlsPanel` always draws
+  six bars.
+
+  Where each number comes from is on the screen, and one of those sentences is an admission.
+  `supplier_weekly_outflow` is in the database twice and has no endpoint in `docs/09-api.md`, so
+  `GET /api/v1/suppliers/:rfc` answers `cfdis` and never `weeks`, and the chart says in as many words
+  that the series is grouped in the browser out of the invoices that endpoint did answer. The dashed
+  reference line is `baselineRatePerWeek` off the `supplier_behaviour` finding and appears only when
+  that detector raised one: with no finding there is no baseline the arithmetic ran, and a threshold
+  drawn from the chart's own mean would be this screen inventing one. The consortium is one line read
+  off the finding that carries the signal rather than a second call to
+  `GET /api/v1/consortium/signal`, so the line is the one the decision was made with, it renders under
+  `?data=mock` where nothing reaches the network, and "no consultada" is printed rather than hidden.
+
+  Nothing on it is a verdict about the company. There is no level over the legal name, because
+  `confiable`, `precaucion` and `alerta` are about one payment under ADR-0009 and a badge over an RFC
+  would be a rating this product has no business issuing. The two SAT rows are worded the same way:
+  an absent 69-B row says the RFC is not in the corte this build has loaded and that this is not a
+  constancia of anything, and an absent 49 Bis row says the article publishes one resolution and
+  provides for no published clearing, so no row is not a desvirtuamiento. The official list stays
+  behind a press, so the panel links to `#/sat?rfc=` and asks the SAT nothing on arrival.
 - The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
   `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
   level and their state, "Enviar corrida" behind a second press and a name, the progress line by line
