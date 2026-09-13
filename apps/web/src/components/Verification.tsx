@@ -44,6 +44,7 @@ import {
   isSettled,
   notStartedVerification,
   sealVerdictOf,
+  storedCepAt,
   type VerificationFailure,
   verificationFailure,
 } from "../lib/verification";
@@ -66,9 +67,20 @@ const POLL_ATTEMPTS = 8;
 
 export function VerifyAccountPanel({
   instructionId: fromLink,
+  onCepStored,
 }: {
   /** Prefilled from `?instruction=`, so the instruction detail is one click away. */
   instructionId: string;
+  /**
+   * Called once a signed CEP has landed for the instruction on screen.
+   *
+   * The registry of verified beneficiaries is a sibling resource on the same
+   * screen, and storing the CEP is exactly what writes a row into it. Without
+   * this the panel would show a released payment next to a registry still
+   * reading "registro vacio" until somebody reloaded the page, which is the one
+   * reading of that panel that is false. Must be stable across renders.
+   */
+  onCepStored?: () => void;
 }) {
   const [typed, setTyped] = useState(fromLink);
   /* The id the panel is following, which only changes on submit. The input
@@ -127,6 +139,18 @@ export function VerifyAccountPanel({
   });
 
   const waiting = state !== null && source === "api" && isInFlight(state.state);
+
+  /* The instant the CEP was stored, or null. `storedCepAt` is the rule and it is
+     in lib because it is a decision rather than a rendering: keyed on the instant,
+     it fires once per document and never again as the machine walks on to
+     released or blocked, and never at all for the offline run. */
+  const storedAt = storedCepAt(state, source);
+
+  useEffect(() => {
+    if (storedAt !== null) {
+      onCepStored?.();
+    }
+  }, [storedAt, onCepStored]);
 
   useEffect(() => {
     if (!waiting) {

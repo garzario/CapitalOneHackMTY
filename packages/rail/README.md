@@ -56,10 +56,16 @@ rail minted it:
 - `status` comes back `pending`, the date is the Monterrey calendar day with no time,
   and the description is the fixed sentence with no name and no account in it.
 - Our key holds two accounts nicknamed "Cuenta operativa SPEI" (the mirror has been
-  pushed under two customers). `GET /accounts` answers them in a stable order with
-  the one carrying the mirror purchases first, so `pickMirrorAccount` takes the
-  first rather than calling it ambiguous. No customer and no account is ever created
-  by this package.
+  pushed under two customers), and through the key they are indistinguishable: same
+  nickname, same type, same balance. `pickMirrorAccount` takes the first one
+  `GET /accounts` answers, which is deterministic and never alternates between them.
+  Re-read on 2026-09-12 while closing issue #165: that first account is
+  `3fce172e-1591-43b8-b112-08e4491e3651`, the one abandoned during development
+  (issue #45), and not `ad2841a5-c274-47e4-84c8-e830667feea6`, the mirror
+  `bun run nessie:mirror` keeps reconciled. So the probe lands on the older
+  account and this package does not claim otherwise; `accountId` pins it. No
+  customer and no account is ever created here, and the read that confirmed it
+  counted 3 customers and 2 accounts, exactly what issue #45 recorded.
 
 ## STP, and what is not verified
 

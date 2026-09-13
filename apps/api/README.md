@@ -135,10 +135,10 @@ wrong and it is cheaper to fix it than to work around it.
 ```
 bun install --frozen-lockfile
 bun run --filter '@hackmty/api' dev      # http://localhost:3000
-bun test                                 # 163 tests, no socket, no database
+bun test                                 # 209 tests, no socket, no database
 bun run typecheck
 
-TEST_DATABASE_URL=postgres://localhost:5432/sentryone_test bun test   # and the Postgres suite
+TEST_DATABASE_URL=postgres://localhost:5432/sentryone_test bun test apps/api   # and the Postgres suite
 ```
 
 The route suite drives the app through `app.request()`, including the SSE
@@ -146,6 +146,13 @@ stream, so it needs no port and no Postgres. `postgres-repo.test.ts` is the
 opt-in half and is skipped unless `TEST_DATABASE_URL` names a database it may
 empty; `DATABASE_URL` is deliberately not a fallback, because a run on a laptop
 set up for a rehearsal would otherwise wipe the demo company.
+
+Note the `apps/api` on that last line. Six files across the tree take
+`TEST_DATABASE_URL`, they all point at the same database, and each one migrates
+and empties it in its own `beforeAll`, so a whole-tree `bun test` with the
+variable set is order dependent and fails somewhere different on each run. Run
+the database half one workspace at a time, which is also how CI never meets it:
+CI sets no `TEST_DATABASE_URL` at all and every one of those cases skips.
 
 ```bash
 curl -s localhost:3000/api/v1/run/current | jq '.totals'

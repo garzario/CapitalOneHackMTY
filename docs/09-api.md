@@ -155,7 +155,13 @@ digits of the account rather than the CLABE.
 cent as a withdrawal on the company's bank mirror with our own team key. Nessie is a
 sandbox and not a bank: no pesos move and no CEP is produced, and a cent sent that way
 cannot even build a portal query, because Nessie is not a SPEI participant and has no
-clave SPEI. It proves the flow, on the same account `bank_reconciliation` reads.
+clave SPEI. It proves the flow and nothing about the pesos. Which account it lands on is
+stated rather than assumed: our key holds two accounts under the mirror nickname, the
+rail takes the first one `GET /accounts` answers, and on 2026-09-12 that was
+`3fce172e-1591-43b8-b112-08e4491e3651`, the account abandoned during development in issue
+#45, and not `ad2841a5-c274-47e4-84c8-e830667feea6`, the mirror `bun run nessie:mirror`
+keeps reconciled. Nothing downstream reads the probe as reconciliation evidence, because
+`bank_reconciliation` reads `ledger_tx` and the pipeline hangs off the clave de rastreo.
 `RAIL=stp` is the rail that produces a Banxico-signed CEP, it is written out in
 `packages/rail/src/stp.ts` with its `registraOrden` request, its cadena original and its
 RSA signature, and it refuses to run without `STP_*` configuration, so nothing here can
@@ -304,14 +310,20 @@ The POST that creates the customer is what validates the key, since an invalid k
 
 `--import` replaces the generator's `ledger_tx` rows for the company account with the rows Nessie answered, scoped by account and by source, and the delete and the insert run inside one transaction so a failure between them cannot leave the company with a ledger shorter than its bank. It needs `--limit=0`, because the import replaces the mirror rather than adding to it, and the imported rows carry the bank's whole-peso amounts. It refuses outright when the push reported failures, when the read-back threw or was partly rejected, or when the reconciliation reported any differing day: a replacement built on a partial push is a ledger that is quietly short of the bank, and every rolling baseline the engine computes off it moves with it.
 
-One kind of row on that account is not mirror history: the one-cent verification writes a
-WITHDRAWAL, because the probe must name nobody and a withdrawal carries no payee at all.
+One kind of row is not mirror history: the one-cent verification writes a WITHDRAWAL,
+because the probe must name nobody and a withdrawal carries no payee at all.
 Verified on 2026-09-12 with our own key: `POST /accounts/{id}/withdrawals` with
 `{medium: "balance", transaction_date: "<Monterrey day>", amount: 0.01, status:
 "pending", description: "Verificacion de cuenta SPEI 0.01 MXN"}` answers a row whose
 `_id` becomes the clave de rastreo, and the amount reads back as `0` because Nessie
 stores a whole number. The exact centavo is in our ledger, like every other amount. No
-customer and no account is ever created by that path: the account is the one
-`bun run nessie:mirror` made, found by its nickname through `GET /accounts`.
+customer and no account is ever created by that path: the account is one the key already
+holds, found by its nickname through `GET /accounts`. Re-read on 2026-09-12 while closing
+issue #165, with `GET` only: the key holds 3 customers and 2 accounts, which is exactly
+what issue #45 recorded, so the probes created neither. Both probes sit on
+`3fce172e-1591-43b8-b112-08e4491e3651` (390 purchases, the account abandoned during
+development) rather than on `ad2841a5-c274-47e4-84c8-e830667feea6` (206 purchases, the
+reconciled mirror), because the two carry the same nickname and the rail takes the first
+one listed. Cleaning that up is the sandbox's problem and not the pipeline's.
 
 A re-seed undoes an import, on purpose and without doubling anything. `bun run seed` loads the company through `PostgresRepository.load`, which deletes the company account's `ledger_tx` rows by account id and writes the generator's mirror back, so after a `bun run seed` the ledger holds the generator's rows with their exact centavos again and `bun run nessie:mirror --import --limit=0` has to run once more to put Nessie's whole-peso rows back. The row count for the account equals the generator's mirror either way.
