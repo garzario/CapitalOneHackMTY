@@ -144,6 +144,13 @@ git commit     # write the one real message
   your local assistant config switches attribution off so the trailer is never generated in
   the first place, and `.githooks/commit-msg` rejects any commit whose message still contains an
   attribution line. If the hook fires, rewrite the message. Do not bypass it with `--no-verify`.
+- **One identity per clone, and it is yours.** Commit with the clone's own `user.name` and
+  `user.email`, the ones the postinstall left in place. Never export `GIT_AUTHOR_*` or
+  `GIT_COMMITTER_*`, never pass `-c user.email=`, never let a tool pick an account email for you.
+  GitHub's squash merge writes a `Co-authored-by` trailer for every distinct commit author in a pull
+  request, so a single commit under a stray email becomes an attribution line on `dev` that only a
+  history rewrite removes. `.githooks/pre-commit` refuses identities that name a tool, a bot or a
+  throwaway mailbox before the commit exists.
 - No em dashes in prose. No emoji in commits, docs, YAML or UI copy. Plain ASCII punctuation.
 
 ## Pull requests

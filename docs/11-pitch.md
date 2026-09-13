@@ -48,8 +48,11 @@ Refresh this table at every milestone.
 | "The retroactive sweep replays the ledger" | `sweep` in `packages/sat/src/sweep.ts`, `POST /api/v1/sat/publish`, and the 7,997 events the committed seed produces | Ticked |
 | "The verification call rings the supplier through ElevenLabs and Twilio" | `packages/voice`, `POST /api/v1/instructions/:id/verify-call`, and two real outbound calls placed on 2026-09-12, `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` | Ticked, code path and live call, with the ids in `docs/14-process.md#live-integrations-verified`. Say who was dialled: a teammate's own phone, never a supplier |
 | "This CEP is real, re-verify the clave de rastreo on your phone" | `packages/cep` reads, checks and compares a CEP; the committed fixture is synthetic | **Not ticked.** Issue #57 supplies the real one-cent CEP. Until it lands, say what the parser does and that the CEP on screen is the synthetic fixture |
-| "Precision, recall and false-positive rate, blind" | Thirty labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
+| "Precision, recall and false-positive rate, per control and per level" | Thirty-five labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` as `perDetector` and `perLevel` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
 | "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
+| "A held payment carries a deadline and a way out" | `holdWindow` in `packages/core/src/hold.ts`, on `GET /api/v1/instructions/:id` and on a recorded `verify-call`; the reason and the name on `POST /api/v1/instructions/:id/decide` | Ticked in the engine and the API. **Not on screen yet**, issue #174, so say "la API lo contesta y la pantalla lo muestra para el demo" and show it with `curl` if pushed |
+| "The run answers in pesos, not in minutes" | `runMoney` in `packages/core/src/exposure.ts`, on the `totals` of `GET /api/v1/run/current` | Ticked for the money that is stopped, released and at risk, and since #175 for the retroactive 69-B pair too: the publication re-scores the pending lines it affects, so the pair climbs in the same request instead of reading zero |
+| "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, `Supplier.delayCostPerDay` priced per supplier in `packages/seed/src/sentryone/delay-cost.ts`, and the `Costo de retrasar un dia` field on the instruction screen | Ticked, and the number is on screen since #182: all 92 decisions carry a price between MXN 101.98 and MXN 4,611.27 a day, and on this run it changes one outcome. Point at `INS-2026-09-07-032`, released with its warning still showing because a day of delay costs MXN 4,611.27 against MXN 2,088.00 of expected loss |
 
 **The live call happened, so the row above is ticked.** Two outbound calls went out on 2026-09-12
 through the imported Twilio number to a teammate's own mobile, the first of them 18 seconds and
@@ -72,21 +75,38 @@ than being corrected.
 | How often the list changes | 33 publication dates in the twelve months to 2026-07-31, about one every eleven days, 973 taxpayers moved to definitivo and 1,226 new presuntos | `docs/04-market.md` source [3], counted from the file |
 | What one listing costs | For every MXN 100,000 of deducted subtotal, MXN 46,000 of tax effect reverses: 30 percent ISR plus 16 percent IVA | `docs/04-market.md`, sources [5] and [6] |
 | The buyer's window | 30 days from the publication | CFF article 69-B, `docs/06` section 3.1 |
+| How long a payment stays stopped | 3 days for a hold, 1 day for a verification, measured from the decision | `EXPECTED_DELAY_DAYS` in `packages/core/src/decision.ts`, reused by `holdWindow` in `hold.ts` so the delay the arithmetic charged for and the deadline on screen are one number |
 | Firms in the target band | About 246,000 Mexican firms of 11 to 250 people | INEGI CE 2024, `docs/04-market.md` source [1] |
+| The first segment, the one the GTM attacks | **6,476** establishments of 11 to 250 people in Nuevo Leon in manufacturing, wholesale trade and construction, **6,114** of them in the metropolitan municipalities, and **about 2,312** after INEGI's blunt 35.7 percent formality rate. Say the 6,476 before the 246,000, always: the national figure is the TAM | `docs/04-market.md#where-the-segment-actually-is`, source [48], counted by us from the DENUE Nuevo Leon file and reproducible in one filter. The formality rate is source [1] and is deliberately too low |
+| The reseller denominator | **143 of the 737** accounting and audit units in Nuevo Leon employ 11 to 250 people, and 140 of the 143 are metropolitan. The year-one target of 25 firms is 17.5 percent of the 143 | `docs/04-market.md` source [48], and `docs/05-business-model.md#from-month-6-accounting-firms-as-resellers-on-the-mxn-3900-plan`. Never quote the 16,356 national units as the target: that denominator makes the plan look like a rounding error |
+| The price anchor on the despacho side | 69b.mx `Corporativo` at **MXN 1,999 per month**, "Para equipos grandes y despachos", unlimited monitored RFCs and up to 5 users. Our MXN 3,900 firm plan is **1.95 times** it, and the whole argument for the difference is that theirs monitors a list while ours decides a payment | `docs/04-market.md` source [7], re-read 2026-09-12 in the evening |
+| The only customer count either competitor publishes | Tesio, "+2,400 contadores automatizan con Tesio", on its own home page, self-reported and unaudited. It is evidence that despachos buy software of this shape, and it is said as theirs, never as a market size and never as a share we are taking | `docs/04-market.md` source [8]. Neither competitor publishes a reseller, partner or affiliate programme, so say our channel is our bet |
 | TAM, SAM, SOM | MXN 2,655 million, MXN 948 million, MXN 12.1 million per year | `docs/04-market.md#sizing`, bottom-up, entities times price |
 | Our price | MXN 899 per company per month; MXN 3,900 per month for an accounting firm with up to 20 client companies, MXN 195 each | `docs/05-business-model.md` |
-| The price anchor | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
+| The price anchor on the list side | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
+| The price anchor on the account side | Verificamex's one-cent test, MXN 17.85 down to MXN 8.93 plus IVA per verification depending on the token tier. Say "de nueve a dieciocho pesos"; it is also our build-versus-buy answer and our COGS anchor, never called our competitor | `docs/04-market.md` source [36] |
+| What has no published price | ValidX and Portal de Proveedores, both quote-only, so no number is said about either | `docs/04-market.md#what-we-could-not-verify-about-the-competition` |
 | Break-even | One stopped invoice of MXN 23,452 of subtotal per year | `docs/05-business-model.md` |
 | Avoided loss | One held invoice of MXN 100,000 of subtotal pays 51 months of subscription; one misdirected SPEI of the same amount pays 111 months | `docs/05-business-model.md` |
-| The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`, printed by `bun run seed` |
+| The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`. `bun run seed` prints the suppliers, the CFDIs, the complements and the run; the headcount and the city are in `company.ts` and the event count is the ledger row of `docs/08-data-model.md` |
 | This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeSentryOne` |
-| The listed-supplier scenario | MXN 878,592.59 of base already deducted across 31 invoices to the supplier the simulated publication names | same, `notes.scenarios` |
-| The blind evaluation | 30 labelled cases, 180 case-by-detector pairs. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval` at `4e9e2eb`, unchanged since `5d4d506`. **Re-run it before quoting it** |
-| Tests | 1,116 tests across 65 files, green on 2026-09-12 at `4e9e2eb` | `bun test` |
+| This week's run in pesos | MXN 785,289.86 stopped (MXN 592,592.38 held plus MXN 192,697.48 to verify), MXN 1,388,920.90 released, MXN 799,209.86 at risk | `totals` of `GET /api/v1/run/current`, from `runMoney`. The two `retroactive69b` fields read zero until the list publishes, which is the honest state of a Thursday |
+| The same run after the publication | The pair climbs to MXN 878,592.59 of base and MXN 404,152.59 of exposure, at risk climbs by exactly that exposure to MXN 1,203,362.45, and the MXN 785,289.86 that is not leaving becomes MXN 676,112.38 held over 3 lines and MXN 109,177.48 to verify over 3 | same, read again after `POST /api/v1/sat/publish`, which re-scores the pending lines the list affects (#175) |
+| What a day of delay costs | MXN 101.98 to MXN 4,611.27 across the 44 suppliers, MXN 1,120.05 on the hero line. Six of the seven lines that carry a finding are stopped; the seventh is released because waiting costs more than the risk | `Supplier.delayCostPerDay` on every decision of `GET /api/v1/run/current`, priced in `packages/seed/src/sentryone/delay-cost.ts` from moratory interest on the balance owed plus the pronto pago discount that expires |
+| The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
+| The blind evaluation | 35 labelled cases and 24 labelled expectations over six controls, scored as 213 counts. Precision 87.0 percent, recall 83.3 percent, false-positive rate 1.6 percent, and the engine chose the labelled action on 33 of the 35 | `bun run eval`, re-read on 2026-09-13. **Re-run it before quoting it.** Say 35 cases, never a pair count: six controls on thirty-five cases looks like 210 slots, and the matrix sums to 213 because a control that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
+| The evaluation per level | Of 35 lines, `confiable` 12 expected and 12 right, `precaucion` 12 and 11, `alerta` 11 and 10. Two lines read one level away from the label and both are the severity arguments already on the table | `bun run eval`, the second table. The row to defend is `confiable` at 100 percent: a line called trustworthy that was not is the mistake this product cannot make twice |
+| Tests | 1,881 tests across 100 files on 2026-09-12: 1,769 passing, 112 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge |
+| The rate of fraud on supplier transfers | Nobody publishes it. The published evidence brackets it between about **2 per million and 7 per 10,000 transfers**. Say the bracket, never a point inside it | `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`, derivations 1 and 2, formulas and inputs on the page |
+| What comes back once the money is gone | **24.3 percent**, MXN 1,265 million refunded of MXN 5,201 million claimed for fraud in the first quarter of 2026, so 75.7 percent does not | `docs/04-market.md` source [18]. This is a refund share on disputed pesos and never a loss rate. It is the number 25.4 was confused with |
+| How often a Mexican company lives a fraud | **About 5 in every 100 economic units a year**, 522 fraud events per 10,000 units in 2023, on a category INEGI's own footnote says includes bank fraud | `docs/04-market.md` sources [15] and [14]. 93.9 percent of those frauds produced no complaint and no file, so it is a floor |
+| The subscription against what a company this size already spends and loses on crime in a year | **6.9 percent** for a small company, MXN 10,788 against MXN 157,273; **2.1 percent** for a medium one, against MXN 517,203 | `docs/04-market.md#the-sentence-for-the-boss-in-the-bosss-units`, INEGI cost of crime by size, source [15] |
+| The monthly price against the run on screen | **4.1 basis points**, MXN 899 against the MXN 2,174,210.76 of one week, and the whole year is 0.50 percent of that week | same section, arithmetic on the `This week's run` row of this table and the MXN 899 price row |
+| What supplier impersonation is worth where it is counted | In the United Kingdom in 2025, **GBP 28.0 million on business accounts, 68 percent of invoice and mandate losses**, and **37.0 percent of all business APP losses**. About **7 invoice-fraud payments per 10 million** Faster Payments | `docs/04-market.md` sources [70] and [71]. A foreign analogue, said as a foreign analogue, never as a Mexican number |
 
-`TODO(FabriBanda)`: `docs/02-persona.md` still carries MXN 673,460.27 as the reference run amount.
-The finished generator produces MXN 2,174,210.76 for the same week. Refresh that cell, or the pitch
-and the persona doc contradict each other in front of a judge who reads both.
+The reference run amount in `docs/02-persona.md` is MXN 2,174,210.76, the same figure this table
+carries, so the pitch and the persona doc agree in front of a judge who reads both. That cell used to
+read MXN 673,460.27 and it was refreshed; re-check it whenever the generator changes.
 
 The two SAT vintages are reconciled in
 `docs/04-market.md#two-sat-files-and-the-one-the-product-ships`, with both files, both dates and
@@ -94,6 +114,98 @@ both row counts in one table. The short version for the stage: the product answe
 committed 14,234-row snapshot current to 2025-12-31, and the 14,761-row open-data file current to
 2026-07-31 is where the publication-frequency counts come from. Say either number with its date, or
 say neither. Never quote 14,761 as the size of the list the lookup box answers from.
+
+## The value is the loss, not the minutes
+
+Three Capital One judges heard "en la vida real esto toma ocho minutos y con nuestro producto toma
+segundos" on 2026-09-12 and told us they did not care. They were right, and this section is the
+replacement. Issue #171.
+
+**The sentence is banned.** Not softened, banned. It loses twice. It prices the product at the wage of
+the person doing the work, which is about MXN 375 a day, so eight minutes is worth centavos and anyone
+can do that arithmetic in their head while you are still talking. And it invites the answer the second
+engineer gave us, which is that his father talks to his suppliers all day and does not need software to
+be quick.
+
+**What replaces it.** The value of this product is the loss that did not happen, so every claim is in
+pesos.
+
+> Lo que vale no son los minutos, es la perdida que no ocurrio. De un subtotal rechazado por el
+> articulo 69-B se revierte el cuarenta y seis por ciento entre ISR e IVA. Una factura de cien mil
+> pesos de subtotal detenida paga cincuenta y un meses de suscripcion. Un SPEI mal dirigido del mismo
+> monto paga ciento once, porque ahi no hay nada que revertir. Y se paga completo con una sola factura
+> detenida de veintitres mil cuatrocientos cincuenta y dos pesos de subtotal al ano.
+
+Three delivery consequences, all of them checkable on screen.
+
+- **The run answers in pesos.** `GET /api/v1/run/current` reports `heldAmount`, `toVerifyAmount`,
+  `releasedAmount`, `stoppedAmount`, `amountAtRisk`, `retroactive69bBase` and
+  `retroactive69bExposure` on `totals`, computed by `runMoney` in `packages/core/src/exposure.ts`. The
+  hero figure on the run screen is already the money that is not leaving and never the total of the
+  run, which is the number that is the same whether the product works or not. The last two climb when
+  the list publishes rather than after a reload, because `POST /api/v1/sat/publish` re-scores the
+  pending lines the publication affects in the same request (#175), and they are the part of
+  `SweepResult.totalExposure` that belongs to the suppliers this run pays, counted once per RFC.
+- **The 69-B exposure is the loss that needs no fraud at all.** Nobody stole anything. The SAT
+  published a list and deductions already taken were voided. That is the half of the pitch no
+  anti-fraud demo has, and it is the half to lead with when a judge doubts the problem is real.
+- **Never say the product is fast.** It is not a claim anybody buys, and speed is the one property a
+  judge can neither verify nor care about at a table. If a time has to be said, say the window and not
+  the saving: the few minutes between approving a payment run and sending it are where nothing else
+  sits, which is a statement about the gap and not about our latency.
+
+## The objection about the father's PyME
+
+One of the engineers said his father has a PyME and is in constant contact with his suppliers, and
+concluded that he is not our user. He is right, and the answer is not to argue about his father.
+
+The user is not the owner who knows five suppliers by voice. It is the company whose Thursday run pays
+dozens of suppliers through one person in administration, who knows none of them by voice and cannot
+telephone forty-four of them before the bank cut-off. And the part that turns the objection around:
+**the supplier's own WhatsApp and email are the channel the attacker uses.** A payment instruction that
+arrives inside a conversation you trust is the whole attack, so trusting the conversation is the failure
+mode and not the defence. `PaymentInstruction.text` exists in `packages/core/src/domain.ts` for exactly
+this reason, and its comment says it: the message is shown as context and never decides, because a
+message is the artefact an attacker controls.
+
+Then the sentence that closes it, because it does not depend on an attacker existing at all: **the
+69-B loss needs no fraud.** The supplier is real, the invoice is real, the relationship is twenty years
+old, and the SAT publishes a list that voids the deductions already taken on it, retroactively, with
+thirty days to answer. Talking to your supplier every day protects you from none of that.
+
+## The competition, and the two sentences that lose the room
+
+The market research of PR #177 rewrote this part of the pitch. Eight paragraphs in this file claimed,
+in one form or another, an empty window, an only-ones position, or a competitor picture the research
+falsifies: the closing line of the 60-second version, beats 3 and 4 of the 90-second one, the "why
+different" and the "market, model and regulation" beats of the 240-second one, hardest questions 1 and
+2, and the one that always follows them. They are gone, because a judge who breaks one claim stops
+believing the rest. Refs #171 and #169. The roster with one line per company is section 1 of
+`docs/12-judge-qa.md#table-feedback-of-12-september-and-the-answers`, and `docs/12` wins if the two
+ever disagree.
+
+**The two camps, said in this order.** The fiscal half already holds payments: ValidX retains before
+paying and notifies Compras, Portal de Proveedores holds when a document expires and sweeps 69-B
+daily, and 69b.mx and Tesio run on the list. None of them sees the account. The money half moves the
+pesos without checking who receives them: Clara disperses hundreds of SPEI from a spreadsheet the
+payer uploads, Xepelin's own three-step flow contains no counterparty check. CONTPAQi has both halves
+inside one product and its own changelog shows they never meet at the moment of payment. Bind ERP
+alerts and, in its own help centre's words, "no restringira". HSBCnet really does validate beneficiary
+names, "unicamente cuentas HSBC". Trustpair, nsKnox and Eftsure verify accounts for corporate
+treasuries abroad and mention neither Mexico nor CFDI, SAT, SPEI or CLABE.
+
+**Our claim is the union**, in one sentence and no wider: the fiscal half and the money half in one
+decision, retener, verificar o liberar, with the evidence attached, before the transfer is
+irrevocable. Two edges of it are sharper than the join: we found nobody selling the comparison of a
+new CLABE against the accounts that supplier has already been paid on, and nobody turning either
+signal into a decision with an amount at risk on it.
+
+**The two sentences never to say.** "Nadie hace esto", nobody does this, because ValidX's own landing
+page is the counterexample; say "no encontramos a nadie que venda las dos mitades juntas" instead.
+And "nosotros inventamos la prueba del centavo", we invented the one-cent test, because Verificamex
+sells it metered and Banco de Mexico writes it into Regla 51a Bis of the SPEI rules; say that the
+centavo is a commodity primitive and that ours is the decision hung on its answer. Both of these are
+also in the delivery rules at the end of this file, because they are the two that cost the room.
 
 ## The six controls, in the words used at the table
 
@@ -114,6 +226,18 @@ Then the decision, which is the part engineers ask about: **"seis detectores ind
 hallazgo trae pesos en riesgo, y una sola decision de perdida esperada pesa esos pesos contra lo que
 cuesta retrasar ese pago un dia. Retener, verificar o liberar, y firma una persona."**
 
+**Open the delay figure, it holds up now.** `Costo de retrasar un dia` carries a number on every one
+of the 92 instructions, between MXN 101.98 and MXN 4,611.27, priced per supplier from moratory interest
+on the balance we owe them plus the pronto pago discount that expires the day the payment is late, and
+higher for the raw material and the tooling that stop production than for consumables and services. On
+the hero line it reads MXN 1,120.05 against MXN 23,050.49 of expected loss, and that payment is stopped
+by its critical finding anyway, which is what rules 1 and 2 are for. The two lines where the arithmetic
+decides on its own are the pair to show an engineer: `INS-2026-09-07-077`, **"cuatrocientos veintisiete
+pesos al dia contra dos mil seiscientos diez de perdida esperada, y por eso se verifica"**, and
+`INS-2026-09-07-032`, which carries a duplicate-invoice warning of MXN 2,088.00 and is released because
+a day of delay with that supplier costs MXN 4,611.27. What must never be said is that a critical finding
+could be released that way: rules 1 and 2 of `decide` return above the branch that weighs anything.
+
 And the property that is easy to miss and worth volunteering: **every one of the six lands in `ran`
 or in `skipped` with a named reason.** A run that says "sin hallazgos" because the engine could not
 call its own detectors is the one failure this product cannot ship, and that is why the report
@@ -121,7 +245,7 @@ accounts for all six.
 
 ## 60 seconds, the hallway version
 
-About 150 words. Say it and then stop talking.
+About 170 words, counted off this file. Say it and then stop talking.
 
 > Dos cosas son ciertas cuando le pagas a un proveedor en Mexico. Si ese proveedor aparece en la
 > lista del articulo 69-B del SAT, las deducciones que ya tomaste sobre sus facturas se anulan de
@@ -135,12 +259,12 @@ About 150 words. Say it and then stop talking.
 > lista oficial del SAT y el comprobante que firma Banxico por cada SPEI. Cada pago regresa como
 > retener, verificar o liberar, con la razon en pantalla, y decide una persona.
 >
-> La consulta es publica y gratuita. Nadie la corre cada semana. Nosotros la corremos en cada pago,
-> antes de que el dinero se vaya.
+> La consulta es publica y hay quien la vende. No encontramos a nadie que la lea junto a la cuenta a
+> la que va el dinero. Ahi decidimos nosotros.
 
 ## 90 seconds, a judge walking up
 
-This is the one to memorise. About 230 words, five beats.
+This is the one to memorise. About 280 words, counted off this file, five beats.
 
 > **(20 s, la persona y el momento.)** Jueves por la manana, taller metalmecanico en Apodaca,
 > veintiocho empleados. Una sola persona lleva toda la administracion y hoy tiene que mandar entre
@@ -153,15 +277,15 @@ This is the one to memorise. About 230 words, five beats.
 > la exposicion la crea la publicacion, no el pago. Y si la cuenta esta mal, el SPEI es firme e
 > irrevocable. SentryOne vive exactamente en los minutos antes de que ella le de enviar.
 >
-> **(25 s, el mecanismo.)** Juntamos tres fuentes que nadie junta: su propio catalogo de CFDI, la
-> lista oficial del SAT con todas sus versiones, y el CEP que firma Banxico por cada SPEI. Seis
-> controles independientes y una decision de perdida esperada. Son funciones puras, sin red y sin
-> base de datos, y no hay ningun modelo de lenguaje en la decision. Los puedes leer, y puedes correr
-> las pruebas en esta laptop.
+> **(25 s, el mecanismo.)** Juntamos tres fuentes que hoy viven en tres productos distintos: su
+> propio catalogo de CFDI, la lista oficial del SAT con todas sus versiones, y el CEP que firma
+> Banxico por cada SPEI. Seis controles independientes y una decision de perdida esperada. Son
+> funciones puras, sin red y sin base de datos, y no hay ningun modelo de lenguaje en la decision.
+> Los puedes leer, y puedes correr las pruebas en esta laptop.
 >
-> **(15 s, el diferenciador.)** El banco conoce la cuenta y no conoce la factura. El contador conoce
-> la factura y la ve el mes que entra. Ninguno de los dos esta en el cuarto en el momento en que el
-> dinero se vuelve irreversible. Ese momento es el producto.
+> **(15 s, el diferenciador.)** Hay productos que ya retienen el pago sobre la lista del SAT y nunca
+> ven la cuenta, y plataformas que dispersan SPEI sin mirar a quien recibe. Las dos mitades no se
+> encuentran en el momento en que el dinero se vuelve irreversible. Ese momento es el producto.
 >
 > **(10 s, la invitacion.)** Preguntame lo que quieras del algoritmo, de los datos o de la
 > regulacion. O manda tu una instruccion de pago desde tu telefono, ahorita.
@@ -204,31 +328,56 @@ About 350 spoken words plus the demo lines, which are in `docs/10-demo-script.md
 
 **3:05, why different and how we know.**
 
-> El banco conoce la cuenta y no la factura. El contador conoce la factura y la ve el mes que entra.
-> Las plataformas de verificacion de beneficiarios que existen no mencionan Mexico, ni CFDI, ni SAT,
-> ni SPEI en nada de su material publico que hayamos encontrado. Y los numeros de nuestra pagina de
-> metricas son ciegos, porque quien etiqueta los casos no escribe los detectores y no abre esa
-> carpeta hasta que el codigo ya esta integrado.
+> El mercado ya partio esta tesis en dos. ValidX y Portal de Proveedores retienen el pago sobre las
+> listas del SAT y nunca ven la cuenta. Clara y Xepelin dispersan cientos de SPEI sin verificar a
+> quien recibe. CONTPAQi tiene las dos mitades y no se cruzan en el pago. Lo nuestro es la union, en
+> una decision con evidencia. Y los casos etiquetados no salieron de leer los detectores: ninguno se
+> edito para que un control pasara, y los que no coinciden siguen contados en contra.
+
+If a judge names the one-cent probe here, the answer is one sentence and it is not defensive:
+Verificamex sells it metered at MXN 8.93 to 17.85 a call and Banco de Mexico writes it into Regla 51a
+Bis of the SPEI rules, so it is a commodity primitive and ours is the decision hung on its answer. The
+roster with one line per company is section 1 of `docs/12-judge-qa.md#table-feedback-of-12-september-and-the-answers`.
 
 Optional clause, only if `bun run eval` was run within the hour and the screen is open on it:
-"treinta casos etiquetados, uno punto nueve por ciento de falsos positivos, y los cuatro casos que
-no coinciden estan en la tabla con su argumento." Cut it if the number on the screen is not the
-number in your mouth.
+"treinta y cinco casos etiquetados, uno punto seis por ciento de falsos positivos, y ni una sola
+linea marcada como confiable que no lo fuera." Cut it if the number on the screen is not the number
+in your mouth.
 
-**3:25, market, model and regulation.** One sentence each, from the numbers table above.
+**3:25, market, model and regulation.** One sentence each, from the numbers table above. The market
+sentence is the narrowed one, and the order inside it is binding: the segment first, the national
+figure second and labelled as the total. Opening with 246,000 is what a second Capital One panel asked
+us to stop doing on the evening of 2026-09-12, because a number that size answers how many could buy
+and not who we are selling to on Monday.
 
-> Doscientos cuarenta y seis mil empresas mexicanas de once a doscientos cincuenta personas, y el
-> tamano se construye de abajo hacia arriba, entidades por precio, con cada insumo citado. Cobramos
-> ochocientos noventa y nueve pesos al mes por empresa, y tres mil novecientos al despacho contable
-> que trae veinte; el ancla publica del mercado son ciento noventa y nueve pesos al mes por
-> monitorear una lista, y nosotros no monitoreamos una lista, actuamos sobre un pago. Y no somos
-> entidad regulada: no custodiamos fondos, no ejecutamos transferencias y nada se rechaza sin que
-> una persona lo decida.
+> Seis mil cuatrocientas setenta y seis empresas de once a doscientos cincuenta personas en Nuevo
+> Leon, en manufactura, mayoreo y construccion, contadas una por una en el directorio de unidades
+> economicas del INEGI, seis mil ciento catorce de ellas en el area metropolitana, y alrededor de dos
+> mil trescientas doce si les aplicamos la tasa de formalidad del INEGI, que se queda corta y lo
+> decimos; doscientos cuarenta y seis mil a nivel nacional es el mercado total, no el que atacamos
+> primero. Cobramos ochocientos noventa y nueve pesos al mes por empresa y tres mil novecientos al
+> despacho contable que trae veinte, contra mil novecientos noventa y nueve pesos al mes del plan para
+> despachos que ya se publica en este mercado: cobramos casi el doble y la diferencia es que ese plan
+> vigila una lista y el nuestro decide un pago. Y no somos entidad regulada: no custodiamos fondos, no
+> ejecutamos transferencias y nada se rechaza sin que una persona lo decida.
 
-**3:45, the ask.**
+**3:45, the ask, and it is now the channel ask.** The same panel asked who sells this and through which
+channel, so the ask names the channel instead of asking for a generic pilot. The ten real payment runs
+did not disappear, they are what the introductions are for, which is the only form in which a pilot is
+worth asking for.
 
-> Queremos diez corridas de pago reales enfrente de nosotros la semana que entra, en empresas de
-> verdad, para medir la tasa de falsos positivos con datos que no generamos nosotros.
+> Dos cosas. Tres presentaciones a despachos contables de once personas o mas en Monterrey, que son
+> ciento cuarenta y tres en todo el estado y los tenemos contados, para correr el barrido gratuito
+> sobre corridas de pago reales y medir la tasa de falsos positivos con datos que no generamos
+> nosotros. Y una conversacion con el area de banca empresarial de un banco, porque la version de esto
+> que escala vive dentro del portal donde el pago ya se ejecuta: el banco de nuestra demo es Nessie, y
+> Capital One es justo el tipo de banco que lo haria. Eso es una ruta que estamos pidiendo, no un
+> acuerdo: nadie ha firmado nada con nosotros.
+
+If a judge pushes on that second half, the answer is the intermediation dilemma and it is one sentence:
+we are not asking to stand between a company and its bank, we are asking to sit where the payment
+already executes, which is the bank's own screen, and the argument with its three published facts is in
+`docs/05-business-model.md#the-third-route-a-bank-embeds-the-control-where-the-payment-executes`.
 
 Rehearsed twice, out loud, timed, with all four people present. A rehearsal with one person is a
 read-through. The log goes in `docs/14-process.md`, issue #75.
@@ -274,49 +423,76 @@ they are looking for prototypes that only pretend to work.
 
 ## The blind evaluation
 
-The sentence: **"quien escribe los casos etiquetados no escribe los detectores, y no abre esa
-carpeta hasta que el codigo ya esta integrado."**
+The sentence: **"ningun caso se edito para que un control pasara, y los que no coinciden siguen
+contados en contra."**
 
-Why it matters, if they push: a team that writes its own test cases after writing its own detectors
-is reporting how well it remembers what it built, and every judge has seen that number before. The
+Say it that way and not the older version about who wrote what. The controls were merged before this
+set was written, and the labels come from ADR-0002 and the domain types rather than from reading the
+control source, which is weaker than the protocol first promised. `packages/seed/src/holdout/README.md`
+carries that disclosure in full and a judge who reads it and then hears a stronger claim out loud has
+found the one thing that costs more than the point it was worth.
+
+Why the rest of it matters, if they push: a team that writes its own test cases after writing its own
+detectors is reporting how well it remembers what it built, and every judge has seen that number
+before. The
 protocol is written down in `packages/seed/src/holdout/README.md`: the unit of account is a case by
 detector pair, a zero denominator reports zero and never a silent 1.00, a case is never edited to
 make a detector pass, and every case is validated twice so a malformed one throws instead of being
 skipped, because a skipped case makes recall look better than it is. The number to defend is
 `falsePositiveRate`, not `recall`: a sentinel that holds a legitimate payment twice is a sentinel
-the clerk turns off, which is why ten of the thirty cases are hard negatives that look like fraud
+the clerk turns off, which is why twelve of the thirty-five cases are hard negatives that look like fraud
 and are not, among them a legitimate bank change backed by the supplier's own payment complement, a
 new supplier ramping to a material share of the outflow, a round-number retainer, a quarterly
 invoice that repeats an amount, a thin history with no baseline to test, and a partial legal-name
 match that is fine.
 
-**What the table said at `5d4d506`**, and this is the honest version of it:
+**What the two tables said on 2026-09-13**, and this is the honest version of them:
 
 ```
-cases 30            tp 17   fp 3   fn 4   tn 159
-precision 85.0%     recall 81.0%          false positive rate 1.9%
-action agreement 28 of 30
+cases 35            tp 20   fp 3   fn 4   tn 186
+precision 87.0%     recall 83.3%          false positive rate 1.6%
+action agreement 33 of 35
+
+nivel         esperado  predicho  coincide   precision   recall
+confiable           12        12        12      100.0%   100.0%
+precaucion          12        12        11       91.7%    91.7%
+alerta              11        11        10       90.9%    90.9%
 ```
+
+The second table is the one to lead with if a judge asks how it feels rather than how it scores. It
+reads the same evaluation the way the clerk reads the screen: not "did control 2 fire" but "did this
+line come out at the level it should have". A control can be right and the payment still read
+`precaucion` when the documents say `alerta`, and no per-control number shows that. The row that
+matters is `confiable` at 100 percent both ways: nothing the product called trustworthy turned out
+not to be.
 
 Then the part worth volunteering before anyone finds it, said as one sentence:
 
-> Los cuatro casos que no coinciden no son controles que se hayan callado. Los seis controles
-> dispararon en todos los casos donde la etiqueta esperaba un hallazgo, y ninguno disparo en un caso
-> donde la etiqueta no esperaba nada. Los cuatro son desacuerdos sobre la severidad o el estado, y
-> los dejamos en la tabla con los dos argumentos escritos, porque un conjunto de casos editado hasta
-> que coincide no mide nada.
+> Ninguno de los cuatro es un control que se haya quedado callado en un caso limpio. Los tres falsos
+> positivos caen en casos donde la etiqueta si esperaba a ese detector, y en los doce negativos duros no
+> disparo ninguno: eso es lo que vale del uno punto seis por ciento. Los cuatro son desacuerdos sobre la
+> severidad o el estado. En tres, el detector disparo con otra severidad. En el cuarto, el del sello del
+> CEP, el verificador si produce un renglon pero en info, y la regla del harness cuenta info como
+> contexto y no como alerta, asi que no satisface una etiqueta que pedia warning. Los dejamos en la tabla
+> con los dos argumentos escritos, porque un conjunto de casos editado hasta que coincide no mide nada.
 
 The four disagreements are in `packages/seed/src/holdout/README.md` with both arguments side by
 side: a brand-new account over WhatsApp with nothing behind it (`critical` or `warning`), a supplier
 published as presunto (`warning` or `critical`), a CEP naming a different holder (`comprobable` or
-`requiere_verificacion`), and a seal we could not check (`warning` or `info`). Those four are also
-the entire reason `beneficiary_cep` reads 0.0 percent today: both of its expectations are CEP
-disagreements about severity and state, not a control that failed to fire. Say that, and open the
-row.
+`requiere_verificacion`), and a seal we could not check (`warning` or `info`).
+
+Those four are also the entire reason `beneficiary_cep` reads 0.0 percent today, and the honest reading
+of that zero is the thing to have ready, because it is the row an engineer opens. Its two expectations
+are the two CEP rows above. On the holder-name case the control fires at `requiere_verificacion` against
+a label asking for `comprobable`, so the same case is a miss and a false positive at once. On the seal
+case the verifier produces an `info` row rather than a `warning`, and `computeMetrics` scores `info` as
+context and not as an alert, so the expectation is unsatisfied and nothing is counted as a false positive
+either. Neither is the control going silent on a clean payment. `bun run eval --rows` prints both, and
+it prints `got -` on the seal case, so know why before a judge asks.
 
 Read precision, recall and the false-positive rate off the screen or off a fresh `bun run eval`,
-with the case count next to them. Never from memory: three merges from now this block is stale, and
-that is exactly why the numbers table carries the commit they came from.
+with the case count next to them. Never from memory: three merges from now this block is stale, which
+is why the numbers table says to re-run it.
 
 ## No model in the decision
 
@@ -387,10 +563,25 @@ about the six controls and it should not be stretched.
   SPEI of the same amount pays 111 months, because there is nothing to reverse. We claim no frequency
   for either, and the free supplier-register sweep in the go-to-market is the thing that measures it.
 
-The channel is accounting firms serving 11 to 250 person companies in Monterrey and its industrial
-corridor, because one firm holds the CFDI XML of twenty client companies and files the corrective
-return when the thirty-day clock starts. Category named, no company named, because nobody has agreed
-to anything.
+**Who sells it, and through which channel**, which is the fourth sentence the second table asked for.
+Four motions in one order, and the order is arithmetic rather than preference. For the first six months
+two of the four founders sell it, Fabricio and Patricio, and they sell to **purchasing and to finance**,
+never to the clerk who operates it: finance carries the disallowed deduction, purchasing owns the
+supplier register and makes the call when a payment is held, and the clerk has no budget line. The
+opener is the free supplier-register sweep, 200 of them in the stop condition, about eight a week. From
+month six the channel is the accounting firm as a reseller on the MXN 3,900 plan, against a counted
+denominator of **143** firms of 11 or more people in Nuevo Leon out of the 737 in the state: one firm
+holds the CFDI XML of twenty client companies and files the corrective return when the thirty-day clock
+starts, and that work is what the plan removes. Third, gated on ten paying firms, ERP and PAC
+integrations, which is where CONTPAQi's more than six thousand distributors sit and where no vendor
+publishes its partner terms, so the gate is a count and not a date. Fourth, gated on the same ten firms
+and with the largest surface and the longest cycle of the four, the control goes inside a bank's own
+business banking, because that is where the payment executes and it is the surface the company already
+opens on a Thursday. The bank of the demo is Nessie, Capital One's sandbox, which is a fact about our
+code and nothing else: **a bank embedding this is a route we are asking for and not a deal we have**, and
+nobody at any bank has agreed to anything. Segment, counts, both conversion rates and the two
+assumptions behind them are in
+`docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel`.
 
 ## The eight hardest questions
 
@@ -400,19 +591,22 @@ ever disagree, `docs/12` wins**, and this section gets fixed in the same pull re
 
 **1. The list is public and free. Why not just check it yourself?**
 
-> Porque la consulta no es la parte dificil, la cadencia si. Tiene que correr sobre cada proveedor
-> en cada corrida, y otra vez hacia atras cada vez que el SAT publica, sobre facturas que ya pagaste
-> y ya dedujiste. La lista cambio treinta y tres veces en doce meses, una cada once dias. La
-> exposicion la crea la publicacion, no el pago, asi que revisar al dar de alta al proveedor no
-> protege nada. Nuestro barrido reproduce la bitacora y pone precio a la base deducida, al ISR y al
-> IVA por proveedor recien listado.
+> Porque la consulta no es la parte dificil, la cadencia si, y la cadencia ya se vende: ValidX y
+> Portal de Proveedores barren la lista a diario. Tiene que correr sobre cada proveedor en cada
+> corrida, y otra vez hacia atras cada vez que el SAT publica, sobre facturas que ya pagaste y ya
+> dedujiste. La lista cambio treinta y tres veces en doce meses, una cada once dias. La exposicion la
+> crea la publicacion, no el pago, asi que revisar al dar de alta al proveedor no protege nada.
+> Nuestro barrido reproduce la bitacora y pone precio a la base deducida, al ISR y al IVA por
+> proveedor recien listado, y lo lee junto a la cuenta a la que esta por salir el dinero.
 
 Open: `SweepResult` in `packages/core/src/domain.ts`, `sweep` in `packages/sat/src/sweep.ts`, beat 2.
 
 **2. The bank already shows the beneficiary name.**
 
-> Te lo muestra despues de que capturaste la cuenta, y lo compara contra nada, porque el banco no
-> tiene la factura. Nosotros comparamos el nombre del titular en un comprobante firmado por Banxico
+> Un banco si lo vende, HSBCnet, y unicamente para cuentas HSBC, por archivo y en horario: eso es
+> higiene de una libreta de direcciones, no una puerta en la salida del pago. En general te lo
+> muestra despues de que capturaste la cuenta, y lo compara contra nada, porque el banco no tiene la
+> factura. Nosotros comparamos el nombre del titular en un comprobante firmado por Banxico
 > contra la razon social del CFDI que estamos pagando, guardamos el XML firmado byte por byte como
 > evidencia, y lo hacemos una vez por cuenta en lugar de una vez por pago. El registro de
 > beneficiarios verificados es un activo que se acumula.
@@ -491,13 +685,15 @@ wanted. Do not call an open issue a cut.
 **And the one that always follows: why would this not be a feature inside an accounting product in
 six months?**
 
-> Podria serlo, y el camino mas rapido para ellos somos nosotros. Lo dificil de copiar en seis meses
-> no es la consulta a la lista, es el catalogo unido: en que cuentas le hemos pagado de verdad a
-> este proveedor, establecidas por que documento, y la bitacora de eventos reproducible que hace
-> posible el barrido retroactivo. Ademas las plataformas de verificacion de beneficiarios que ya
-> existen no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en nada de su material publico que hayamos
-> encontrado, y los productos mexicanos que si conocen la lista no ven nunca la cuenta a la que esta
-> por salir el dinero.
+> Podria serlo, y el camino mas rapido para ellos somos nosotros. De hecho ya hay un incumbente con
+> las dos mitades adentro, CONTPAQi: tablero fiscal y dispersion masiva con conexion al banco en el
+> mismo producto, y su propio changelog muestra que no se cruzan en el momento del pago. Lo dificil
+> de copiar en seis meses no es la consulta a la lista, es el catalogo unido: en que cuentas le hemos
+> pagado de verdad a este proveedor, establecidas por que documento, y la bitacora de eventos
+> reproducible que hace posible el barrido retroactivo. Las plataformas de verificacion de
+> beneficiarios de afuera no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en su material publico, y los
+> productos mexicanos que si conocen la lista no ven nunca la cuenta a la que esta por salir el
+> dinero.
 
 Open: `docs/04-market.md#competitor-map`, `KnownAccount` in `packages/core/src/domain.ts`.
 
@@ -512,6 +708,26 @@ positives, why Nessie at all, and how do you know it works. All four are in `doc
   lista del SAT" before saying "69-B".
 - Say the synthetic-data sentence unprompted, in beat 1.
 - Never say a number that is not in the numbers table above or on the screen.
+- **Never claim the product is faster than doing it by hand.** The value is the loss prevented, in
+  pesos. The eight-minutes sentence was said at the table on 2026-09-12 and it cost us the room. See
+  "The value is the loss, not the minutes".
+- **Never say "nadie hace esto" and never say "nosotros inventamos la prueba del centavo".** Both
+  break in one search: ValidX sells a pre-payment hold on four SAT lists, and the one-centavo probe
+  is Banco de Mexico's own Regla 51a Bis. Say "no encontramos a nadie que venda las dos mitades
+  juntas", and say the centavo is a commodity. See "The competition, and the two sentences that lose
+  the room".
+- **Never say 25.4 percent, and never say any single percentage as the rate of fraud on supplier
+  transfers.** The number was said to a Capital One panel on the evening of 2026-09-12 and it is in
+  no source this repository holds. It is the 24.3 percent of [18] misremembered, which is the share
+  of disputed pesos banks gave back and not the share of transfers that leave, and as a loss rate it
+  is wrong by three orders of magnitude. The replacement is two sentences, in this order: **"nadie
+  publica esa tasa, ni Banxico ni Condusef ni el INEGI; la evidencia publicada la acota entre dos por
+  millon y siete por diez mil transferencias, y la derivacion esta en `docs/04-market.md` con las
+  formulas"**, and then the number that does convert, **"lo que si esta publicado es que de cada peso
+  reclamado por fraude regresa uno de cada cuatro, el 24.3 por ciento, asi que el 75.7 por ciento no
+  vuelve"**. If one number has to be said, say the INEGI one, about 5 of every 100 economic units a
+  year, and say it is a floor because 93.9 percent of those frauds were never reported. See
+  `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`.
 - Never say "no nos dio tiempo". Say what we cut and why, which is a judgment story.
 - If a gate in the table above is not ticked, say the version of the sentence that is true. The
   product is strong enough without the sentence that is not.

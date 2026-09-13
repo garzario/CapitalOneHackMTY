@@ -41,7 +41,10 @@ screen.
 
 - Stops a payment to a supplier the SAT has listed, and quantifies the ISR and IVA already exposed.
 - Catches a CLABE that differs from the supplier's history, fails its check digit or changed bank without a payment complement behind it.
-- Proves who owns the destination account with a Banxico-signed CEP and keeps it as evidence.
+- Proves who owns the destination account with a Banxico-signed CEP and keeps it as evidence. One
+  cent travels inside the same payment run, the clave de rastreo comes back from the bank instead of
+  from a keyboard, and the large payment is released or blocked by the engine when the signed CEP
+  arrives. Nobody types anything.
 - Flags duplicate invoices and suppliers whose billing behaviour changed.
 - Decides hold, verify or release by expected loss, and always leaves the final call to a person.
 
@@ -101,11 +104,32 @@ live and how much of it is migrated and seeded, and closes on whether this lapto
 the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
 warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
-Three commands worth knowing about. `bun test` runs 1023 tests across 59 files with no network, no
-database and no API key, which is the fastest way to check that the intelligence is real. `bun run
-eval` scores the six controls against 30 labelled holdout cases and prints precision, recall and
-the false positive rate per control. `bun run demo` drives the demo path headless and must be green
+Three commands worth knowing about. `bun test` runs 1,725 tests across 99 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real. The 111
+database cases skip themselves unless `TEST_DATABASE_URL` names a database they may empty, and they
+share one, so run them a workspace at a time rather than all at once. `bun run eval` scores the six
+controls against 30 labelled holdout cases and prints precision, recall and the false positive rate
+per control. `bun run demo` drives the demo path headless and must be green
 before any rehearsal or judge visit.
+
+The consortium network is opt-in, because it is the only part of the product that talks to a second
+vendor. It stays behind `ALLOW_CONSORTIUM=1`, and with the flag unset every control still runs and the
+beneficiary finding says the network was not consulted.
+
+```bash
+bun run consortium:seed             # Snowflake database, schema, table and view, then the synthetic network of other tenants
+bun run consortium:push             # this company's registry outcomes, as salted hashes and nothing else
+bun run consortium:pull             # fills the local snapshot the engine reads
+bun run consortium:pull --offline   # fills the same snapshot from the generator, with no Snowflake account at all
+```
+
+[`docs/adr/0006-consortium-snowflake.md`](docs/adr/0006-consortium-snowflake.md) is why the decision
+reads a snapshot and never the warehouse, and
+[`docs/06-regulatory-privacy.md`](docs/06-regulatory-privacy.md) section 8 lists what leaves a company
+and what never does. There is one real tenant: the other tenants are generated from the committed seed
+and every row carries `synthetic: true`. `--offline` is how the demo runs with no account and no
+uplink, and `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse the
+two.
 
 ## Screenshots
 
@@ -131,10 +155,12 @@ Fit for purpose is graded, so each row ties a tool to this problem rather than t
 | `packages/engine` | n/a | The six controls behind one call, `runControls`. It exists for a dependency direction and not for taste: `packages/sat` and `packages/cep` already depend on `core`, so `core` cannot import them back without a cycle. Adapters only, no algorithm. |
 | `packages/sat` with a committed snapshot | n/a | The complete official Article 69-B listing, 4.5 MB, dated and committed with its provenance, so `GET /api/v1/sat/lookup` answers an RFC a judge picks themselves with no network and no conference Wi-Fi. |
 | `packages/cep` | n/a | XMLDSig against the Banxico certificate, byte-exact, reporting `unconfirmed_scheme` rather than claiming a seal it cannot prove. |
+| `packages/rail` | n/a | The only place that sends money, and it sends one amount, 0.01 MXN. Mexico has no confirmation-of-payee API, so the one document that names an account holder is the CEP Banxico signs for a SPEI, and the cent is what makes one exist. `NessieRail` writes it to the company's bank mirror and has run live; `StpRail` is the SPEI participant that would produce a real CEP, written out with its cadena original and its RSA signature and refusing to run without `STP_*`, so nothing here can pretend to be contracted; `FakeRail` is the in-process one, and every event it produces carries `simulated: true`. |
 | Hono | 4.13.7 | Small, standards-based HTTP. The API stays thin transport with no business logic in it. |
 | zod plus `@hono/zod-validator` | 4.5.4 / 0.9.1 | One schema per endpoint, validated at the edge, typed on both sides of the wire. |
 | Postgres via `postgres` | 3.4.9 | Raw SQL, no ORM. When a judge asks how the forecast works, the answer is the query. |
 | Timescale hypertables, conditional | n/a | A transaction ledger genuinely is a time series, so hypertables and continuous aggregates are the honest fit. `0002_timescale.sql` applies only where the extension exists, so a plain local Postgres 18 is the offline fallback on the same dialect. |
+| Snowflake, in `packages/consortium` only | no dependency, key-pair JWT and `fetch` | The cross-tenant beneficiary network, and the MLH Best Use of Snowflake API category. A supplier's first payment from this company has no history here and months of history in every other company that already pays it, which is the one signal our own ledger cannot hold. What leaves a company is a salted hash of the supplier and the account, a bank code and one of four outcomes: no name, no amount, no account number. The engine reads a local snapshot and never the warehouse, so the decision stays deterministic and works offline. The network of other tenants is synthetic and labelled as such. ADR-0006. |
 | Vite, React, Tailwind | 8.2.2 / 19.2.8 / 4.3.3 | The judge-facing surface is a URL they open on their own phone, which is the cleanest rebuttal to a staged prototype. |
 | motion | 13.2.0 | Motion is first-class here, not a polish task, because the experience criteria are 20 points. |
 | recharts | 3.10.1 | Charts over our own ledger, not over screenshots. |
@@ -180,7 +206,7 @@ build night mode cost us, the ADR index, and the list of work we consciously cut
 | 12 | [judge Q and A](docs/12-judge-qa.md) | The walk-up answer sheet, per person and shared |
 | 13 | [Devpost](docs/13-devpost.md) | The exact submission copy |
 | 14 | [process](docs/14-process.md) | How we worked: board, PRs, reviews, ADR index, what we cut |
-| adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target |
+| adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target, consortium |
 
 Plus [`AGENTS.md`](AGENTS.md), the contract every person and every assistant in this repository
 works under, and [`docs/design.md`](docs/design.md) for the reasoning behind the design system.

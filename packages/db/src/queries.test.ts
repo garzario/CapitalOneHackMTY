@@ -71,6 +71,7 @@ import {
   lookupSatEntries,
   markInstructionSent,
   readLedger,
+  readVerificationEvents,
   recordKnownAccount,
   type SupplierHistory,
   supplierHistory,
@@ -259,6 +260,110 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       };
       await appendLedgerEvent(sql, call);
       expect(await readLedger(sql)).toEqual([call]);
+    });
+
+    /**
+     * The two event kinds 0009 added, and the read that folds a verification.
+     *
+     * Three of the four kinds carry the instruction id and `decision_made` carries
+     * it one level down, inside the decision, so the query has to reach for it
+     * differently; the `cep_verified` is matched on the account instead, because a
+     * CEP names an account and no instruction. Getting any of those four wrong
+     * leaves a state machine stuck on `cent_sent` while the ledger holds the CEP.
+     */
+    it("reads the verification of one instruction, by id and by account", async () => {
+      const at = "2026-09-12T03:00:00.000Z";
+      const account = "014180004551203983";
+      const events: LedgerEvent[] = [
+        {
+          type: "cent_sent",
+          at,
+          instructionId: "INS-1",
+          rail: "nessie",
+          claveRastreo: "NSS68C4AA11BB22CC33DD44EE",
+          amount: 0.01,
+          clabeLast4: "3983",
+          simulated: true,
+        },
+        {
+          type: "cep_awaited",
+          at: "2026-09-12T03:00:05.000Z",
+          instructionId: "INS-1",
+          claveRastreo: "NSS68C4AA11BB22CC33DD44EE",
+          attempts: 2,
+          waitedMs: 3000,
+          reason: "Banxico has published no CEP for this clave de rastreo yet.",
+        },
+        // Another instruction's cent, which must not be in the answer.
+        {
+          type: "cent_sent",
+          at,
+          instructionId: "INS-2",
+          rail: "stp",
+          claveRastreo: "STPINS21234567",
+          amount: 0.01,
+          clabeLast4: "0001",
+          simulated: false,
+        },
+      ];
+      await appendLedgerEvents(sql, events);
+
+      const read = await readVerificationEvents(sql, "INS-1", account);
+
+      expect(read).toEqual([events[0], events[1]]);
+      // The types survive the round trip through the check constraint 0009 widened.
+      expect(read.map((event) => event.type)).toEqual([
+        "cent_sent",
+        "cep_awaited",
+      ]);
+      expect(await readVerificationEvents(sql, "INS-3", account)).toEqual([]);
+    });
+
+    it("finds the decision inside its payload and the CEP by its account", async () => {
+      const at = "2026-09-12T03:10:00.000Z";
+      const account = "014180004551203983";
+      const decision: LedgerEvent = {
+        type: "decision_made",
+        at,
+        decision: {
+          instructionId: "INS-1",
+          action: "release",
+          expectedLoss: 0,
+          delayCostPerDay: 0,
+          findings: [],
+          decidedAt: at,
+          decidedBy: "system",
+        },
+      };
+      const verified: LedgerEvent = {
+        type: "cep_verified",
+        at,
+        supplierRfc: supplier.rfc,
+        cep: {
+          claveRastreo: "NSS68C4AA11BB22CC33DD44EE",
+          transferredAt: at,
+          amount: 0.01,
+          senderName: "Metalicos del Norte SA de CV",
+          senderBank: "SinteticoDos",
+          beneficiaryName: "ACEROS Y PERFILES DEL NORTE SA DE CV",
+          beneficiaryAccount: account,
+          beneficiaryBank: "SinteticoUno",
+          signatureValid: false,
+          signatureReason: "not_checked",
+          xml: '<SPEI_Tercero sintetico="true" />',
+          synthetic: true,
+        },
+      };
+      await appendLedgerEvents(sql, [decision, verified]);
+
+      expect(await readVerificationEvents(sql, "INS-1", account)).toEqual([
+        decision,
+        verified,
+      ]);
+      // A CEP for another account is not this instruction's evidence.
+      expect(
+        await readVerificationEvents(sql, "INS-9", "072180100000000007"),
+      ).toEqual([]);
     });
 
     it("is append-only in the server: an update or a delete is refused, loudly", async () => {
@@ -561,6 +666,57 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       await insertDecision(sql, clerk);
 
       expect(await latestDecision(sql, "INS-1")).toEqual(clerk);
+    });
+
+    it("keeps the reason a person wrote next to their name", async () => {
+      // The judges' question on 2026-09-12 was what happens if the payment is
+      // urgent. The answer is a release under a named person's responsibility
+      // with a written argument, so both have to survive a reload: without the
+      // column, the in-memory store would answer a reason and Postgres nothing,
+      // which is exactly the asymmetry a judge finds by refreshing the page.
+      const evidence = finding("fnd-reason", "INS-1", 184300);
+      await insertFindings(sql, [evidence]);
+      const engine: Decision = {
+        instructionId: "INS-1",
+        action: "hold",
+        expectedLoss: 110580,
+        delayCostPerDay: 920,
+        findings: [evidence],
+        decidedAt: "2026-09-10T16:30:00.000Z",
+      };
+      const override: Decision = {
+        ...engine,
+        action: "release",
+        decidedAt: "2026-09-11T09:00:00.000Z",
+        decidedBy: "ana.tesoreria",
+        reason: "el proveedor confirmo la cuenta y la nomina sale hoy",
+      };
+      await insertDecision(sql, engine);
+      await insertDecision(sql, override);
+
+      const latest = await latestDecision(sql, "INS-1");
+      expect(latest).toEqual(override);
+      expect(latest?.reason).toBe(
+        "el proveedor confirmo la cuenta y la nomina sale hoy",
+      );
+    });
+
+    it("carries no reason on the engine's own proposal", async () => {
+      // The engine's reasoning is the findings, which are already on the object.
+      // An empty string in the column would read on screen as a person who
+      // pressed the button and wrote nothing.
+      const evidence = finding("fnd-no-reason", "INS-1", 31320);
+      await insertFindings(sql, [evidence]);
+      await insertDecision(sql, {
+        instructionId: "INS-1",
+        action: "verify",
+        expectedLoss: 31320,
+        delayCostPerDay: 640,
+        findings: [evidence],
+        decidedAt: "2026-09-10T16:30:00.000Z",
+      });
+
+      expect(await latestDecision(sql, "INS-1")).not.toHaveProperty("reason");
     });
 
     it("refuses a decision that cites a finding the database does not hold", async () => {

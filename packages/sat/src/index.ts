@@ -31,12 +31,20 @@
  *   match.ts        matchRfc, matchRfcAsOf, statusHistory, createSatIndex
  *   sweep.ts        sweep, priceSweep, paidCfdisOf, simulatePublication, the rates
  *   official.ts     the committed real download and its provenance
+ *   art49bis.ts     the other SAT list: the 49 Bis loader, window, index and sweep
  *   rfc.ts          normalizeRfc, isRfcShaped, the SYN prefix rule
  *   status.ts       the four situations and how the published file spells them
- *   snapshot/       the committed CSV, its README, and the synthetic fixture
+ *   snapshot/       the committed CSV, its README, and the synthetic fixtures
  * ```
+ *
+ * Two lists, and only one of them is loaded. Article 69-B is a downloadable file
+ * and it is committed; article 49 Bis is published one oficio at a time in the DOF
+ * with no machine-readable listing, so `art49bis.ts` ships the loader, the thirty
+ * day window and the sweep, and `official49BisListing()` reports the coverage as
+ * `not_published_machine_readable` rather than answering an empty list.
  */
 
+export * from "./art49bis";
 export * from "./csv";
 export * from "./dates";
 export * from "./loader";

@@ -25,6 +25,7 @@ import {
   ClabeDiff,
   DuplicateOriginBlock,
   EvidenceChips,
+  NetworkBlock,
   SatStatusBlock,
 } from "./Evidence";
 import { Amount, SeverityBadge } from "./Primitives";
@@ -131,6 +132,8 @@ export function FindingPanel({
       ) : null}
 
       {evidence.clabe ? <ClabeDiff comparison={evidence.clabe} /> : null}
+
+      {evidence.network ? <NetworkBlock network={evidence.network} /> : null}
 
       <EvidenceChips chips={evidence.chips} />
 

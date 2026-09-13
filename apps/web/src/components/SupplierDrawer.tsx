@@ -5,6 +5,15 @@
  * The important part is "known accounts, and how each one was established".
  * An account that came from a stamped payment complement is a different kind of
  * fact from an account that arrived in an email, and the drawer says which.
+ *
+ * The invoice count is the one number on this screen whose meaning depends on who
+ * answered. `GET /api/v1/suppliers/:rfc` answers with the issuer's whole file;
+ * the offline fallback carries only the invoices this run settles, the sweep
+ * prices or a finding names, because the eight-month history is 208 KB gzipped a
+ * phone in a corridor would download to render a table nobody opens. So the field
+ * is labelled for the source that answered it. Printing 3 under "facturas en el
+ * expediente" for an issuer that has 23 would be issue 125 again: one RFC, two
+ * numbers, depending on whether the API was up.
  */
 
 import type { Rfc } from "@hackmty/core";
@@ -58,6 +67,11 @@ export function SupplierDrawer({ rfc, onClose }: Props) {
       }
     };
   }, [onClose]);
+
+  /* Whether this drawer is reading the offline fallback, which carries a narrower
+     invoice history than the API. Only the invoice block reads it: every other
+     field is the same row on both sides. */
+  const offline = resource.status === "ready" && resource.source === "mock";
 
   return (
     <>
@@ -135,7 +149,13 @@ export function SupplierDrawer({ rfc, onClose }: Props) {
                 <Field label="Primera factura">
                   {formatDate(resource.data.supplier.firstInvoiceAt)}
                 </Field>
-                <Field label="Facturas en el expediente">
+                <Field
+                  label={
+                    offline
+                      ? "Facturas de esta corrida"
+                      : "Facturas en el expediente"
+                  }
+                >
                   <span className="num">
                     {formatCount(resource.data.cfdis.length)}
                   </span>
@@ -193,10 +213,21 @@ export function SupplierDrawer({ rfc, onClose }: Props) {
 
               <section className="flex flex-col gap-3">
                 <h3 className="eyebrow">Facturas</h3>
+                {offline ? (
+                  <p className="muted t-sm">
+                    Sin API solo viajan las facturas que esta corrida paga, que
+                    el barrido retroactivo tasa o que un hallazgo nombra. El
+                    expediente completo del proveedor lo responde la API.
+                  </p>
+                ) : null}
                 {resource.data.cfdis.length === 0 ? (
                   <EmptyBlock
                     title="Sin facturas"
-                    description="No hay ningun CFDI de este proveedor en el expediente. Un pago sin factura detras es justo lo que revisa la conciliacion bancaria."
+                    description={
+                      offline
+                        ? "Ninguna factura de este proveedor entra en esta corrida. Abre la pantalla con la API para ver su expediente completo."
+                        : "No hay ningun CFDI de este proveedor en el expediente. Un pago sin factura detras es justo lo que revisa la conciliacion bancaria."
+                    }
                   />
                 ) : (
                   <div className="table-scroll">

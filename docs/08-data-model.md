@@ -22,7 +22,7 @@ number.
 Transcribed from `packages/core/src/domain.ts`, including the fields the domain grew after the first
 schema landed: `Supplier.delayCostPerDay`, `PaymentComplement.paymentTotal` and `operationNumber`,
 `PaymentInstruction.audioRef` and `sentAt`, the CEP evidence fields, `ledger_tx` as a finding
-subject and `verification_call` as a ledger event.
+subject, and `verification_call`, `cent_sent` and `cep_awaited` as ledger events.
 
 ```mermaid
 erDiagram
@@ -53,7 +53,7 @@ erDiagram
     text rfc PK
     text legal_name
     timestamptz first_invoice_at
-    numeric delay_cost_per_day "null until the relationship is priced"
+    numeric delay_cost_per_day "null until the relationship is priced, set on all 44 generated"
     boolean synthetic
   }
   KNOWN_ACCOUNT {
@@ -124,6 +124,7 @@ erDiagram
     numeric delay_cost_per_day
     timestamptz decided_at
     text decided_by "null until a person decides"
+    text reason "what that person wrote, null on the engine proposal"
   }
   DECISION_FINDING {
     bigint decision_id PK "references decisions"
@@ -168,7 +169,7 @@ erDiagram
     uuid event_id PK
     timestamptz at PK "the partitioning column"
     bigint seq "total order inside one instant"
-    text type "eight variants, including verification_call"
+    text type "ten variants, including cent_sent and cep_awaited"
     jsonb payload
     timestamptz recorded_at
   }
@@ -196,8 +197,10 @@ the honest version of the multi-tenancy answer in `docs/07-architecture.md`.
 
 ### Where the storage shape differs from the domain shape, and why
 
-Six places, all deliberate. The API returns the domain shape in every case, per `docs/09-api.md`,
-and `packages/db/src/rows.ts` is the only file that translates between the two.
+Eight places, all deliberate. Seven of them are a storage shape that differs, and the API returns the
+domain shape in every case, per `docs/09-api.md`, with `packages/db/src/rows.ts` the only file that
+translates between the two. The eighth is a domain type with no storage at all, which is the same
+question answered the other way.
 
 | Domain | Storage | Why |
 |---|---|---|
@@ -207,10 +210,12 @@ and `packages/db/src/rows.ts` is the only file that translates between the two.
 | `Supplier.knownAccounts: KnownAccount[]` | `known_accounts` rows, keyed `(supplier_rfc, clabe)` | The order matters to the CLABE control, and a row per account is what lets `times_paid` be incremented without rewriting the supplier. `known_accounts_clabe` indexes the reverse lookup, because the same account under two suppliers is a signal |
 | `Cep` | Columns on `verified_beneficiaries`, not a table of its own | A CEP only exists here as evidence that one supplier was really paid on one account, so the registry row and the document are the same fact. There is no orphan CEP to store. `clave_rastreo` carries a unique index, so one Banxico receipt can prove exactly one row |
 | `COMPANY` | A one-row table, absent from `domain.ts` | Every pure function is called with one company's context already selected, so the tenant key never reaches the intelligence lane. That is what makes a detector testable with ten lines of fixture. The multi-tenant path is written out in `docs/07-architecture.md` |
+| `NetworkSignal` | `consortium_snapshot` plus the one-row `consortium_pull` | The domain object is one answer about one pair, and it is computed from three stored facts: the pull, the pair row and how many accounts the network holds for that RFC. The split is what lets "the network was not read" and "the network read and knows nothing" be different answers. `apps/api/src/consortium.ts` is the only file that assembles one, and it hashes the RFC and the CLABE on the way in, so no raw identifier ever reaches these tables |
+| `Sat49BisEntry` | Nothing. There is no table | Issue #180, and the absence is the design. `sat_list_entries` is keyed `(list_version, rfc, status)` and article 49 Bis has no status: fraccion X publishes one outcome and provides for no published clearing, so a row there would need a fifth `status` value that means "this is a different statute". More to the point, there is nothing to store: the SAT publishes that list one oficio at a time as a DOF note and ships no machine-readable file, so nothing in this repository can hold a 49 Bis version it did not transcribe by hand. `packages/sat/src/art49bis.ts` reads publications passed to it, `official49BisListing()` reports the coverage, and the day a file exists this row becomes a migration rather than a silent schema we guessed at in advance |
 
 ## Migrations
 
-Eight files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
+Nine files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
 `packages/db/src/migrate.ts`, written out rather than discovered by reading the directory, so adding
 a file is a deliberate one-line change in a diff and a stray `.sql` left in the folder never runs.
 The plain files run first and the Timescale ones after, so a fresh database is fully usable even
@@ -225,6 +230,9 @@ laptops.
 | `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003, the two widened check constraints, the `ledger_tx` key, and the append-only trigger |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table |
 | `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events |
+| `0009_consortium_snapshot.sql` | any Postgres 16+ | `consortium_snapshot` and the one-row `consortium_pull`: the local projection of the cross-tenant network |
+| `0010_rail_events.sql` | any Postgres 16+ | `cent_sent` and `cep_awaited` as ledger event types, the two the one-cent verification appends |
+| `0011_decision_reason.sql` | any Postgres 16+ | `decisions.reason`, the argument a person wrote when they overrode the engine, next to the name in `decided_by` |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
@@ -281,6 +289,23 @@ worth a reviewer's time.
 A check constraint has no `if not exists` form, so the two widened constraints are dropped by the
 name Postgres gave them and recreated. `0003` is never edited: the checksum in `schema_migrations`
 would report it and the next laptop would diverge.
+
+**`0010_rail_events.sql`** widens the same check constraint again, for the two event kinds the
+one-cent verification appends (issue #166). `cent_sent` is the 0.01 MXN probe leaving the company's
+account through a payment rail, with the clave de rastreo the rail filed it under, four digits of the
+account probed and a `simulated` flag that is true only for the in-process rail the suite and
+`bun run demo` use. `cep_awaited` is the cent being out with no CEP published for that clave yet,
+with how long the pipeline waited and how many times it asked. A CEP is published once the transfer
+settles, so that second one is an ordinary state for minutes rather than an error, and the event is
+what lets the screen say "ya salio, esperando el CEP" instead of showing nothing.
+
+Neither kind adds a column. The discriminant is `type` and the rest of the variant is `payload`, so
+an event kind is a check-constraint change and nothing else, which is the property that made the
+ledger the right system of record in the first place. The read that folds them is
+`readVerificationEvents` in `packages/db/src/queries.ts`: three kinds carry `instructionId` at the
+top of the payload, `decision_made` carries it one level down inside the decision, and `cep_verified`
+carries no instruction at all and is matched on the beneficiary account, because a CEP proves who
+holds an account and says nothing about which invoice we were about to pay.
 
 **`0006_company.sql`** adds the one-row `company` table, and it exists because three reads needed
 something that described us rather than our suppliers: the constancia header, the bank account the
@@ -418,6 +443,74 @@ slice, because that is the denominator of the concentration signal. The weekly s
 the bucket that contains the lower bound and not by the raw instant, or the series would start a
 week late.
 
+### consortium_snapshot, and why there are two tables
+
+**`0009_consortium_snapshot.sql`** holds the local projection of the SentryOne consortium: what other
+tenants have paid, for a hashed (supplier RFC, account) pair. It is the second data store in this
+product and the only one that is not per company, so it is worth being precise about where the line
+falls. The operational ledger stays on Tiger Data per company and answers on the hot path in
+milliseconds; the network is a cold, cross-tenant warehouse on Snowflake, which is what Snowflake is
+for. Neither ever calls the other at request time. `bun run consortium:pull` reads the warehouse on a
+laptop and writes these two tables, and the engine reads only these two tables.
+
+```sql
+-- 0009_consortium_snapshot.sql   runs on ANY Postgres 16+
+create table if not exists consortium_snapshot (
+  rfc_hash       char(64) not null check (rfc_hash ~ '^[0-9a-f]{64}$'),
+  clabe_hash     char(64) not null check (clabe_hash ~ '^[0-9a-f]{64}$'),
+  bank_code      char(3)  not null check (bank_code ~ '^[0-9]{3}$'),
+  tenants        integer  not null check (tenants >= 0),
+  first_seen     date     not null,
+  last_seen      date     not null,
+  fraud_reports  integer  not null default 0 check (fraud_reports >= 0),
+  other_accounts integer  not null default 0 check (other_accounts >= 0),
+  pulled_at      timestamptz not null default now(),
+  primary key (rfc_hash, clabe_hash)
+);
+
+create table if not exists consortium_pull (
+  id        integer primary key default 1 check (id = 1),
+  pulled_at timestamptz not null,
+  source    text    not null check (source in ('snowflake', 'synthetic')),
+  rows      integer not null check (rows >= 0)
+);
+```
+
+Four decisions, each a consequence rather than a preference.
+
+1. **Two tables, because three states have to be told apart.** No `consortium_pull` row means the
+   network was never consulted here, and the engine then reads `NOT_CONSULTED` and decides exactly
+   what this product decided before the consortium existed. A pull row with no matching snapshot row
+   means the network WAS consulted and has never seen this account, which is a much stronger claim.
+   A pull row and a snapshot row is what the network knows. One table could not separate the first
+   two, and reading "no row" as "nobody pays this account" would be the product inventing an answer.
+2. **The snapshot is replaced wholesale by a pull, never merged.** A pair the network has stopped
+   corroborating must not stay behind, because a stale corroboration is the one way this signal turns
+   into a false release. The delete and the insert run inside one transaction, so there is no instant
+   at which the snapshot is half a network.
+3. **The hashes are `char(64)` with a hex check, not `text`.** They are HMAC-SHA256 hex digests of
+   exactly that length, so the type is the documentation and neither a raw RFC nor a raw CLABE can
+   land in these columns by accident: neither is 64 characters of hex. There is no column for a name,
+   an amount, an invoice or a clave de rastreo, in this table or in the warehouse. The bank code is
+   the one public thing that survives, and it is printed on every SPEI receipt.
+4. **`first_seen` and `last_seen` are `date`.** The warehouse keeps a calendar day per event on
+   purpose, because an instant would narrow a payment to a window and a day does not. Storing a
+   timestamp here would invent a precision the source never had.
+
+`consortium_pull.source` is load bearing rather than decorative. `snowflake` means the rows came from
+the warehouse; `synthetic` means `bun run consortium:pull --offline` generated them from the
+deterministic network on this laptop, which is how a rehearsal works with no account and no Wi-Fi. A
+screen or a document that says "red SentryOne" has to be able to say which of the two it is looking
+at, so the value is constrained in the table and not left to whatever a script writes.
+
+The warehouse side is one table and one view, `SENTRYONE.CONSORTIUM.BENEFICIARY_EVENTS` and
+`BENEFICIARY_NETWORK`, and `packages/consortium/src/ddl.ts` is the only place they are defined.
+`aggregateNetwork` in the same package is the same fold in TypeScript, which is what makes the
+offline path produce the rows the view would have produced. There is no Timescale twin for 0009: a
+few thousand rows replaced once per pull is not a time series and a hypertable would buy nothing.
+`truncateSentryOne` deliberately leaves both tables alone, because the network is not company data
+and a re-seed of the company should not throw away a pull.
+
 ## Field notes
 
 | Field | Why it is shaped like this |
@@ -432,7 +525,7 @@ week late.
 | `signature_reason text` | `packages/cep` refuses to report a valid Banxico seal because Banxico publishes no specification of the signed string, the hash or the padding. It runs the whole candidate matrix and returns `unconfirmed_scheme`, and the column carries that word so the UI can say "firma no verificada" and never "firma invalida". Two different claims, and only one of them is ours to make |
 | `synthetic boolean` | The watermark is rendered from this flag and never from a name. Set on every generated row, per ADR-0002 |
 | `ocr_confidence numeric(4,3) check (between 0 and 1)` | Present only when the CLABE came from a file. A low value weakens the CLABE finding rather than being ignored, which is what keeps a blurry photo from becoming a confident accusation |
-| `delay_cost_per_day numeric(14,2)` nullable | Absent means the relationship has not been priced yet, and `supplierModelOf` reads that as zero. Zero is conservative rather than neutral: with no delay cost the engine verifies anything carrying a positive expected loss and releases only what is clean |
+| `delay_cost_per_day numeric(14,2)` nullable | Absent means the relationship has not been priced yet, and `supplierModelOf` reads that as zero. Zero is conservative rather than neutral: with no delay cost the engine verifies anything carrying a positive expected loss and releases only what is clean. It is nullable because a real tenant's first import prices nothing; the generated company prices all 44, so the column is populated everywhere the demo reads it |
 | `message_text` rather than `text` | `text` is a type name in Postgres and reads badly as a column. It is the one column name that is not the domain field spelled in snake_case, and `rows.ts` maps it back |
 | `sent_at timestamptz` nullable | Projected from the `payment_sent` event. Absent while the instruction is still pending, which is what separates "not paid yet" from "paid and missing from the bank mirror", and the second is a `bank_reconciliation` finding |
 | `decided_by text` nullable | Null until a person decides. The system proposes, a human disposes, and the column is the proof |
@@ -503,9 +596,19 @@ because rolling to the next Monday puts three times its share of the due dates i
 document behind it, because nothing in this week's run has left the bank yet and that is the premise
 of the product. Findings, decisions and verified beneficiaries, because they are the engine's
 output and a generator that shipped its own findings would be answering the question the controls
-exist to answer. Voice notes and `delayCostPerDay`, which is why `supplierModelOf` reads the whole
-seeded company as unpriced and the engine takes the conservative branch. All of that is printed by
-`bun run seed` under `pending`, rather than left for a judge to discover.
+exist to answer. Voice notes, because no instruction in the generated run arrived as audio. All of
+that is printed by `bun run seed` under `pending`, rather than left for a judge to discover.
+
+**What it does produce, and used not to.** `Supplier.delayCostPerDay` on all 44 suppliers, between
+MXN 101.98 and MXN 4,611.27 a day, priced in `packages/seed/src/sentryone/delay-cost.ts` from the
+catalogue row: moratory interest on the balance this company owes that supplier, plus the pronto pago
+discount that expires the day the payment is late, weighted up where a delay stops production rather
+than annoying a consumables vendor. It is arithmetic over the spec and draws nothing from the RNG, so
+the price is the same whichever eight months the generator drew, and adding it moved no id. Until #182
+the field was unset, `supplierModelOf` fell back to `DEFAULT_DELAY_COST_PER_DAY`, and the expected-loss
+trade-off weighed the pesos at risk against zero: every line with any positive expected loss was
+stopped and rule 3 never reached its release branch. It reaches it now, on one line of the reference
+run.
 
 **Does it look real.** TODO(garzario): the honest comparison is one summary statistic of the
 generator against a public series, and the only figures above that a public source could contradict
@@ -537,8 +640,9 @@ demo path, not evidence. `clabe_two_digits_off` puts `SYN990202S02` on an accoun
 the one with a hundred payments behind it with a valid check digit, MXN 38,417.48 at risk;
 `invalid_check_digit` arrives as a photographed PDF at OCR confidence 0.82; `duplicate_invoice`
 puts an invoice a complement already settled back on the run; `listed_supplier_69b` puts a supplier
-of two years on the simulated publication with MXN 878,592.59 of base already deducted across 31
-invoices.
+of two years on the simulated publication with MXN 878,592.59 of base already deducted, across 24 of
+their 31 invoices: the base counts the settled ones only, because an invoice nobody has paid yet was
+not deducted yet and carries no retroactive exposure.
 
 **In the holdout set**, 10 of the 30 labelled cases are negatives, and they are where the
 false-positive rate is actually computed. The overlap with the list above is deliberate and the two

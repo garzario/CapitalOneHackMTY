@@ -39,7 +39,10 @@ the implementations existed. What holds the number up is the second rule, not th
 first: no case in this folder has been edited to make a control pass.
 
 Four labels currently disagree with the engine and all four are left in the table,
-costing us both a point of precision and a point of recall.
+costing us both a point of precision and a point of recall. Two of the four disagree at
+the level as well, which is the same argument seen from the screen: the presunto case
+reads `alerta` to the engine and `precaucion` to the label, and the unbacked new account
+reads the other way round.
 
 | Case | The label says | The engine says |
 |---|---|---|
@@ -90,16 +93,40 @@ The hard negatives are the half that decides whether the product is usable. A se
 that holds a legitimate payment twice is a sentinel the clerk turns off, so
 `falsePositiveRate` is the number to defend, not `recall`.
 
-Thirty cases are here and all six controls are exercised, reconciliation included: one
-case marks a payment sent and hands the engine a bank statement that does not carry it.
+Thirty-five cases are here and all six controls are exercised, reconciliation included:
+one case marks a payment sent and hands the engine a bank statement that does not carry
+it. Five arrived with the retro build and each one covers a shape the set could not see
+before: a taxpayer published under article 49 Bis, which has no clearing to wait for; a
+plaza change at the same bank, which is the half of a CLABE nobody reads; a brand-new
+account at the same bank and plaza, where the only fact is that we have never paid it;
+a CEP that arrives while the run is still open and moves the line from precaucion to
+confiable; and the hard negative that pairs with the plaza case, a supplier that really
+did move plaza with its own complement to say so.
+
 `holdout.test.ts` fails if the set drops below twenty-five cases or if fewer than a
 third of them are negatives, and `engine.test.ts` fails if any control ends up armed on
 no case at all.
 
 ## How the score is computed
 
-The unit of account is a **case by detector pair**. Six controls over thirty cases is
-180 pairs, each either expected to fire or expected not to.
+The unit of account is a **case by detector pair**. Six controls over thirty-five cases
+is 210 pairs, each either expected to fire or expected not to.
+
+There is a second view of the same evaluation and it answers a different question. The
+per-control table is what a detector author fixes: did control 2 fire on the case that
+expected it. The **level matrix** is what a judge asks: did the line come out `alerta`
+when it should have. A control can be right and the payment still read `precaucion` when
+the documents say `alerta`, and no per-control number shows that. Each case carries one
+`expectedLevel`, the engine derives one through `confidenceOf`, and both columns of the
+matrix sum to the case count.
+
+The level is labelled from what the case is, never derived from `expectedFindings`
+through the rule table the engine applies. Deriving it would make the matrix agree with
+itself by construction and measure nothing.
+
+The row to defend is `confiable`. A line the product called trustworthy and that was not
+is the one mistake it cannot make twice, and both `holdout.test.ts` and the API test
+fail if that precision drops below one.
 
 - `TP`: expected and fired. `FP`: not expected and fired. `FN`: expected and did not
   fire. `TN`: not expected and did not fire.

@@ -20,7 +20,7 @@ import { createInstruction } from "../lib/api";
 import type { InstructionDetail } from "../lib/contract";
 import { formatMoney } from "../lib/format";
 import { SOURCE_LABEL } from "../lib/labels";
-import { mockInstruction } from "../lib/mock";
+import { EXAMPLE_SUPPLIER_RFC, mockIntakeExample } from "../lib/mock";
 import { useRouteQuery } from "../lib/router";
 
 const SOURCES: InstructionSource[] = [
@@ -68,7 +68,7 @@ export function IntakeScreen() {
   const [showExample, setShowExample] = useState(false);
 
   /** The layout of the answer, for a reviewer working without a backend. */
-  const example = useMemo(() => mockInstruction("ins-2026w37-002"), []);
+  const example = useMemo(() => mockIntakeExample(), []);
 
   const parsedAmount = Number(amount.replace(/[^\d.]/g, ""));
   const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
@@ -194,7 +194,7 @@ export function IntakeScreen() {
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
-            placeholder="SYN010101AAA"
+            placeholder={EXAMPLE_SUPPLIER_RFC}
             value={supplierRfc}
             onChange={(event) => setSupplierRfc(event.target.value)}
           />

@@ -483,5 +483,6 @@
     ]
   },
   "expectedFindings": [],
-  "expectedAction": "release"
+  "expectedAction": "release",
+  "expectedLevel": "confiable"
 }

@@ -67,5 +67,6 @@
       "because": "The supplier's own complemento de recepcion de pagos covers the full total of this CFDI, so a second payment is provably a second payment."
     }
   ],
-  "expectedAction": "hold"
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
 }

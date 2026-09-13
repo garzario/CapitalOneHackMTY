@@ -30,6 +30,8 @@
 import { nameMatch } from "@hackmty/cep";
 import type {
   Cfdi,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   LedgerEvent,
@@ -40,17 +42,20 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runMoney, sumAmounts } from "@hackmty/core";
 import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
   appendLedgerEvents,
+  countConsortiumAccounts,
   countSentryOne,
   currentPaymentRun,
   deleteLedgerTxForAccount,
   findingsForSubjects,
   findingsForSupplier,
   getCompany,
+  getConsortiumPair,
+  getConsortiumPull,
   getInstruction,
   getSupplier,
   insertCfdis,
@@ -77,7 +82,9 @@ import {
   lookupSatEntries,
   markInstructionSent,
   readLedger,
+  readVerificationEvents,
   recordKnownAccount,
+  replaceConsortiumSnapshot,
   selectSuppliers,
   transact,
   truncateSentryOne,
@@ -97,6 +104,7 @@ import {
 import { assessRun } from "./assess";
 import type {
   CompanyIdentity,
+  ConsortiumLookup,
   IntakeRecord,
   LedgerQuery,
   Repository,
@@ -230,6 +238,7 @@ export class PostgresRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        ...runMoney(items),
       },
       items,
     };
@@ -360,6 +369,31 @@ export class PostgresRepository implements Repository {
   }
 
   /**
+   * The local consortium snapshot, three reads against the tables 0009 created
+   * and not one against Snowflake.
+   *
+   * That is the point of the snapshot: a payment decision never waits on a
+   * warehouse, so the demo works with the network unplugged and a judge can
+   * unplug it. `bun run consortium:pull` is the only thing here that ever talks
+   * to Snowflake, and it runs on a laptop rather than inside a request.
+   */
+  async consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup> {
+    const [pull, pair, accountsForRfc] = await Promise.all([
+      getConsortiumPull(this.sql),
+      getConsortiumPair(this.sql, rfcHash, clabeHash),
+      countConsortiumAccounts(this.sql, rfcHash),
+    ]);
+    return {
+      accountsForRfc,
+      ...(pull === undefined ? {} : { pull }),
+      ...(pair === undefined ? {} : { pair }),
+    };
+  }
+
+  /**
    * The blind evaluation, recomputed on demand and identical to the memory
    * path's. The labelled cases live in `packages/seed/src/holdout` and are not
    * in any table on purpose: a score read out of the same database the product
@@ -380,6 +414,13 @@ export class PostgresRepository implements Repository {
     // The default limit stays the query layer's to own, so the two stores and
     // the endpoint cannot end up with three different answers to "how many".
     return readLedger(this.sql, options);
+  }
+
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return readVerificationEvents(this.sql, instructionId, beneficiaryAccount);
   }
 
   /* --------------------------------------------------------------- writes */
@@ -422,6 +463,7 @@ export class PostgresRepository implements Repository {
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = await latestDecision(this.sql, instructionId);
     if (current === undefined) {
@@ -437,9 +479,28 @@ export class PostgresRepository implements Repository {
       decidedAt,
       decidedBy,
     };
+    if (reason !== undefined) {
+      decision.reason = reason;
+    }
     await insertDecision(this.sql, decision);
 
     return decision;
+  }
+
+  /**
+   * The engine's own decision on new evidence, findings first.
+   *
+   * One transaction, and the findings go in before the decision for the same
+   * reason `saveIntake` does it in that order: `decision_findings` has a foreign
+   * key on them, so a decision citing evidence the database does not hold is
+   * refused rather than stored. `insertFindings` is `on conflict do nothing`, so a
+   * finding the run already carried is not duplicated and not overwritten.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    await transact(this.sql, async (tx) => {
+      await insertFindings(tx, decision.findings);
+      await insertDecision(tx, decision);
+    });
   }
 
   async publishSatList(
@@ -496,6 +557,14 @@ export class PostgresRepository implements Repository {
       establishedAt: row.verifiedAt,
       timesPaid: 0,
     });
+  }
+
+  async replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number> {
+    return replaceConsortiumSnapshot(this.sql, input);
   }
 
   /**

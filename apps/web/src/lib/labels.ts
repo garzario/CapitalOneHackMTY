@@ -20,7 +20,12 @@ import type {
   SatListStatus,
   Severity,
 } from "@hackmty/core";
-import type { NameMatch } from "./contract";
+import type {
+  CepSealState,
+  NameMatch,
+  VerificationRail,
+  VerificationStateName,
+} from "./contract";
 
 export const ACTION_LABEL: Record<Action, string> = {
   hold: "Retener",
@@ -171,6 +176,75 @@ export const NAME_MATCH_BADGE: Record<NameMatch, string> = {
   match: "badge badge-release",
   partial: "badge badge-verify",
   mismatch: "badge badge-hold",
+};
+
+/**
+ * The one-cent verification, state by state.
+ *
+ * Every label is what happened and not what it means, because the meaning is
+ * the decision underneath and that is a separate line on screen. "Pago
+ * liberado" and "pago bloqueado" name the large payment, never the cent: the
+ * cent always goes out, and confusing the two is how a clerk reads "liberado"
+ * as "the centavo left".
+ */
+export const VERIFICATION_LABEL: Record<VerificationStateName, string> = {
+  not_started: "Sin verificar",
+  cent_sent: "Centavo enviado",
+  awaiting_cep: "Esperando el CEP",
+  cep_signed: "CEP firmado por Banxico",
+  released: "Pago liberado",
+  blocked: "Pago bloqueado",
+};
+
+export const VERIFICATION_BADGE: Record<VerificationStateName, string> = {
+  not_started: "badge badge-neutral",
+  cent_sent: "badge badge-verify",
+  awaiting_cep: "badge badge-verify",
+  cep_signed: "badge badge-neutral",
+  released: "badge badge-release",
+  blocked: "badge badge-hold",
+};
+
+export const VERIFICATION_HELP: Record<VerificationStateName, string> = {
+  not_started:
+    "Nadie ha probado esta cuenta todavia. La verificacion manda un SPEI de un centavo dentro de la misma corrida.",
+  cent_sent:
+    "El centavo salio de la cuenta de la empresa y el banco devolvio la clave de rastreo. Nadie la escribio.",
+  awaiting_cep:
+    "Banxico publica el CEP cuando la transferencia liquida. En cuanto llega, el control se arma solo.",
+  cep_signed:
+    "El CEP ya esta y trae el titular de la cuenta. Se compara con la razon social del CFDI y se revisa el sello.",
+  released:
+    "El pago grande salio porque el titular coincide y la evidencia se sostiene.",
+  blocked:
+    "El pago grande no sale. La evidencia del CEP no sostiene que la cuenta sea del proveedor.",
+};
+
+/**
+ * The cent is ours and the CEP is Banxico's, so the rail is named out loud.
+ * In the demo the outflow is recorded on the company's Nessie mirror; STP is
+ * the production path and says so rather than pretending to be live.
+ */
+export const RAIL_LABEL: Record<VerificationRail, string> = {
+  nessie: "espejo Nessie",
+  stp: "STP",
+};
+
+/**
+ * The seal, in the only three words this screen may use. `not_checked` is
+ * "no verificado" and never "valido": see `sealVerdictOf` in ./verification.ts,
+ * which is the only place that maps it.
+ */
+export const SEAL_STATE_LABEL: Record<CepSealState, string> = {
+  valid: "sello valido",
+  not_checked: "sello no verificado",
+  invalid: "sello invalido",
+};
+
+export const SEAL_STATE_BADGE: Record<CepSealState, string> = {
+  valid: "badge badge-release",
+  not_checked: "badge badge-verify",
+  invalid: "badge badge-hold",
 };
 
 export const ESTABLISHED_BY_LABEL: Record<string, string> = {

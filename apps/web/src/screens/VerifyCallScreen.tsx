@@ -37,6 +37,7 @@ import type {
   VerificationOutcome,
   VerificationScriptText,
 } from "../lib/contract";
+import { EXAMPLE_INSTRUCTION_ID } from "../lib/mock";
 import { useRouteQuery } from "../lib/router";
 
 /**
@@ -224,7 +225,7 @@ export function VerifyCallScreen() {
                   className="input code"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="ins-2026w37-01"
+                  placeholder={EXAMPLE_INSTRUCTION_ID}
                   value={instructionId}
                   onChange={(event) => setInstructionId(event.target.value)}
                 />

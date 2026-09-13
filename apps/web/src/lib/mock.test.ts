@@ -1,24 +1,43 @@
 /**
  * Invariants of the synthetic run.
  *
- * These are not tests of the detectors, which live in packages/core and are not
- * part of this scaffold. They are tests of the fixture the UI renders, and they
- * exist because three of the repo's rules are only as strong as the data behind
- * them: every generated object carries `synthetic: true`, no real RFC ever
- * appears next to fabricated evidence, and no total on screen disagrees with the
- * rows under it.
+ * These are not tests of the detectors, which live in `packages/core` and
+ * `packages/engine` and are tested there. They are tests of the data the UI
+ * renders offline, and they exist because four of the repository's rules are only
+ * as strong as that data: every generated object carries `synthetic: true`, no
+ * real RFC ever appears next to fabricated evidence, no total on screen disagrees
+ * with the rows under it, and the offline run is the same company the API serves.
  *
- * A reviewer should be able to break any of those three and see a red test.
+ * The fourth is the one issue 125 was about, so it is the one with the most tests
+ * here. `mock.ts` composes the payloads out of `mock-data.ts`, and the checks
+ * below are that the composition holds together: a row references a supplier that
+ * exists, a finding is reachable from the line it is about, and the drawer answers
+ * for every RFC the run names. That the rows themselves are the API's rows is a
+ * different claim with a different test, `scripts/web-mock.test.ts`, which fails
+ * when the committed file stops matching the generator.
+ *
+ * A reviewer should be able to break any of the four and see a red test.
  */
 
 import { describe, expect, test } from "bun:test";
 import {
   BENEFICIARIES,
+  bankName,
+  bankNameFromCode,
+  CEP_EXAMPLE_RFC,
   CFDIS,
+  COMPANY_RFC,
   COMPLEMENTS,
+  DEMO_INSTRUCTION_IDS,
+  EXAMPLE_INSTRUCTION_ID,
+  EXAMPLE_SUPPLIER_RFC,
+  LISTED_SUPPLIER_RFC,
   MOCK_CEP,
   MOCK_METRICS,
   MOCK_RUN,
+  mockCepVerification,
+  mockInstruction,
+  mockIntakeExample,
   mockLedger,
   mockSupplierDetail,
   mockSweep,
@@ -27,8 +46,8 @@ import {
   totalsFor,
 } from "./mock";
 
-/** Synthetic RFC of a moral person: SYN, six digits, three letters. */
-const SYNTHETIC_RFC = /^SYN\d{6}[A-Z]{3}$/;
+/** Synthetic RFC of a moral person: SYN, six characters, three characters. */
+const SYNTHETIC_RFC = /^SYN[0-9A-Z]{6}[0-9A-Z]{3}$/;
 
 /**
  * Independent check-digit verifier for a CLABE: weights 3, 7, 1 over the first
@@ -36,8 +55,8 @@ const SYNTHETIC_RFC = /^SYN\d{6}[A-Z]{3}$/;
  * complement of the sum modulo 10.
  *
  * This is a fixture check, not the detector. The real forensics belong in
- * packages/core; this only proves the accounts in the mock are well-formed, so a
- * demo never shows an account that could not exist.
+ * `packages/core`; this only proves the accounts in the offline run are
+ * well-formed, so a demo never shows an account that could not exist.
  */
 function controlDigit(first17: string): number {
   const weights = [3, 7, 1];
@@ -93,17 +112,28 @@ describe("the synthetic flag", () => {
     expect(flags.every((flag) => flag)).toBe(true);
   });
 
-  test("is true across the CFDIs, complements, CEP and registry", () => {
-    for (const value of [CFDIS, COMPLEMENTS, MOCK_CEP, BENEFICIARIES]) {
+  test("is true across the CFDIs, the complements and the CEP", () => {
+    for (const value of [CFDIS, COMPLEMENTS, MOCK_CEP]) {
       const flags = syntheticFlags(value);
 
       expect(flags.length).toBeGreaterThan(0);
       expect(flags.every((flag) => flag)).toBe(true);
     }
   });
+
+  test("is true on the intake example the QR page shows", () => {
+    const flags = syntheticFlags(mockIntakeExample());
+
+    expect(flags.length).toBeGreaterThan(0);
+    expect(flags.every((flag) => flag)).toBe(true);
+  });
 });
 
 describe("identifiers", () => {
+  test("the company RFC is synthetic", () => {
+    expect(COMPANY_RFC).toMatch(SYNTHETIC_RFC);
+  });
+
   test("every supplier RFC is synthetic", () => {
     for (const supplier of SUPPLIERS) {
       expect(supplier.rfc).toMatch(SYNTHETIC_RFC);
@@ -116,6 +146,25 @@ describe("identifiers", () => {
     }
   });
 
+  test("every RFC a screen offers as a placeholder is one the run holds", () => {
+    /* A placeholder from another dataset is an instruction to type something the
+       API answers 404 for, which is how the SAT screen once showed a confident
+       zero for an RFC the seeded company does not hold. */
+    const known = new Set(SUPPLIERS.map((supplier) => supplier.rfc));
+
+    expect(known.has(EXAMPLE_SUPPLIER_RFC)).toBe(true);
+    expect(known.has(CEP_EXAMPLE_RFC)).toBe(true);
+    expect(known.has(LISTED_SUPPLIER_RFC)).toBe(true);
+  });
+
+  test("every folio a screen offers as a placeholder is a line of the run", () => {
+    expect(mockInstruction(EXAMPLE_INSTRUCTION_ID)).not.toBeNull();
+
+    for (const id of DEMO_INSTRUCTION_IDS) {
+      expect(mockInstruction(id)).not.toBeNull();
+    }
+  });
+
   test("every known account is a well-formed CLABE", () => {
     for (const supplier of SUPPLIERS) {
       for (const account of supplier.knownAccounts) {
@@ -124,57 +173,72 @@ describe("identifiers", () => {
     }
   });
 
-  test("every account an instruction points at is a well-formed CLABE", () => {
+  test("every account an instruction points at is eighteen digits", () => {
     for (const item of MOCK_RUN.items) {
-      expect(isValidClabe(item.instruction.clabe)).toBe(true);
+      expect(item.instruction.clabe).toMatch(/^\d{18}$/);
     }
   });
 
-  test("the forensics case differs from the known account in two digits", () => {
-    const item = MOCK_RUN.items.find(
-      (candidate) => candidate.instruction.id === "ins-2026w37-002",
+  test("only a line the CLABE control flagged fails the check digit", () => {
+    /* The seeded run carries one account whose control digit does not hold, and
+       that is a labelled positive rather than a broken fixture: it is the line
+       `clabe_forensics` reports as critical. Every other account has to be an
+       account that could exist, because an invalid one would make the interesting
+       cases trivially detectable by arithmetic alone. */
+    const failing = MOCK_RUN.items.filter(
+      (item) => !isValidClabe(item.instruction.clabe),
     );
 
-    expect(item).toBeDefined();
+    expect(failing.length).toBeGreaterThan(0);
 
-    const finding = item?.findings[0];
-    const proposed = String(finding?.evidence.clabe_propuesta);
-    const known = String(finding?.evidence.clabe_conocida);
-    const differing = [...proposed].filter(
-      (digit, index) => digit !== known[index],
-    ).length;
-
-    /* Both accounts have to be valid, otherwise the interesting case would be
-       trivially detectable by the check digit alone. */
-    expect(isValidClabe(proposed)).toBe(true);
-    expect(isValidClabe(known)).toBe(true);
-    expect(differing).toBe(2);
-    expect(finding?.evidence.digitos_distintos).toBe(differing);
+    for (const item of failing) {
+      expect(
+        item.findings.some(
+          (finding) =>
+            finding.detector === "clabe_forensics" &&
+            finding.severity === "critical",
+        ),
+      ).toBe(true);
+      expect(item.decision.action).not.toBe("release");
+    }
   });
 });
 
 describe("the run totals", () => {
   test("are the sum of the rows", () => {
-    const recomputed = totalsFor(MOCK_RUN.items);
-
-    expect(MOCK_RUN.totals).toEqual(recomputed);
+    expect(MOCK_RUN.totals).toEqual(totalsFor(MOCK_RUN.items));
   });
 
-  test("split the amount across the three decisions without losing a peso", () => {
-    const { amount, held, toVerify, released } = MOCK_RUN.totals;
+  test("count the lines in the three bare names and not the pesos", () => {
+    /* The half of issue 125 nothing rendered: this interface read `held` as a
+       peso sum and the API has answered a count all along. */
+    const { held, toVerify, released, instructions } = MOCK_RUN.totals;
 
-    expect(held + toVerify + released).toBeCloseTo(amount, 2);
+    expect(held + toVerify + released).toBe(instructions);
+    expect(instructions).toBe(MOCK_RUN.items.length);
   });
 
-  test("count every instruction", () => {
-    expect(MOCK_RUN.totals.instructions).toBe(MOCK_RUN.items.length);
+  test("split the amount across the three actions without losing a peso", () => {
+    const { amount, heldAmount, toVerifyAmount, releasedAmount } =
+      MOCK_RUN.totals;
+
+    expect(heldAmount + toVerifyAmount + releasedAmount).toBeCloseTo(amount, 2);
+  });
+
+  test("report the pesos that did not leave as the two that were stopped", () => {
+    const { heldAmount, toVerifyAmount, stoppedAmount } = MOCK_RUN.totals;
+
+    expect(stoppedAmount).toBeCloseTo(heldAmount + toVerifyAmount, 2);
   });
 });
 
 describe("the rows", () => {
   test("reference a supplier that exists", () => {
+    const known = new Set(SUPPLIERS.map((supplier) => supplier.rfc));
+
     for (const item of MOCK_RUN.items) {
       expect(item.supplier.rfc).toBe(item.instruction.supplierRfc);
+      expect(known.has(item.supplier.rfc)).toBe(true);
     }
   });
 
@@ -206,7 +270,17 @@ describe("the rows", () => {
   test("carry a decision for the instruction they belong to", () => {
     for (const item of MOCK_RUN.items) {
       expect(item.decision.instructionId).toBe(item.instruction.id);
-      expect(item.decision.findings).toEqual(item.findings);
+    }
+  });
+
+  test("carry the same findings the decision was made on", () => {
+    /* The run payload indexes findings per line and the decision embeds the ones
+       it weighed. Two answers to "what is wrong with this payment" is how the
+       alert rail and the verdict end up disagreeing. */
+    for (const item of MOCK_RUN.items) {
+      expect(item.findings.map((finding) => finding.id).sort()).toEqual(
+        item.decision.findings.map((finding) => finding.id).sort(),
+      );
     }
   });
 
@@ -218,6 +292,15 @@ describe("the rows", () => {
         );
       }
     }
+  });
+
+  test("carry at least one line the engine stopped, so the rail is not empty", () => {
+    const stopped = MOCK_RUN.items.filter(
+      (item) => item.decision.action !== "release",
+    );
+
+    expect(stopped.length).toBeGreaterThan(0);
+    expect(stopped.every((item) => item.findings.length > 0)).toBe(true);
   });
 });
 
@@ -231,15 +314,21 @@ describe("every CFDI", () => {
   test("is issued to the same company", () => {
     const receivers = new Set(CFDIS.map((cfdi) => cfdi.receiverRfc));
 
-    expect(receivers.size).toBe(1);
+    expect([...receivers]).toEqual([COMPANY_RFC]);
+  });
+
+  test("is issued by a supplier the run holds", () => {
+    const known = new Set(SUPPLIERS.map((supplier) => supplier.rfc));
+
+    for (const cfdi of CFDIS) {
+      expect(known.has(cfdi.issuerRfc)).toBe(true);
+    }
   });
 });
 
 describe("the retroactive sweep", () => {
   test("derives the deducted base from the CFDIs it lists", () => {
-    const sweep = mockSweep();
-
-    for (const entry of sweep.newlyListed) {
+    for (const entry of mockSweep().newlyListed) {
       const fromCfdis = entry.paidCfdis.reduce(
         (total, cfdi) => total + cfdi.subtotal,
         0,
@@ -259,16 +348,29 @@ describe("the retroactive sweep", () => {
     expect(sweep.totalExposure).toBeCloseTo(expected, 2);
   });
 
-  test("only lists suppliers that are in the run", () => {
+  test("only lists suppliers this company holds", () => {
     const known = new Set(SUPPLIERS.map((supplier) => supplier.rfc));
 
     for (const entry of mockSweep().newlyListed) {
       expect(known.has(entry.supplier.rfc)).toBe(true);
     }
   });
+
+  test("is about the supplier the 69-B finding of this run names", () => {
+    expect(
+      mockSweep().newlyListed.map((entry) => entry.supplier.rfc),
+    ).toContain(LISTED_SUPPLIER_RFC);
+  });
+
+  test("keeps the rows when a caller prices another version", () => {
+    const priced = mockSweep("2026-09-12");
+
+    expect(priced.listVersion).toBe("2026-09-12");
+    expect(priced.totalExposure).toBe(mockSweep().totalExposure);
+  });
 });
 
-describe("the placeholder metrics", () => {
+describe("the metrics", () => {
   test("report precision as true positives over everything flagged", () => {
     const { truePositives, falsePositives, precision } = MOCK_METRICS;
 
@@ -303,12 +405,18 @@ describe("the placeholder metrics", () => {
 
     expect(positives).toBeLessThanOrEqual(MOCK_METRICS.cases);
   });
+
+  test("are a measurement, so the set is not empty", () => {
+    /* They used to be a placeholder with invented counts and the screen said so.
+       They are now the blind holdout the API scores, so an empty set would mean
+       the generator scored nothing rather than that nobody has run it. */
+    expect(MOCK_METRICS.cases).toBeGreaterThan(0);
+  });
 });
 
 describe("the ledger", () => {
   test("is ordered by time", () => {
-    const events = mockLedger();
-    const times = events.map((event) => event.at);
+    const times = mockLedger().map((event) => event.at);
 
     expect(times).toEqual([...times].sort((a, b) => a.localeCompare(b)));
   });
@@ -323,23 +431,124 @@ describe("the ledger", () => {
 });
 
 describe("the supplier drawer data", () => {
+  test("answers for every supplier the run names", () => {
+    /* This is issue 125 from the drawer's side: the row renders from the run
+       payload and the drawer loads the supplier separately, so an RFC the drawer
+       cannot answer for is two different screens for one company. */
+    for (const item of MOCK_RUN.items) {
+      const detail = mockSupplierDetail(item.instruction.supplierRfc);
+
+      expect(detail).not.toBeNull();
+      expect(detail?.supplier.legalName).toBe(item.supplier.legalName);
+    }
+  });
+
   test("returns only the CFDIs of the supplier asked for", () => {
-    const detail = mockSupplierDetail("SYN010101AAA");
+    /* A supplier of the run, not `SUPPLIERS[0]`: the offline file carries the
+       invoices this run settles, the sweep prices or a finding names, so "this
+       issuer has at least one invoice here" is a guarantee for a supplier the run
+       names and luck for any other. */
+    const rfc = MOCK_RUN.items[0]?.instruction.supplierRfc ?? "";
+    const detail = mockSupplierDetail(rfc);
 
     expect(detail).not.toBeNull();
+    expect(detail?.cfdis.length).toBeGreaterThan(0);
 
     for (const cfdi of detail?.cfdis ?? []) {
-      expect(cfdi.issuerRfc).toBe("SYN010101AAA");
+      expect(cfdi.issuerRfc).toBe(rfc);
+    }
+  });
+
+  test("returns every finding about that supplier, its invoices or its lines", () => {
+    const rfc = LISTED_SUPPLIER_RFC;
+    const detail = mockSupplierDetail(rfc);
+
+    expect(
+      detail?.findings.some((finding) => finding.detector === "sat_69b"),
+    ).toBe(true);
+  });
+
+  test("holds no verified beneficiary until a probe is verified", () => {
+    /* The registry starts empty on both sides. A row here would be a document
+       claiming it reached a registry no browser wrote to. */
+    expect(BENEFICIARIES).toEqual([]);
+
+    for (const item of MOCK_RUN.items) {
+      expect(
+        mockSupplierDetail(item.instruction.supplierRfc)?.verifiedBeneficiaries,
+      ).toEqual([]);
     }
   });
 
   test("is null for a supplier nobody has", () => {
     expect(mockSupplierDetail("SYN999999ZZZ")).toBeNull();
   });
+});
 
-  test("leaves the bank reconciliation supplier without invoices", () => {
-    const detail = mockSupplierDetail("SYN060606FFF");
+describe("the CEP example", () => {
+  test("never claims a seal nobody validated", () => {
+    /* `bun run demo` asserts the same thing about the API's answer. A synthetic
+       document cannot come back with a validated Banxico seal, so the offline
+       copy of that answer must not claim one either. */
+    const { cep, finding } = mockCepVerification();
 
-    expect(detail?.cfdis).toEqual([]);
+    expect(cep.signatureValid).toBe(false);
+    expect(cep.signatureReason).toBe("not_checked");
+    expect(finding.state).toBe("requiere_verificacion");
+  });
+
+  test("is the engine's own finding about that document", () => {
+    const { finding, cep } = mockCepVerification();
+
+    expect(finding.detector).toBe("beneficiary_cep");
+    expect(finding.evidence.claveRastreo).toBe(cep.claveRastreo);
+  });
+
+  test("compares against the supplier the screen names", () => {
+    const { cep, nameMatch } = mockCepVerification();
+    const supplier = SUPPLIERS.find((row) => row.rfc === CEP_EXAMPLE_RFC);
+
+    expect(supplier).toBeDefined();
+    expect(cep.beneficiaryName).toBe(supplier?.legalName ?? "");
+    expect(nameMatch).toBe("match");
+  });
+});
+
+describe("the intake example", () => {
+  test("carries the consortium line, so ?data=mock still renders it", () => {
+    const { findings } = mockIntakeExample();
+    const carried = findings.filter(
+      (finding) => finding.evidence.network !== undefined,
+    );
+
+    expect(carried.length).toBeGreaterThan(0);
+  });
+
+  test("is a line of the run, with the supplier that line names", () => {
+    const example = mockIntakeExample();
+    const row = mockInstruction(example.instruction.id);
+
+    expect(row).not.toBeNull();
+    expect(example.supplier.rfc).toBe(example.instruction.supplierRfc);
+    expect(row?.supplier.legalName).toBe(example.supplier.legalName);
+  });
+});
+
+describe("the bank names", () => {
+  test("come from the Banxico participant catalogue", () => {
+    expect(bankNameFromCode("012")).toBe("BBVA MEXICO");
+    expect(bankNameFromCode("014")).toBe("SANTANDER");
+  });
+
+  test("name the institution of every account in the run", () => {
+    /* The hand-written table this replaced held five banks and the seeded company
+       pays through more than five, so the column read "Banco 044" at a judge. */
+    for (const item of MOCK_RUN.items) {
+      expect(bankName(item.instruction.clabe)).not.toContain("Banco ");
+    }
+  });
+
+  test("report a code outside the snapshot rather than guessing", () => {
+    expect(bankNameFromCode("999")).toBe("Banco 999");
   });
 });

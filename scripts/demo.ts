@@ -1,10 +1,12 @@
 /**
  * bun run demo
  *
- * Drives the five beats of `docs/10-demo-script.md` headless and asserts the
- * invariants each one rests on. This is the command that runs before every
- * rehearsal and before every judge visit: if it is red, the demo is broken,
- * whatever the screen says.
+ * Drives the five beats of `docs/10-demo-script.md` headless, plus two that are
+ * gates rather than stage beats: the one-cent verification travelling through a
+ * rail, and the consortium network reaching a decision offline, which is what beat
+ * 3 says the second chip on the screen is. It asserts the invariants each one
+ * rests on. This is the command that runs before every rehearsal and before every
+ * judge visit: if it is red, the demo is broken, whatever the screen says.
  *
  * By default it builds a freshly seeded API in memory, with no socket, no
  * database, no browser and no network, so it is the same check on a laptop, in
@@ -22,14 +24,18 @@
  */
 
 import { createApp } from "../apps/api/src/app.ts";
+import { createConsortiumSource } from "../apps/api/src/consortium.ts";
 import { createDeps } from "../apps/api/src/deps.ts";
 import { UNAVAILABLE_EXTRACTOR } from "../apps/api/src/extraction.ts";
 import { MemoryRepository } from "../apps/api/src/repo.ts";
 import {
+  consortiumSignalResponseSchema,
   intakeResponseSchema,
   metricsSchema,
+  type PaymentRunItem,
   paymentRunSchema,
-  sweepResultSchema,
+  satPublishResponseSchema,
+  verificationStateSchema,
 } from "../apps/api/src/schemas.ts";
 import {
   sentryoneBootNotes,
@@ -38,9 +44,28 @@ import {
 import {
   nameMatch,
   parseCep,
+  syntheticCepFor,
   syntheticCepXml,
 } from "../packages/cep/src/index.ts";
-import { formatAmount } from "../packages/core/src/index.ts";
+import {
+  aggregateNetwork,
+  syntheticNetwork,
+} from "../packages/consortium/src/index.ts";
+import type {
+  Cep,
+  EvidenceValue,
+  NetworkSignal,
+  NetworkVerdict,
+} from "../packages/core/src/index.ts";
+import {
+  assessNetwork,
+  formatAmount,
+  networkLabel,
+  subtractAmounts,
+  sumAmounts,
+} from "../packages/core/src/index.ts";
+import { FakeRail } from "../packages/rail/src/index.ts";
+import { loadSentryOne } from "../packages/seed/src/index.ts";
 
 const HTTP_TIMEOUT_MS = 10_000;
 
@@ -57,6 +82,56 @@ interface Api {
   request(path: string, init?: RequestInit): Promise<Response>;
 }
 
+/**
+ * The clave de rastreo the demo's rail mints for one instruction.
+ *
+ * Deterministic, and that is the whole trick of beat 6: the CEP for the probe has
+ * to be findable by the clave the rail just answered, so the rail and the document
+ * are built from the same string. `SYN` says out loud that nothing about it was
+ * filed at Banxico.
+ */
+function demoClave(instructionId: string): string {
+  return `SYNVER${instructionId.replace(/\W/g, "").toUpperCase()}`.slice(0, 30);
+}
+
+/**
+ * The two CEPs the demo needs, built from the seeded company rather than committed.
+ *
+ * No committed file can carry them: the accounts and the legal names come out of
+ * the generator and move with the seed. They are synthetic documents in the exact
+ * sense `packages/cep` means it, participant key 99999 and a sello that is 256
+ * deterministic bytes, so the seal can never come back validated and beat 6 says
+ * so on the line it prints.
+ */
+function demoCeps(
+  lines: readonly {
+    instructionId: string;
+    clabe: string;
+    holder: string;
+    rfc: string;
+  }[],
+) {
+  return lines.map((line) =>
+    syntheticCepFor({
+      claveRastreo: demoClave(line.instructionId),
+      transferredAt: "2026-09-12T09:15:42.000-06:00",
+      amount: 0.01,
+      senderName: "Metalicos del Norte SA de CV",
+      senderBank: "SinteticoDos",
+      senderAccount: "012180000123456782",
+      senderRfc: "SYN090615C01",
+      beneficiaryName: line.holder,
+      beneficiaryBank: "SinteticoUno",
+      beneficiaryAccount: line.clabe,
+      beneficiaryRfc: line.rfc,
+      concepto: "Verificacion de cuenta",
+    }),
+  );
+}
+
+/** Built by beat 1 and handed to the in-memory API, so beat 6 needs no network. */
+let demoInbox: Cep[] = [];
+
 function inMemoryApi(): Api {
   const app = createApp(
     createDeps({
@@ -66,6 +141,31 @@ function inMemoryApi(): Api {
       // the environment cannot change what this script reports.
       allowSeed: false,
       extractor: UNAVAILABLE_EXTRACTOR,
+      /* The rail is the in-process one: no key, no network, and every `cent_sent`
+         it produces carries `simulated: true`, which beat 6 prints. The Nessie
+         rail is the one that writes to the sandbox and it is proven in the pull
+         request of issue #166, not here, because a demo that depends on a third
+         party answering is a demo that fails on venue Wi-Fi. */
+      rail: async () => ({
+        ok: true,
+        rail: new FakeRail({
+          mint: (request) => demoClave(request.instructionId),
+        }),
+      }),
+      cepInbox: {
+        describe: "synthetic CEPs built for the seeded company",
+        byClave: async (clave) =>
+          demoInbox.find(
+            (cep) => cep.claveRastreo.toUpperCase() === clave.toUpperCase(),
+          ),
+      },
+      /* No background poll: the demo asserts what one call does, and a beat that
+         waited on a timer would be a beat that hangs on a laptop. */
+      verification: {
+        pollIntervalMs: 0,
+        pollDeadlineMs: 0,
+        sleep: async () => {},
+      },
     }),
   );
 
@@ -146,6 +246,16 @@ function need(condition: boolean, message: string): asserts condition {
   }
 }
 
+/** One line the one-cent verification runs on, as beat 6 needs it. */
+interface VerifyLine {
+  instructionId: string;
+  clabe: string;
+  amount: number;
+  /** Legal name on the CFDI, the side of the comparison that comes from us. */
+  legalName: string;
+  rfc: string;
+}
+
 /** What beat 1 learns and the later beats reuse, so no id is hard coded. */
 interface Hero {
   clabeInstructionId: string;
@@ -153,12 +263,32 @@ interface Hero {
   clabeAccount: string;
   clabeAmount: number;
   listedSupplierRfc: string;
+  /** Held by the CLABE control, and releasable by a CEP that names the supplier. */
+  verifyRelease: VerifyLine;
+  /** Nothing is stopping it, so the CEP is the only thing that can. */
+  verifyBlock: VerifyLine;
+}
+
+/**
+ * The holder a blocked probe comes back with: a company that is not the one on the
+ * invoice. Synthetic, like every other name in the seeded company, and the same one
+ * the labelled holdout case for this control uses.
+ */
+const OTHER_HOLDER = "COMERCIALIZADORA VERTICE DEL GOLFO SA DE CV";
+
+/**
+ * A CEP `Nombre` is capped at 40 characters by the schema, and banks print the
+ * holder in capitals. Both are what makes the comparison in `@hackmty/cep` the
+ * interesting part rather than a string equality.
+ */
+function bankHolder(legalName: string): string {
+  return legalName.toUpperCase().slice(0, 40);
 }
 
 let hero: Hero | undefined;
 
 /* -------------------------------------------------------------------------- */
-/* The five beats                                                              */
+/* The beats                                                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -191,6 +321,31 @@ async function beatPaymentRun(api: Api, say: Say): Promise<void> {
     "every payment was released, so nothing is being stopped",
   );
 
+  /* The other half of the decision, and the one that used to be missing: what a day
+     of delay costs this company with this supplier. Priced per supplier by
+     @hackmty/seed since #182. At zero the trade-off is not a trade-off and the field
+     the instruction screen shows reads MXN 0.00 on every line, so the demo asserts
+     the price exists rather than trusting it. */
+  need(
+    run.items.every((item) => (item.decision?.delayCostPerDay ?? 0) > 0),
+    "some decision prices a day of delay at zero, so the expected loss is weighed against nothing",
+  );
+  /* And the release branch of rule 3 is a real branch: a line may carry a finding a
+     person can read and still be released, because waiting costs more than the
+     expected loss. What may never happen is a critical finding on a released line. */
+  const releasedWithFindings = run.items.filter(
+    (item) => item.findings.length > 0 && item.decision?.action === "release",
+  );
+  need(
+    releasedWithFindings.every(
+      (item) =>
+        item.findings.every((finding) => finding.severity !== "critical") &&
+        Math.round((item.decision?.expectedLoss ?? 0) * 100) <=
+          Math.round((item.decision?.delayCostPerDay ?? 0) * 100),
+    ),
+    "a line was released against its own arithmetic: either a critical finding or an expected loss above one day of delay",
+  );
+
   const clabe = run.items.find((item) =>
     item.findings.some(
       (finding) =>
@@ -204,13 +359,78 @@ async function beatPaymentRun(api: Api, say: Say): Promise<void> {
   need(clabe !== undefined, "no line carries a two-digit CLABE change");
   need(listed !== undefined, "no line carries a 69-B finding");
 
+  /* The two lines beat 6 runs the cent on. The first is stopped by the CLABE
+     control on a signal a person has to check, which is the one a CEP can settle:
+     a CLABE whose check digit cannot exist stays critical whoever holds the
+     account. The second is the largest line nothing is stopping, so the CEP is the
+     only thing that can, which is the half of the story that is about the money
+     rather than about the alert rail. */
+  const releasable = run.items.find(
+    (item) =>
+      item.decision?.action !== "release" &&
+      item.findings.some(
+        (finding) =>
+          finding.detector === "clabe_forensics" &&
+          finding.state === "requiere_verificacion",
+      ),
+  );
+  const clean = [...run.items]
+    .filter(
+      (item) =>
+        item.findings.length === 0 && item.decision?.action === "release",
+    )
+    .sort(
+      (left, right) => right.instruction.amount - left.instruction.amount,
+    )[0];
+
+  need(
+    releasable !== undefined,
+    "no line is stopped by the CLABE control on a signal a CEP could settle",
+  );
+  need(clean !== undefined, "every line carries a finding, so none is clean");
+
   hero = {
     clabeInstructionId: clabe.instruction.id,
     clabeSupplierRfc: clabe.instruction.supplierRfc,
     clabeAccount: clabe.instruction.clabe,
     clabeAmount: clabe.instruction.amount,
     listedSupplierRfc: listed.instruction.supplierRfc,
+    verifyRelease: {
+      instructionId: releasable.instruction.id,
+      clabe: releasable.instruction.clabe,
+      amount: releasable.instruction.amount,
+      legalName: releasable.supplier.legalName,
+      rfc: releasable.instruction.supplierRfc,
+    },
+    verifyBlock: {
+      instructionId: clean.instruction.id,
+      clabe: clean.instruction.clabe,
+      amount: clean.instruction.amount,
+      legalName: clean.supplier.legalName,
+      rfc: clean.instruction.supplierRfc,
+    },
   };
+
+  /* The CEPs for those two probes, filed under the clave the rail will mint. One
+     names the supplier on the invoice and one names somebody else, which is the
+     whole difference between a release and a block. */
+  demoInbox = demoCeps([
+    {
+      instructionId: hero.verifyRelease.instructionId,
+      clabe: hero.verifyRelease.clabe,
+      holder: bankHolder(hero.verifyRelease.legalName),
+      rfc: hero.verifyRelease.rfc,
+    },
+    {
+      instructionId: hero.verifyBlock.instructionId,
+      clabe: hero.verifyBlock.clabe,
+      holder: OTHER_HOLDER,
+      /* "ND" is what a participant sends when it discloses no RFC, which is the
+         honest field for a holder that is not the supplier: the CEP names who
+         holds the account and this repository does not invent a taxpayer for it. */
+      rfc: "ND",
+    },
+  ]);
 
   // The headline on the screen: what the run would move, and what of it is not
   // moving yet. The screen reads the items rather than the totals, so this does
@@ -230,9 +450,15 @@ async function beatPaymentRun(api: Api, say: Say): Promise<void> {
       continue;
     }
     say(
-      `  ${item.instruction.id} ${String(item.decision?.action).padEnd(7)} ${formatAmount(item.instruction.amount).padStart(12)} MXN  ${item.findings.map((finding) => finding.detector).join(", ")}`,
+      `  ${item.instruction.id} ${String(item.decision?.action).padEnd(7)} ${formatAmount(item.instruction.amount).padStart(12)} MXN  expected loss ${formatAmount(item.decision?.expectedLoss ?? 0).padStart(10)} against ${formatAmount(item.decision?.delayCostPerDay ?? 0).padStart(8)} a day of delay  ${item.findings.map((finding) => finding.detector).join(", ")}`,
     );
   }
+  // The sentence that was not sayable before #182: the trade-off changed an outcome.
+  say(
+    releasedWithFindings.length === 0
+      ? "every line that carries a finding is stopped on this run: no expected loss came out under one day of delay"
+      : `${releasedWithFindings.length} line(s) carry a finding and are released anyway, because a day of delay costs more than the expected loss: ${releasedWithFindings.map((item) => item.instruction.id).join(", ")}`,
+  );
 }
 
 /**
@@ -310,13 +536,22 @@ async function beatClabeForensics(api: Api, say: Say): Promise<void> {
 }
 
 /**
- * Beat 3. A simulated 69-B publication, priced against what is already deducted.
+ * Beat 3. A simulated 69-B publication, priced against what is already deducted
+ * and folded back into the run it affects.
  *
  * ADR-0002 binds this to synthetic RFCs, and both the request schema and
  * `simulatePublication` refuse anything else, so the publication that meets an
  * invoice can never carry a real taxpayer. The exposure is computed over the
  * seeded ledger: the CFDIs of that supplier that a payment complement or a
  * `payment_sent` event says we already paid.
+ *
+ * The second half of this beat is issue #175 and it is the one a judge with a
+ * calculator checks. The publication re-scores the pending lines of the current
+ * run that belong to the suppliers it names, so the run's retroactive pair climbs
+ * in the same request. This asserts the identity that makes the two figures one
+ * number rather than two: the run-level pair is exactly the part of the sweep that
+ * belongs to the suppliers the re-score touched, to the centavo, and it is read
+ * back off `GET /api/v1/run/current` rather than recomputed here.
  */
 async function beatSweep(api: Api, say: Say): Promise<void> {
   need(
@@ -325,7 +560,10 @@ async function beatSweep(api: Api, say: Say): Promise<void> {
   );
   const rfc = hero.listedSupplierRfc;
 
-  const sweep = sweepResultSchema.parse(
+  const before = paymentRunSchema.parse(
+    await json(api, "/api/v1/run/current"),
+  ).totals;
+  const sweep = satPublishResponseSchema.parse(
     await json(
       api,
       "/api/v1/sat/publish",
@@ -355,6 +593,63 @@ async function beatSweep(api: Api, say: Say): Promise<void> {
     `  ISR ${formatAmount(subject.isrExposure)} MXN, IVA ${formatAmount(subject.ivaExposure)} MXN`,
   );
   say(`  total exposure ${formatAmount(sweep.totalExposure)} MXN`);
+
+  /* The run, read again. `before` was zero on both fields, because nothing had
+     priced a supplier this run pays; after the publication it carries the part of
+     the sweep that belongs to the lines that were re-scored. */
+  const after = paymentRunSchema.parse(
+    await json(api, "/api/v1/run/current"),
+  ).totals;
+  const touched = new Set(sweep.rescored.map((line) => line.supplierRfc));
+  const mine = sweep.newlyListed.filter((row) => touched.has(row.supplier.rfc));
+
+  need(
+    sweep.rescored.length > 0,
+    "the publication re-scored no line, so the run counter cannot have moved",
+  );
+  need(
+    before.retroactive69bExposure === 0,
+    "the run already carried retroactive exposure before the publication",
+  );
+  need(
+    after.retroactive69bBase ===
+      sumAmounts(mine.map((row) => row.deductedBase)),
+    "the run's retroactive base is not the deducted base of the suppliers it re-scored",
+  );
+  need(
+    after.retroactive69bExposure ===
+      sumAmounts(mine.flatMap((row) => [row.isrExposure, row.ivaExposure])),
+    "the run's retroactive exposure is not the ISR plus IVA of the suppliers it re-scored",
+  );
+  /* The pesos at risk climb by exactly that exposure, because the finding on the
+     line now carries the deductions the publication voided next to the amount about
+     to leave. They are different money, which is why one total legitimately exceeds
+     the instruction. The stopped money does not have to move at all: a line already
+     stopped is already stopped, and what changes there is which column it sits in. */
+  const climb = subtractAmounts(after.amountAtRisk, before.amountAtRisk);
+  need(
+    climb === after.retroactive69bExposure,
+    "the pesos at risk did not climb by the retroactive exposure the publication priced",
+  );
+
+  for (const line of sweep.rescored) {
+    const priced = line.decision.findings.find(
+      (finding) => finding.evidence.retroactiveExposure !== undefined,
+    );
+    say(
+      `  re-scored ${line.instructionId}: ${line.before ?? "sin decision"} -> ${line.decision.action}, signed ${line.decision.decidedBy ?? "nobody"}`,
+    );
+    say(
+      `    expected loss ${formatAmount(line.decision.expectedLoss)} MXN against ${formatAmount(line.decision.delayCostPerDay)} a day of delay${priced === undefined ? "" : `, ${formatAmount(priced.amountAtRisk)} MXN at risk on the new finding`}`,
+    );
+  }
+  say(
+    `  run totals now: base ${formatAmount(after.retroactive69bBase)} MXN, exposure ${formatAmount(after.retroactive69bExposure)} MXN`,
+  );
+  /* The delta and not the two absolutes, because this script runs beat 2's intake
+     before this beat and the stage does not: the run-level pair and this climb are
+     the same on both paths, the absolute at-risk total is not. */
+  say(`  pesos at risk climbed by ${formatAmount(climb)} MXN on the same run`);
 }
 
 /**
@@ -420,6 +715,127 @@ async function beatCep(api: Api, say: Say): Promise<void> {
   );
 }
 
+/**
+ * Beat 6. The cent travels inside the run, and the engine releases or blocks.
+ *
+ * One POST per line and nothing typed afterwards: the clave de rastreo comes back
+ * from the rail, the CEP is resolved by that clave, control 5 compares the account
+ * holder with the legal name on the CFDI, and the expected-loss rule releases the
+ * payment the CLABE control was holding or blocks the one nothing else stopped.
+ *
+ * What this beat is honest about, out loud, on the lines it prints. The rail here is
+ * the in-process one, so nothing left a bank: the Nessie rail writes a real 0.01
+ * outflow on the company's mirror with our own key and is proven in the pull request
+ * of issue #166, and the rail that would produce a Banxico CEP is STP, which refuses
+ * to run unconfigured. The CEPs are synthetic documents built for the seeded company,
+ * so the seal comes back not checked and never valid. What the beat proves is the
+ * pipeline: the events, the comparison, and which way the engine went.
+ *
+ * Against `--base` it reads and does not write. A deployed instance has a real rail
+ * behind it, and this script runs before every rehearsal: spending a centavo on the
+ * company's mirror and leaving a `cent_sent` on the deployed ledger every time
+ * somebody checks the demo path would be a side effect nobody asked for. The read
+ * endpoint answering is what proves the feature is deployed.
+ */
+async function beatVerification(api: Api, say: Say): Promise<void> {
+  need(
+    hero !== undefined,
+    "beat 1 did not run, so there are no lines to verify",
+  );
+  const { verifyRelease, verifyBlock } = hero;
+
+  if (base !== undefined) {
+    const state = verificationStateSchema.parse(
+      await json(
+        api,
+        `/api/v1/instructions/${encodeURIComponent(verifyRelease.instructionId)}/verification`,
+      ),
+    );
+    say(
+      `${state.instructionId}: ${state.state} on that instance, which is the read endpoint answering`,
+    );
+    say(
+      "the cent is not sent against a deployed instance from this script: it is a real write on the company mirror and this beat runs before every rehearsal",
+    );
+    return;
+  }
+
+  const released = await verify(api, verifyRelease);
+  const blocked = await verify(api, verifyBlock);
+
+  need(
+    released.state === "released",
+    `${verifyRelease.instructionId} came back ${released.state}, expected released`,
+  );
+  need(
+    blocked.state === "blocked",
+    `${verifyBlock.instructionId} came back ${blocked.state}, expected blocked`,
+  );
+  need(
+    released.sealState !== "valid" && blocked.sealState !== "valid",
+    "a synthetic CEP reported a validated Banxico seal, which nobody verified",
+  );
+  need(
+    released.nameMatch === "match" && blocked.nameMatch === "mismatch",
+    "the name comparison did not separate the supplier from the other company",
+  );
+  need(
+    released.decision?.decidedBy === "system" &&
+      blocked.decision?.decidedBy === "system",
+    "the decision was not signed by the engine",
+  );
+  need(
+    blocked.decision?.action !== "release",
+    "the blocked line was released anyway",
+  );
+
+  for (const [line, state] of [
+    [verifyRelease, released],
+    [verifyBlock, blocked],
+  ] as const) {
+    say(
+      `${state.instructionId} ${formatAmount(line.amount)} MXN: centavo enviado, clave ${state.claveRastreo ?? "none"}`,
+    );
+    say(
+      `  CEP: titular ${state.holderName ?? "none"} contra ${state.legalName ?? "none"} en la factura, coincidencia ${state.nameMatch ?? "none"}, sello ${state.sealState ?? "none"}`,
+    );
+    say(
+      `  ${state.state}: la decision del motor es ${state.decision?.action ?? "none"}, perdida esperada ${formatAmount(state.decision?.expectedLoss ?? 0)} MXN, firmada por ${state.decision?.decidedBy ?? "nadie"}`,
+    );
+  }
+  say(
+    "the rail here is the in-process one (cent_sent carries simulated: true) and the CEPs are synthetic, so the seal reads not_checked; the Nessie outflow is in the PR of #166 and the Banxico CEP is issue #57",
+  );
+}
+
+/** One call, then the state the ledger folds. Nothing is typed in between. */
+async function verify(api: Api, line: VerifyLine) {
+  const response = await api.request(
+    `/api/v1/instructions/${encodeURIComponent(line.instructionId)}/verify-account`,
+    { method: "POST" },
+  );
+  need(
+    response.status === 202,
+    `verify-account answered ${response.status} for ${line.instructionId}, expected 202`,
+  );
+  const answered = verificationStateSchema.parse(await response.json());
+
+  // And the read endpoint answers the same thing out of the event ledger, which is
+  // what the screen re-reads when the stream names this instruction.
+  const read = verificationStateSchema.parse(
+    await json(
+      api,
+      `/api/v1/instructions/${encodeURIComponent(line.instructionId)}/verification`,
+    ),
+  );
+  need(
+    read.state === answered.state,
+    `${line.instructionId} answered ${answered.state} and the ledger folds to ${read.state}`,
+  );
+
+  return read;
+}
+
 /** Beat 5. The metrics endpoint answers, and says how many cases it holds. */
 async function beatMetrics(api: Api, say: Say): Promise<void> {
   const metrics = metricsSchema.parse(await json(api, "/api/v1/metrics"));
@@ -435,6 +851,300 @@ async function beatMetrics(api: Api, say: Say): Promise<void> {
       "  zero is the honest answer here: the blind holdout is issue #55 and the seeded run carries no labels",
     );
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Beat 6, the consortium network                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One API instance with the consortium on or off, plus the offline pull.
+ *
+ * The beat builds its own instances, and that is the design rather than a
+ * convenience. The consortium snapshot is LOCAL to a store, so the only way to
+ * prove what the network does to a decision is to write rows into the store the
+ * engine reads. It is the same `createApp` every other beat drives, the rows come
+ * out of the same two functions `bun run consortium:pull --offline` calls, and no
+ * socket is opened at any point.
+ *
+ * The main `api` of this script is deliberately left alone. Beats 1 to 5, the run
+ * totals `docs/10-demo-script.md` quotes and the boot assessment behind them are
+ * therefore identical to a run from before the consortium existed, which is also
+ * the property this beat asserts.
+ */
+interface NetworkInstance extends Api {
+  /** Fills the snapshot the way `consortium:pull --offline` does. Returns the rows. */
+  pullOffline(): Promise<number>;
+}
+
+function networkInstance(allowed: boolean): NetworkInstance {
+  const repo = new MemoryRepository(0, sentryoneDataset);
+  const app = createApp(
+    createDeps({
+      repo,
+      allowSeed: false,
+      extractor: UNAVAILABLE_EXTRACTOR,
+      /* Passed explicitly and never read off the environment: a demo whose
+         network switched itself on because this laptop happens to export
+         ALLOW_CONSORTIUM would prove something different on every machine. */
+      consortium: createConsortiumSource(repo, { allowed }),
+    }),
+  );
+
+  return {
+    label: allowed ? "in memory, network on" : "in memory, network off",
+    request: (path, init) => app.request(path, init),
+    pullOffline: async () => {
+      const company = loadSentryOne({});
+      const { events } = syntheticNetwork({
+        suppliers: company.suppliers,
+        instructions: company.instructions,
+        runDay: company.runDay,
+      });
+      const rows = aggregateNetwork(events);
+      await repo.replaceConsortiumSnapshot({
+        rows,
+        pulledAt: new Date().toISOString(),
+        /* The same value the script writes, for the same reason: nothing
+           downstream may read a rehearsal as a warehouse. */
+        source: "synthetic",
+      });
+      return rows.length;
+    },
+  };
+}
+
+function signalQuery(item: PaymentRunItem): string {
+  const rfc = encodeURIComponent(item.instruction.supplierRfc);
+  const clabe = encodeURIComponent(item.instruction.clabe);
+  return `/api/v1/consortium/signal?rfc=${rfc}&clabe=${clabe}`;
+}
+
+/** The message of the one error envelope, for the two refusals this beat asserts. */
+function errorMessageOf(body: unknown): string {
+  const envelope = body as { error?: { message?: string } };
+  return envelope.error?.message ?? "";
+}
+
+/** The network signal a finding carries, or undefined when it carries none. */
+function networkOf(finding: {
+  evidence: Record<string, EvidenceValue>;
+}): NetworkSignal | undefined {
+  const value = finding.evidence.network;
+  return typeof value === "object" ? value : undefined;
+}
+
+interface IntakeOutcomeLine {
+  action: string;
+  expectedLoss: number;
+  signal?: NetworkSignal;
+  explanation?: string;
+  severity?: string;
+}
+
+/** Posts one line of the run through intake and reads what the network did to it. */
+async function intakeLine(
+  instance: Api,
+  item: PaymentRunItem,
+): Promise<IntakeOutcomeLine> {
+  const intake = intakeResponseSchema.parse(
+    await json(
+      instance,
+      "/api/v1/instructions",
+      post({
+        supplierRfc: item.instruction.supplierRfc,
+        amount: item.instruction.amount,
+        clabe: item.instruction.clabe,
+        source: "whatsapp",
+      }),
+      201,
+    ),
+  );
+  const finding = intake.findings.find((row) => networkOf(row) !== undefined);
+
+  const outcome: IntakeOutcomeLine = {
+    action: intake.decision.action,
+    expectedLoss: intake.decision.expectedLoss,
+  };
+  if (finding !== undefined) {
+    const signal = networkOf(finding);
+    if (signal !== undefined) {
+      outcome.signal = signal;
+    }
+    outcome.explanation = finding.explanation;
+    outcome.severity = finding.severity;
+  }
+  return outcome;
+}
+
+/**
+ * Beat 6. The network says something about an account this company has no
+ * history with, and it says it offline.
+ *
+ * Four claims, and each one is the answer to a question a judge asks.
+ *
+ * 1. **With the flag off nothing happens.** `503` naming `ALLOW_CONSORTIUM`, and
+ *    a decision identical to the one the product made before issue #164.
+ * 2. **An empty snapshot is not a clean network.** `404` naming the pull, and the
+ *    same decision again: `NetworkSignal.source` is `not_consulted` and
+ *    `assessNetwork` multiplies the expected loss by exactly 1.
+ * 3. **A pulled snapshot reaches the decision.** One released line carries the
+ *    corroboration in its evidence and one stopped line carries what the network
+ *    holds against the account, both under the `network` key of the beneficiary
+ *    finding, and the released one is still released and the stopped one is still
+ *    stopped. Corroboration is never a reason to pay and the network never
+ *    releases a payment.
+ * 4. **Nothing is real except the mechanism.** The rows come from the synthetic
+ *    generator at seed 69, `consortium_pull.source` says `synthetic`, and this
+ *    beat prints that word rather than letting a rehearsal look like a warehouse.
+ *
+ * No Snowflake, no socket and no `.env`: this is the offline path of
+ * `bun run consortium:pull --offline`, which is why the demo survives conference
+ * Wi-Fi that has stopped working.
+ */
+async function beatNetwork(say: Say): Promise<void> {
+  const off = networkInstance(false);
+  const empty = networkInstance(true);
+  const on = networkInstance(true);
+
+  const run = paymentRunSchema.parse(await json(on, "/api/v1/run/current"));
+  const first = run.items[0];
+  need(
+    first !== undefined,
+    "the run is empty, so there is no pair to ask about",
+  );
+
+  const refused = await off.request(signalQuery(first));
+  need(
+    refused.status === 503,
+    `with the flag off the signal route answered ${refused.status}, expected 503`,
+  );
+  need(
+    errorMessageOf(await refused.json()).includes("ALLOW_CONSORTIUM"),
+    "the 503 does not name ALLOW_CONSORTIUM, so nobody can tell what to set",
+  );
+
+  const notPulled = await empty.request(signalQuery(first));
+  need(
+    notPulled.status === 404,
+    `with an empty snapshot the signal route answered ${notPulled.status}, expected 404`,
+  );
+  need(
+    errorMessageOf(await notPulled.json()).includes("consortium:pull"),
+    "the 404 on an empty snapshot does not name the pull that fills it",
+  );
+
+  const rows = await on.pullOffline();
+  need(rows > 0, "the synthetic network generated no rows");
+
+  /* What the network holds for every line of the run, read off the endpoint
+     rather than recomputed here: the chip on the screen and this list are then
+     the same answer from the same code. A 404 is the network having been
+     consulted and holding no row for the pair, which is an answer and not a
+     failure, and the finding still reports the accounts it holds for the
+     supplier. */
+  const reads: { item: PaymentRunItem; corroborated: boolean }[] = [];
+  for (const item of run.items) {
+    const response = await on.request(signalQuery(item));
+    if (response.status === 404) {
+      reads.push({ item, corroborated: false });
+      continue;
+    }
+    need(
+      response.status === 200,
+      `the signal route answered ${response.status} for ${item.instruction.id}`,
+    );
+    const body = consortiumSignalResponseSchema.parse(await response.json());
+    need(
+      body.network.source === "snapshot",
+      `${item.instruction.id} came back as not consulted from a pulled snapshot`,
+    );
+    reads.push({
+      item,
+      corroborated: assessNetwork(body.network).verdict === "corroborated",
+    });
+  }
+
+  const corroborated = reads.filter((read) => read.corroborated);
+  const doubted = reads.filter((read) => !read.corroborated);
+  need(
+    corroborated.length > 0,
+    "the network corroborates no line of the run, so there is nothing to release with a chip",
+  );
+  need(
+    doubted.length > 0,
+    "the network doubts no line of the run, so there is nothing to stop with a chip",
+  );
+
+  /* The two lines the stage narrative needs: the account the most other
+     companies pay, and the largest amount going to an account they do not. */
+  const released = [...corroborated].sort(
+    (left, right) =>
+      right.item.instruction.amount - left.item.instruction.amount,
+  )[0] as (typeof corroborated)[number];
+  const stopped = [...doubted].sort(
+    (left, right) =>
+      right.item.instruction.amount - left.item.instruction.amount,
+  )[0] as (typeof doubted)[number];
+
+  for (const [name, chosen] of [
+    ["released", released],
+    ["stopped", stopped],
+  ] as const) {
+    const pre = await intakeLine(off, chosen.item);
+    const unpulled = await intakeLine(empty, chosen.item);
+    const post = await intakeLine(on, chosen.item);
+
+    need(
+      pre.signal === undefined,
+      `the ${name} line carries a network chip with the flag off`,
+    );
+    need(
+      unpulled.signal === undefined,
+      `the ${name} line carries a network chip with an empty snapshot`,
+    );
+    need(
+      unpulled.action === pre.action &&
+        unpulled.expectedLoss === pre.expectedLoss,
+      `an empty snapshot changed the ${name} line from ${pre.action} at ${formatAmount(pre.expectedLoss)} to ${unpulled.action} at ${formatAmount(unpulled.expectedLoss)}`,
+    );
+    const signal = post.signal;
+    need(
+      signal !== undefined,
+      `the ${name} line carries no network evidence after the pull`,
+    );
+    need(
+      signal.source === "snapshot",
+      `the ${name} line reports the network as not consulted after a pull`,
+    );
+    /* Corroboration is never a reason to pay and the network never releases a
+       payment, so neither of these two lines may cross the other's side. */
+    need(
+      name === "released"
+        ? post.action === "release"
+        : post.action !== "release",
+      `the ${name} line came back as ${post.action} with the network read`,
+    );
+
+    /* The verdict the engine used, out of the signal the finding carries, and not
+       the one the endpoint probe above inferred: an unknown pair answers 404
+       there and still carries the supplier's other accounts here. */
+    const verdict: NetworkVerdict = assessNetwork(signal).verdict;
+    say(
+      `${name} ${chosen.item.instruction.id} ${formatAmount(chosen.item.instruction.amount)} MXN: ${pre.action} without the network, ${post.action} with it, expected loss ${formatAmount(pre.expectedLoss)} then ${formatAmount(post.expectedLoss)} MXN`,
+    );
+    say(
+      `  red SentryOne ${networkLabel(signal)}: ${verdict}, ${signal.tenants} tenants, ${signal.fraudReports} fraud reports, ${signal.otherAccounts} other accounts, pulled_at ${signal.pulledAt ?? "unknown"}`,
+    );
+    say(`  ${post.explanation ?? ""}`);
+  }
+
+  say(
+    `${rows} hashed pairs in the snapshot, source synthetic, seed 69: the other tenants are generated and every warehouse row says so`,
+  );
+  say(
+    "no Snowflake was contacted: this is the offline path of bun run consortium:pull --offline",
+  );
 }
 
 /** Narrows the instruction-detail payload to what beat 2 reads off it. */
@@ -491,7 +1201,18 @@ await beat("3. the simulated 69-B publication is priced", (say) =>
 await beat("4. the CEP parses and the name comparison runs", (say) =>
   beatCep(api, say),
 );
-await beat("5. the metrics endpoint answers", (say) => beatMetrics(api, say));
+await beat(
+  "5. the cent travels in the run and the engine releases or blocks",
+  (say) => beatVerification(api, say),
+);
+await beat("6. the metrics endpoint answers", (say) => beatMetrics(api, say));
+/* The network beat drives its own in-memory instances whatever `--base` says,
+   because the consortium snapshot is local to a store and the offline pull is the
+   path this repository promises works with the warehouse unplugged. */
+await beat(
+  "7. the consortium network reaches the decision, offline",
+  beatNetwork,
+);
 
 for (const result of results) {
   console.log(`[${result.ok ? "pass" : "FAIL"}] ${result.name}`);

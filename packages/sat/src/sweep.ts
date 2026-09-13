@@ -96,21 +96,11 @@ export function priceSweep(
 ): SweepResult {
   const isrRate = options.isrRate ?? DEFAULT_ISR_RATE;
 
-  const newlyListed = subjects.map((subject) => {
-    const deductedBase = sumAmounts(
-      subject.paidCfdis.map((cfdi) => cfdi.subtotal),
-    );
-
-    return {
-      supplier: subject.supplier,
-      status: subject.status,
-      paidCfdis: subject.paidCfdis,
-      deductedBase,
-      isrExposure: applyRate(deductedBase, isrRate),
-      // The IVA actually credited, never the base times a rate. See the header.
-      ivaExposure: sumAmounts(subject.paidCfdis.map((cfdi) => cfdi.iva)),
-    };
-  });
+  const newlyListed = subjects.map((subject) => ({
+    supplier: subject.supplier,
+    status: subject.status,
+    ...priceCfdis(subject.paidCfdis, isrRate),
+  }));
 
   return {
     listVersion: options.listVersion,
@@ -118,6 +108,39 @@ export function priceSweep(
     totalExposure: sumAmounts(
       newlyListed.flatMap((row) => [row.isrExposure, row.ivaExposure]),
     ),
+  };
+}
+
+/** What one supplier's already deducted invoices cost when they are voided. */
+export interface PricedCfdis {
+  paidCfdis: Cfdi[];
+  /** Sum of the subtotals already deducted. */
+  deductedBase: number;
+  isrExposure: number;
+  ivaExposure: number;
+}
+
+/**
+ * The exposure arithmetic, in one function.
+ *
+ * Exported because the Article 49 Bis sweep in `art49bis.ts` prices the same
+ * money under a different statute, and two implementations of "what does this
+ * publication cost" is a number that disagrees with itself on stage. The rate
+ * assumption and the reason the IVA is summed rather than multiplied are in the
+ * header of this file.
+ */
+export function priceCfdis(
+  paidCfdis: readonly Cfdi[],
+  isrRate: number = DEFAULT_ISR_RATE,
+): PricedCfdis {
+  const deductedBase = sumAmounts(paidCfdis.map((cfdi) => cfdi.subtotal));
+
+  return {
+    paidCfdis: [...paidCfdis],
+    deductedBase,
+    isrExposure: applyRate(deductedBase, isrRate),
+    // The IVA actually credited, never the base times a rate. See the header.
+    ivaExposure: sumAmounts(paidCfdis.map((cfdi) => cfdi.iva)),
   };
 }
 
@@ -199,7 +222,33 @@ export function paidCfdisOf(
   issuerRfc: Rfc,
   asOf?: string,
 ): Cfdi[] {
-  return paidFrom(foldLedger(events, undefined), normalizeRfc(issuerRfc), asOf);
+  return paidLedger(events).paidCfdis(issuerRfc, asOf);
+}
+
+/**
+ * The ledger folded once, for a caller that has several RFCs to ask about.
+ *
+ * `paidCfdisOf` re-folds the whole event log per call, which is the right shape
+ * for one question and the wrong shape for a publication naming several
+ * taxpayers. The 49 Bis sweep holds one of these and asks it per row, so the two
+ * sweeps answer "was this paid" and "what do we know about this supplier" out of
+ * the same fold.
+ */
+export interface PaidLedger {
+  /** The supplier as the documents describe it, absent when never invoiced. */
+  supplier(issuerRfc: Rfc): Supplier | undefined;
+  /** The issuer's invoices the ledger shows as settled at or before `asOf`. */
+  paidCfdis(issuerRfc: Rfc, asOf?: string): Cfdi[];
+}
+
+export function paidLedger(events: readonly LedgerEvent[]): PaidLedger {
+  const ledger = foldLedger(events, undefined);
+
+  return {
+    supplier: (issuerRfc) => ledger.suppliers.get(normalizeRfc(issuerRfc)),
+    paidCfdis: (issuerRfc, asOf) =>
+      paidFrom(ledger, normalizeRfc(issuerRfc), asOf),
+  };
 }
 
 /* -------------------------------------------------------------------------- */

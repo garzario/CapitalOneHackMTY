@@ -314,6 +314,9 @@ describe("estimateLoss", () => {
       exposure: 0,
       exposureCents: 0,
       probability: 0,
+      /* A network nobody consulted multiplies by exactly one, which is how an
+         instance with no consortium keeps the arithmetic it always had. */
+      networkFactor: 1,
       expectedLoss: 0,
       expectedLossCents: 0,
       counted: 0,

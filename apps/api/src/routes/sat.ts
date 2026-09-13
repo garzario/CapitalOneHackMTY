@@ -1,9 +1,11 @@
 import type { SatListEntry } from "@hackmty/core";
 import {
+  ART_49BIS_LABEL,
   matchRfc,
   OFFICIAL_SNAPSHOT_LIST_VERSION,
   OFFICIAL_SNAPSHOT_RETRIEVED_AT,
   OFFICIAL_SNAPSHOT_URL,
+  official49BisListing,
   simulatePublication,
 } from "@hackmty/sat";
 import { zValidator } from "@hono/zod-validator";
@@ -11,7 +13,7 @@ import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { rejectInvalid } from "../http";
 import { createRateLimit } from "../middleware/rate-limit";
-import { runRetroactiveSweep } from "../pipeline";
+import { rescoreSweptLines, runRetroactiveSweep } from "../pipeline";
 import {
   type SatPublishBody,
   satLookupQuerySchema,
@@ -19,7 +21,7 @@ import {
 } from "../schemas";
 
 /**
- * The SAT Article 69-B surface.
+ * The SAT lists surface: Article 69-B, and Article 49 Bis next to it.
  *
  * `GET /lookup` is the endpoint a judge uses: they type a real RFC from the
  * official list and we answer from the list, with no scoring and no invention.
@@ -44,6 +46,15 @@ import {
  *   download, and 14234 taxpayers is one afternoon of requests for anybody who
  *   decides to enumerate it. See `middleware/rate-limit.ts` for what that does
  *   and, more importantly, what it does not.
+ * - **It answers for both lists and says which one answered.** `lists` carries one
+ *   block per article with an `answered` flag on each. Article 69-B answers from
+ *   the committed download. Article 49 Bis, in force since 1 January 2026, is
+ *   published by the SAT one oficio at a time in the DOF with no machine-readable
+ *   listing, so its block answers `answered: false` with the coverage reason, the
+ *   publication counts and the URL to check them. A screen that showed an empty
+ *   49 Bis answer as "no esta listado" would be claiming a check nobody ran, and
+ *   that is the failure this shape exists to make impossible. See
+ *   `packages/sat/src/snapshot/README.md`.
  *
  * `POST /publish` loads a list version and replays the ledger against it, which
  * is the retroactive sweep. The `simulate` form exists so the demo can publish a
@@ -51,6 +62,15 @@ import {
  * standing next to fabricated evidence, and both `satPublishBodySchema` here and
  * `simulatePublication` in the package enforce it, rather than trusting whoever
  * is driving the laptop.
+ *
+ * That endpoint also finishes what it starts, which is issue #175 and the
+ * amendment to ADR-0002. Pricing the ledger is only half a publication: the lines
+ * of this week's run were scored before the list existed, so in the same request
+ * the pending ones belonging to the suppliers it names are scored again with the
+ * sweep in hand, their findings are stored, and a `decision_made` goes out per
+ * line so the SSE stream announces them. `rescored` on the response says which
+ * lines moved and where they moved to. Released lines and lines a person decided
+ * are not touched.
  *
  * That is also the line between the two endpoints, and it is the ADR: the
  * official list is read here and joined to nothing, and the only publication
@@ -71,6 +91,15 @@ export function satRoutes(deps: ApiDeps) {
           rfc,
         );
 
+        const source = {
+          article: ART_69B_LABEL,
+          listVersion: OFFICIAL_SNAPSHOT_LIST_VERSION,
+          retrievedAt: OFFICIAL_SNAPSHOT_RETRIEVED_AT,
+          url: OFFICIAL_SNAPSHOT_URL,
+          taxpayers: official.taxpayers,
+          rows: official.size,
+        };
+
         // An RFC that is not on the list is the normal answer, not a 404: the
         // clerk asked a question and "it is not listed" is the answer.
         return c.json({
@@ -83,13 +112,23 @@ export function satRoutes(deps: ApiDeps) {
           ...(match.effective === undefined
             ? {}
             : { effective: match.effective }),
-          source: {
-            listVersion: OFFICIAL_SNAPSHOT_LIST_VERSION,
-            retrievedAt: OFFICIAL_SNAPSHOT_RETRIEVED_AT,
-            url: OFFICIAL_SNAPSHOT_URL,
-            taxpayers: official.taxpayers,
-            rows: official.size,
-          },
+          source,
+          // The top four keys are the 69-B answer and stay where they were. This
+          // is the whole answer: one block per SAT list, each saying whether it
+          // could answer at all.
+          lists: [
+            {
+              article: ART_69B_LABEL,
+              answered: true,
+              listed: match.listed,
+              entries: match.entries,
+              ...(match.effective === undefined
+                ? {}
+                : { effective: match.effective }),
+              source,
+            },
+            lookup49Bis(match.rfc),
+          ],
         });
       },
     )
@@ -114,9 +153,86 @@ export function satRoutes(deps: ApiDeps) {
           entries,
         });
 
-        return c.json(sweep);
+        /* The publication is not finished when it is priced. Issue #175: the
+           lines of this week's run were scored before this list existed, so they
+           are scored again here, inside the same request, and the findings that
+           come back are stored. That is what makes the retroactive pair on
+           `GET /api/v1/run/current` climb in the same second the list lands
+           instead of staying at zero next to a `totalExposure` in six figures.
+           Released lines and lines a person decided are left alone; see
+           `rescoreSweptLines`. */
+        const rescored = await rescoreSweptLines(deps, sweep);
+        /* After `sat_list_published` and never before it: the ledger has to read
+           as the publication and then its consequences, so a replay a year later
+           cannot show a payment re-decided by a list that had not been posted. */
+        for (const line of rescored) {
+          await deps.emit({
+            type: "decision_made",
+            at: line.decision.decidedAt,
+            decision: line.decision,
+          });
+        }
+
+        /* `RescoredLine` is the wire shape, stated once in `satPublishResponseSchema`
+           and asserted there by the route tests, so it is spread rather than
+           remapped into an identical object. */
+        return c.json({ ...sweep, rescored });
       },
     );
+}
+
+/** How the two articles are written in every answer this endpoint gives. */
+const ART_69B_LABEL = "69-B";
+
+/**
+ * The Article 49 Bis block of the lookup answer.
+ *
+ * Today it is the `not_published_machine_readable` arm, and the shape is the
+ * argument: `answered: false` plus the reason, the counts and the URL, rather than
+ * an empty `entries` a screen could render as "no esta listado". The `loaded` arm
+ * is written too, so the day the SAT publishes a file this endpoint answers from
+ * it without another change here.
+ */
+function lookup49Bis(rfc: string) {
+  const listing = official49BisListing();
+
+  if (listing.coverage === "loaded") {
+    const match = listing.index.match(rfc);
+    return {
+      article: ART_49BIS_LABEL,
+      answered: true,
+      coverage: listing.coverage,
+      listed: match.listed,
+      entries: match.entries,
+      ...(match.effective === undefined ? {} : { effective: match.effective }),
+      source: {
+        article: ART_49BIS_LABEL,
+        listVersion: listing.listVersion,
+        retrievedAt: listing.retrievedAt,
+        url: listing.source,
+        taxpayers: listing.index.taxpayers,
+        rows: listing.index.size,
+      },
+    };
+  }
+
+  return {
+    article: ART_49BIS_LABEL,
+    answered: false,
+    coverage: listing.coverage,
+    entries: [],
+    /* The honest sentence, in the Spanish the screen shows, because a clerk
+       reading "49 Bis: sin datos" would conclude the supplier is clean. */
+    note: `El SAT publica el listado del articulo 49 Bis un oficio a la vez en el DOF y no lo distribuye en ningun formato descargable. Al ${listing.surveyedAt} habia ${String(listing.oficiosPublished)} oficios publicados, del ${listing.firstPublishedAt} al ${listing.lastPublishedAt}. Esta consulta no cubre esa lista.`,
+    publications: {
+      oficios: listing.oficiosPublished,
+      taxpayers: listing.taxpayersPublished,
+      firstPublishedAt: listing.firstPublishedAt,
+      lastPublishedAt: listing.lastPublishedAt,
+      surveyedAt: listing.surveyedAt,
+      url: listing.source,
+    },
+  };
 }
 
 /**

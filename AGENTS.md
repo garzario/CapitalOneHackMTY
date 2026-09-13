@@ -40,6 +40,12 @@ be backed by a file, a test or a run.
   commits, PR bodies, issues, review comments or docs. attribution is switched off in your local assistant config (see `docs/playbooks/agent-setup.md`) and `.githooks/commit-msg` is the backstop that rejects the commit.
 - **Few, meaningful commits.** One logical commit per PR. Granular noise reads as machine output.
 - **No em dashes in prose. No emoji in docs, commits, YAML or UI copy.** Plain ASCII punctuation.
+- **Three levels and three states, and never a probability.** A screen or a document says
+  `confiable`, `precaucion` or `alerta`, always with the findings behind it, and `rojo`, `cancelado`
+  or `enviado`. Both are derived by `confidenceOf` and `transactionStateOf` in
+  `packages/core/src/levels.ts` and neither is stored. No percentage, no score, and never the word
+  "seguro" as a verdict, in any language: a SPEI cannot be recalled and no level is a guarantee.
+  ADR-0009 carries the rule table.
 - **Never invent data.** No unconfirmed partners, endorsements, roles, prices or statistics.
   Cite the primary source or cut the claim. Use `TODO(<owner>)` for anything not decided yet.
 - Whoever adds a dependency commits `bun.lock` in the same PR. Never hand-merge `bun.lock`.
@@ -59,24 +65,51 @@ If the ADR is changed, change this section in the same PR.
 
 - `packages/core`, **the intelligence**. Pure functions, zero dependencies, unit-tested.
   New algorithmic logic goes here, never in a route handler. This is the file an engineer opens
-  when they ask how it works, so it has to read well.
+  when they ask how it works, so it has to read well. `src/domain.ts` is the contract every package
+  and app codes against, `src/decision.ts` is the sixth control, and `src/levels.ts` is the one
+  place a confidence level and a transaction state are derived: `confidenceOf` and
+  `transactionStateOf`, shared by the engine, the API, the screens and the generated mock so the
+  four cannot disagree about a line (ADR-0009).
 - `packages/engine`, the six controls of ADR-0002 as one call, `runControls`. It exists only
   because `packages/sat` and `packages/cep` already depend on `packages/core`, so core cannot
   import them back. Adapters only: every rule lives in core.
 - `packages/nessie`, the only place that talks to Nessie. Read "Nessie quirks" before touching it.
   Tests run against recorded fixtures in `src/fixtures/`, with no network.
+- `packages/rail`, the only place that sends money, and it sends one amount: the 0.01 MXN
+  verification probe. `NessieRail` writes it to the company's bank mirror (verified live),
+  `StpRail` is the documented production path that refuses to run without `STP_*`, and
+  `FakeRail` is the in-process one the suite and `bun run demo` use. Read `README.md` in that
+  folder before quoting any of it: it says which rail has run live and which has not. ADR-0008 adds
+  the payment run to what a rail may send, one line of one instruction for that instruction's own
+  amount to the account it names, which is why the instruction has to exist here before money moves;
+  the adapter work is a follow-on of #195, so until it lands the probe is still the only thing this
+  package actually sends.
+- `packages/consortium`, the only place that talks to the cross-tenant network on Snowflake: the
+  hashing that is the privacy boundary, the key-pair JWT, the SQL REST API with an injectable
+  `fetch`, the DDL, the push and the pull, and the deterministic synthetic network the demo reads.
+  Server only (`node:crypto`), never on the hot path: the engine reads the local
+  `consortium_snapshot` table and a decision never waits on a warehouse. Read its README before
+  quoting the consortium anywhere, because the network in this repository is synthetic and every
+  claim about it has to say so.
 - `packages/seed`, deterministic synthetic Mexican transaction generator, fixed RNG seed.
 - `packages/db`, schema, migrations and SQL. Raw SQL through `postgres`, no ORM. Postgres only,
   no SQLite. `0001_init.sql` runs on any Postgres 16+. `0002_timescale.sql` is applied only when
   the `timescaledb` extension exists, so a plain local Postgres 18 works as the offline fallback.
-- `apps/api`, thin Hono transport: HTTP, validation, streaming. No business logic.
+- `apps/api`, thin Hono transport: HTTP, validation, streaming. No business logic. Every write
+  carries the `X-Actor` header (`role=clerk|owner; name=...`) and the ledger event it appends
+  records that name, because nothing in this product executes without a person.
 - `apps/web`, the judge-facing UI. Vite, React, Tailwind, motion.
-- `scripts/`, `doctor`, `migrate`, `seed`, `reset`, `demo`, `deploy-vultr`.
+- `scripts/`, `doctor`, `migrate`, `seed`, `reset`, `demo`, `deploy-vultr`, and `web:mock`, which
+  writes `apps/web/src/lib/mock-data.ts` out of the same seeded company the API serves. Edit the
+  generator and regenerate; never the generated file.
 - `deploy/`, what runs on the API instance: the compose file, the Caddyfile and the cloud-init
   script. The image itself is `apps/api/Dockerfile`, whose build context is the repository root.
 - `docs/`, 00 to 14, the judged narrative. `docs/01-rubric-mapping.md` is the traceability matrix
   and it is the first doc to update when new evidence lands.
-- `docs/adr/`, the decisions. ADRs are the cheapest high-credibility artifact in this repo.
+- `docs/adr/`, the decisions. ADRs are the cheapest high-credibility artifact in this repo. The
+  three that bind the build of 12 September: 0007 the assistant reads and proposes and a person
+  executes, 0008 the run leaves through a rail and only for what SentryOne already holds, 0009 the
+  three levels and the three states with their exact rule table.
 
 ## Commands
 
@@ -87,6 +120,9 @@ bun run dev | bun test | bun run typecheck | bun run build
 bun run migrate                   # 0001 always, 0002 only if timescaledb is available
 bun run seed                      # idempotent, prints the demo IDs
 bun run nessie:mirror             # pushes the company bank mirror, validates the key with a write
+bun run consortium:seed           # warehouse schema plus the synthetic network, needs ALLOW_CONSORTIUM=1
+bun run consortium:push           # this tenant's outcomes, hashed, never a name or an amount
+bun run consortium:pull           # fills the local snapshot; --offline needs no Snowflake account
 bun run demo                      # drives the demo path headless, green before any rehearsal
 ```
 
@@ -156,7 +192,7 @@ Five epics on GitHub (#80 to #84) with every issue linked as a sub-issue. Everyo
 | #83 Infrastructure and release | Fabian (fabbyyyy) | Vercel, Vultr, Tiger Data, sentryone.tech, accounts and keys, offline demo mode, the real one-cent CEP, release to main with v1.0.0, security scrub |
 | #84 Narrative and submission | everyone, Patricio closes | market and business model, pitch and Devpost, rubric mapping, process and README, video, rehearsals (Patricio); regulatory and privacy (Adan); architecture and data model (Fabian); persona, journey and demo script (Fabricio) |
 
-Scaffold PRs give every front typed stubs and mock data equal to the API's in-memory repository, so nobody waits to start. Reviewers: Patricio reviews Fabian, Fabian reviews Patricio, Fabricio reviews Adan, Adan reviews Fabricio; the lead reviews anything stalled past 90 minutes.
+Scaffold PRs give every front typed stubs and mock data equal to the API's in-memory repository, so nobody waits to start. "Equal" is now a property somebody checks rather than an intention: `apps/web/src/lib/mock-data.ts` is generated from the seeded company by `bun run web:mock` and `scripts/web-mock.test.ts` fails when the committed file stops matching the generator, or when the API and the offline fallback stop answering the same legal name, amount, CLABE, action or total. It was not equal for a while and issue #125 is what that cost. Reviewers: Patricio reviews Fabian, Fabian reviews Patricio, Fabricio reviews Adan, Adan reviews Fabricio; the lead reviews anything stalled past 90 minutes.
 
 ## Milestones
 

@@ -31,6 +31,7 @@ import { beneficiaryCepAdapter } from "./beneficiary";
 import { sat69bAdapter } from "./sat69b";
 
 export * from "./beneficiary";
+export * from "./sat49bis";
 export * from "./sat69b";
 
 /**

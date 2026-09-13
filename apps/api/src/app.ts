@@ -7,6 +7,7 @@ import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
 import { requestId } from "./middleware/request-id";
 import { beneficiaryRoutes } from "./routes/beneficiaries";
 import { cepRoutes } from "./routes/cep";
+import { consortiumRoutes } from "./routes/consortium";
 import { constanciaRoutes } from "./routes/constancia";
 import { eventRoutes } from "./routes/events";
 import { health } from "./routes/health";
@@ -17,6 +18,7 @@ import { runRoutes } from "./routes/run";
 import { satRoutes } from "./routes/sat";
 import { seedRoutes } from "./routes/seed";
 import { supplierRoutes } from "./routes/suppliers";
+import { verifyAccountRoutes } from "./routes/verify-account";
 import { type VoiceDeps, verifyCallRoutes } from "./routes/verify-call";
 
 /**
@@ -70,9 +72,13 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
      with `/:id` or `/:id/decide`, and keeping the voice integration in its own
      file means it is one revert rather than a diff inside a shared handler. */
   v1.route("/instructions", verifyCallRoutes(deps, voice));
+  /* And a third, for the same reason: the one-cent verification is the rail, the
+     CEP and the engine in one pipeline, and it stays one file. */
+  v1.route("/instructions", verifyAccountRoutes(deps));
   v1.route("/suppliers", supplierRoutes(deps));
   v1.route("/sat", satRoutes(deps));
   v1.route("/cep", cepRoutes(deps));
+  v1.route("/consortium", consortiumRoutes(deps));
   v1.route("/beneficiaries", beneficiaryRoutes(deps));
   v1.route("/metrics", metricsRoutes(deps));
   v1.route("/ledger", ledgerRoutes(deps));

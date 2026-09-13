@@ -18,6 +18,266 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
+  cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
+  clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
+  plaza where the only fact is that we have never paid it; a CEP that arrives while the run is open
+  and moves the line from precaucion to confiable; and the hard negative that pairs with the plaza
+  case. `Metrics` gains `perLevel`, so `GET /api/v1/metrics` and `bun run eval` report precision and
+  recall per confidence level as well as per control, and each case carries an `expectedLevel`
+  labelled from what the case is rather than derived through the rule table the engine applies. On
+  thirty-five cases: precision 87.0, recall 83.3, false positive rate 1.6, action agreement 33 of 35,
+  and `confiable` right on 12 of 12. The numbers in docs/11 and docs/12 are that run's.
+
+- The contract the assistant, the payment run and the three screens of 12 September are built on
+  (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
+  moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;
+  `Confidence` and `TransactionState`, the vocabulary of the whole product; `AssistantMessage`,
+  `AssistantToolCall`, `AssistantSession` and `ActionProposal`, where the assistant reads and
+  proposes and a person executes; `PaymentExecution`, `PaymentExecutionLine`,
+  `PaymentExecutionTotals` and `PaymentReceipt`, what the run did on the rail and the document it
+  produced; and `Plaza`, the three digits of a CLABE resolved to a place, whose city stays unnamed
+  until a dated Banxico snapshot lands because a city invented next to a real account number is the
+  claim ADR-0002 forbids outright. The event ledger learns `payment_settled`, `payment_failed`,
+  `payment_cancelled`, `assistant_message` and `intake_image`, `payment_sent` grows three optional
+  fields (`runId`, `rail`, `actor`) so every writer that predates the execution keeps working, and
+  `packages/db/migrations/0012_assistant_and_payment_events.sql` widens the `ledger_events` CHECK to
+  the five new kinds the way 0005 and 0010 already did it, dropped by name and recreated, with the
+  runner test asserting on a real Postgres that the five are accepted and that a sixth kind the
+  domain does not have is still refused.
+
+  The two derivations are the part worth reading. `confidenceOf` and `transactionStateOf` in
+  `packages/core/src/levels.ts` are pure, answer with the rule that fired and the findings behind it,
+  and are shared by the engine, the API, the screens and the generated mock, because the alternative
+  was the four implementations that made issue #125 possible: a level computed in four places is that
+  bug with a slower fuse. A definitive SAT listing or any critical finding is `alerta`; an account
+  with no payment history, a pending verification or any warning is `precaucion`; nothing open is
+  `confiable`, which is not the word "seguro" and never will be, because a SPEI cannot be recalled.
+  The state is `enviado` once the rail sent or settled the line and a list published afterwards does
+  not un-send it, `cancelado` when the execution dropped it, the beneficiary came back blocked or the
+  supplier is definitively listed and nobody signed a release, `rojo` when a decision stopped it or
+  the rail refused it, and the two states the run has always counted internally, `liberado` and
+  `pendiente`, so a line nobody has looked at is not green and a release on Wednesday is not
+  `enviado` until money leaves on Thursday. A release a named person signed with a written reason
+  outranks the listing and the engine's own `system` signature does not, which is ADR-0002 refusing
+  to overrule a person in either direction. Neither value is stored, for the reason `holdWindow`
+  already gave about the deadline it never stores, and every row of both tables has a test.
+
+  `docs/09-api.md` carries the endpoints: `POST /api/v1/assistant/messages` with its five SSE events
+  (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `GET /api/v1/assistant/sessions/:id`,
+  `POST /api/v1/run/:id/execute` answering `202` with one `line` event per payment,
+  `GET /api/v1/run/:id/execution`, `GET /api/v1/payments/:id/receipt` as JSON and as a PDF,
+  `GET /api/v1/instructions/:id/carta` for the one-page evidence letter, `GET /api/v1/rails` so a
+  screen can say which rail is live without reading an environment file, and `GET /health` with a
+  dependency block that still touches no network. Plus the two rules that run across all of them: the
+  `X-Actor` header on every write, with `owner` guarding exactly the exception `docs/02-persona.md`
+  gives the owner because a maker-checker chain is in the anti-persona column of that page, and the
+  level and the state on every instruction and on the run. Three ADRs argue it:
+  `docs/adr/0007-assistant-boundary.md`, where `AssistantToolCall.readOnly` is the literal `true` so
+  a writing tool cannot be expressed at all, `docs/adr/0008-payment-rails.md`, where the rail may send
+  only one line of one instruction for that instruction's own amount, which is what makes the upload
+  the payment rather than a policy, and `docs/adr/0009-states-and-levels.md` with the rule table.
+
+  `bun run web:mock` now writes the level and the state per line, the execution of the run, the
+  receipts and one assistant session of three turns, all derived and none of it typed: the blocked
+  beneficiary is the `cancelled` line and the reason quotes the two names the CEP comparison read, the
+  line whose CEP agrees only in part is `queued`, the last line handed to the rail is `sent` because a
+  rail acknowledges in its own time, and the other 83 are `settled`. No line is `failed`, because
+  nothing in the seeded company produces a rail refusal and inventing a bank error to fill a state
+  would be inventing evidence. Every receipt says `sealState: "not_checked"`, which is the honest
+  answer on a mirror that is not a SPEI participant, and carries four digits of the account rather
+  than eighteen. The assistant session quotes the engine's own `explanation` and its tool result IS
+  that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
+  not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
+
+- The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
+  behaviour that makes four of them true rather than asserted (issue #171). A held payment now
+  carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same
+  `EXPECTED_DELAY_DAYS` table `decide` weighed the expected loss against, so the delay the arithmetic
+  charged for and the deadline a clerk is promised are one number and cannot drift, three days for a
+  hold and one for a verification, measured from the decision's own instant. The deadline decides
+  nothing when it passes, which is binding under ADR-0002: `expired` turns true, the payment goes
+  back in front of a person, and what the deadline actually buys is a bound on the retry loop. The
+  window carries ordered `nextSteps`, and the one worth saying out loud is `one_cent_cep`, because it
+  needs nobody to answer a telephone; after a `denied` the only step offered is `keep_held`, since
+  suggesting a release next to the supplier's own denial would be the product arguing against its own
+  finding. `GET /api/v1/instructions/:id` answers it, and so does a recorded
+  `POST /api/v1/instructions/:id/verify-call`, which is how "nadie contesto" and "y ahora que" arrive
+  in the same response. `POST /api/v1/instructions/:id/decide` takes a `reason` next to the required
+  `decidedBy` and answers the `amountAtRisk` it was decided against: an urgent payment can be released
+  under a named person's responsibility with a written argument, and both land on the `decision_made`
+  ledger event and on `decisions.reason` (`packages/db/migrations/0009_decision_reason.sql`), because a
+  hold with no way out is bypassed outside the product where nothing is recorded at all. And the run
+  answers in pesos rather than in line counts: `runMoney` in `packages/core/src/exposure.ts` puts
+  `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount`, `amountAtRisk`,
+  `retroactive69bBase` and `retroactive69bExposure` on the `totals` of `GET /api/v1/run/current`, with
+  the 69-B pair counted once per supplier because the sweep prices it per supplier and one supplier can
+  sit on three payments in one week. `docs/09-api.md` and `docs/08-data-model.md` carry the contract
+  and the column. The same pass corrects a number the pitch said out loud: the listed-supplier
+  scenario summed its deducted base over the settled invoices and then reported the supplier's whole
+  invoice count next to it, so `docs/11-pitch.md` and `docs/08-data-model.md` said 31 invoices while
+  `docs/07-architecture.md` and `bun run demo` said 24 paid ones for the same MXN 878,592.59. The
+  note in `packages/seed/src/sentryone/scenarios.ts` now counts the set the base was summed over, and
+  the two docs say 24 of 31.
+
+- The newest 69-B sweep folded into the run totals, so the retroactive exposure climbs while the list
+  publishes instead of reading zero next to it (issue #175). `POST /api/v1/sat/publish` used to price
+  the whole ledger and stop there, which left `totals.retroactive69bBase` and
+  `totals.retroactive69bExposure` on `GET /api/v1/run/current` at zero in the same minute
+  `SweepResult.totalExposure` answered MXN 404,152.59: two figures that are both correct and look
+  contradictory next to each other, which is exactly what a judge picks at. Now the same request
+  re-scores the pending lines of the current run whose supplier the publication names, through
+  `rescoreSweptLines` in `apps/api/src/pipeline.ts`: the six controls run again with the sweep on
+  `ComposeInput.sweep`, so the `sat_69b` finding carries `deductedBase` and `retroactiveExposure`, the
+  findings are stored, `decide` reaches the action again and a `decision_made` signed `system` is
+  appended per line, after the `sat_list_published` and never before it, so a replay can never show a
+  payment re-decided by a list that had not been posted. Those events go out on `GET /api/v1/events`,
+  which is what makes the run screen move while the publication lands. A released line and a line a
+  person decided are never touched, because that is money the run already let go and a decision with
+  somebody's name on it; a decision the engine signed `system` is re-scorable, since a second
+  publication is new evidence. The response gains `rescored`, one row per line moved, and it carries no
+  pesos of its own on purpose: the exposure is priced per supplier, one supplier can sit on several
+  lines of the same week, and `runMoney` keys the pair on the RFC so it is counted once. Read off a
+  fresh run at seed 69, the seeded run goes from zero on both fields to MXN 878,592.59 of base and MXN
+  404,152.59 of exposure, `amountAtRisk` climbs by exactly that exposure from MXN 799,209.86 to MXN
+  1,203,362.45, and one line moves: `INS-2026-09-07-070` from `verify` to `hold`. The alternative, a
+  read-time join of the newest sweep onto the run, was rejected in the ADR-0002 amendment of
+  2026-09-12, because two sources of one number is what `packages/core/src/exposure.ts` exists to
+  prevent. `docs/09-api.md` carries the contract under "What a publication re-scores", `bun run demo`
+  beat 3 asserts the identity between the two figures rather than the direction of the change, and the
+  Postgres half of it is checked against `MemoryRepository` on the same publication.
+
+- `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
+  problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one
+  line each, the business model in three sentences, and the six objections of 2026-09-12 with the
+  answer to say out loud. It uses `docs/print/print.css` and the visual system of `judge-card.html`,
+  and `docs/print/README.md` states the rule that governs it: no number reaches that card that is not
+  already in `docs/04`, `docs/05` or `docs/11`.
+
+- The other SAT list, article 49 Bis, covered next to 69-B and reported honestly (issue #180).
+  Article 49 Bis of the CFF was added by the decree of DOF 07-11-2025 and is in force since 1 January
+  2026: after an express home visit capped at twenty-four business days, the SAT publishes the taxpayer
+  whose CFDI it determined false, and the third parties who received those CFDI have **thirty natural
+  days from the DOF publication** to reverse the fiscal effect or the authority restricts THEIR OWN
+  certificado de sello digital under article 17-H Bis fraccion XIV, with article 113 Bis now covering
+  whoever gives `efectos fiscales` to a false CFDI. `packages/sat/src/art49bis.ts` is the second list:
+  a loader over the published `Anexo 1` layout resolved by column name, the thirty day window
+  (`correctionDeadline` counts the publication day as day one, stated as the reading that errs early
+  because being a day late costs the seal), an index, and `sweep49Bis`, which prices the already paid
+  and already deducted CFDIs through the same `priceCfdis` and the same ledger fold as the 69-B sweep
+  so the two can never answer different numbers, plus the correction deadline the pesos alone do not
+  carry. `Sat49BisEntry` is its own domain type and not a fifth `SatListStatus`, because fraccion X
+  publishes one outcome and provides for no published clearing, so nothing may report a 49 Bis taxpayer
+  as cleared. `packages/engine/src/sat49bis.ts` gives control 1 a second finding, in Spanish, naming
+  the article, the DOF date, the days left and the seal restriction, always `comprobable` because the
+  published resolution is already final; the detector id stays `sat_69b`, which is control 1 and is
+  persisted, CHECK-constrained and counted per detector, so ADR-0002 still has six controls.
+  `GET /api/v1/sat/lookup` now answers `lists`, one block per article with an `answered` flag on each.
+  **And the honest half.** There is no machine-readable 49 Bis listing, so none is committed: the SAT
+  open-data catalogue carries articles 69, 69-B and 69-B Bis and nothing for 49 Bis, and the DOF
+  publishes it one oficio at a time as an HTML note, fourteen of them naming fourteen taxpayers between
+  10 July and 28 August 2026, counted at the source on 2026-09-12. So the lookup answers that list with
+  `answered: false` and `coverage: "not_published_machine_readable"` plus the counts and the URL to
+  check them, the fixture that exercises the loader is six invented rows whose first line says in
+  Spanish that it is not the SAT's file, and `packages/sat/src/snapshot/README.md` carries the statute
+  with its retrieval time, all fourteen note ids, the seven published columns, the two date formats
+  those fourteen oficios use, and the manual steps to load a new publication. Article 69-B Bis is
+  decided the other way and closed rather than deferred: its listing does exist as open data, three
+  taxpayers at a 5 June 2026 cut-off, and it is deliberately not wired into supplier screening because
+  it is about the improper transfer of tax losses and says nothing about a supplier's invoice. The
+  TODOs this replaces are gone from `docs/04-market.md`, `docs/06-regulatory-privacy.md` and
+  `docs/14-process.md`, and `docs/01`, `docs/08` and `docs/09` carry the coverage statement.
+
+- The one-cent verification travels inside the payment run, with nobody typing (issue #166).
+  `packages/rail` is the new workspace and the only place in the product that sends money: one
+  amount, 0.01 MXN, behind a `PaymentRail` interface with three adapters. `NessieRail` records the
+  cent as a withdrawal on the company's bank mirror with our own key and mints the clave de rastreo
+  from the object id Nessie returns, upper-cased letters and digits behind an `NSS` prefix, cut to
+  the 30 characters a SPEI field holds; a withdrawal and not a purchase, because the mirror's
+  settled history needs a payee and the probe must name nobody. `StpRail` is the documented
+  production path, `registraOrden` with the cadena original in one named field order and an RSA
+  SHA-256 `firma` over exactly those bytes, and its constructor refuses without `STP_BASE_URL`,
+  `STP_EMPRESA`, `STP_CLABE_ORDENANTE` and `STP_PRIVATE_KEY_PATH`, so it has never pretended to be
+  live: nothing in this repository holds an STP contract and `packages/rail/README.md` says so next
+  to what IS verified. `FakeRail` is the in-process one, and every `cent_sent` it produces carries
+  `simulated: true`. `POST /api/v1/instructions/:id/verify-account` is the pipeline: it sends the
+  cent, appends `cent_sent`, resolves the CEP for that clave through the existing seam (the verified
+  beneficiary registry, then the CEPs committed to this repository indexed by clave, then the Banxico
+  portal and only with `ALLOW_CEP_FETCH=1`), appends `cep_awaited` with a bounded poll when Banxico
+  has published nothing yet (`CEP_POLL_INTERVAL_MS`, `CEP_POLL_DEADLINE_MS`), and with the CEP in
+  hand stores the registry row that arms control 5, runs the six controls again and appends
+  `decision_made` signed `system`. `GET /api/v1/instructions/:id/verification` folds
+  `VerificationState` out of the ledger: `not_started`, `cent_sent`, `awaiting_cep`, `cep_signed`,
+  `released`, `blocked`, with the clave, the holder, the CFDI legal name, the comparison and the seal
+  state. `202` because the CEP is published after the transfer settles, `409` once the payment is
+  resolved because a second cent proves nothing new, `503` naming the variables when this server has
+  no rail. The seal is `valid` only when `BANXICO_CEP_CERT_PEM` verified it and `not_checked`
+  otherwise, which is never rendered as valid. Verified live against `api.nessieisreal.com` on
+  2026-09-12: the 0.01 withdrawal lands on the mirror account with no name, no CLABE and no amount
+  other than the cent in its description, no customer or account is created, and Nessie stores the
+  amount as a whole number so it reads back as 0, which is why the centavo lives in our ledger.
+  `bun run demo` gained a beat that takes one seeded line to `released` and another to `blocked` from
+  one call each, on the in-process rail and on synthetic CEPs, and it says so on the line it prints.
+- The cross-company beneficiary network, on Snowflake, and the network signal inside the beneficiary
+  control (issue #164). A supplier's first payment from this company has no history here and has
+  years of it in every other company that already pays that supplier, which is the signal Trustpair
+  and nsKnox sell to corporate treasuries. `packages/consortium` is our version of it: the SQL REST
+  API with a key-pair JWT and no SDK, one table `SENTRYONE.CONSORTIUM.BENEFICIARY_EVENTS` and one
+  view `BENEFICIARY_NETWORK`, `bun run consortium:seed`, `consortium:push` and `consortium:pull`, and
+  the deterministic synthetic network of other tenants the demo reads. The network is off unless
+  `ALLOW_CONSORTIUM=1`.
+  **What leaves a tenant** is salted HMAC-SHA256 hashes of the normalised RFC and CLABE, the
+  three-digit bank code that is printed on every SPEI receipt, one of `verified`, `paid`, `mismatch`
+  or `fraud_reported`, and a calendar day. Never a legal name, an amount, an invoice UUID, a clave de
+  rastreo or an account number: there is no column for any of them, and `sync.test.ts` serialises the
+  push payload AND the SQL it becomes and fails if one of those strings is in it. The salt is
+  network-wide on purpose, because two tenants can only agree they are paying the same account if
+  their hashes agree; the cost of that, stated in `packages/consortium/README.md` rather than hidden,
+  is that whoever holds the salt can confirm a guess, which is why the salt belongs to the operator
+  and the constant in the repository is a documented demo value.
+  **The warehouse is never on the hot path.** `bun run consortium:pull` fills the local
+  `consortium_snapshot` (migration `0009_consortium_snapshot.sql`, both database paths) and the
+  engine reads only that, so a payment decision never waits on Snowflake and the demo works with the
+  network unplugged. Two tables and not one, because three states have to be told apart: no pull row
+  is "never consulted", a pull row with no pair row is "consulted and never seen this account", and
+  both is what the network knows. A pull replaces the snapshot wholesale inside one transaction,
+  because a pair the network has stopped corroborating must not stay behind.
+  **The decision uses it deterministically and says so.** `assessNetwork` in
+  `packages/core/src/network.ts` turns one signal into a verdict and a multiplier on the expected
+  loss: `1 / (1 + 0.05 * tenants + 0.02 * months)`, floored at 0.2, monotone in both, and exactly 1
+  when the network was not consulted, so an instance with the flag off decides what this product
+  decided before the consortium existed. Any fraud report cancels every discount and raises the
+  beneficiary finding to `critical` whatever the CEP says, because a tenant who lost money to this
+  pair knows something the document does not carry. No LLM anywhere near it, and the two weights are
+  labelled priors with a `TODO` naming what would replace them. With no CEP at all the control used
+  to be silent and now reports what the network knows when the network knows something, which is the
+  case the consortium exists for: forty companies pay this supplier, and none of them pays it here.
+  `GET /api/v1/consortium/signal?rfc=&clabe=` answers one pair from the snapshot, 503 naming the flag
+  when the consortium is off and 404 when the pair is unknown, and it takes no request shape that
+  lists a supplier's accounts. `bun run doctor` gains a `snowflake` line that says whether this
+  laptop can decide with the network at all.
+  **The network is synthetic and every artifact says so.** SentryOne has one tenant, so the other
+  tenants are generated from seed 69 with `synthetic = TRUE` on every warehouse row, and
+  `consortium_pull.source` records `snowflake` or `synthetic` so no screen can confuse a rehearsal
+  with a warehouse.
+  **Verified against the real warehouse on 2026-09-12, and the verification found one bug.**
+  `consortium:seed` created `SENTRYONE.CONSORTIUM` and loaded 2,040 synthetic events, `consortium:push`
+  added 2,446 of this tenant's own hashed outcomes, and `consortium:pull` landed 46 hashed pairs, 45
+  corroborated and 1 with a fraud report, into the managed Postgres. The first live pull skipped all 46
+  rows: the SQL REST API returns a DATE as the number of days since the epoch in a string, not as
+  `YYYY-MM-DD`, so the pull wrote an EMPTY snapshot with `source = 'snowflake'`, which a screen would
+  have read as a network that has never seen any of these accounts. `networkSelect` now formats both
+  dates with `to_varchar(..., 'YYYY-MM-DD')` and `readNetworkRows` also decodes the epoch-day form, each
+  with a test. `bun run doctor` prints the `snowflake` line green with the pair count and the
+  `pulled_at` it wrote.
+  **`bun run demo` has a sixth beat for it.** It fills a local snapshot from the generator with no
+  Snowflake account, then posts two lines of the seeded run through intake: one the network corroborates
+  is released carrying `pagada por 34 empresas desde sep 2025` in its evidence, one the network has no
+  row for is held at 537,960.97 MXN carrying `sin registro de esta cuenta, 1 otra cuenta del proveedor`,
+  and the same two lines against an instance with the flag off, and against one with the flag on and an
+  empty snapshot, come back with the identical action and the identical expected loss, which is claim 2
+  of `packages/core/src/network.ts` asserted rather than argued.
+
 - Two things the deploy of #44 cost to learn, written down next to the commands in
   `docs/07-architecture.md` rather than left in a chat: SSH out of the venue network opens the TCP
   connection to port 22 and then never delivers the banner, so `refresh.sh` is unreachable from the
@@ -153,6 +413,28 @@ then the screens, then the narrative, then the plumbing.
   `MemoryRepository` on the same seed, line for line, plus the endpoints and the SSE stream, and
   was run against the local PostgreSQL 18 and the managed TimescaleDB 2.30 service.
 
+- "Verificar cuenta" on the CEP screen, and the beat that follows it with nobody typing (issue
+  #167). One click posts `/api/v1/instructions/:id/verify-account`, and from there the panel
+  follows `GET /verification` and re-reads on every ledger event that names the instruction, so
+  the six states arrive on their own: sin verificar, centavo enviado with the clave de rastreo the
+  rail answered, esperando el CEP, CEP firmado por Banxico with the holder next to the CFDI legal
+  name, and pago liberado or pago bloqueado with the decision the engine took. The instruction
+  detail links into it from the destination account, so the beat starts on the screen that shows
+  the account it is about. Three rules hold the panel together. The rail is named on screen,
+  "espejo Nessie" in the demo, next to the sentence that says the CEP is Banxico's and the cent is
+  ours. The seal is rendered exactly as the API reports it and `sealVerdictOf` is the only place
+  that maps it: `valid` is the only value that reads valido, and anything else, including a value
+  this build has never seen, reads no verificado, which is what stops a `not_checked` seal from
+  being promoted to evidence. And offline the panel moves the first two beats and stops, because a
+  browser with no API holds no signed document and walking a mock to "CEP firmado" would fabricate
+  the evidence the control rests on. The ledger stream is read structurally rather than by a
+  switch on the event type, since `cent_sent` and `cep_awaited` are added to the union in issue
+  #166 and a switch would have compiled, dropped both and frozen the panel on "centavo enviado".
+  `?data=mock` carries a verification per instruction, one per state, so the offline run renders
+  all six. The 409 and the 503 are sentences a clerk can act on and not error codes: a payment
+  already released or blocked is not verified twice, and a deployment with no rail says which
+  configuration is missing instead of inventing a clave de rastreo.
+
 - The metrics page says how blind the blind evaluation actually is (issue #51). It used to claim
   the labels were written by a different person from the detectors, which the holdout README
   contradicts; the note now states the real position, names the four labels that disagree with
@@ -247,7 +529,597 @@ then the screens, then the narrative, then the plumbing.
   states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
   where the line between "no verificada" and "invalida" is drawn.
 
+- What a client gets when the product is wrong, on both sides of the error, and the law that decides
+  how any of it may be written (issue #194). A second Capital One panel asked on the evening of
+  2026-09-12 whether the subscription should include an insurance policy covering losses up to an
+  amount per tier, phrased as "you mark a payment as safe and it turns out to be fraud".
+  `docs/05-business-model.md` gains "When a released payment is fraud: what the client gets", four
+  layers at four stages of maturity, and the premise is corrected before anything is promised: `Action`
+  in `packages/core/src/domain.ts` is `hold`, `verify` or `release` and there is no fourth value
+  meaning safe. Layer 1 exists today and is evidence rather than safety: the six controls and their
+  findings from `runControls`, the CEP holder name when it was obtained with `not_checked` never
+  dressed up as a pass, and the append-only `LedgerEvent`, which together are the file a client takes
+  to its bank, to an insurer or to the SAT inside the thirty-day window article 69-B opens. Layer 2 is
+  the commitment we can fund ourselves and it is labelled a proposal: four weeks of shadow mode at no
+  charge, a service credit, and a make-whole capped at the lower of twelve months of the tier and the
+  fees actually paid, MXN 10,788 direct and MXN 2,340 per client company through a firm, funded by
+  reserving 10 percent of collected subscription revenue. That reserve costs ten points of gross
+  margin, accrues one full cap per ten paying companies per year, and therefore stays solvent only
+  while qualifying events run at or below 10 percent of accounts a year, which is why the contract has
+  to cap the make-whole by the reserve balance as well as per company. It attaches only when all six
+  controls ran, the seal was `valid` and `nameMatch` was `match`, and the release was signed
+  `SYSTEM_DECIDER`, never after a person's override, so today almost nothing would qualify:
+  `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal reads `not_checked` until
+  the real Banxico certificate lands. Layer 3 is the insurance layer, which only an authorised insurer
+  may write and where our asset is the underwriting input nobody else brings. Layer 4 answers the error
+  the panel did not ask about and a payables desk meets every week, a legitimate payment held: the
+  delay is bounded by `HOLD_WINDOW_DAYS` in `packages/core/src/hold.ts`, which is the same
+  `EXPECTED_DELAY_DAYS` the expected loss was weighed against, three days for a hold and one for a
+  verification, the owner ends it whenever they want under their own name and written reason through
+  `POST /api/v1/instructions/:id/decide`, and the day already carries a price per supplier,
+  `Supplier.delayCostPerDay` from `packages/seed/src/sentryone/delay-cost.ts`, MXN 101.98 to MXN
+  4,611.27 across the 44 suppliers with a median of MXN 353.13. The proposed remedy is a service credit
+  against the next invoice at that price, capped at one month of the tier per event and two months per
+  rolling twelve months, MXN 1,798 direct and MXN 390 through a firm, leaving 66 percent gross margin
+  direct and 41 percent through a firm in the worst case where every account claims the whole cap every
+  year. What makes that layer worth reading is the arithmetic that rules out the obvious version of it:
+  6 of 92 lines stopped on the seeded run, 3 of the 20 findings the blind evaluation raised were false,
+  so about 78 days of wrong delay a year, MXN 27,500 at the median supplier price and MXN 53,800 at the
+  mean, against MXN 10,788 of annual subscription. Paying the full priced delay is two and a half to
+  five times the price, so it is not a commitment, it is an arithmetic error, and the cap is stated
+  with what it does not reach: on the most expensive line of the run it pays 8.8 percent of a three-day
+  hold. `docs/06-regulatory-privacy.md` gains section 2.2 with the law behind all four layers, read in
+  the texto vigente of the Ley de Instituciones de Seguros y de Fianzas on 2026-09-12. Article 20
+  reserves any operación activa de seguros to authorised Instituciones and Sociedades Mutualistas and
+  defines one as obliging oneself, against the payment of a sum of money, to repair a damage or pay a
+  sum of money should a future and uncertain event occur, which is what a payout on fraud would be;
+  article 24 makes a contract concluded against it produce no legal effect at all; article 495,
+  fracción I attaches three to fifteen years of prison and a fine; articles 91 and 93 reserve
+  intermediation to authorised agentes de seguros; and article 102 is the one lawful channel, a
+  contrato de adhesión contracted through a persona moral whose service contract is registered with the
+  Comisión in advance and which is then subject to its inspection. That is why every commitment here is
+  a price remedy against our own fees rather than an indemnity, why the delay credit is applied against
+  the next invoice, and why no proof of loss is asked: paying against evidence of a lost sale would be
+  resarcir un daño, the verb article 20 uses. Ten more sources, all opened 2026-09-12, are quoted
+  rather than characterised: Trustpair indemnifies with no amount, condition or exclusion on the page
+  and sells to the largest corporations in the world, nsKnox publishes only website terms that cap
+  liability at what the user paid it, Eftsure answered a redirect loop so nothing is attributed to it,
+  Verificamex takes "el más amplio deslinde de responsabilidad que en derecho proceda", and of the
+  three Mexican policies we opened the closest wording, BBVA's `Fraude Digital` for PyME, excludes our
+  loss twice, because our transfer is authorised by the client's own clerk from the bank's own portal.
+  `docs/12-judge-qa.md` gains subsection 8 of "Second table of 12 September" with the thirty-second
+  spoken answer and the five gaps to volunteer, and the ten sources this work opened are numbered 57 to
+  66, continuing the sequence `docs/04-market.md` and `docs/05-business-model.md` share. Nothing here has been reviewed by counsel and the article 20 consultation
+  the statute provides for has not been filed, so the caps and the word guarantee stay out of any
+  contract, price list and screen until both have happened.
+
+### Changed
+
+- `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
+  read the controls. The controls were merged first, `packages/seed/src/holdout/README.md` has said
+  so since #122, and a judge who reads the repository and then hears the stronger claim out loud has
+  found the one thing that costs more than the point it was worth. The sentence to say is that no
+  case was edited to make a control pass and the ones that disagree are still counted against us.
+
+- A second Capital One panel came to the table on the evening of 2026-09-12, said the project was
+  interesting and then asked the one thing the afternoon's answers had given in categories instead of
+  counts: narrow the market, and say exactly who sells this and through which channel (issue #193).
+  `docs/05-business-model.md` replaces "GTM in three steps" with "GTM: who sells this, to whom, and
+  through which channel", and every count in it is counted or admitted to be an assumption.
+  **The segment is narrowed until it is a list somebody could buy.** Formal manufacturers, wholesalers
+  and builders of 11 to 250 people in Nuevo Leon whose payment run touches 30 or more suppliers a week,
+  through four filters: 24,599 establishments in the band in the state, **6,476** of them in
+  manufacturing 3,240, wholesale trade 2,445 and construction 791, **6,114** of those in the thirteen
+  metropolitan municipalities led by Monterrey 2,261 and Apodaca 857, and **about 2,312** after INEGI's
+  blunt all-size national formality rate of 35.7 percent, which is too low for this band and is used
+  anyway. The fifth filter, 30 suppliers a week, **is published nowhere**: DENUE carries no payment data
+  and the ENAFIN tabulados render as a JavaScript shell, so it is a hypothesis with a measurement
+  attached and the 200 free sweeps are the measurement. The new source [48] is the DENUE 05_2026 Nuevo
+  Leon bulk file counted by us with the same strata filter as [26], reproducible in one command, and it
+  cross-checks by returning exactly the 737 accounting units for SCIAN 541211 that [26] already reports.
+  It also surfaces a disagreement between instruments that is now written down instead of smoothed over:
+  DENUE puts 24,599 establishments in the band in the state against the about 18,500 economic units
+  CE 2024 implies, a third apart on the same band in the same state, and neither number is wrong.
+  **Months 1 to 6 are founder-led, and the buyer is not the clerk.** Fabricio and Patricio take the
+  meetings, the opener is a free supplier-register sweep of which the stop condition already fixes 200,
+  about 8 a week, and the arithmetic of the conversations is written out with its two rates labelled as
+  assumptions with no benchmark behind them: 1 in 3 owners agreeing to a sweep is 600 conversations,
+  23 a week, about 5 a working day for two of the four calendars, and 1 in 4 exposed sweeps converting is
+  2 or 3 paying companies in six months. Carrying the whole 36-month SOM that way would be 7,200 owner
+  conversations, 46 a week for three years, which four founders who are also building the product cannot
+  do, so the channel is arithmetic rather than a growth lever. The buyer is **purchasing and finance**
+  and it is stated as two functions rather than a job title, because a function is what you can ask for
+  an introduction to: finance files the complementary return inside the thirty days and carries the 46
+  percent of a disallowed subtotal that reverses as ISR plus IVA, purchasing owns the register the
+  controls read and makes the telephone call when a payment is held. The published evidence of that split
+  is a competitor's own promise and not our reading of an org chart, ValidX's "si no cumple, se retiene y
+  se notifica a Compras", with ENAFIN's 61.2 percent `Director(a) o gerente` used for the shape of the
+  sale and nothing more. The clerk of `docs/02-persona.md` stays the user and is not the buyer, since the
+  one thing the product does to her Thursday is make it slower on six lines out of ninety-two, and
+  `docs/02-persona.md` section 2 now says so in the same words.
+  **From month 6 the accounting firm is a reseller, against a denominator that is counted.** 143 of the
+  737 accounting and audit units in Nuevo Leon employ 11 to 250 people and 140 of those are metropolitan,
+  so the year-one target of 25 firms is 17.5 percent of a state rather than the 0.7 percent of a national
+  denominator this file used to quote. The partner economics are stated both ways because we do not set
+  the firm's resale price: MXN 3,900 to us, up to MXN 168,960 a year of billing if the firm resells at
+  our direct price at a 78.3 percent gross margin, or MXN 195 per client per month if it bundles it into
+  its own fee, against our MXN 2,620 gross per firm at 67.2 percent and a 0.69-month payback. Why a firm
+  sells it is written precisely enough to survive a tax question: the statutory obligation is the
+  client's, and what the firm carries is the work and the relationship. **Two sentences were wrong and
+  are corrected rather than quietly dropped.** Both published competitors sell *to* accounting firms and
+  not *through* them, and one of them does publish a customer count: Tesio's own home page positions it
+  as "Software fiscal con IA para contadores y despachos" and publishes "+2,400 contadores automatizan
+  con Tesio", self-reported and unaudited, and 69b.mx sells a `Corporativo` tier at MXN 1,999 a month
+  "Para equipos grandes y despachos" with unlimited monitored RFCs. That pair is the demand and it also
+  prices the ceiling, since our MXN 3,900 firm plan is **1.95 times** that tier and the whole argument for
+  the difference is that theirs monitors a list while ours decides a payment. Neither publishes a
+  reseller, partner or affiliate programme, so the firm as a reseller is labelled our bet.
+  **The integration channel is gated on ten paying firms** and the vendors' own pages are quoted for what
+  they do and do not publish: CONTPAQi states more than 6 thousand distributors and more than 1.2 million
+  user companies and publishes no distributor terms at all, Siigo Aspel publishes a tiered
+  certified-distributor directory with no total, and the SAT's list of proveedores autorizados de
+  certificacion **is not countable**, through four routes tried on 2026-09-12: a 1,477-byte JavaScript
+  shell, a legacy PAC page whose content block is empty and last modified 11 February 2014, the padron of
+  contadores publicos answering HTTP 500, and AMEXIPAC rendering its members as a logo carousel. So no
+  PAC count is quoted anywhere, and 69b.mx's own `API 69-B` is marked "Proximamente" with a waitlist, so
+  nobody in the category has proved that channel either. The chamber route is published and dated:
+  CAINTRA Nuevo Leon states more than 5,000 affiliated companies and signed an agreement with Afirme
+  Banco on 2026-09-10 at Expo Pyme Monterrey covering about 4,500 affiliated PyMEs, which is a bank
+  distributing a financial product to precisely our segment through a chamber two days before this was
+  written. It is credit and not a control, so it is carried as an analogy. COPARMEX Nuevo Leon publishes
+  only a national figure so none is used, ICPNL's 2,000 afiliados is quoted as self-reported, and the
+  IMCP answered HTTP 403 to three clients so no IMCP number appears at all.
+  **And a third route, from the same team meeting, with the intermediation dilemma answered rather than
+  deflected.** A bank embeds the control inside its own business banking so that the payment already runs
+  through it. The answer to "you are one more intermediary" is not that we are indispensable, it is where
+  the control sits: **SentryOne belongs where the payment executes**, and three published facts carry it.
+  60.4 percent of firms with six or more employed persons operate through the institution's own web page
+  against 35.0 percent on a mobile app. The despacho cannot be the last step because it holds no
+  credentials for the client's portal, which is already in `docs/02-persona.md`. And the verification
+  primitive is the rail's own: Regla 51a Bis of the SPEI rules has Banco de Mexico generate a one-centavo
+  order in its own name to read the holder out of the CEP, with Regla 72a obliging participants
+  generally. The gap is written by the banks themselves, HSBCnet selling beneficiary-name validation for
+  "unicamente cuentas HSBC" in files of up to 5,000 accounts inside a 07:00 to 22:00 window, and BBVA Net
+  Cash having the company type the holder's name itself behind a token challenge that authenticates the
+  employee and not the account holder. **Nessie is the bank of the demo**, which is a statement about
+  `scripts/nessie-mirror.ts`, `packages/nessie/src/mirror.ts` and the sixth control,
+  `bank_reconciliation`, rather than about a relationship, and **Capital One is named as the kind of bank
+  this route is for, which is a judgement about bank shape and not an agreement: nobody at Capital One or
+  at any other bank has agreed to anything.** It is third in the order and not first because a bank
+  integration is a procurement cycle and a security review measured in quarters, and the only thing that
+  survives either is evidence from companies already running the control, so the order is 200 sweeps, ten
+  paying firms, then the conversation. No count of Mexican banks is quoted, because the CNBV register was
+  not opened on this pass, and no published Mexican bank programme for small-business software partners
+  is cited either, because none was opened, which is why the route is an ask for a conversation rather
+  than an application to a programme known to exist.
+  **The pitch carries it on stage.** `docs/11-pitch.md` gains four rows in the numbers table, the segment
+  with its 6,476, 6,114 and about 2,312, the 143 of 737 reseller denominator, the MXN 1,999 despacho price
+  anchor with the 1.95 times it implies, and Tesio's 2,400 as the only customer count a competitor
+  publishes. The 3:25 market sentence now says the segment before the national figure and labels the
+  246,000 as the total, which is what the panel asked for. The 3:45 ask **is now the channel ask**, three
+  introductions to despachos of 11 or more people in Monterrey to run the sweep over real payment runs
+  plus one conversation with whoever owns business banking, so the ten real payment runs survive as what
+  the introductions are for. And the closing paragraph of "The business, in the three sentences that get
+  asked" carries the four motions in order with the bank route stated as an ask.
+  `docs/12-judge-qa.md` gains "Second table of 12 September": the question as it was asked, the
+  thirty-second answer, eleven allowed rows with a source each, five things not to say starting with any
+  claim that a bank has agreed to anything, and the honest gap volunteered in the same breath, which is
+  that the supplier-count filter is published nowhere and the two conversion rates have no benchmark at
+  all. `docs/04-market.md` gains the first-segment row, the instrument disagreement, Apodaca counted at
+  2,511 in the band and 857 in the three sectors, which closes the TODO it carried, the correction to the
+  channel assumption, the bank route with no bank count, and source [48]. The direct half of the SOM is
+  re-read against the narrowed segment and the consequence is said out loud: 600 direct companies would
+  be 9.3 percent of the 6,476, so that half leaves Nuevo Leon after the first year or it does not happen.
+  `docs/01-rubric-mapping.md` rows 8, 11 and 14 point at the renamed sections and row 11 now describes
+  counts instead of steps, and ADR-0006's link to the renamed GTM section is fixed.
+
+- The rate a second Capital One panel asked for on the evening of 2026-09-12, answered as a bracket
+  with its arithmetic on the page instead of as the number a teammate said (issue #192). The question
+  was what percentage of supplier transfers in Mexico is stolen and the answer given at the table was
+  25.4 percent, which is in no source this repository holds: it is the 24.3 percent of Condusef's
+  refund share misremembered, a share of disputed pesos that came back rather than a share of
+  transfers that left, and as a loss rate it is wrong by three orders of magnitude. `docs/04-market.md`
+  gains "The rate on supplier transfers, and how it is derived" ahead of the sizing, and the honest
+  answer is that **nobody publishes that rate**, not Banxico, not Condusef, not the CNBV, not the ABM,
+  not INEGI. What is published brackets it. Possible-fraud claims against banks in 2025 over SPEI
+  transfers in the same year give **7.1 per 10,000**, a ceiling because the numerator counts cards and
+  ATM and internet purchases while the denominator counts only SPEI and because the denominator is a
+  "more than". Unrecognised electronic transfers that reached Condusef in the first half of 2026 over
+  half of that denominator give **2.1 per million**, a floor because the escalated register is about
+  nineteen times smaller than the one claims are made to; the two errors in that second ratio push in
+  opposite directions, a factor of nineteen against a factor of 1.37, so the net is argued in the file
+  rather than asserted. **Say the bracket, never a point inside it.** Three more derivations follow,
+  each with its formula and inputs printed so a judge can reject a cell instead of the method: INEGI's
+  522 fraud events per 10,000 economic units a year, which is the unit a buyer actually buys in, the
+  MXN 958.91 of expected annual cost it implies on the national average and the admission that this
+  does not pay for MXN 10,788 of subscription on its own, and the same figure scaled to pequena and
+  mediana through the only size gradient INEGI publishes, MXN 2,770 and MXN 9,108, labelled modelled
+  because the cross of size against crime type is ours and not INEGI's. The negotiation sentence is
+  the ratio that comes out of it, **6.9 percent** of what INEGI already measures a small company
+  spending and losing on crime in a year and **2.1 percent** for a medium one, and the close is an
+  admission rather than a claim: we do not know your rate and neither does anybody else, which is what
+  the free supplier-register sweep and its stop condition exist to measure. The international analogue
+  is labelled as an analogue: UK Finance counts our exact attack and puts **68 percent of invoice and
+  mandate losses on business accounts** and **37.0 percent of all business APP losses** on it, which
+  over Pay.UK's Faster Payments volume is about **7 payments in every 10 million**, and Pay.UK's own
+  Confirmation of Payee milestone attributes no measured share of any fraud fall to the service, so
+  neither do we. Eight sources were added, 67 to 74, every link opened on 2026-09-12.
+
+- Two sentences in `docs/04-market.md` were corrected against their own sources in the same pass,
+  because finding them and leaving them is worse than the original error (issue #192). INEGI's
+  `Fraude` category **is** defined: footnote 1 to cuadro 3 and grafica 4 of the comunicado reads
+  "Incluye fraude bancario y fraude al consumo del establecimiento", so bank fraud is named, and the
+  earlier claim that the category was neither defined nor broken down was true only of the
+  presentation. What still does not exist is a supplier-impersonation subcategory or any split between
+  the two things that footnote bundles. And Banxico SIE table CF891 does not answer its export
+  endpoints with the page shell: re-probed on 2026-09-12, `&tipoArchivo=CSV`, `&tipoArchivo=XLS`,
+  `&tipoArchivo=IQY` and `&formatoXLS=true` each answer HTTP 400 with the same 146-byte message about
+  an invalid character in a form field, which is a rejection and not a silent fallback, while the page
+  itself answers HTTP 200 with about 164 KB of HTML carrying no table element, no series identifier
+  and no year. Sources 14 and 15 were read again and now carry what was taken from them, including the
+  ENVE universe of about 4.8 million economic units that derivation 3 divides by, which is implied by
+  the survey's own 27.2 percent on 1.3 million victims and is a different universe from the 5,468,180
+  of the Censos Economicos.
+
+- `docs/11-pitch.md` and `docs/12-judge-qa.md` carry the answer and the ban (issue #192). The numbers
+  table gains six rows, the bracket among them, each pointing at the derivation rather than repeating
+  it. Delivery rules gain a third banned sentence next to "nadie hace esto" and "nosotros inventamos
+  la prueba del centavo": **25.4 percent, and any other single percentage offered as the rate of fraud
+  on supplier transfers**, with the two-sentence Spanish replacement written out, the bracket first and
+  then the 24.3 percent said correctly. `docs/12-judge-qa.md` gains "Second table of 12 September" with
+  the question, the thirty-second answer, the close and one instruction about order: do not volunteer
+  the bracket before the fiscal hook, because a panel that hears two per million first has been handed
+  a reason to think the fraud half is rare. The honest-gap line of section 6 was updated in the same
+  pass, since it claimed we had no frequency figure at all and now there is a national one that is not
+  a figure for this size band. The `Tests` row of the numbers table was re-read after the merge this
+  branch carries, because the cell says to do that and a judge who runs `bun test` next to the pitch
+  sees both numbers: 1,881 tests across 100 files, 1,769 passing, 112 skipped, 0 failing. The same
+  counts in `docs/01-rubric-mapping.md` row 7 still read 1,725 and 111 and were left alone, because
+  that file is not on this branch's path.
+
+- `docs/12-judge-qa.md` gains "Table feedback of 12 September and the answers": the six objections,
+  a thirty-second answer each, and the file or the endpoint each answer rests on named once. The rule
+  it is written under is the one to keep: an answer that is not true in the repository today is written
+  as "today X, and by the demo Y" with the issue that makes it Y, which is why the screen work is
+  #174 and folding the newest sweep into the run counter is #175.
+
+- `docs/11-pitch.md` drops the minutes framing for the loss framing. "En la vida real esto toma ocho
+  minutos y con nuestro producto toma segundos" is now banned in Delivery rules rather than merely
+  discouraged: it prices the product at the wage of the person doing the work, which anyone can
+  compute while you are still talking, and it invites the objection the second engineer gave us. The
+  new section "The value is the loss, not the minutes" says what replaces it, and "The objection about
+  the father's PyME" answers that engineer: the user is not the owner who knows his suppliers by
+  voice, it is the company whose Thursday run pays dozens of them through one clerk, the supplier's own
+  WhatsApp is the channel the attacker uses so trusting the conversation is the failure mode and not
+  the defence, and the 69-B loss needs no fraud at all. The gated table gains the two rows these
+  changes let us say, and the numbers table gains the hold window.
+
+- The three questions three Capital One judges asked at the table on 2026-09-12 in the afternoon are
+  answered with sources, and one claim we had been making is withdrawn (issue #173). They asked, one
+  each: how many people have this problem in Mexico and is there demand, who is already doing it here
+  and what problems do they face, and who exactly is the target user. `docs/04-market.md` had a firm
+  count and a publication frequency, which answers how many could buy and not how many are hit; it had
+  two Mexican competitors, both list checkers; and the user lived in `docs/02-persona.md` as a
+  synthetic persona with no population behind her. Thirty-one sources were added, every one opened on
+  2026-09-12 and every number carrying its own, and the file now opens with "Demand: how many have the
+  problem and how we know" before the sizing, because that is the order the questions arrived in.
+  **The demand answer is two answers**, because there are two losses in one payment. On the fraud side
+  INEGI's victimisation survey of businesses makes medium-sized firms the most victimised size band in
+  the country, 49.0 percent of them victims of a crime in 2023 against 47.3 percent of large firms and
+  a 27.2 percent national average, fraud is 8.5 percent of 2.9 million crimes against economic units
+  at 522 per 10,000 units, KPMG measured supplier or staff email impersonation at 24 percent of the
+  cyberattacks its Mexican respondents reported, and Condusef's own register shows banks refunding
+  MXN 1,265 million of the MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3
+  percent. That last ratio is the thesis in one official number: prevention before the SPEI, not
+  recovery after it. On the fiscal side the head of the SAT said on 2026-09-09 that it has run about
+  2,000 audits of the buyers of false invoices since October 2024, article 49 Bis of the Codigo Fiscal
+  has given those buyers thirty natural days from the DOF publication or a restricted digital seal
+  since 1 January 2026, and article 113 Bis now carries two to nine years of prison for giving
+  `efectos fiscales` to a false invoice. The volume behind the door is SPEI's 7,300 million transfers
+  in 2025, up 36.8 percent, of which 94 percent were at or below about MXN 13,200, so this product
+  addresses the residual six percent and says so. Eight things are stated as not published rather than
+  estimated, including any Mexican peso figure for supplier impersonation, any split of Condusef's
+  claims between companies and consumers, and any business-to-business share of SPEI: Banxico's SIE
+  table CF891 renders through JavaScript and its exports return the page shell, so the transfer count
+  rests on the Governor's Senate remarks as reported and is labelled as a secondary source.
+  **The competitor map lost a claim and gained twelve companies.** It used to say nothing sits in the
+  window between approving a payment run and sending it. That was wrong and it is gone: ValidX sells
+  "antes de pagar, si no cumple se retiene y se notifica a Compras" over a daily sweep of the 69, 69-B,
+  69-B Bis and 49-Bis lists, Portal de Proveedores in Monterrey holds a payment when a document expires
+  and sweeps 69-B daily across 20,000 registered suppliers, CONTPAQi added the 49 Bis situation to its
+  fiscal dashboard in version 19.2.0 on 2026-07-14 while the mass-payment window and the Banorte
+  connection sit in the same product, and Verificamex sells the one-cent probe with a CEP read-back for
+  MXN 8.93 to 17.85 plus IVA a call. Banco de Mexico performs that same probe itself under Regla 51a
+  Bis of the SPEI rules. So "we invented checking 69-B before paying" and "we invented the penny test"
+  are now on the do-not-say list, and the gap is restated as the join with four named edges: both
+  halves in one decision, the account's own history, a decision instead of a warning, and no supplier
+  onboarding and no ERP. Each of the twelve rows carries what the company sells in its own words, its
+  winning feature, the problems it faces from its own dated material, and what it cannot do that we
+  can. The strongest single row is Bind ERP's help centre saying its EFOS check "no restringira" the
+  transaction and only alerts, which is the industry default our hold, verify or release replaces. Two
+  Mexican banks are documented too: HSBCnet does sell beneficiary-name validation, for "unicamente
+  cuentas HSBC", in batches of up to 5,000 accounts inside a 07:00 to 22:00 window, and BBVA Net Cash
+  has the company type the holder's name itself with a token challenge on the last six digits of the
+  account, which authenticates the employee and not the account holder. That retires the
+  TODO(garzario) the row used to carry.
+  **The user has a population behind her now.** `docs/02-persona.md` gained "Target user, buyer,
+  channel and anti-user": 403,000 people in the occupation nationally in 2026-T1 and 25,900 in Nuevo
+  Leon, 67.1 percent women, paid about MXN 11,900 a month here; 60.4 percent of firms with six or more
+  employees bank through the institution's web page against 35.0 percent on a mobile app, which is the
+  surface the product has to sit in front of and the one Banxico's December 2026 guidelines do not
+  reach, since their scope is mobile apps used by personas fisicas; the buyer is the single decision
+  maker of 61.2 percent of firms this size; the channel has a denominator, 16,356 accounting and audit
+  units nationally with 12,130 of them at five people or fewer, so the 120 firms in the plan are 0.7
+  percent of it; and Nuevo Leon holds about 18,500 firms in the band against 89,523 establishments
+  across the four sectors with the longest supplier lists nationally. Four anti-users replace one, each
+  with a published reason. Nothing in that section claims to validate Lupita and the two interview
+  boxes are still unchecked. `docs/12-judge-qa.md` now opens with the three questions, a thirty-second
+  spoken answer each, the numbers allowed to be said with their source and, for each one, what not to
+  say. `docs/14-process.md` records the visit and the diff it caused.
+  **Two findings were retracted in the same pass and both are written down**, because a retraction that
+  leaves no trace gets rediscovered. A first count of job-board vacancies in Nuevo Leon was wrong by an
+  order of magnitude, 146 against an actual 2,145, which moves a ratio from 22 to 1 to about 204 to 1
+  and is corrected in source 44. And a claim that the FBI's annual report makes business email
+  compromise its largest loss category is false, investment fraud is nearly three times larger in the
+  same table, so the line it supported was cut instead of repaired. One scope question is recorded
+  rather than answered: 69-B is no longer the only SAT list published against suppliers, article 49 Bis
+  creates its own and two incumbents already monitor it, so TODO(garzario) before M4 is to add 49 Bis
+  and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
+
 ### Fixed
+
+- `?data=mock` was documented as "no request leaves the browser" and it was making two, so the offline
+  mode looked broken exactly where it is meant to be the strongest (found verifying issue #125).
+  `useResource` honoured the mode, so every screen that loads through it was silent, but two things open
+  a connection on their own and neither asked: the run screen's event stream (`useEvents` in
+  `RunScreen.tsx`, called with no `enabled`) and the API status card (`getHealth` in `StatusCard.tsx`).
+  Measured with headless Chrome counting requests, `?data=mock#/run` issued `GET /api/v1/events` and
+  `GET /health`. What it cost on screen is worse than the requests: the run header printed "Datos: solo
+  datos sinteticos" and "Flujo de eventos conectado" beside each other, two claims that cannot both be
+  true, and on a phone in a corridor the same card would have read "API no responde" in the hold colour
+  for a server the page had promised not to ask. `reachesApi` in `apps/web/src/lib/resource.ts` is now
+  the one rule, `auto` still allowed to try and fail because it is API first by definition. The run
+  screen holds the stream closed and says so in its own words rather than reporting a connection that
+  closed, and drops the Reconectar button, which offline could only offer a judge a button that fails.
+  The status card asks nothing, says "No se consulto la API", and explains that not knowing whether a
+  service answers is not the same claim as knowing it does not. `apps/web/src/lib/resource.test.ts`
+  guards the class rather than the two instances: it walks every source in `apps/web/src`, and a file
+  that calls `useEvents` has to pass `enabled:` in that call while a file that calls `getHealth` has to
+  consult the mode. Checking the call and not the file is the point, because the run screen already
+  carried `source !== "mock"` on the constancia link three hundred lines from the stream it was not
+  guarding, so a file-wide search would have passed on the broken version. 16 tests and 43 checks over
+  `resource.test.ts` and `RunScreen.test.ts`, and both guards were run against the pre-fix sources to
+  confirm they go red on them.
+- `scripts/web-mock.test.ts` could fail `bun run release-check` for being on a busy laptop. Its first
+  test runs the whole generator and diffs 152 KB byte for byte, which measures 3.6 to 3.8 seconds idle
+  against Bun's 5 second default; with the API, two vite servers and a headless Chrome running beside
+  it, it took 5.8, and release-check stopped three gates early and printed "do not tag" for a green
+  tree. The budget is now stated at 30 seconds with the measurement written next to it, so the gate
+  reports the repository rather than the load on the machine.
+- The QR prefill example in `apps/web/README.md` named `SYN010101AAA`, which belongs to the
+  hand-written fixture in `apps/api/src/synthetic.ts` and not to the seeded company this app falls back
+  to, so scanning it prefilled a supplier the offline run does not hold and the demo API answers 404
+  for. It is now the RFC and the amount the intake screen's own placeholder shows, read off the run
+  through `EXAMPLE_SUPPLIER_RFC`. Same failure as issue #125 in a smaller place: a folio written down
+  once and left behind when the dataset moved.
+- The API and the offline fallback of the web app were two different companies, so one RFC could carry
+  two legal names on one screen (issue #125). `apps/web/src/lib/mock.ts` held a hand-written run of
+  eight suppliers while the API booted the generated company from `@hackmty/seed`, and the two
+  disagreed about the legal name of every RFC they shared. The supplier drawer is where it showed: the
+  table row renders from the run payload and the drawer fetches `GET /api/v1/suppliers/:rfc`
+  separately, so when one of the two calls fell back and the other did not, one RFC named two companies
+  at the same time. The expensive version of the same bug is the API dropping mid-demo, when every name
+  on the projector changes at once. There is one dataset now. `bun run web:mock`
+  (`scripts/web-mock.ts`) writes `apps/web/src/lib/mock-data.ts` out of `loadSentryOne` at seed 69 for
+  the week of 2026-09-07, runs the same `assessRun` the API runs at boot at `runInstant(runDay)`, and
+  composes what a repository composes rather than stores through `MemoryRepository` itself: the run
+  totals through `runMoney`, the SAT version summaries, the blind holdout metrics and the priced
+  retroactive sweep. The three things the run does not carry are each built with the package that owns
+  it and marked in the output: the consortium signal, the CEP of a one-cent probe, and the five
+  one-cent verification states the API folds out of its ledger. `mock.ts` keeps the three jobs a
+  generated file should not do, which is composing the endpoint payloads, deriving the totals again
+  through `totalsFor` after a decision is applied with no API, and saying what is deliberately not one
+  for one with the API. The data is generated ahead of time and committed because the browser bundle
+  cannot import `@hackmty/seed`: it reaches `node:fs` through `@hackmty/sat` and `node:crypto` through
+  `@hackmty/consortium`, so a build-time import would either break the browser build or add a
+  dependency `apps/web` must not have. `scripts/web-mock.test.ts` is what makes "generated" mean
+  something. It regenerates the file and compares it byte for byte, and it boots a `MemoryRepository`
+  on the same company to assert that both sides answer the same legal name for all 44 suppliers, the
+  same amount, CLABE, action and findings on all 92 lines, the same totals, the same list versions and
+  the same metrics, which is the acceptance criteria of the issue written as assertions: 15 tests and
+  1,433 checks over the two sides. Three things in the offline copy are deliberately narrower than the
+  API's, and the narrowing is asserted rather than assumed. The invoices are the 156 of the company's
+  4,103 that a screen of this app can reach, which is the ones this run settles, the ones the
+  retroactive sweep prices and the ones a finding names, 8.8 KB gzipped against 208 KB for the whole
+  eight-month history. The payment complements are the 2 that settle those, because
+  `SupplierDetail.complements` is read by no component in `apps/web`. The verified-beneficiary registry
+  starts empty, which is what `sentryoneDataset` hands the API, because a browser with no API has
+  verified nothing. Every row the offline file does carry is the API's own row, every invoice a screen
+  can open is carried, and no supplier of the run answers with an empty file. That takes the web bundle
+  from 1,757 KB and 359 KB gzipped to 565 KB and 160 KB, and `chunkSizeWarningLimit` from 2000 to 700.
+  The one number the narrowing moves is the invoice count in the supplier drawer, which is the API's
+  whenever the API answered; offline the field is labelled "facturas de esta corrida" and says in one
+  line which invoices travelled, because printing 3 for an issuer that has 23 under the label
+  "facturas en el expediente" is issue #125 again. `docs/07-architecture.md` carries the difference and
+  the sizes. Four smaller things the one dataset exposed went with it. `PaymentRunTotals` in
+  `apps/web/src/lib/contract.ts` carried a TODO reading `held`, `toVerify` and `released` as peso sums
+  while `paymentRunTotalsSchema` in `apps/api/src/schemas.ts` had answered counts all along, and it now
+  reads counts and carries the seven peso fields `runMoney` puts on the run. `not_checked` was missing
+  from the unconfirmed set in `apps/web/src/lib/cep-seal.ts`, so every CEP this build has shown read as
+  "Firma no valida", which is the accusation that module exists to prevent. The CEP screen's example
+  was a hand-written `CepVerification` claiming `comprobable` over a seal nobody had checked, and is
+  now the answer `POST /api/v1/cep/verify` gives for the probe on the released line of the run. And the
+  folios written into the intake placeholder, the verification placeholder, `apps/web/audit/audit.ts`
+  and `apps/web/brand/shoot.ts` belonged to the dataset that is gone, so they are read off the run:
+  an audit or a README screenshot of the error state is no longer possible.
+
+- The demo company priced no supplier relationship, so the expected-loss trade-off weighed the pesos
+  at risk against zero and the field the instruction screen calls "Costo de retrasar un dia" read
+  MXN 0.00 on all 92 payments (issue #182). `packages/seed/src/sentryone/delay-cost.ts` now prices
+  `Supplier.delayCostPerDay` on all 44 suppliers from two things a Mexican supplier contract actually
+  carries: moratory interest at three per cent a month on the balance this company owes that supplier,
+  which is the monthly spend scaled by the payment terms, plus the pronto pago discount of one and a
+  half per cent on the payment that was about to leave, lost in full the day it is late because the
+  window closes. Raw material, tooling and the outside processes a shipment waits on carry
+  `LINE_STOP_FACTOR`; consumables and services carry 1, and the split is the complement of
+  `CONSUMABLE_SEGMENTS` plus the services rather than a third list, because the segments a plant buys
+  more of during a shutdown are exactly the ones whose delay does not stop a line. The result is MXN
+  101.98 to MXN 4,611.27 a day, the scale the hand-written fixture in `apps/api/src/synthetic.ts`
+  already used, and it is arithmetic over the catalogue row with no draw from the RNG, so not one
+  invoice, amount or instruction id moved: `INS-2026-09-07-047` is still the hero and
+  `INS-2026-09-07-029` is still the largest hold. What did move is the counters, and that is the point.
+  Rule 3 of `decide` now reaches its release branch on a line that carries a finding:
+  `INS-2026-09-07-032` shows a duplicate-invoice warning worth MXN 2,088.00 of expected loss and the
+  engine releases it, because a day of delay with that supplier costs MXN 4,611.27. The run is 785,289.86
+  MXN not leaving over 2 held and 4 to verify, against 885,658.73 over 2 and 5 before, and
+  `docs/10-demo-script.md`, `docs/11-pitch.md`, `docs/12-judge-qa.md` sections 5b and 5c,
+  `docs/08-data-model.md`, `docs/print/team-card.html` and beat 1 of `bun run demo` were re-read off a
+  fresh run rather than adjusted by hand. The demo now asserts the price exists on every decision, so a
+  regression to zero is a red gate instead of a flat field on stage, and the one test that assumed a
+  finding always stops a payment says what it meant instead: the four lines the demo names are stopped
+  structurally by rules 1 and 2, and a released line with a finding has to satisfy the arithmetic that
+  released it. The blind holdout is deliberately left unpriced, because nothing in a labelled case
+  document prices a relationship.
+
+- Three places still told the competition story the market research of PR #177 replaced, and all
+  three are now the one story (Refs #171 and #169). `docs/12-judge-qa.md` answer 1 of the table
+  feedback used to say "nosotros somos el unico que junta las tres cosas en el momento del pago"
+  while naming only 69b.mx, Tesio and three foreign platforms; it now names what `docs/04` documents,
+  in the order to say it: the fiscal camp already holds payments and never sees the account (ValidX,
+  Portal de Proveedores, 69b.mx, Tesio), the money camp disperses SPEI without verifying who receives
+  it (Clara, Xepelin), the one-centavo probe is a commodity that Verificamex sells metered and that
+  Banco de Mexico writes into Regla 51a Bis of the SPEI rules, CONTPAQi holds both halves and its own
+  changelog shows they never meet at the moment of payment, Bind ERP alerts and by its own help
+  centre "no restringira", HSBCnet validates beneficiary names for HSBC accounts only, and Trustpair,
+  nsKnox and Eftsure verify accounts for corporate treasuries abroad. The claim that replaces the old
+  one is the union of the fiscal half and the money half in a single decision, retain, verify or
+  release with the evidence attached, before the transfer is irrevocable, and the two sentences that
+  break in one search are written down as never to be said: "nadie hace esto" and "nosotros
+  inventamos la prueba del centavo". `docs/11-pitch.md` loses the same claim from the three timed
+  versions, from the "list is public and free" answer, from the bank answer, which now says out loud
+  that HSBCnet really does sell name validation for HSBC accounts only, and from the "why would an
+  accounting product not add this" answer, which now names CONTPAQi as the incumbent that already has
+  both halves; it gains the section "The competition, and the two sentences that lose the room", two
+  price-anchor rows, and a delivery rule for the two banned sentences. `docs/print/team-card.html`
+  carries nine competitor entries with one line each instead of five, the union claim and the two
+  banned sentences. The scope line those two files carry was drafted as "today 69-B, and by the demo
+  the 49 Bis list (#180)" and #180 merged before this branch did, so it says what is now true instead:
+  both articles are in the lookup, the control and the sweep, and the half to volunteer is that 49 Bis
+  answers `answered: false` with `coverage: "not_published_machine_readable"`, because the SAT
+  publishes it as fourteen DOF oficios and not as a file, which is also the answer to a competitor
+  advertising daily re-screening of it. No code moved: this touches `docs/12` and the card and nothing
+  under `packages/sat`. The card kept its single A4 page: the business model moved into the left
+  column so the roster gets a column of its own, and `docs/print/README.md` gains the headless
+  re-measurement, because `.page` clips silently and a PDF with one page is not evidence that nothing
+  was cut.
+
+- The evidence behind the article 49 Bis coverage, taken back to the SAT, the DOF and the compiled
+  statute and made reproducible by somebody who was not there when it was written (issue #180). The
+  facts all held: the committed 69-B snapshot was downloaded again and is byte for byte the file the
+  SAT serves, same 4566277 bytes and same `Last-Modified` of 2026-01-22, so the counts
+  `official.test.ts` asserts are counts of the live file, and `packages/sat/src/snapshot/README.md`
+  now carries its `sha256` and the one-line command that repeats the comparison. Article 49 Bis
+  fraccion X reads as the docs say, forty-five business days to publish, thirty NATURAL days for the
+  buyer to file the complementary return and then the restriction of the buyer's own certificado de
+  sello digital under 17-H Bis fraccion XIV, all of it added by the decree of DOF 07-11-2025 whose
+  Transitorio Primero sets 1 January 2026; the SAT open data catalogue still carries only articles 69,
+  69-B and 69-B Bis; and all fourteen DOF oficios were opened one by one, each naming exactly one
+  taxpayer, the notification dates written `DD/MM/YYYY` in the first seven and `06 de agosto de 2026`
+  in the last seven with the change between oficios 24291 and 24292, exactly as `dates.ts` says.
+  **What did not hold was the citation itself, twice over.** The DOF search was cited as
+  `https://dof.gob.mx/busqueda_detalle.php`, which answers `302 Found` to `/Error_BS.php`: a bare link
+  to a form nobody can open, handed to a clerk in the lookup answer as the URL to check the
+  publications with. And the phrase was written without its accents, `fraccion X del articulo 49 Bis`,
+  which the DOF full-text search answers with **zero results** where `fracción X del artículo 49 Bis`
+  answers fourteen. Together those two would have read as "the list is empty" to the next person who
+  checked. `ART_49BIS_DOF_SEARCH_URL` is now the search with its query string and the accents
+  percent-encoded, a new test fails if it goes back to the bare page, and the trap is written down in
+  `packages/sat/src/snapshot/README.md`, `docs/04-market.md` source 46 and `docs/06-regulatory-privacy.md`.
+  One legal sentence was also an addition rather than a reading: fraccion XI does not refer anything to
+  the Ministerio Público, it says the SHCP "procederá penalmente" in the terms of article 113 Bis,
+  which itself requires a querella from the SHCP and names no other body, so the three places that said
+  otherwise now quote the statute. Article 29-A fraccion IX is quoted as it reads, "Amparar operaciones
+  existentes, verdaderas o actos jurídicos reales". Two blanket sentences about
+  `art49bis-fixture.csv` were true of the accepted rows only and now say so: one row carries
+  `XXXXXXXXXXXX` the way the SAT redacts an RFC and is rejected with its line number, and one row has
+  an empty name and falls back to its own RFC, which is the pair the test `names nobody real` asserts.
+  The lookup and the sweep were also run through the API over the memory repository: a real 69-B RFC
+  answers from the committed list with its three dated situations, a real 49 Bis taxpayer gets
+  `answered: false` with the coverage reason rather than a clean bill, a `SYN` RFC on neither list
+  answers empty with both lists named, `POST /api/v1/sat/publish` still refuses a non-synthetic RFC
+  with a `400`, and the simulated sweep prices MXN 404,152.59 over 24 paid invoices, the number
+  `docs/10-demo-script.md` states.
+
+- `bun run scrub` printed a remediation nobody could act on, and the test count three documents quote
+  had drifted. A `branch` finding said "its author amends and force-pushes that branch", which is
+  impossible when the branch was merged and deleted on the remote weeks or minutes ago: `git rev-list
+  --all` walks remote-tracking refs, so a clone that has not run `git fetch --prune` keeps reporting a
+  real `Co-authored-by` trailer on a commit no remote branch contains, and `bun run release-check`
+  fails on it with no way forward. The finding now prints the three commands that identify and clear
+  that case, a commit-message finding prints a remediation at all, and the header says the same. The
+  comment in `.githooks/pre-commit` names the `Co-authored-by` trailer it exists to prevent again,
+  which the shape change in #187 made safe and which is how `.githooks/commit-msg` has always read it.
+  `docs/01-rubric-mapping.md` and `README.md` said 1,670 tests across 97 files, and `README.md` said
+  109 database cases skip, where `bun test` answers 1,725 passing and 111 skipping across 99 files.
+  The three documents that quote a count, those two and the table in `docs/11-pitch.md`, were read off
+  one run after merging `origin/dev`, so they agree with each other and with the case this branch adds.
+
+- Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
+  things the running product does not do, found by taking each claim to the code and to `curl`
+  (issue #171). The verification-call deadline is one day and not three: `HOLD_WINDOW_DAYS` is
+  `EXPECTED_DELAY_DAYS`, three days for a `hold` and one for a `verify`, and a verification call is
+  placed on a payment in `verify`, so the response says `days: 1`. The reason column is
+  `0011_decision_reason.sql` and not `0009`, which the consortium and the rail took. The cost of
+  delaying a payment reads MXN 0.00 on every instruction of the demo company, because the generator
+  prices no `Supplier.delayCostPerDay` and `supplierModelOf` falls back to zero, so the sheet now
+  says the mechanism is in `decide` and the number is flat in this data (issue #182). The UI does not
+  say the loss probability is a prior, only `decision.ts` does. `releasesPayment: false` is on every
+  response that reports a call and not on a `404`. A `no_answer` with nobody on the line carries no
+  quoted phrase; only a voicemail greeting does. The beneficiary comparison is not a documental fact
+  while `nameMatch` answers `partial` on one shared word and the seal reads `not_checked`. And four
+  numbers were stale: the test count, the 180 case-by-detector pairs that contradict a matrix summing
+  to 183, the claim that no control stayed silent in the blind evaluation, and a `TODO` about a
+  persona figure that had already been refreshed.
+
+- `POST /api/v1/instructions/:id/verify-call` validated `recordedBy` on a hand-recorded call and then
+  dropped it, so the fallback path the demo uses when there is no telephony on site was the only
+  human action in the product landing on an append-only ledger with nobody's name against it (issue
+  #171). It now travels onto the `verification_call` event, and stays absent on a call the agent
+  placed, where the conversation id is the provenance.
+- The one-cent verification, walked end to end over real HTTP and reconciled against what the
+  repository says about it (issue #165). Three claims were wrong and are now what the sandbox and
+  the code actually do. `packages/rail/src/nessie.ts` said `GET /accounts` answers the key's two
+  mirror accounts with the reconciled one first, so the probe landed "on the same account
+  `bank_reconciliation` reads", and `docs/09-api.md` repeated it: reading the sandbox on 2026-09-12
+  with `GET` only, the first account is `3fce172e-1591-43b8-b112-08e4491e3651`, the one abandoned during development in issue
+  #45, and the reconciled mirror `ad2841a5-c274-47e4-84c8-e830667feea6` is second, so both live probes are on the older
+  account. The selection is unchanged and still deterministic; what changed is that nothing claims
+  the reconciliation any more, and the same read confirmed the counts issue #45 recorded, 3 customers
+  and 2 accounts, so the probes created neither. `docs/10-demo-script.md` still told the manual story
+  in beat 4, a person sending a cent and reading a clave off a statement, which is exactly what issue
+  #165 removed: the beat is now the button, the states it walks, which half is the Nessie mirror and
+  which half is Banxico, and the seal read out as reported. Its rules said the CEP on screen was real
+  data; every CEP this repository holds is synthetic, and the rule now says so.
+- The CEP screen showed a released payment beside a registry of verified beneficiaries still reading
+  "registro vacio" (issue #165). Storing the CEP is what writes that row, and the registry is a second
+  resource loaded on mount, so nothing re-read it. `storedCepAt` in `apps/web/src/lib/verification.ts`
+  is the rule, keyed on the instant the CEP landed so it fires once per document rather than on every
+  step the machine takes afterwards, and never for the offline run, where no row reached any registry.
+- Stale counts that a judge checks in five seconds. `README.md` claimed 1023 tests across 59 files and
+  `apps/api/README.md` claimed 163 in its workspace; the suite is 1,670 tests across 97 files with no
+  network, no database and no key, with 111 database cases that skip. `apps/api/README.md` also told
+  the reader to run the Postgres half as `TEST_DATABASE_URL=... bun test` over the whole tree: six
+  files share that one database and each migrates and empties it in its own `beforeAll`, so a
+  whole-tree run fails somewhere different every time. It now says one workspace at a time, which is
+  what was verified: `bun test apps/api` against local PostgreSQL 18.6 is 246 tests green.
+
+- The CEP screen read the CFDI legal name from `razon_social_cfdi`, a key only the offline
+  synthetic run writes (issue #167). `packages/engine` writes `legalName`, so in front of the
+  running API the name comparison, which is the entire point of showing a CEP, printed "no
+  disponible" under the holder. `readLegalName` in `apps/web/src/lib/evidence.ts` reads both keys,
+  the engine's first, which is the module that already exists to keep the three evidence
+  vocabularies apart. `legalName` and `beneficiaryName` also gained Spanish labels, so the finding
+  panel stops printing our variable names at a clerk.
 
 - `POST /api/v1/cep/verify` does what `docs/09-api.md` says it does (issue #42). It had been the one
   write endpoint still wired to a stub: it only ever answered from the registry of verified
@@ -665,6 +1537,17 @@ then the screens, then the narrative, then the plumbing.
   contract in `AGENTS.md`, the documentation set in `docs/`, CI, and the contributor guides.
 
 ### Changed
+
+- One vocabulary for the three-word answers the product switches on, with the one-cent verification
+  (issue #166). `NameMatch` and a new `SealState` live in `packages/core/src/domain.ts`, which is
+  where the words the whole product reads belong, and `packages/cep` re-exports the first rather than
+  declaring a second copy of it. The engine's seal verdict is now `valid`, `not_checked` or
+  `invalid`, so `evidence.signatureState` reads `not_checked` where it used to read `unconfirmed`:
+  the same fact, named the way the domain and the API name it, and `sealStateOf` is exported so
+  `GET /api/v1/instructions/:id/verification` reports the verdict the finding carries instead of
+  computing a second one. Nothing about what is claimed moved: `valid` still needs
+  `BANXICO_CEP_CERT_PEM` to have verified the sello, and the three unproven reasons still read as
+  "no verificada" and never as invalid.
 
 - `docs/07-architecture.md` and `docs/08-data-model.md` are finished against the merged tree
   (issue #64), and every figure on both pages now comes from a run or from a cited file. 07 carries

@@ -188,6 +188,13 @@ this repository follows. Both are deliberate.
 > **`packages/voice`** is the verification call: the script, the client and a deterministic outcome
 > parser. **`packages/seed`** is one deterministic synthetic company from a committed seed.
 >
+> **`packages/consortium` is the only package that leaves the tenant.** It speaks the Snowflake SQL
+> REST API with a key-pair JWT and no SDK, and what it sends is a salted hash of a supplier, a salted
+> hash of an account, a bank code and one of four outcomes: no name, no amount, no account number. It
+> reads back how many other tenants have paid the same pair and when it was first seen, and a script
+> lands that aggregate in Postgres, so the decision reads a local snapshot and never the warehouse.
+> The other tenants are synthetic, from the same committed seed, and every row says so.
+>
 > **`apps/api` is a thin Hono transport** with zod schemas derived from the domain types and no
 > business logic in it. The spine is an append-only event ledger in Postgres, which is what makes the
 > retroactive sweep a replay instead of a recomputation, and Timescale turns that ledger into a
@@ -231,6 +238,14 @@ this repository follows. Both are deliberate.
 > **`packages/voice`** es la llamada de verificación: el guion, el cliente y un analizador
 > determinista del resultado. **`packages/seed`** es una empresa sintética determinista desde una
 > semilla fija.
+>
+> **`packages/consortium` es el único paquete que sale de la empresa.** Habla con la SQL REST API de
+> Snowflake con un JWT de par de llaves y sin SDK, y lo que envía es un hash con sal de un proveedor,
+> un hash con sal de una cuenta, un código de banco y uno de cuatro desenlaces: ningún nombre, ningún
+> monto, ningún número de cuenta. Lee de vuelta cuántas otras empresas han pagado ese mismo par y
+> desde cuándo, y un script deja ese agregado en Postgres, así que la decisión lee una foto local y
+> nunca el almacén. Las demás empresas son sintéticas, desde la misma semilla comprometida, y cada
+> renglón lo dice.
 >
 > **`apps/api` es transporte delgado en Hono**, con esquemas zod derivados de los tipos de dominio y
 > sin lógica de negocio adentro. La columna vertebral es una bitácora de eventos append-only en
@@ -484,7 +499,7 @@ uses; a tag for something that is not in the build is the cheapest lie a judge c
 
 `bun` `typescript` `hono` `zod` `postgres` `timescaledb` `react` `vite` `tailwindcss` `motion`
 `biome` `server-sent-events` `gemini-api` `elevenlabs` `twilio` `nessie-api` `vercel` `vultr`
-`tiger-data` `sat-69b` `banxico-cep` `cfdi`
+`tiger-data` `snowflake` `sat-69b` `banxico-cep` `cfdi`
 
 Pinned versions, for the record: bun 1.3.11, typescript 5.9.3, hono 4.13.7, zod 4.5.4, postgres
 3.4.9, react 19.2.8, vite 8.2.2, tailwindcss 4.3.3, motion 13.2.0, biome 2.5.12.
@@ -507,10 +522,73 @@ the deployed build and not against an intention.
 | Best Use of Gemini API | Transcription only, and provably only that: `packages/extract` reads a CLABE off a photograph and transcribes a voice note, sends one instruction string plus one file and no supplier, RFC, ledger or history, gets back a schema with nowhere to put an opinion, and hands the digits straight back to the deterministic check digit and the supplier's own payment record. `packages/extract/src/boundary.test.ts` reads the package source and fails if a shipped module names `decide`, `score` or `recommend` | `GEMINI_API_KEY` is set on the deployed API and a judge can send a photograph through the QR intake page and watch the CLABE come back. Without the key the endpoint answers 422 and says so, which is honest but is not a demonstration |
 | Best Use of ElevenLabs | The verification call to the supplier: a Conversational AI agent speaking Mexican Spanish, placed through the Twilio integration, with a script that speaks four digits and never eighteen, promises nothing and accuses nobody, and a deterministic outcome parser that never releases a payment | The agent exists, a telephone number is connected, and one call has been placed and recorded. `TODO(garzario)`: paste the conversation id and the date into `docs/14-process.md`. If no live call has been placed, the browser-widget demonstration is the honest fallback and the copy says "browser agent" |
 | Best Use of Tiger Data | The event ledger is a hypertable and the daily rollup the timeline reads is a continuous aggregate, applied conditionally so a plain Postgres runs the identical SQL against the base table | `0002_timescale.sql` and `0004_timescale_sentryone.sql` applied on the deployed database, and the aggregate actually read. If we are running on plain Postgres at submission time, do not select it. Issue #72 |
+| Best Use of Snowflake API | The cross-tenant beneficiary network. `packages/consortium` speaks the Snowflake SQL REST API directly, key-pair JWT signed with `node:crypto` and no SDK, and `SENTRYONE.CONSORTIUM.BENEFICIARY_EVENTS` holds a salted hash of a supplier, a salted hash of an account, a bank code, one of four outcomes and a date. No name, no amount, no account number. `consortium:pull` lands the aggregate in Postgres, so the decision reads a local snapshot and the warehouse is never on the hot path. The other tenants in the network are synthetic, generated from the committed seed, and every row carries `synthetic = true` | The account exists, `bun run consortium:seed`, `bun run consortium:push` and `bun run consortium:pull` have each run against it, `bun run doctor` prints the `snowflake` line green, and the copy says in its own words that the network of other tenants is synthetic. If the account does not exist at submission time, do not select it. Issue #164 |
 | Best Use of Vultr | `apps/api` runs on a Vultr instance because the Server-Sent Events stream needs a long-lived process, with the database next to it | The deployed API URL in the README answers `/health` over HTTPS. Issue #44 |
 | Best .Tech Domain Name | `sentryone.tech` is the product's only public address, and the name states what the product does: a centinela standing at the CEP, the receipt Banxico signs for every SPEI | The domain resolves to the production site. Issue #59. `TODO(garzario)`: ADR-0002 records SENTRYONE as one of the two merged finalist ideas and does not record how the name was built, so confirm that etymology line with the team before pasting it |
 
 At M4, walk this table with the deployed build open and tick only what is live.
+
+### Best Use of Snowflake API, the category copy
+
+**EN**
+
+> A supplier's first payment from this company has no history here, and it has months of history in
+> every other company that already pays that supplier. That is the one signal a payer-side tool
+> cannot get from its own ledger, so we built it as a separate cross-tenant warehouse on Snowflake
+> rather than as another table in ours.
+>
+> `packages/consortium` speaks the SQL REST API directly: `POST /api/v2/statements` with a key-pair
+> JWT we sign with `node:crypto`, polling `GET /api/v2/statements/<handle>` on a `202`, no SDK and no new
+> dependency. What a company contributes is four facts: a salted hash of the supplier RFC, a salted
+> hash of the destination CLABE, the bank code those digits already state in public, and one of
+> `verified`, `paid`, `mismatch` or `fraud_reported` with a date. No name, no amount, no account
+> number, and no identity of the contributing company, because the tenant identifier is hashed too and
+> is only ever counted. What a company reads back is an aggregate: how many other tenants have paid
+> this exact pair, when it was first and last seen, how many fraud reports it carries. Never a row,
+> and never for a pair the asking company does not already hold.
+>
+> The warehouse is deliberately not on the decision path. `consortium:pull` writes the aggregate into
+> the same Postgres the ledger lives in, and the engine reads that snapshot as an argument, which is
+> what keeps the decision deterministic, testable offline, and free of a warehouse resume in the
+> middle of a clerk's payment run. Snowflake is where a network of companies belongs: cross-tenant by
+> design, governed sharing when a real participant asks what we can see, its own credential and its
+> own blast radius, and a batch columnar workload instead of an OLTP one.
+>
+> **One thing we say out loud.** There is one real tenant. The other tenants are synthetic, generated
+> deterministically from the same committed seed as the rest of the demo, and every row in the table
+> carries `synthetic = true`. The mechanism is real, the rows are real, the companies are not, and we
+> would rather say that than let a judge discover it.
+
+**ES**
+
+> El primer pago a un proveedor no tiene historia en esta empresa, y tiene meses de historia en todas
+> las demás empresas que ya le pagan. Esa es la única señal que una herramienta del lado del pagador
+> no puede sacar de su propia contabilidad, así que la construimos como un almacén separado y
+> multiempresa en Snowflake, y no como otra tabla en la nuestra.
+>
+> `packages/consortium` habla directo con la SQL REST API: `POST /api/v2/statements` con un JWT de par
+> de llaves que firmamos con `node:crypto`, y `GET /api/v2/statements/<handle>` cuando responde `202`, sin
+> SDK y sin una dependencia nueva. Lo que una empresa aporta son cuatro datos: un hash con sal del RFC
+> del proveedor, un hash con sal de la CLABE de destino, el código de banco que esos dígitos ya dicen
+> en público, y uno de `verified`, `paid`, `mismatch` o `fraud_reported` con su fecha. Ningún nombre,
+> ningún monto, ningún número de cuenta, y ninguna identidad de la empresa que escribió el renglón,
+> porque el identificador de la empresa también va hasheado y solo se cuenta. Lo que una empresa lee
+> de vuelta es un agregado: cuántas otras empresas han pagado exactamente ese par, cuándo se vio por
+> primera y por última vez, cuántos reportes de fraude carga. Nunca un renglón, y nunca de un par que
+> quien pregunta no tenga ya.
+>
+> El almacén está deliberadamente fuera de la ruta de la decisión. `consortium:pull` escribe el
+> agregado en el mismo Postgres donde vive la bitácora, y el motor lee esa foto como un argumento, que
+> es lo que mantiene la decisión determinista, probable sin red, y libre de esperar a que un warehouse
+> se encienda en medio de la corrida de pagos de una persona. Snowflake es donde pertenece una red de
+> empresas: multiempresa por diseño, con compartición gobernada cuando un participante real pregunte
+> qué podemos ver, con su propia credencial y su propio radio de daño, y con una carga de trabajo
+> columnar por lotes en lugar de transaccional.
+>
+> **Una cosa que decimos en voz alta.** Hay una sola empresa real. Las demás son sintéticas, generadas
+> de forma determinista desde la misma semilla comprometida que el resto del demo, y cada renglón de
+> la tabla lleva `synthetic = true`. El mecanismo es real, los renglones son reales, las empresas no,
+> y preferimos decirlo nosotros antes de que un juez lo descubra.
 
 ## Links and attachments
 
@@ -542,4 +620,6 @@ At M4, walk this table with the deployed build open and tick only what is live.
 - [ ] Every number in this file still matches its source, including the SAT row count if the snapshot
       was refreshed
 - [ ] No real personal data in any screenshot, and the synthetic watermark is visible in at least one
+- [ ] Every mention of the consortium network says the other tenants are synthetic, in the field
+      itself and not only in the repository
 - [ ] Screenshot of the submission confirmation saved

@@ -130,6 +130,16 @@ export function SourceNotice({ notice, compact = false }: NoticeProps) {
 
 type StreamProps = {
   status: EventsStatus;
+  /**
+   * Whether this page load is allowed to open the stream at all.
+   *
+   * `?data=mock` promises no request leaves the browser, so `useEvents` is never
+   * enabled and reports `closed`. Without this fact the header read that as "sin
+   * flujo de eventos" and offered a Reconectar button whose only possible
+   * outcome was a failure the mode had already ruled out. Defaults to true, so a
+   * caller that never had a choice is unaffected.
+   */
+  allowed?: boolean;
   onReconnect: () => void;
 };
 
@@ -139,11 +149,25 @@ type StreamProps = {
  * week. A closed stream is the only one of the four that asks for anything, so
  * it is the only one that carries a control.
  */
-export function StreamStatus({ status, onReconnect }: StreamProps) {
+export function StreamStatus({
+  status,
+  allowed = true,
+  onReconnect,
+}: StreamProps) {
   /* Nothing to say on a browser that never had the stream in the first place:
      a permanent "unsupported" is a line the clerk can do nothing about. */
   if (status === "unsupported") {
     return null;
+  }
+
+  /* The offline mode says what it did rather than what failed. No control:
+     there is nothing to reconnect to and the mode is the reason. */
+  if (!allowed) {
+    return (
+      <span aria-live="polite" className="inline-flex items-center">
+        <span className="status-line">Sin flujo de eventos</span>
+      </span>
+    );
   }
 
   return (

@@ -44,8 +44,11 @@ import type {
   Decision,
   Detector,
   Finding,
+  NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
+  Sat49BisEntry,
+  Sat49BisSweepResult,
   SatListEntry,
   Severity,
   Supplier,
@@ -53,6 +56,7 @@ import type {
 } from "./domain";
 import { detectDuplicateInvoice } from "./duplicates";
 import { formatAmount, fromCents, toCents } from "./money";
+import { assessNetwork, NOT_CONSULTED } from "./network";
 import { detectBankReconciliation } from "./reconciliation";
 import type { LedgerTx } from "./types";
 
@@ -125,12 +129,28 @@ export interface LossEstimate {
   exposureCents: number;
   /** Probability that this payment is really a loss, stacked over findings. */
   probability: number;
-  /** `exposure` times `probability`, to the cent. */
+  /**
+   * What the consortium did to the number, in (0, 1]. Exactly 1 when the
+   * network was not consulted, which is what makes an instance with no network
+   * decide what this product decided before the network existed.
+   */
+  networkFactor: number;
+  /** `exposure` times `probability` times `networkFactor`, to the cent. */
   expectedLoss: number;
   /** `expectedLoss` in cents. Nothing in this repo compares two floats. */
   expectedLossCents: number;
   /** How many findings carried a usable amount at risk. */
   counted: number;
+}
+
+/** What `estimateLoss` may be told beyond the findings themselves. */
+export interface EstimateLossOptions {
+  /**
+   * The consortium's answer for the account this instruction pays. Absent is
+   * read as `NOT_CONSULTED`, so every caller that predates the network keeps
+   * its arithmetic unchanged.
+   */
+  network?: NetworkSignal;
 }
 
 /** Which rule fired. The UI shows this, and the ledger can be audited by it. */
@@ -161,7 +181,7 @@ export interface DecisionAssessment {
   rationale: string;
 }
 
-export interface DecideOptions {
+export interface DecideOptions extends EstimateLossOptions {
   /**
    * The instant to stamp on the decision. Defaults to the newest piece of
    * evidence, because this package owns no clock and a decision that changes
@@ -191,6 +211,11 @@ export interface DecideOptions {
  * releases, because the delay cost is certain money and the loss is a
  * probability, and because a false hold is the failure the clerk remembers.
  *
+ * `options.network` is the consortium, and it only ever touches rule 3. It
+ * scales the expected loss that rule weighs and it cannot reach rules 1 and 2,
+ * so no amount of corroboration from other tenants releases a critical finding,
+ * and a network nobody consulted changes nothing at all.
+ *
  * @throws RangeError when the supplier model is not finite and non-negative.
  */
 export function decide(
@@ -219,7 +244,7 @@ export function assessInstruction(
 ): DecisionAssessment {
   assertSupplierModel(supplierModel);
   const sorted = sortFindings(findings);
-  const loss = estimateLoss(sorted);
+  const loss = estimateLoss(sorted, options);
   const costs: Record<Action, number> = {
     hold: delayCost(supplierModel, "hold"),
     verify: delayCost(supplierModel, "verify"),
@@ -273,8 +298,19 @@ export function assessInstruction(
  * missing, negative, non-finite or too large to hold in cents counts as zero
  * pesos and still contributes its probability, because one detector with a bug
  * must not blank out a payment run.
+ *
+ * The third rule is the consortium, and it is a third multiplier rather than a
+ * change to either of the other two. The exposure is what the documents say is
+ * at risk and the probability is what our own detectors believe; neither is a
+ * place for another company's experience. What the network changes is how much
+ * of that we expect to lose, so it multiplies the product and nothing else, and
+ * `assessNetwork` in `network.ts` owns the arithmetic. Absent or unconsulted is
+ * a factor of exactly 1.
  */
-export function estimateLoss(findings: readonly Finding[]): LossEstimate {
+export function estimateLoss(
+  findings: readonly Finding[],
+  options: EstimateLossOptions = {},
+): LossEstimate {
   let exposureCents = 0;
   let survives = 1;
   let counted = 0;
@@ -289,11 +325,15 @@ export function estimateLoss(findings: readonly Finding[]): LossEstimate {
     survives *= 1 - probabilityOf(finding.severity);
   }
   const probability = Math.min(Math.max(1 - survives, 0), 1);
-  const expectedLossCents = Math.round(exposureCents * probability);
+  const networkFactor = assessNetwork(options.network ?? NOT_CONSULTED).factor;
+  const expectedLossCents = Math.round(
+    exposureCents * probability * networkFactor,
+  );
   return {
     exposure: fromCents(exposureCents),
     exposureCents,
     probability,
+    networkFactor,
     expectedLoss: fromCents(expectedLossCents),
     expectedLossCents,
     counted,
@@ -388,6 +428,19 @@ export interface ComposeInput {
    * and it is answered by the list endpoint, never by a detector.
    */
   satEntries: readonly SatListEntry[];
+  /**
+   * The Article 49 Bis rows for `instruction.supplierRfc`, across every
+   * publication we hold. Separate from `satEntries` because it is a separate
+   * statute with one published outcome and no published clearing, so the two
+   * cannot share a status: see `Sat49BisEntry`.
+   *
+   * Absent and empty mean the same thing to a control, an RFC on no publication
+   * we hold, and neither means the 49 Bis list is loaded. Whether it is loaded at
+   * all is a question for the list endpoint, and today the honest answer is that
+   * the SAT publishes this list one oficio at a time in the DOF and ships no
+   * machine-readable file: `packages/sat/src/snapshot/README.md`.
+   */
+  sat49BisEntries?: readonly Sat49BisEntry[];
   /** The CEP already verified for the account this instruction pays, if any. */
   cep?: Cep;
   /**
@@ -405,6 +458,25 @@ export interface ComposeInput {
    * not describe.
    */
   sweep?: SweepResult;
+  /**
+   * The retroactive sweep of the newest 49 Bis publication, when one has been
+   * run. Same money, different statute and a deadline of its own, which is why it
+   * is a second field and not a union with `sweep`.
+   */
+  sweep49Bis?: Sat49BisSweepResult;
+  /**
+   * What the consortium holds for the account this instruction pays, read from
+   * the LOCAL snapshot by the caller. Absent is `NOT_CONSULTED`, which is what
+   * an instance with the flag off, an empty snapshot or an unreachable warehouse
+   * hands over, and it decides exactly what this product decided before the
+   * network existed.
+   *
+   * Never fetched here, and never fetched by a control: a detector that opened a
+   * socket would put a warehouse on the hot path of a payment decision, and
+   * issue #164 exists partly to say that it must not. `bun run consortium:pull`
+   * fills the snapshot and the engine reads it.
+   */
+  network?: NetworkSignal;
 }
 
 /**
@@ -800,6 +872,14 @@ function rationaleFor(
   costs: Readonly<Record<Action, number>>,
 ): string {
   const expected = formatPesos(loss.expectedLoss);
+  /* The adjustment is stated and not implied. A clerk reading a smaller number
+     than the findings alone would give has to be told which input made it
+     smaller, and a judge asking "what did the network actually change" gets the
+     percentage off the same sentence the screen shows. */
+  const network =
+    loss.networkFactor < 1
+      ? ` La red SentryOne bajo la perdida esperada al ${Math.round(loss.networkFactor * 100)} por ciento.`
+      : "";
   switch (rule) {
     case "no_findings":
       return "Sin hallazgos: nada detiene este pago.";
@@ -808,9 +888,9 @@ function rationaleFor(
     case "critical_requiere_verificacion":
       return `Hallazgo critico por verificar: se pide verificacion antes de pagar. Perdida esperada ${expected} contra ${formatPesos(costs.verify)} de costo por un dia de retraso.`;
     case "expected_loss_over_delay_cost":
-      return `Perdida esperada ${expected} por encima de ${formatPesos(costs.verify)} de costo por verificar: se pide verificacion.`;
+      return `Perdida esperada ${expected} por encima de ${formatPesos(costs.verify)} de costo por verificar: se pide verificacion.${network}`;
     case "expected_loss_under_delay_cost":
-      return `Perdida esperada ${expected} por debajo de ${formatPesos(costs.verify)} de costo por verificar: se libera con los hallazgos adjuntos.`;
+      return `Perdida esperada ${expected} por debajo de ${formatPesos(costs.verify)} de costo por verificar: se libera con los hallazgos adjuntos.${network}`;
   }
 }
 

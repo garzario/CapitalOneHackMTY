@@ -56,7 +56,12 @@ import {
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
-import { getCurrentRun, runConstanciaHref, useEvents } from "../lib/api";
+import {
+  type EventsStatus,
+  getCurrentRun,
+  runConstanciaHref,
+  useEvents,
+} from "../lib/api";
 import {
   formatClabe,
   formatCount,
@@ -70,7 +75,7 @@ import {
   SOURCE_LABEL,
 } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
-import { useResource } from "../lib/resource";
+import { reachesApi, useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
 import {
   countsFor,
@@ -79,6 +84,38 @@ import {
   type RunFilter,
   runVerdict,
 } from "../lib/run-view";
+
+/**
+ * What the screen says about the event stream, in one place.
+ *
+ * A stream nobody opened is not a stream that closed. Under `?data=mock` the
+ * page promises no request leaves the browser, so `useEvents` is never enabled
+ * and reports `closed`, and a header that read that as "sin flujo de eventos"
+ * with a Reconectar button beside it offered a judge with no API a control whose
+ * only possible outcome was a failure the mode had already ruled out. `allowed`
+ * is the fact that separates the two, and `StreamStatus` takes it.
+ */
+export function streamLabel(allowed: boolean, status: EventsStatus): string {
+  if (!allowed) {
+    return "Sin conexion: el flujo de eventos no se abre";
+  }
+
+  if (status === "open") {
+    return "Flujo de eventos conectado";
+  }
+
+  return status === "connecting"
+    ? "Conectando al flujo de eventos"
+    : "Flujo de eventos cerrado";
+}
+
+/** Whether the reconnect affordance means anything right now. */
+export function canReconnectStream(
+  allowed: boolean,
+  status: EventsStatus,
+): boolean {
+  return allowed && status === "closed";
+}
 
 export function RunScreen() {
   const load = useCallback(
@@ -109,7 +146,12 @@ export function RunScreen() {
   const onLedgerEvent = useCallback(() => {
     reload();
   }, [reload]);
-  const stream = useEvents({ onEvent: onLedgerEvent });
+  /* `?data=mock` promises that no request leaves the browser, and the stream is
+     a request. Held closed there rather than opened and reported, which is what
+     it used to do: the screen said "solo datos sinteticos" and "flujo de eventos
+     conectado" at the same time. */
+  const streamAllowed = reachesApi();
+  const stream = useEvents({ enabled: streamAllowed, onEvent: onLedgerEvent });
 
   const run = resource.status === "ready" ? resource.data : null;
   const source = resource.status === "ready" ? resource.source : null;
@@ -162,6 +204,7 @@ export function RunScreen() {
               />
               <StreamStatus
                 status={stream.status}
+                allowed={streamAllowed}
                 onReconnect={stream.reconnect}
               />
 

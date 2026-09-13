@@ -35,7 +35,7 @@ import {
 import { ACTION_HELP, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockInstruction } from "../lib/mock";
 import { useResource } from "../lib/resource";
-import { Link, PATHS, verifyCallPath } from "../lib/router";
+import { Link, PATHS, verifyAccountPath, verifyCallPath } from "../lib/router";
 
 export function InstructionScreen({ id }: { id: string }) {
   const load = useCallback(
@@ -183,6 +183,17 @@ export function InstructionScreen({ id }: { id: string }) {
                 </span>
                 <span className="subtle block t-xs">
                   {bankName(resource.data.instruction.clabe)}
+                </span>
+                {/* The beneficiary check starts here, on the account it is
+                    about. One click sends the centavo through the rail inside
+                    this same run; nobody types a clave de rastreo. */}
+                <span className="block">
+                  <Link
+                    to={verifyAccountPath(resource.data.instruction.id)}
+                    className="t-sm underline"
+                  >
+                    Verificar la cuenta con un centavo
+                  </Link>
                 </span>
               </Field>
               <Field label="Proveedor">

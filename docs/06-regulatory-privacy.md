@@ -9,7 +9,7 @@ check that we thought about the right things. It is not an opinion on compliance
 written by counsel. Any production deployment needs a licensed review.
 
 Every legal claim below was read in the primary source on 2026-09-12 and the source is named in
-section 8. Where a source contradicted something we had assumed, the assumption was changed and the
+section 9. Where a source contradicted something we had assumed, the assumption was changed and the
 change is flagged. Nothing here is quoted from memory.
 
 Owner: Fabricio (`FabriBanda`), with the lead on the LLM boundary. Due M2.
@@ -33,13 +33,21 @@ that did not.
   autorizadas por la CNBV" as IFPE. We perform neither, so no authorisation attaches. This is a
   statement about two named articles, not a general claim that fintech law does not reach us.
 - **We are not a credit bureau.** We do not consult and we do not report. We produce no score about
-  a person or a company, we write to no shared registry, and nothing we compute leaves the client
-  that paid for it. The verified beneficiary registry is per company and lives inside that company's
-  own data, never pooled across clients.
+  a person or a company, and no finding, explanation or decision leaves the client that paid for it.
+  ADR-0006 adds one shared table and it is deliberately not a registry about anyone: salted hashes of
+  a supplier and an account, a bank code, one of four outcomes and a date, with no name, no amount
+  and no identity of the company that wrote the row. Nothing in it is a rating, is derived from a
+  rating, or can be read back as one. Section 8 lists what leaves and what never does. The verified
+  beneficiary registry itself, with its names and its CEPs, stays inside the company that built it.
 - **We are not an Institución Financiera for CONDUSEF purposes.** Article 2, fracción IV of the Ley
   de Protección y Defensa al Usuario de Servicios Financieros enumerates what counts as one, and
   software sold to a payer is not on the list. The complaint path about a transfer stays with the
   user's bank.
+- **We are not an insurer and we do not intermediate insurance.** The make-whole and the delay credit
+  proposed in `docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets` are
+  capped against our own fees, never indemnity of the client's loss, and the insurance layer above
+  them is written by an authorised insurer. Section 2.2 carries the four articles that make that
+  distinction the whole design rather than a preference.
 - **No automated adverse action.** Nothing declines, blocks, scores down or reports anyone without a
   person deciding. That one design rule removes most of the regime we would otherwise be inside, and
   section 5 shows it is enforced by the domain types rather than by a promise.
@@ -62,7 +70,9 @@ for them.
 | CONDUSEF, Ley de Protección y Defensa al Usuario de Servicios Financieros (DOF 18-01-1999, last reform DOF 14-11-2025) | Protection of users of financial services, transparency, and the complaint process | Not as built. Art. 2, fr. IV does not list software vendors among Instituciones Financieras | Clear terms, no misleading claims, and a named path for a user who disagrees. The disclaimer in the README and the UI footer carries this in the prototype |
 | LFPDPPP (nueva ley DOF 20-03-2025, last reform DOF 14-11-2025) | Personal data held by private parties: aviso de privacidad, consent, purpose limitation, retention, ARCO, transfers | Yes, in production. Not in the prototype, which holds no real personal data | The whole of section 4. Note the regulator changed: art. 2, fr. XV defines Secretaría as the Secretaría Anticorrupción y Buen Gobierno, not INAI |
 | Ley para Regular las Sociedades de Información Crediticia | Consultation and reporting of credit behaviour, and the consent a consultation needs | No. We are not a SIC, we consult none and we report to none | If a lending partner ever consults a bureau, the consent and the decision are theirs, and that boundary is written into the referral flow rather than assumed |
+| Ley de Instituciones de Seguros y de Fianzas (nueva ley DOF 04-04-2013, last reform DOF 14-11-2025) | Who may underwrite insurance in Mexico, who may intermediate it, and what counts as an operación activa de seguros | Not as built, and it would the moment we promised money on an uncertain event. The commitment in `docs/05` is a credit and a refund of our own fees, and the loss layer belongs to an authorised insurer | Art. 20 reserves the practice to authorised Instituciones and Sociedades Mutualistas, art. 23 also prohibits offering or intermediating one, art. 93 makes an intermediary need a CNSF authorisation, and art. 495 fr. I attaches three to fifteen years of prison. Section 2.2 |
 | Código Fiscal de la Federación, arts. 69, 69-B and 69-B Bis (last reform DOF 09-04-2026) | Fiscal confidentiality and its exceptions, presumption of non-existent operations, and improper transfer of tax losses | Yes, as the data source and as the risk we quantify | Sections 2.1 and 3. The list is published by order of the statute, which is what makes reading it lawful and what makes the exposure real |
+| Código Fiscal de la Federación, arts. 49 Bis, 17-H Bis fr. XIV, 29-A fr. IX and 113 Bis, all added or reformed by the decree DOF 07-11-2025 and in force from 1 January 2026 | The express visit that determines a taxpayer's CFDI are false, the publication of that taxpayer, the buyer's thirty natural days to correct, the restriction of the buyer's own digital seal when they do not, and the two-to-nine-year penalty for giving fiscal effect to a false CFDI | Yes, as a second data source and a second clock | Section 3.3. It is the newest half of the fiscal hook and the one that points at our own user rather than at the supplier |
 | PCI DSS | Card data handling | Not applicable as built, and we behave as if it were | Never store a PAN. Nessie's `account_number` is synthetic and is still treated as sensitive: never logged, never in a screenshot, never in an issue |
 
 **What we have not mapped.** Anti-money-laundering obligations under the Ley Federal para la
@@ -93,7 +103,90 @@ So checking a supplier RFC against the 69-B list needs no consent from the suppl
 does not authorise is anything else: it is a licence to read a published fact, not a licence to
 publish a conclusion about the person named in it. Section 7 is the operational consequence.
 
-## 3. What Articles 69-B and 69-B Bis actually say
+### 2.2 What we may promise when a released payment turns out to be fraud
+
+A second Capital One panel asked on the evening of 2026-09-12 whether the subscription should include
+an insurance policy covering losses up to an amount per tier. The commercial answer, in four layers,
+is in `docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets`, the fourth of
+them for the opposite error, a legitimate payment the product held. This is the
+legal half of it, read in the Ley de Instituciones de Seguros y de Fianzas, texto vigente, nueva ley
+DOF 04-04-2013, last reform DOF 14-11-2025, on 2026-09-12. The articles are the statute's own
+numbering.
+
+**Only an authorised insurer may underwrite.** Article 20, first paragraph: "Se prohíbe a toda persona
+física o moral distinta a las Instituciones de Seguros y Sociedades Mutualistas autorizadas en los
+términos de esta Ley, la práctica de cualquier operación activa de seguros en territorio nacional."
+That authorisation comes from the Federal Government and article 11 gives it to the Comisión to grant
+discretionally, with prior agreement of its Junta de Gobierno, and says the authorisations are
+intransmissible. Article 2, fracción VI defines Comisión as the Comisión Nacional de Seguros y
+Fianzas. So there is no version of this where we borrow, rent or buy somebody's authorisation.
+
+**What counts as the reserved activity, which is the sentence that shapes our commitment.** Article
+20, second paragraph: "se considera que se realiza una operación activa de seguros cuando, en caso de
+que se presente un acontecimiento futuro e incierto previsto por las partes, una persona, contra el
+pago de una cantidad de dinero, se obliga a resarcir a otra un daño, de manera directa o indirecta o a
+pagar una suma de dinero." Read that against a subscription that pays out when a released payment
+turns out to be fraud and the resemblance is the point rather than a technicality. The third paragraph
+carves out selling goods or services forward, but only "cuando el cumplimiento de la obligación
+convenida, no obstante que dependa de la realización de un acontecimiento futuro e incierto, se
+satisfaga con recursos e instalaciones propias de quien ofrece el bien o el servicio y sin que se
+comprometa a resarcir algún daño o a pagar una prestación en dinero". The exception therefore holds
+while we stay inside our own service and stops the moment we commit to indemnify a damage or to pay a
+sum of money.
+
+**The product rule that follows, and it is a design rule and not a disclaimer.** The early-phase
+commitment is written as shadow mode, a service credit and a refund capped at the fees the client
+actually paid us, because returning our own consideration is a price remedy. It is never written as a
+payment sized to the client's loss. The difference is not cosmetic: article 24 says contracts
+concluded against article 20 "no producirán efecto legal alguno", so a guarantee drafted the wrong way
+is worth nothing to the client who relied on it, and article 495, fracción I punishes practising an
+operación activa de seguros, or acting as an intermediary in one, with "prisión de tres a quince años
+y multa de 5,000 a 20,000 Días de Salario". A promise that voids itself and criminalises the promiser
+is not a commercial risk we are willing to run for a nicer slide.
+
+**The same boundary draws the credit for a delay we caused.** The fourth layer in `docs/05` pays a
+service credit when the product held a payment that was fine, and it is written the same way round for
+the same reason. The credit is the days the payment sat times a price we published ourselves,
+`Supplier.delayCostPerDay`, capped at the subscription, and it is applied against the next invoice
+rather than paid out. No proof of loss is asked, and that is a legal design choice before it is a
+commercial courtesy: asking the client to evidence a lost sale and then paying against that evidence is
+resarcir un daño, which is the verb article 20 uses, and it would turn a discount on our own price into
+the reserved activity. The third paragraph of article 20 holds while the obligation is satisfied "con
+recursos e instalaciones propias de quien ofrece el bien o el servicio", and a credit against our own
+invoice is exactly that.
+
+**The question is answerable rather than a matter of opinion, and the statute says who answers it.**
+Article 20, last paragraph: "La Secretaría, oyendo la opinión de la Comisión, podrá establecer
+criterios de aplicación general conforme a los cuales se precise si una operación, para efectos de
+este artículo, se considera operación activa de seguros, y deberá resolver las consultas que al efecto
+se le formulen." `TODO(FabriBanda)`: the make-whole is labelled a proposal in `docs/05` precisely
+because this consultation has not been filed and counsel has not reviewed the wording. Neither the
+cap nor the word guarantee goes into a contract, a price list or the UI before both have happened.
+
+**Intermediating somebody else's policy is also reserved.** Article 91, second paragraph, reserves the
+intermediation of insurance contracts that are not contratos de adhesión "exclusivamente a los agentes
+de seguros", and article 93 requires the Comisión's authorisation to act as one, intransferible by its
+own terms. So SentryOne cannot sell, quote or advise on a policy either.
+
+**The one lawful channel, and it comes with a filing and a supervisor.** Article 102 allows insurance
+formalised through contratos de adhesión, other than social-security pensions and caución, to be
+contracted "a través de una persona moral, sin la intervención de un agente de seguros". The insurer
+may pay that persona moral for services other than the ones the law reserves to agents, the text of
+that service contract must be registered with the Comisión beforehand, which has fifteen business days
+to refuse it and may order corrections, and the persona moral is then "sujeta a la inspección y
+vigilancia de la Comisión" for those operations. That is the shape of the year-two insurance layer:
+an authorised insurer underwrites, SentryOne's evidence is the underwriting input, the distribution
+contract is registered with the CNSF, and we accept being inspected for that part. It is a real path,
+it is not a hackathon path, and saying so is the honest version of the answer.
+
+**What we did not verify.** Whether any Mexican insurer underwrites the specific loss, a transfer the
+client's own clerk authorised from the client's own banking portal to an account that turned out to
+belong to somebody else. The three Mexican wordings we opened are listed in `docs/05`, and the one
+that comes closest excludes both halves of it. We also did not read the Ley sobre el Contrato de
+Seguro today, so nothing here is asserted about what may be insured or about the insurable interest.
+`TODO(FabriBanda)`: read it with counsel in the same session as the article 20 consultation.
+
+## 3. What Articles 69-B, 69-B Bis and 49 Bis actually say
 
 Read in the Código Fiscal de la Federación, texto vigente, last reform published DOF 09-04-2026.
 Paragraph numbers are the article's own.
@@ -162,8 +255,82 @@ and the transfer counts as a simulated act for the crimes in the Code.
 **It is a different list about a different risk and we do not wire it into supplier screening.**
 Appearing in the 69-B Bis list says nothing about whether a supplier's invoice to us is real. Using
 it as a supplier red flag would be exactly the kind of plausible, wrong inference this document
-exists to prevent. `TODO(FabriBanda)`: if a future version ever surfaces it, it is a separate
-control with its own copy, never a row inside the 69-B detector.
+exists to prevent.
+
+That was an open question until 2026-09-12 and it is now closed, in the negative, and with the file
+in hand rather than on principle alone. The 69-B Bis listing is published as open data, three CSV
+files next to the 69-B ones, and the complete one holds **three taxpayers** at a cut-off of 5 June
+2026: two `Definitivo` and one `Sentencia Favorable`. So the question was never whether we could load
+it. We do not, because a supplier's name on a list about loss transfers is not evidence about the
+invoice in front of the clerk, and because three taxpayers nationally would not be a screening signal
+even if it were. If a future version ever surfaces it, it is a separate control with its own copy,
+never a row inside the SAT lists control. `packages/sat/src/snapshot/README.md` records the file, its
+size and its cut-off so the decision can be re-examined against data rather than memory.
+
+### 3.3 Article 49 Bis, the newest list, and the clock that points at our own user
+
+Article 49 Bis did not exist when this product's thesis was written. It was added by the decree
+published in the DOF on 7 November 2025 and is in force from 1 January 2026 by that decree's
+Transitorio Primero, and it changes who carries the risk.
+
+- **A different procedure and a much faster one.** It governs the express home visit of art. 42, fr.
+  V, inciso g). The order itself states why the authority presumes the taxpayer's CFDI are false and
+  **suspends that taxpayer's invoicing from the moment it is delivered**, with art. 17-H Bis
+  expressly not applying (fr. I). The taxpayer has **five business days** to offer evidence (fr. V),
+  the authority **fifteen business days** to resolve (fr. VIII), and the whole procedure closes
+  within **twenty-four business days** (fr. IX). Article 69-B runs on fifteen days plus fifty; this
+  one runs in under a month.
+- **A different finding.** Inciso b) of fr. VIII: the taxpayer did not rebut, so the CFDI "se
+  consideran falsos con efectos generales" for failing art. 29-A, fr. IX, which the same decree added
+  and which reads, in full, "Amparar operaciones existentes, verdaderas o actos jurídicos reales", and
+  the operations "no producen ni produjeron efecto fiscal alguno". Same retroactivity as 69-B, in the
+  same past tense, for a different reason: not that the operation never happened, but that the
+  document is false.
+- **The publication, and the gap before it.** Fr. X: the name and the RFC are published in the DOF
+  and on the SAT portal **within forty-five business days** of the notification of the resolution
+  taking effect. Between the resolution and the publication the supplier is already condemned and on
+  no list anybody can read, which is precisely the window where controls 2 and 4, the CLABE forensics
+  and the change in supplier behaviour, have to carry the decision alone.
+- **Thirty natural days, and then our own user's seal.** Still fr. X: the third parties who received
+  those CFDI must reverse the fiscal effect through a complementary return within **thirty natural
+  days of the DOF publication**, and if they do not, the authority **temporarily restricts their own
+  certificado de sello digital** under art. 17-H Bis, fr. XIV, which the same decree added. Natural
+  days, so weekends count. This is the single most important sentence in this section: the sanction
+  for missing the window is not a tax bill, it is that the clerk's own company cannot invoice.
+- **And the criminal exposure moved to the buyer.** Fr. XI: the SHCP "procederá penalmente contra
+  cualquier actividad relacionada con comprobantes fiscales falsos", in the terms of art. 113 Bis,
+  whose second paragraph, added by the same decree, now covers whoever "expida, enajene, compre,
+  adquiera o **dé efectos fiscales** a comprobantes fiscales falsos", two to nine years. A third
+  paragraph, also new, says the offence is investigated independently of the state of the
+  administrative procedure, and the article still requires a querella from the SHCP to prosecute.
+  It names no other body, so neither do we: the fraccion does not mention the Ministerio Público
+  and an earlier version of this section said it did.
+
+**What we do with it, stated exactly.** `packages/sat/src/art49bis.ts` holds the loader for the
+published layout, the thirty day window and a retroactive sweep that prices already deducted invoices
+with the same arithmetic as the 69-B one; `packages/engine/src/sat49bis.ts` produces its own finding,
+in Spanish, naming the article, the publication date, the days left and the seal restriction that
+follows. The finding is always `comprobable` and never `requiere_verificacion`, because unlike
+`presunto` there is no rebuttal period left to wait out: fr. X publishes a resolution that is already
+final.
+
+**What we deliberately do not claim.** The SAT publishes this list **one oficio at a time as a DOF
+note** and ships no machine-readable file: its open-data catalogue carries arts. 69, 69-B and 69-B Bis
+and nothing for 49 Bis, and on 2026-09-12 the DOF held fourteen such oficios naming fourteen
+taxpayers, from 10 July to 28 August 2026. So `GET /api/v1/sat/lookup` answers for that list with
+`answered: false` and `coverage: "not_published_machine_readable"`, carrying those counts and the URL
+to check them, and no screen in this product says a supplier is clear of the 49 Bis list. The
+provenance, the column layout of the `Anexo 1` table, all fourteen note ids and the manual steps to
+load a new publication are in `packages/sat/src/snapshot/README.md`, and `docs/04-market.md` carries
+the same statement where it is a competitive claim rather than a legal one.
+
+One consequence for this document's own subject matter. A 49 Bis publication is public data of the
+supplier, exactly like a 69-B one, so section 2.1 covers reading it unchanged. What is NEW is that
+the thirty day clock makes a date on our screen operative: a wrong deadline would push a client past
+fr. X. That is why `correctionDeadline` counts the publication day as day one, which is the reading
+that errs early rather than late, and why the code says in as many words that it is a reading and not
+a holding. Article 12 of the CFF settles how days are counted, not when a plazo "a partir de la
+publicación" begins, and we did not find a rule that settles the latter today.
 
 ## 4. Personal data, under the LFPDPPP in force
 
@@ -192,8 +359,14 @@ assumption. Treating supplier records as protected costs us nothing and is the o
 - **Purpose limitation, art. 11.** Treatment is limited to the purposes stated in the aviso de
   privacidad, and a different purpose requires consent again. Our stated purpose is one sentence:
   screening this company's own outgoing payments before they leave. That sentence forbids selling
-  aggregated supplier behaviour, training a shared model on client ledgers, and pooling verified
-  beneficiaries across clients. All three are attractive and all three are out.
+  aggregated supplier behaviour, training a shared model on client ledgers, and pooling the verified
+  beneficiary registry across clients. All three are attractive and all three are out.
+  **Changed on 2026-09-12, and flagged rather than quietly rewritten.** An earlier version of this
+  bullet forbade pooling across clients in general. ADR-0006 adds a cross-tenant network that pools
+  four facts and no registry: two salted hashes, a public bank code and an outcome, described in
+  section 8. That is narrower than what this bullet ruled out and it is still a second purpose, so it
+  needs the aviso to name it and it is opt-in per tenant rather than on by default. The registry
+  itself, with its names, its CEPs and its amounts, stays inside one tenant and is still out.
 - **Proportionality, art. 12.** Treatment must be necessary, adequate and relevant to that purpose.
   This is the reason `Cep` stores the beneficiary name rather than a full statement, and the reason
   the OCR path keeps the CLABE and the confidence rather than the whole photograph once extraction
@@ -285,6 +458,13 @@ read on the portal on 2026-09-12.
   That is why `Metrics` reports `falsePositiveRate` next to precision and recall, and why ADR-0002
   requires the generator and the labelled holdout to be written by different people from the
   detectors, so the numbers are blind rather than flattering.
+- **The one outcome that outlives the run is a fact, not an allegation.** `fraud_reported` is the
+  only value in the consortium vocabulary that carries anything adverse about a counterparty, and
+  three things hold it in place. It exists only because a person in some tenant decided it, since
+  outcomes come from the registry a clerk signs and not from a detector. It names nobody: what the
+  network holds is a count of reports against a hashed pair. And it is read as what it is, a number of
+  other companies that reported this pair, never as a verdict about a supplier. Section 8.3 carries
+  the retention consequence, because this is the data class art. 10 caps at seventy-two months.
 - **We do not score people.** No function in `packages/core` produces a rating about a person or a
   company that outlives the payment run it was computed for. If a future version ever informs a
   lending decision, the features used and their distributions have to be auditable before it ships,
@@ -435,20 +615,191 @@ date. A wrong price here is worse than an empty cell, because it feeds the margi
   anything leaves the client perimeter, which today reads as counterparty tax IDs, counterparty legal
   names and account identifiers, and place the boundary on the diagram in `docs/07-architecture.md`.
 
-## 8. Sources
+## 8. The consortium network: what leaves the tenant
+
+ADR-0006 adds the one thing in this product that crosses a customer boundary, so it gets its own
+section rather than a clause inside another one. The mechanism is in
+`docs/adr/0006-consortium-snowflake.md` and the data flow is in
+`docs/07-architecture.md#the-third-flow-the-consortium-network`. What follows is only the regulatory and
+privacy half.
+
+The reason the feature exists is control 2 of ADR-0002 and it is worth one sentence here: a
+supplier's first payment has no history in this company and has months of history in every other
+company that already pays it, so the case where control 2 is weakest is the case another tenant has
+already answered.
+
+### 8.1 What leaves the tenant, and what never does
+
+The whole payload is the seven rows below. The list underneath them is the part a judge should read
+first, because what is absent is the argument.
+
+| What leaves | What it is | Why it is the minimum |
+|---|---|---|
+| `tenant_hash` | A salted hash of the tenant identifier | The network counts distinct companies without naming one. A count of zero and a count of twenty are different facts; which twenty is not a fact the network needs |
+| `rfc_hash` | A salted hash of the normalised supplier RFC | The join key for "is this the same supplier". Without it there is no network |
+| `clabe_hash` | A salted hash of the normalised 18-digit CLABE | The join key for "is this the same account". The pair is what the signal is about |
+| `bank_code` | The first three digits of the CLABE | Already public structure, and it is what makes "this supplier changed bank" visible across tenants. It identifies an institution, never a person |
+| `outcome` | One of `verified`, `paid`, `mismatch`, `fraud_reported` | Four values, fixed. It says what happened to a payment, never how much, never to whom, never who decided |
+| `event_date` | A calendar date | First and last sighting are the whole point: an account paid for eleven months is different from one first seen yesterday |
+| `synthetic` | A boolean | Every row in this repository is `true`. The flag travels with the row so a synthetic network can never be read as a real one |
+
+**What never leaves, stated as a list because a list is checkable.** No supplier legal name. No
+company name. No trade name. No amount, subtotal, IVA or total. No CLABE and no RFC in the clear. No
+CFDI, no UUID, no folio, no serie. No CEP and no CEP XML. No beneficiary account holder name. No
+payment instruction, no photograph, no voice note, no transcription. No `Finding`, no `explanation`,
+no `Decision` and no `decidedBy`, so the network never learns what a clerk decided or that a clerk
+exists. The API route that reads the snapshot takes an RFC and a CLABE and answers with counts and
+dates, and there is no shape of request that returns a row.
+
+**The warehouse is not on the decision path.** `packages/core` and `packages/engine` hold no
+Snowflake credential and make no network call of any kind, `apps/api` reads the local
+`consortium_snapshot` through the repository, and the only code that authenticates to Snowflake is a
+script a person runs. `ALLOW_CONSORTIUM` has to be set for even that, and with it unset the finding
+says the network was not consulted instead of silently scoring as if it had been.
+
+### 8.2 The salted hash, and what it does not do
+
+The pair is hashed with HMAC-SHA-256 over the normalised RFC and CLABE, keyed by a network-wide salt
+(`CONSORTIUM_SALT`). Network-wide is the requirement: two tenants paying the same account have to
+produce the same hash or there is no join. That requirement is also the limit, and the limit is
+written here rather than left for a judge to find.
+
+- **It is pseudonymisation, not anonymisation.** An RFC is 12 or 13 structured characters and a CLABE
+  is 18 digits whose first six are a bank and a plaza and whose last one is a check digit. That is not
+  a high-entropy input. Anyone holding the salt and a candidate pair can confirm membership by
+  recomputing the hash, and anyone holding the salt and a supplier list can do it in bulk. So the
+  confidentiality of this table rests on the salt, not on the hash.
+- **We therefore treat the hashes as personal data** and apply section 4 to them, which is the same
+  safe default section 4.1 takes for supplier records. Calling them anonymous would be the convenient
+  reading and it is not the defensible one.
+- **In this repository the salt is a documented constant**, which means the demo network offers no
+  confidentiality at all. It does not need to: every row in it is synthetic and carries
+  `synthetic = true`. Saying this out loud is cheaper than being caught assuming it.
+- **What production requires**, and it is a precondition rather than a backlog item: a salt held by
+  the network operator and never by a tenant or a repository, rotated per period so a leaked salt
+  expires, with the rotation documented alongside the retention schedule section 4.2 already owes.
+- **Reproducible is a requirement and not a side effect.** The hash has to be recomputable from the
+  pair, because that is what makes an ARCO request answerable. See 8.4.
+
+### 8.3 The LFPDPPP argument, and the part that needs counsel
+
+Read against the new law already cited in section 4. Nothing here is a legal opinion.
+
+- **Proportionality, art. 12.** Treatment must be necessary, adequate and relevant to the purpose.
+  The seven columns in 8.1 are the whole payload and each one earns its place there. The outcome
+  vocabulary is four fixed values rather than free text precisely so that a row cannot grow a
+  narrative about a supplier.
+- **Purpose limitation, art. 11.** The consortium is a second purpose, so the aviso de privacidad has
+  to name it in the terms above and the tenant has to opt in. `ALLOW_CONSORTIUM` is the technical
+  expression of that opt-in, and `consortium:push` refuses to run without it.
+- **Consent, art. 7 fifth paragraph.** Financial and patrimonial data require express consent, and a
+  destination CLABE is patrimonial data about whoever holds the account. The art. 9 exceptions that
+  carry our weight inside one tenant, fr. II for the public SAT list and fr. IV for data required by
+  the legal relationship between the titular and the responsable, are thinner once the same data
+  leaves for a network. `TODO(FabriBanda)`: this is the one question counsel has to answer before any
+  pilot, phrased exactly as whether a payer may contribute a keyed hash of its own supplier's account
+  to a shared fraud register under fr. IV, or whether express consent in the supplier contract is
+  required. The product ships with the feature opt-in and off by default until that answer exists.
+- **Transfer or encargado, arts. 35, 36 and 2 fr. XII.** Routing a tenant's own rows to an operator
+  acting on that tenant's behalf is not a transfer, because an encargado is excluded from the
+  definition in art. 2 fr. XX. The genuine question is the read: the aggregate a tenant receives is
+  computed over rows contributed by other responsables. Three design facts narrow it and we do not
+  claim they settle it. The aggregate is counts and dates and never a row. It names no other tenant,
+  because the tenant identifier is itself hashed and is only ever counted. And it is answerable only
+  for a pair the asking tenant already holds, so the network discloses nothing about a supplier the
+  asking tenant is not already paying. `TODO(FabriBanda)`: same review, same deadline.
+- **Retention, art. 10.** The hard seventy-two month limit on data about breach of contractual
+  obligations is the one that bites here, because `fraud_reported` is the outcome closest to that
+  class. The retention schedule section 4.2 already owes has to carry a row per outcome, not one
+  number for the table.
+
+### 8.4 ARCO over a hash, which is why the hash is reproducible
+
+A supplier may ask what the network holds about them. Because the hash is a deterministic function of
+the pair, the answer is computable: the titular supplies their own RFC and the account, the operator
+recomputes the two hashes and reads back the counts, and a cancellation is a delete of the rows
+carrying that pair. Article 31's twenty days to communicate and fifteen to make effective apply
+unchanged.
+
+This is the reason to state plainly why the design is not "hash it so hard nobody can ever look it
+up". A table nobody can query by subject is a table where ARCO cannot be satisfied, which is a
+compliance defect dressed as a privacy feature. What the design removes is the ability to learn a
+supplier's identity *from the table*; what it keeps is the ability to answer a person who already
+knows their own identity.
+
+### 8.5 Data residency
+
+A Snowflake account is hosted in a single region, and Snowflake's own documentation states that it
+"does not move data between accounts, so any data in an account in a region remains in the region
+unless users explicitly choose to copy, move, or replicate the data". A Mexico Central region exists
+in its commercial list, so the network can be kept in Mexico as a procurement answer.
+
+What that does not do is remove the question in 8.3. The transfer rules in arts. 35 and 36 attach to
+communicating personal data to a third party, and where the third party's servers sit does not change
+who receives the data. Residency is worth choosing and it is not a compliance argument, so it is not
+presented as one here or on stage.
+
+### 8.6 Cost per pull
+
+Snowflake bills virtual warehouses per second with a 60-second minimum each time the warehouse
+starts, and an X-Small warehouse is 1 credit per hour. The push and the pull are each one statement
+over a table of seven narrow columns, so the runtime is not what is billed: the warehouse start is.
+
+| Unit of work | What it costs | Why |
+|---|---|---|
+| One `consortium:pull` on a suspended warehouse | 0.017 credits | 60 seconds of an X-Small, the minimum, whatever the statement actually takes |
+| One `consortium:push` straight after it, same session | 0 extra credits | The warehouse is already running, so it bills seconds and not a second minimum |
+| Push and pull far enough apart to suspend in between | 0.033 credits | Two starts, two minimums |
+| One company per month, four payment runs, one push and one pull each | 0.067 credits | Four starts |
+| Every instruction in every run scored against the network | 0 credits | The hot path reads `consortium_snapshot` in Postgres. No statement, no warehouse, no round trip |
+
+`TODO(garzario)`: the per-credit price depends on edition and region and Snowflake's pricing page does
+not publish a figure without selecting both, so no peso and no dollar amount is written in this table
+until it has been read off the consumption table for the account we actually create, stamped with the
+date, and carried into `docs/05-business-model.md#unit-economics`. Do not invent a rate here. Storage
+is one narrow row per registry outcome and is not the cost driver at any volume this product reaches.
+
+The shape of this is the same as section 6.3 and it is the point. Cost scales with how many payment
+runs a company does, which is four a month, and not with how much money moves or how many
+instructions each run carries. A tenfold spike in volume costs zero extra credits because the
+decision path never touches the warehouse.
+
+### 8.7 The honest scope, in the words we are allowed to use
+
+There is one tenant. The other tenants in this repository are generated deterministically by
+`packages/consortium/src/synthetic.ts`, off the same `packages/seed` generator and the same seed 69 as
+the demo company, every row carries `synthetic = true`, and the network therefore demonstrates a
+mechanism and not an installed base.
+
+- **May be said:** the network is a synthetic network of other tenants, generated for the demo, and
+  the table it reads is real Snowflake holding real rows we put there.
+- **May not be said, in any form:** that other companies are on it, that the counts come from real
+  firms, that any figure on screen reflects a real payment by a real third party, or anything that
+  lets a listener infer an installed base. `docs/10-demo-script.md` carries the sentence to say and
+  the sentence never to say.
+
+## 9. Sources
 
 All read on 2026-09-12. Statutes are the texto vigente published by the Cámara de Diputados.
 
 | Source | Used for |
 |---|---|
 | Código Fiscal de la Federación, texto vigente, last reform DOF 09-04-2026, arts. 69, 69-B, 69-B Bis | Sections 2.1 and 3 |
+| The same text, arts. 42 fr. V inciso g), 49 Bis, 17-H fr. XIII, 17-H Bis fr. XIV, 29-A fr. IX, 29-A Bis and 113 Bis, each marked as added or reformed by the decree DOF 07-11-2025, whose Transitorio Primero sets 1 January 2026. `https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf`, retrieved 2026-09-12 at 17:25 local, 3,134,465 bytes | Section 3.3 |
+| SAT, Datos Abiertos, contribuyentes publicados, `https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html`, whose only article sections are 69, 69-B and 69-B Bis, and the 69-B Bis complete listing CSV, three taxpayers at a 5 June 2026 cut-off | Sections 3.2 and 3.3 |
+| Diario Oficial de la Federación, full-text search for `fracción X del artículo 49 Bis`, **accents included, because the same phrase without them answers zero**, run 2026-09-12: fourteen oficios of the Administración Central de Fiscalización Estratégica, 10 July to 28 August 2026, one taxpayer each. The link that answers carries the query, since the bare page redirects to an error: `https://dof.gob.mx/busqueda_detalle.php?textobusqueda=fracci%C3%B3n+X+del+art%C3%ADculo+49+Bis&vienede=` | Section 3.3 |
 | Ley Federal de Protección de Datos Personales en Posesión de los Particulares, nueva ley DOF 20-03-2025, last reform DOF 14-11-2025, arts. 2, 5 to 12, 15, 21 to 33, 35, 36 | Sections 2, 2.1 and 4 |
 | Ley para Regular las Instituciones de Tecnología Financiera, DOF 09-03-2018, last reform DOF 14-11-2025, arts. 1, 3, 15, 22, 76, 77 | Sections 1 and 2 |
 | Ley de Protección y Defensa al Usuario de Servicios Financieros, DOF 18-01-1999, last reform DOF 14-11-2025, art. 2 | Sections 1 and 2 |
+| Ley de Instituciones de Seguros y de Fianzas, nueva ley DOF 04-04-2013, last reform DOF 14-11-2025, arts. 2 fr. VI, 11, 20, 23, 24, 91, 93, 102 and 495. `https://www.diputados.gob.mx/LeyesBiblio/pdf/LISF.pdf`, retrieved 2026-09-12 at 19:38 local, 2,184,319 bytes | Sections 1, 2 and 2.2 |
 | Banco de México, CEP consultation portal, `https://www.banxico.org.mx/cep/`, including its exención de responsabilidad and its consultation hours | Section 4.3 |
 | Banco de México, CEP validator, `https://www.banxico.org.mx/validador-cep-spei/`, including the 45 business day validation window | Section 4.3 |
 | Gemini API pricing, paid tier, `https://ai.google.dev/gemini-api/docs/pricing` | Section 6.3 |
 | Gemini API token counting, `https://ai.google.dev/gemini-api/docs/tokens` | Section 6.3 |
+| Snowflake, Virtual warehouses, `https://docs.snowflake.com/en/user-guide/warehouses-overview`, for per-second billing with a 60-second minimum each time a warehouse starts and 1 credit per hour for an X-Small | Section 8.6 |
+| Snowflake, Supported cloud regions, `https://docs.snowflake.com/en/user-guide/intro-regions`, including the single-region rule and the Mexico Central region | Section 8.5 |
+| Snowflake, Introduction to Secure Data Sharing, `https://docs.snowflake.com/en/user-guide/data-sharing-intro` | Section 8.1 and ADR-0006 |
+| Snowflake, pricing options, `https://www.snowflake.com/en/data-cloud/pricing-options/`, which publishes no per-credit figure without selecting a platform and a region | Section 8.6, and the reason its table carries credits rather than pesos |
 
 If a judge disputes a line in this document, open the source next to them. That is the point of the
 table.

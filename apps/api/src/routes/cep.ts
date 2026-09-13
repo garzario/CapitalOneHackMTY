@@ -115,7 +115,17 @@ async function beneficiaryFinding(
     return null;
   }
 
-  const report = await runControlsFor(deps.repo, line.instruction, now);
+  /* The consortium is passed through so the finding this endpoint returns carries
+     the same network evidence the payment-run screen shows. A CEP verification
+     that reported no network next to a finding that did would be two answers to
+     one question. */
+  const report = await runControlsFor(
+    deps.repo,
+    line.instruction,
+    now,
+    undefined,
+    deps.consortium,
+  );
 
   return (
     report.findings.find((finding) => finding.detector === "beneficiary_cep") ??

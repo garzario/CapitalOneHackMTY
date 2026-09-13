@@ -108,11 +108,39 @@ describe("SEED=sentryone", () => {
     expect(byDetector.get("sat_69b")?.length).toBe(1);
     expect(byDetector.get("clabe_forensics")?.length).toBeGreaterThan(0);
 
-    for (const [, ids] of byDetector) {
-      for (const id of ids) {
-        const item = run.items.find((row) => row.instruction.id === id);
-        expect(item?.decision?.action).not.toBe("release");
+    // Every line the demo opens on is stopped, and these four are the ones it
+    // names out loud. They are stopped structurally rather than by arithmetic:
+    // each carries a critical finding, and rules 1 and 2 of `decide` return
+    // above the branch that weighs anything.
+    const heroes = sentryoneBootNotes()?.heroInstructionIds ?? [];
+    expect(heroes).toHaveLength(4);
+    for (const id of heroes) {
+      const item = run.items.find((row) => row.instruction.id === id);
+      expect(
+        item?.findings.some((finding) => finding.severity === "critical"),
+      ).toBe(true);
+      expect(item?.decision?.action).not.toBe("release");
+    }
+
+    // A finding is not by itself an order to stop the payment, and since #182
+    // priced `Supplier.delayCostPerDay` this run proves it: a line can carry a
+    // warning the clerk can see and still be released, because one day of delay
+    // with that supplier costs more than the expected loss. What may never happen
+    // is a critical finding on a released line, and that is rules 1 and 2 again.
+    for (const item of run.items) {
+      if (item.findings.length === 0 || item.decision?.action !== "release") {
+        continue;
       }
+      expect(
+        item.findings.every((finding) => finding.severity !== "critical"),
+      ).toBe(true);
+      // `EXPECTED_DELAY_DAYS.verify` is one day, so the cost the rule weighed is
+      // the per-day figure itself. Compared in cents, like everything else here.
+      expect(
+        Math.round((item.decision?.expectedLoss ?? 0) * 100),
+      ).toBeLessThanOrEqual(
+        Math.round((item.decision?.delayCostPerDay ?? 0) * 100),
+      );
     }
   });
 

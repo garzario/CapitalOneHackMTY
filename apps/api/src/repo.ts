@@ -16,6 +16,8 @@
 
 import type {
   Cfdi,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   LedgerEvent,
@@ -26,7 +28,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
 import type {
   InstructionDetail,
@@ -90,6 +92,23 @@ export interface ResetSummary {
   events: number;
 }
 
+/**
+ * What the local consortium snapshot answers about one hashed pair.
+ *
+ * Three fields and not one, because three states have to be told apart and
+ * collapsing any two of them would make the product claim something it cannot.
+ * `pull` absent is "the network was never consulted here". `pull` present with
+ * `pair` absent is "the network WAS consulted and has never seen this account",
+ * which is a much stronger statement. `accountsForRfc` is what makes the
+ * impersonation case visible: the supplier is in the network, on other accounts.
+ */
+export interface ConsortiumLookup {
+  pull?: ConsortiumPull;
+  pair?: ConsortiumSnapshotRow;
+  /** Accounts the network holds for this RFC, the looked-up one included. */
+  accountsForRfc: number;
+}
+
 export interface Repository {
   /* Reads, one per endpoint in docs/09-api.md. */
   company(): Promise<CompanyIdentity>;
@@ -127,24 +146,84 @@ export interface Repository {
   satLookup(rfc: string): Promise<SatListEntry[]>;
   satVersions(): Promise<SatVersionSummary[]>;
   beneficiaries(): Promise<VerifiedBeneficiary[]>;
+  /**
+   * The local consortium snapshot for one HASHED pair. The repository never sees
+   * an RFC or a CLABE here: `src/consortium.ts` hashes them before it asks, which
+   * is what keeps the privacy boundary in one file.
+   */
+  consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup>;
   metrics(): Promise<Metrics>;
   ledger(query: LedgerQuery): Promise<LedgerEvent[]>;
+  /**
+   * Every event the verification of one instruction is folded out of, in append
+   * order: its `cent_sent`, `cep_awaited` and `decision_made`, plus the
+   * `cep_verified` of the account it pays to.
+   *
+   * A targeted read rather than a slice of `ledger`, because the seeded company's
+   * ledger is thousands of events long and that one answers the oldest 500: the
+   * cent that left a minute ago would never be in the page. `beneficiaryAccount`
+   * is the instruction's CLABE, because a `cep_verified` names an account and no
+   * instruction, which is the honest shape for evidence about who holds an
+   * account.
+   */
+  verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]>;
 
   /* Writes. Each one is append-only from the ledger's point of view. */
   appendEvent(event: LedgerEvent): Promise<void>;
   saveIntake(record: IntakeRecord): Promise<void>;
+  /**
+   * A person confirms an action. `reason` is what they wrote about it, and it
+   * travels with the decision so the `decision_made` event carries the argument
+   * and not only the verdict.
+   */
   recordDecision(
     instructionId: string,
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined>;
+  /**
+   * A decision the engine reached itself on new evidence, with the findings it
+   * weighed.
+   *
+   * Separate from `recordDecision` because that one is a person changing the
+   * action and nothing else, and says so: it carries the pesos and the evidence
+   * over unchanged. Here the evidence is what changed, so the findings are stored
+   * first and the decision is the engine's whole arithmetic. `decidedBy` is the
+   * caller's to set and is `SYSTEM_DECIDER` on the only path that uses this.
+   *
+   * Findings are added and never removed. A finding is evidence about a moment,
+   * and the decision names the ones it weighed, so a control that stopped firing
+   * (a CEP turning a new account into a known one) leaves its earlier finding on
+   * the record instead of rewriting what the clerk was shown yesterday.
+   */
+  recordEngineDecision(decision: Decision): Promise<void>;
   /** Stores a list version and returns what it touches. It does not price it. */
   publishSatList(
     listVersion: string,
     entries: SatListEntry[],
   ): Promise<SweepSubject[]>;
   saveVerifiedBeneficiary(row: VerifiedBeneficiary): Promise<void>;
+  /**
+   * Replaces the whole local snapshot and records the pull that produced it.
+   *
+   * Replaces and never merges: a pair the network has stopped corroborating must
+   * not stay in the snapshot, because a stale corroboration is the one way this
+   * signal turns into a false release. `bun run consortium:pull` is the caller on
+   * the Postgres path and a route test is the caller on the memory one.
+   */
+  replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number>;
   reset(seed: number): Promise<ResetSummary>;
 }
 
@@ -166,6 +245,19 @@ export class MemoryRepository implements Repository {
   private data: SyntheticDataset;
   private seed: number;
   private readonly build: DatasetFactory;
+  /**
+   * The local consortium snapshot, empty until something fills it.
+   *
+   * It sits beside the dataset rather than inside it on purpose: the network is
+   * not company data, it survives a `reset` the way the Postgres table survives a
+   * re-seed, and a store that wiped it when the company was regenerated would
+   * report "not consulted" after a rehearsal reset and quietly change every
+   * decision on the screen.
+   */
+  private consortium: {
+    pull?: ConsortiumPull;
+    rows: ConsortiumSnapshotRow[];
+  } = { rows: [] };
 
   /**
    * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
@@ -264,6 +356,10 @@ export class MemoryRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        /* The pesos, from the same pure function the Postgres store calls. Two
+           implementations of "how much did this run stop" is how a screen and a
+           constancia end up disagreeing in front of a judge. */
+        ...runMoney(items),
       },
       items,
     };
@@ -378,6 +474,35 @@ export class MemoryRepository implements Repository {
   }
 
   /**
+   * The same three-state answer the Postgres path gives, over an in-memory map.
+   *
+   * A fresh store holds no pull, so the network reads as `not_consulted` and this
+   * repository decides exactly what it decided before the consortium existed.
+   * That is deliberate: every route test that predates issue #164 has to keep
+   * passing without being told about a network.
+   */
+  async consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup> {
+    const result: ConsortiumLookup = {
+      accountsForRfc: this.consortium.rows.filter(
+        (row) => row.rfcHash === rfcHash,
+      ).length,
+    };
+    if (this.consortium.pull !== undefined) {
+      result.pull = copy(this.consortium.pull);
+    }
+    const pair = this.consortium.rows.find(
+      (row) => row.rfcHash === rfcHash && row.clabeHash === clabeHash,
+    );
+    if (pair !== undefined) {
+      result.pair = copy(pair);
+    }
+    return result;
+  }
+
+  /**
    * The blind evaluation, recomputed on demand.
    *
    * The numbers come from `@hackmty/seed`: the labelled cases in
@@ -405,6 +530,37 @@ export class MemoryRepository implements Repository {
         : this.data.ledger.filter((event) => Date.parse(event.at) > since);
 
     return copy(events.slice(0, limit));
+  }
+
+  /**
+   * The verification events of one instruction, with the same matching rules as
+   * `readVerificationEvents` in `packages/db`: the instruction id on the three
+   * kinds that carry one, and the beneficiary account on `cep_verified`.
+   *
+   * The accounts are compared as the two stores hold them, character for
+   * character, rather than digits-only. Normalising here and not in SQL is how the
+   * two repositories would start answering different things for the same ledger,
+   * and the parity suite would not catch it because it would ask both through this
+   * method.
+   */
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return copy(
+      this.data.ledger.filter((event) => {
+        if (event.type === "cent_sent" || event.type === "cep_awaited") {
+          return event.instructionId === instructionId;
+        }
+        if (event.type === "decision_made") {
+          return event.decision.instructionId === instructionId;
+        }
+        if (event.type === "cep_verified") {
+          return event.cep.beneficiaryAccount === beneficiaryAccount;
+        }
+        return false;
+      }),
+    );
   }
 
   /* --------------------------------------------------------------- writes */
@@ -443,6 +599,7 @@ export class MemoryRepository implements Repository {
     action: Decision["action"],
     decidedBy: string,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = this.decisionRow(instructionId);
     if (current === undefined) {
@@ -452,8 +609,50 @@ export class MemoryRepository implements Repository {
     current.action = action;
     current.decidedBy = decidedBy;
     current.decidedAt = decidedAt;
+    /* Deleted and not left in place when no reason is given: a release with an
+       argument, followed by a hold with none, must not read as if the second one
+       carried the first one's sentence. */
+    if (reason === undefined) {
+      delete current.reason;
+    } else {
+      current.reason = reason;
+    }
 
     return copy(current);
+  }
+
+  /**
+   * The engine's decision, with its findings.
+   *
+   * The stored decision row is replaced in place rather than appended to, because
+   * `decisionRow` answers the first row for an instruction and a second one would
+   * be invisible; the Postgres store inserts and answers the newest, and the two
+   * agree on what a reader sees. The findings are a union, so the evidence the
+   * clerk saw before this ran is still on the line.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    const stored = copy(decision);
+    const known = new Set(this.data.findings.map((finding) => finding.id));
+
+    for (const finding of stored.findings) {
+      if (!known.has(finding.id)) {
+        this.data.findings.push(copy(finding));
+      }
+    }
+    const attached = new Set([
+      ...(this.data.findingsByInstruction[stored.instructionId] ?? []),
+      ...stored.findings.map((finding) => finding.id),
+    ]);
+    this.data.findingsByInstruction[stored.instructionId] = [...attached];
+
+    const index = this.data.decisions.findIndex(
+      (row) => row.instructionId === stored.instructionId,
+    );
+    if (index === -1) {
+      this.data.decisions.push(stored);
+      return;
+    }
+    this.data.decisions[index] = stored;
   }
 
   async publishSatList(
@@ -503,6 +702,22 @@ export class MemoryRepository implements Repository {
     }
     account.establishedBy = "cep";
     account.establishedAt = stored.verifiedAt;
+  }
+
+  async replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number> {
+    this.consortium = {
+      pull: {
+        pulledAt: input.pulledAt,
+        source: input.source,
+        rows: input.rows.length,
+      },
+      rows: input.rows.map((row) => copy(row)),
+    };
+    return input.rows.length;
   }
 
   /**

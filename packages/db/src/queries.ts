@@ -19,6 +19,8 @@
 import type {
   Cfdi,
   Clabe,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   KnownAccount,
@@ -596,6 +598,41 @@ export async function readLedger(
     where at > coalesce(${since}::timestamptz, '-infinity'::timestamptz)
     order by at asc, seq asc
     limit ${limit}
+  `;
+  return rows.map(ledgerEventFromRow);
+}
+
+/**
+ * The events that build the verification of one instruction, in append order.
+ *
+ * A targeted read and not a slice of the whole ledger, and that is forced rather
+ * than chosen: the ledger of the seeded company is thousands of events long and
+ * `readLedger` answers the OLDEST 500, so the cent that left a minute ago would
+ * never be in the page. Four kinds matter and they are matched two different ways.
+ *
+ * `cent_sent` and `cep_awaited` carry `instructionId` at the top of their payload,
+ * and `decision_made` carries it one level down, inside the decision it stores.
+ * `cep_verified` carries no instruction at all: it is evidence about an ACCOUNT,
+ * which is the honest shape, because a CEP proves who holds the account and says
+ * nothing about which of our invoices we were about to pay. So it is matched on the
+ * beneficiary account and the caller passes the CLABE the instruction pays to. A
+ * CEP for another account is not this instruction's evidence and the query leaves
+ * it alone, exactly as `beneficiaryCepAdapter` refuses it on its own side.
+ */
+export async function readVerificationEvents(
+  sql: Db,
+  instructionId: string,
+  beneficiaryAccount: string,
+): Promise<LedgerEvent[]> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where (type in ('cent_sent', 'cep_awaited')
+           and payload ->> 'instructionId' = ${instructionId})
+       or (type = 'decision_made'
+           and payload -> 'decision' ->> 'instructionId' = ${instructionId})
+       or (type = 'cep_verified'
+           and payload -> 'cep' ->> 'beneficiaryAccount' = ${beneficiaryAccount})
+    order by at asc, seq asc
   `;
   return rows.map(ledgerEventFromRow);
 }
@@ -1346,10 +1383,10 @@ export async function insertDecision(
   return transact(sql, async (tx) => {
     const rows = await tx<{ id: string | number }[]>`
       insert into decisions (instruction_id, action, expected_loss,
-        delay_cost_per_day, decided_at, decided_by)
+        delay_cost_per_day, decided_at, decided_by, reason)
       values (${decision.instructionId}, ${decision.action}, ${decision.expectedLoss},
         ${decision.delayCostPerDay}, ${decision.decidedAt}::timestamptz,
-        ${decision.decidedBy ?? null})
+        ${decision.decidedBy ?? null}, ${decision.reason ?? null})
       returning id
     `;
     const id = Number(rows[0]?.id);
@@ -1370,7 +1407,7 @@ export async function insertDecision(
 
 const DECISION_SELECT = `
   select d.id, d.instruction_id, d.action, d.expected_loss, d.delay_cost_per_day,
-         d.decided_at, d.decided_by,
+         d.decided_at, d.decided_by, d.reason,
          coalesce(
            json_agg(
              json_build_object(
@@ -1709,4 +1746,172 @@ export async function truncateSentryOne(sql: Db): Promise<void> {
       known_accounts, sat_list_entries, sat_list_versions, suppliers, company
     restart identity
   `;
+}
+
+// --- The consortium snapshot -------------------------------------------------
+
+/**
+ * The local projection of the SentryOne consortium, from
+ * migrations/0009_consortium_snapshot.sql.
+ *
+ * These four functions are the only place the network is read or written on this
+ * side, and none of them reaches Snowflake: `bun run consortium:pull` fills the
+ * table and the engine reads it, which is what keeps a warehouse off the hot path
+ * of a payment decision.
+ */
+
+interface ConsortiumSnapshotDbRow {
+  rfc_hash: string;
+  clabe_hash: string;
+  bank_code: string;
+  tenants: number;
+  first_seen: Date | string;
+  last_seen: Date | string;
+  fraud_reports: number;
+  other_accounts: number;
+  pulled_at: Date | string;
+}
+
+/** A `date` column, as the ISO day the warehouse actually holds. */
+function isoDay(value: Date | string): string {
+  return value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : String(value).slice(0, 10);
+}
+
+function isoInstant(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+function snapshotFromRow(row: ConsortiumSnapshotDbRow): ConsortiumSnapshotRow {
+  return {
+    /* `char(64)` and `char(3)` are blank padded by the standard, and the driver
+       hands back what the column holds, so the trim is the mapper's job rather
+       than every caller's. */
+    rfcHash: row.rfc_hash.trim(),
+    clabeHash: row.clabe_hash.trim(),
+    bankCode: row.bank_code.trim(),
+    tenants: Number(row.tenants),
+    firstSeen: isoDay(row.first_seen),
+    lastSeen: isoDay(row.last_seen),
+    fraudReports: Number(row.fraud_reports),
+    otherAccounts: Number(row.other_accounts),
+  };
+}
+
+/**
+ * Replaces the whole snapshot and records the pull that produced it.
+ *
+ * Delete and insert inside one transaction, never an upsert. A merge would leave
+ * a pair the network has stopped corroborating in the table forever, and a stale
+ * corroboration is the one way this signal turns into a false release. A failure
+ * between the two therefore has to be impossible, which is what the transaction
+ * is for.
+ */
+export async function replaceConsortiumSnapshot(
+  sql: Db,
+  input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  },
+): Promise<number> {
+  return transact(sql, async (tx) => {
+    await tx`delete from consortium_snapshot`;
+    for (
+      let start = 0;
+      start < input.rows.length;
+      start += DEFAULT_CHUNK_SIZE
+    ) {
+      const chunk = input.rows.slice(start, start + DEFAULT_CHUNK_SIZE);
+      await tx`
+        insert into consortium_snapshot ${tx(
+          driverRows(
+            chunk.map((row) => ({
+              rfc_hash: row.rfcHash,
+              clabe_hash: row.clabeHash,
+              bank_code: row.bankCode,
+              tenants: row.tenants,
+              first_seen: row.firstSeen,
+              last_seen: row.lastSeen,
+              fraud_reports: row.fraudReports,
+              other_accounts: row.otherAccounts,
+              pulled_at: input.pulledAt,
+            })),
+          ),
+        )}
+      `;
+    }
+    await tx`
+      insert into consortium_pull (id, pulled_at, source, rows)
+      values (1, ${input.pulledAt}::timestamptz, ${input.source}, ${input.rows.length})
+      on conflict (id) do update set
+        pulled_at = excluded.pulled_at,
+        source = excluded.source,
+        rows = excluded.rows
+    `;
+    return input.rows.length;
+  });
+}
+
+/**
+ * When the snapshot was filled, where from, and how many rows it holds.
+ *
+ * Undefined means no pull has ever run here, and that is a different answer from
+ * an empty snapshot: the engine reads the first as `not_consulted` and decides
+ * exactly what it decided before the consortium existed.
+ */
+export async function getConsortiumPull(
+  sql: Db,
+): Promise<ConsortiumPull | undefined> {
+  const rows = await sql<
+    { pulled_at: Date | string; source: string; rows: number }[]
+  >`
+    select pulled_at, source, rows from consortium_pull where id = 1
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  return {
+    pulledAt: isoInstant(row.pulled_at),
+    source: row.source === "synthetic" ? "synthetic" : "snowflake",
+    rows: Number(row.rows),
+  };
+}
+
+/** What the network holds for one hashed pair. Undefined means it has none. */
+export async function getConsortiumPair(
+  sql: Db,
+  rfcHash: string,
+  clabeHash: string,
+): Promise<ConsortiumSnapshotRow | undefined> {
+  const rows = await sql<ConsortiumSnapshotDbRow[]>`
+    select rfc_hash, clabe_hash, bank_code, tenants, first_seen, last_seen,
+           fraud_reports, other_accounts, pulled_at
+    from consortium_snapshot
+    where rfc_hash = ${rfcHash} and clabe_hash = ${clabeHash}
+  `;
+  const row = rows[0];
+  return row === undefined ? undefined : snapshotFromRow(row);
+}
+
+/**
+ * Accounts the network holds for one supplier, this one included.
+ *
+ * The number behind "forty companies pay this supplier, and none of them pays it
+ * on this account". It is counted from the snapshot rather than read off
+ * `other_accounts`, because `other_accounts` is relative to a pair that exists
+ * and the interesting case is a pair that does not.
+ */
+export async function countConsortiumAccounts(
+  sql: Db,
+  rfcHash: string,
+): Promise<number> {
+  const rows = await sql<{ accounts: string }[]>`
+    select count(*)::text as accounts
+    from consortium_snapshot
+    where rfc_hash = ${rfcHash}
+  `;
+  return Number(rows[0]?.accounts ?? "0");
 }

@@ -7,8 +7,10 @@
  * exact `decidedAt` instead of matching a regular expression against `now`.
  */
 
+import { NO_RAIL } from "@hackmty/rail";
 import { createApp } from "./app";
-import { acceptOnlyCepSource } from "./cep";
+import { acceptOnlyCepSource, staticCepInbox } from "./cep";
+import { offConsortiumSource } from "./consortium";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
 import { UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { PipelineClock } from "./pipeline";
@@ -45,6 +47,17 @@ export interface TestHarness {
  * teammate who sets `ALLOW_CEP_FETCH=1` must not turn the suite into something
  * that POSTs to the Banxico portal, and one who holds a certificate must not get
  * a different `signatureReason` from CI.
+ *
+ * The consortium is pinned off for exactly the same reason, and it is the case
+ * most likely to bite: `ALLOW_CONSORTIUM=1` sits in the local `.env` of whoever
+ * seeds the network, and an ambient flag that switched the network on would change
+ * the findings and the decisions of every test in this workspace. A test about the
+ * consortium passes its own source, and `consortium.test.ts` does.
+ *
+ * The payment rail is pinned to none, which is the third case of the same rule: the
+ * default rail is whatever `NESSIE_API_KEY` is in the `.env` of whoever runs the
+ * suite, and a test that sent a real centavo to a sandbox would be a test nobody
+ * could run twice. A test that wants to send one passes a `FakeRail`.
  */
 export function createTestApp(
   overrides: DepsOverrides = {},
@@ -56,6 +69,20 @@ export function createTestApp(
     repo: new MemoryRepository(),
     extractor: UNAVAILABLE_EXTRACTOR,
     cep: acceptOnlyCepSource(),
+    /* No rail, because the default one is whatever `NESSIE_API_KEY` is in the
+       `.env` of whoever runs the suite. A test that wants to send a cent passes
+       a `FakeRail`, and every other test gets the documented 503. */
+    rail: async () => ({ ok: false, message: NO_RAIL }),
+    cepInbox: staticCepInbox([], "empty CEP index (test)"),
+    /* A zero deadline means the pipeline appends `cep_awaited` and starts no
+       background work at all, so no test leaves a timer behind. The tests that
+       drive the poll pass their own interval and their own `sleep`. */
+    verification: {
+      pollIntervalMs: 0,
+      pollDeadlineMs: 0,
+      sleep: async () => {},
+    },
+    consortium: offConsortiumSource(),
     ...overrides,
   });
 
