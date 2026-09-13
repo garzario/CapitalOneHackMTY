@@ -156,7 +156,7 @@ describe("POST /api/v1/assistant/messages", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as ErrorBody;
     expect(body.error.code).toBe("bad_request");
-    expect(body.error.message).toContain("x-actor");
+    expect(body.error.message).toContain("X-Actor");
   });
 
   it("refuses an actor header that does not parse", async () => {

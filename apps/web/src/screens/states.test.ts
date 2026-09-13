@@ -94,26 +94,41 @@ describe("screen states", () => {
 });
 
 /**
- * One h1 per screen, and exactly one.
+ * One h1 per page, and exactly one.
  *
  * The app shipped with no `h1` anywhere: every screen title was an `h2`, so a
  * screen reader's outline began at level two under nothing, and the "jump to
- * the main heading" gesture landed nowhere. `SectionHeader` is the page title
- * on every screen, so the tag belongs there, and this test is what keeps a
- * second one from being added to a screen later.
+ * the main heading" gesture landed nowhere.
+ *
+ * The fix used to live on each screen, in `SectionHeader`. It lives in the
+ * shell now, because the shell grew a top bar that names the section you are
+ * in on every route -- which is what an h1 is -- and a screen that also
+ * rendered one would put two on the page. So the invariant moved rather than
+ * relaxed: the shell owns exactly one h1, no screen writes one, and a screen
+ * that still wants a page-level heading renders at most one `SectionHeader`,
+ * which is now an h2 under the shell's h1.
  */
 describe("the document outline", () => {
-  test("every screen renders exactly one page title", () => {
-    for (const name of screenFiles()) {
-      const uses = source(name).match(/<SectionHeader/g) ?? [];
+  test("the shell renders exactly one h1", () => {
+    const shell = readFileSync(
+      join(SCREENS_DIR, "..", "components", "AppShell.tsx"),
+      "utf8",
+    );
 
-      expect([name, uses.length]).toEqual([name, 1]);
-    }
+    expect(shell.match(/<h1/g) ?? []).toHaveLength(1);
   });
 
   test("no screen writes its own h1, so the count cannot drift", () => {
     for (const name of screenFiles()) {
       expect([name, source(name).includes("<h1")]).toEqual([name, false]);
+    }
+  });
+
+  test("no screen renders two page-level headings", () => {
+    for (const name of screenFiles()) {
+      const uses = source(name).match(/<SectionHeader/g) ?? [];
+
+      expect([name, uses.length <= 1]).toEqual([name, true]);
     }
   });
 });

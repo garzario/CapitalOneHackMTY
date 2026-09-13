@@ -57,5 +57,6 @@
       "because": "Two edits from a known account, both of them digit pairs OCR confuses, arriving through the one channel where a transcription error is expected."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "alerta"
 }

@@ -55,5 +55,6 @@
       "because": "The 3-7-1 calculation over the first seventeen digits does not produce the eighteenth, which is provable with no external data at all."
     }
   ],
-  "expectedAction": "hold"
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
 }

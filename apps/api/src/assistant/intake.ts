@@ -46,6 +46,7 @@
 import { nameMatch } from "@hackmty/cep";
 import type { Actor } from "@hackmty/core";
 import type { IntakeExtractor } from "../extraction";
+import { ACTOR_HEADER } from "../middleware/actor";
 import type { ApiCaller } from "./tools";
 
 /** What one image gave up, before anything was done with it. */
@@ -184,7 +185,14 @@ export async function runChatIntake(
      screenshot costing two fifths of a centavo is cheaper than that. */
   const response = await deps.api("/api/v1/instructions", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      /* Her name, on the ordinary header every write carries. The panel is a
+         second front door to the same endpoint and not a way around it, so the
+         `instruction_received` this appends names the person who dropped the
+         file, exactly as it would if she had used the QR page. */
+      [ACTOR_HEADER]: `role=${deps.actor.role}; name=${deps.actor.name}`,
+    },
     body: JSON.stringify({
       supplierRfc: attributed.rfc,
       amount: reading.amount,

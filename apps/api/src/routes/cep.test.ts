@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import { syntheticCepXml } from "@hackmty/cep";
-import type { LedgerEvent } from "@hackmty/core";
+import type { Actor, LedgerEvent } from "@hackmty/core";
 import { acceptOnlyCepSource, createCepSource } from "../cep";
 import { cepVerifyResponseSchema } from "../schemas";
-import { createTestApp, TEST_NOW } from "../test-app";
+import { createTestApp, TEST_CLERK, TEST_NOW, writeHeaders } from "../test-app";
 
 type ErrorBody = { error: { code: string; message: string } };
 
@@ -18,10 +18,17 @@ const INSTRUCTION = "ins-2026w37-07";
 /** A supplier the fixture holds with no probe and no pending payment to it. */
 const UNPROBED_SUPPLIER = "SYN040404DDD";
 
-function json(body: unknown): RequestInit {
+/**
+ * A JSON write, with the actor every write endpoint requires.
+ *
+ * The header is the default clerk unless a test names somebody else, so a test
+ * about a role says which role it is about and every other test reads as it did
+ * before the header existed.
+ */
+function json(body: unknown, actor: Actor = TEST_CLERK): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: writeHeaders(actor),
     body: JSON.stringify(body),
   };
 }
@@ -103,6 +110,12 @@ describe("POST /api/v1/cep/verify, from the registry", () => {
 
     expect(seen.map((event) => event.type)).toEqual(["cep_verified"]);
     expect(seen[0]?.at).toBe(TEST_NOW);
+    /* Whose document it is. The primary path here is a person pasting a CEP they
+       downloaded themselves, so the ledger records whose evidence it was. */
+    const event = seen[0];
+    expect(event?.type === "cep_verified" ? event.actor : undefined).toEqual(
+      TEST_CLERK,
+    );
   });
 });
 

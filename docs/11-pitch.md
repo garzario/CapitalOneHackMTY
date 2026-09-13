@@ -48,7 +48,7 @@ Refresh this table at every milestone.
 | "The retroactive sweep replays the ledger" | `sweep` in `packages/sat/src/sweep.ts`, `POST /api/v1/sat/publish`, and the 7,997 events the committed seed produces | Ticked |
 | "The verification call rings the supplier through ElevenLabs and Twilio" | `packages/voice`, `POST /api/v1/instructions/:id/verify-call`, and two real outbound calls placed on 2026-09-12, `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` | Ticked, code path and live call, with the ids in `docs/14-process.md#live-integrations-verified`. Say who was dialled: a teammate's own phone, never a supplier |
 | "This CEP is real, re-verify the clave de rastreo on your phone" | `packages/cep` reads, checks and compares a CEP; the committed fixture is synthetic | **Not ticked.** Issue #57 supplies the real one-cent CEP. Until it lands, say what the parser does and that the CEP on screen is the synthetic fixture |
-| "Precision, recall and false-positive rate, blind" | Thirty labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
+| "Precision, recall and false-positive rate, per control and per level" | Thirty-five labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` as `perDetector` and `perLevel` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
 | "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
 | "A held payment carries a deadline and a way out" | `holdWindow` in `packages/core/src/hold.ts`, on `GET /api/v1/instructions/:id` and on a recorded `verify-call`; the reason and the name on `POST /api/v1/instructions/:id/decide` | Ticked in the engine and the API. **Not on screen yet**, issue #174, so say "la API lo contesta y la pantalla lo muestra para el demo" and show it with `curl` if pushed |
 | "The run answers in pesos, not in minutes" | `runMoney` in `packages/core/src/exposure.ts`, on the `totals` of `GET /api/v1/run/current` | Ticked for the money that is stopped, released and at risk, and since #175 for the retroactive 69-B pair too: the publication re-scores the pending lines it affects, so the pair climbs in the same request instead of reading zero |
@@ -94,7 +94,8 @@ than being corrected.
 | The same run after the publication | The pair climbs to MXN 878,592.59 of base and MXN 404,152.59 of exposure, at risk climbs by exactly that exposure to MXN 1,203,362.45, and the MXN 785,289.86 that is not leaving becomes MXN 676,112.38 held over 3 lines and MXN 109,177.48 to verify over 3 | same, read again after `POST /api/v1/sat/publish`, which re-scores the pending lines the list affects (#175) |
 | What a day of delay costs | MXN 101.98 to MXN 4,611.27 across the 44 suppliers, MXN 1,120.05 on the hero line. Six of the seven lines that carry a finding are stopped; the seventh is released because waiting costs more than the risk | `Supplier.delayCostPerDay` on every decision of `GET /api/v1/run/current`, priced in `packages/seed/src/sentryone/delay-cost.ts` from moratory interest on the balance owed plus the pronto pago discount that expires |
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
-| The blind evaluation | 30 labelled cases and 21 labelled expectations over six detectors, scored as 183 counts. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval`, re-read on 2026-09-12. **Re-run it before quoting it.** Say 30 cases, never a pair count: six detectors on thirty cases looks like 180 slots, and the matrix sums to 183 because a detector that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
+| The blind evaluation | 35 labelled cases and 24 labelled expectations over six controls, scored as 213 counts. Precision 87.0 percent, recall 83.3 percent, false-positive rate 1.6 percent, and the engine chose the labelled action on 33 of the 35 | `bun run eval`, re-read on 2026-09-13. **Re-run it before quoting it.** Say 35 cases, never a pair count: six controls on thirty-five cases looks like 210 slots, and the matrix sums to 213 because a control that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
+| The evaluation per level | Of 35 lines, `confiable` 12 expected and 12 right, `precaucion` 12 and 11, `alerta` 11 and 10. Two lines read one level away from the label and both are the severity arguments already on the table | `bun run eval`, the second table. The row to defend is `confiable` at 100 percent: a line called trustworthy that was not is the mistake this product cannot make twice |
 | Tests | 1,881 tests across 100 files on 2026-09-12: 1,769 passing, 112 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge |
 | The rate of fraud on supplier transfers | Nobody publishes it. The published evidence brackets it between about **2 per million and 7 per 10,000 transfers**. Say the bracket, never a point inside it | `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`, derivations 1 and 2, formulas and inputs on the page |
 | What comes back once the money is gone | **24.3 percent**, MXN 1,265 million refunded of MXN 5,201 million claimed for fraud in the first quarter of 2026, so 75.7 percent does not | `docs/04-market.md` source [18]. This is a refund share on disputed pesos and never a loss rate. It is the number 25.4 was confused with |
@@ -215,7 +216,7 @@ them. One sentence each is enough; the evidence column is what you open when the
 | # | Control | Said out loud | Open this |
 |---|---|---|---|
 | 1 | `sat_69b` | "Cruzamos cada RFC contra la lista oficial del articulo 69-B, con todas sus versiones, y cuando hay publicacion nueva reproducimos la bitacora para poner precio a lo que ya pagamos y ya dedujimos" | `packages/engine/src/sat69b.ts`, `packages/sat/src/sweep.ts` |
-| 2 | `clabe_forensics` | "Revisamos el digito verificador con los pesos 3-7-1, el banco y la plaza, y la distancia contra las cuentas en las que si le hemos pagado a ese proveedor, con las confusiones tipicas de OCR" | `packages/core/src/clabe.ts` |
+| 2 | `clabe_forensics` | "Revisamos el digito verificador con los pesos 3-7-1, el banco, la plaza con su ciudad y su estado contra las plazas en las que si le hemos pagado y contra el lugar de expedicion de la factura, y la distancia contra las cuentas en las que si le hemos pagado a ese proveedor, con las confusiones tipicas de OCR" | `packages/core/src/clabe.ts` |
 | 3 | `duplicate_invoice` | "Mismo emisor, mismo monto, misma ventana de fechas, o el mismo folio o UUID dos veces" | `packages/core/src/duplicates.ts` |
 | 4 | `supplier_behaviour` | "Cambio de comportamiento del proveedor contra su propia historia, y si no hay muestra suficiente lo decimos en vez de inventar una senal" | `packages/core/src/behaviour.ts` |
 | 5 | `beneficiary_cep` | "Comparamos el nombre del titular en el comprobante que firma Banxico contra la razon social del CFDI que estamos pagando, y guardamos el XML firmado tal cual llego" | `packages/cep/src/name-match.ts`, `signature.ts` |
@@ -330,8 +331,8 @@ About 350 spoken words plus the demo lines, which are in `docs/10-demo-script.md
 > El mercado ya partio esta tesis en dos. ValidX y Portal de Proveedores retienen el pago sobre las
 > listas del SAT y nunca ven la cuenta. Clara y Xepelin dispersan cientos de SPEI sin verificar a
 > quien recibe. CONTPAQi tiene las dos mitades y no se cruzan en el pago. Lo nuestro es la union, en
-> una decision con evidencia. Y nuestros numeros son ciegos: quien etiqueta los casos no escribe los
-> detectores y no abre esa carpeta hasta que el codigo ya esta integrado.
+> una decision con evidencia. Y los casos etiquetados no salieron de leer los detectores: ninguno se
+> edito para que un control pasara, y los que no coinciden siguen contados en contra.
 
 If a judge names the one-cent probe here, the answer is one sentence and it is not defensive:
 Verificamex sells it metered at MXN 8.93 to 17.85 a call and Banco de Mexico writes it into Regla 51a
@@ -339,9 +340,9 @@ Bis of the SPEI rules, so it is a commodity primitive and ours is the decision h
 roster with one line per company is section 1 of `docs/12-judge-qa.md#table-feedback-of-12-september-and-the-answers`.
 
 Optional clause, only if `bun run eval` was run within the hour and the screen is open on it:
-"treinta casos etiquetados, uno punto nueve por ciento de falsos positivos, y los cuatro casos que
-no coinciden estan en la tabla con su argumento." Cut it if the number on the screen is not the
-number in your mouth.
+"treinta y cinco casos etiquetados, uno punto seis por ciento de falsos positivos, y ni una sola
+linea marcada como confiable que no lo fuera." Cut it if the number on the screen is not the number
+in your mouth.
 
 **3:25, market, model and regulation.** One sentence each, from the numbers table above. The market
 sentence is the narrowed one, and the order inside it is binding: the segment first, the national
@@ -422,35 +423,54 @@ they are looking for prototypes that only pretend to work.
 
 ## The blind evaluation
 
-The sentence: **"quien escribe los casos etiquetados no escribe los detectores, y no abre esa
-carpeta hasta que el codigo ya esta integrado."**
+The sentence: **"ningun caso se edito para que un control pasara, y los que no coinciden siguen
+contados en contra."**
 
-Why it matters, if they push: a team that writes its own test cases after writing its own detectors
-is reporting how well it remembers what it built, and every judge has seen that number before. The
+Say it that way and not the older version about who wrote what. The controls were merged before this
+set was written, and the labels come from ADR-0002 and the domain types rather than from reading the
+control source, which is weaker than the protocol first promised. `packages/seed/src/holdout/README.md`
+carries that disclosure in full and a judge who reads it and then hears a stronger claim out loud has
+found the one thing that costs more than the point it was worth.
+
+Why the rest of it matters, if they push: a team that writes its own test cases after writing its own
+detectors is reporting how well it remembers what it built, and every judge has seen that number
+before. The
 protocol is written down in `packages/seed/src/holdout/README.md`: the unit of account is a case by
 detector pair, a zero denominator reports zero and never a silent 1.00, a case is never edited to
 make a detector pass, and every case is validated twice so a malformed one throws instead of being
 skipped, because a skipped case makes recall look better than it is. The number to defend is
 `falsePositiveRate`, not `recall`: a sentinel that holds a legitimate payment twice is a sentinel
-the clerk turns off, which is why ten of the thirty cases are hard negatives that look like fraud
+the clerk turns off, which is why twelve of the thirty-five cases are hard negatives that look like fraud
 and are not, among them a legitimate bank change backed by the supplier's own payment complement, a
 new supplier ramping to a material share of the outflow, a round-number retainer, a quarterly
 invoice that repeats an amount, a thin history with no baseline to test, and a partial legal-name
 match that is fine.
 
-**What the table said at `5d4d506`**, and this is the honest version of it:
+**What the two tables said on 2026-09-13**, and this is the honest version of them:
 
 ```
-cases 30            tp 17   fp 3   fn 4   tn 159
-precision 85.0%     recall 81.0%          false positive rate 1.9%
-action agreement 28 of 30
+cases 35            tp 20   fp 3   fn 4   tn 186
+precision 87.0%     recall 83.3%          false positive rate 1.6%
+action agreement 33 of 35
+
+nivel         esperado  predicho  coincide   precision   recall
+confiable           12        12        12      100.0%   100.0%
+precaucion          12        12        11       91.7%    91.7%
+alerta              11        11        10       90.9%    90.9%
 ```
+
+The second table is the one to lead with if a judge asks how it feels rather than how it scores. It
+reads the same evaluation the way the clerk reads the screen: not "did control 2 fire" but "did this
+line come out at the level it should have". A control can be right and the payment still read
+`precaucion` when the documents say `alerta`, and no per-control number shows that. The row that
+matters is `confiable` at 100 percent both ways: nothing the product called trustworthy turned out
+not to be.
 
 Then the part worth volunteering before anyone finds it, said as one sentence:
 
 > Ninguno de los cuatro es un control que se haya quedado callado en un caso limpio. Los tres falsos
-> positivos caen en casos donde la etiqueta si esperaba a ese detector, y en los diez negativos duros no
-> disparo ninguno: eso es lo que vale del uno punto nueve por ciento. Los cuatro son desacuerdos sobre la
+> positivos caen en casos donde la etiqueta si esperaba a ese detector, y en los doce negativos duros no
+> disparo ninguno: eso es lo que vale del uno punto seis por ciento. Los cuatro son desacuerdos sobre la
 > severidad o el estado. En tres, el detector disparo con otra severidad. En el cuarto, el del sello del
 > CEP, el verificador si produce un renglon pero en info, y la regla del harness cuenta info como
 > contexto y no como alerta, asi que no satisface una etiqueta que pedia warning. Los dejamos en la tabla

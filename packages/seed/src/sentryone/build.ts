@@ -18,7 +18,7 @@ import type {
 } from "@hackmty/core";
 import { addDays, addMonths } from "../dates";
 import type { Rng } from "../rng";
-import { bankCodeOf, syntheticBankRfc } from "./clabe";
+import { bankCodeOf, ISSUE_POSTAL_CODE, syntheticBankRfc } from "./clabe";
 import { type CompanyProfile, IVA_RATE } from "./company";
 import { delayCostPerDayOf } from "./delay-cost";
 import type { SentryOneSupplierSpec } from "./suppliers";
@@ -94,6 +94,12 @@ export interface MakeCfdiOptions {
  * complement documents, so those are PPD and anything shorter is PUE. `paymentForm`
  * is SAT c_FormaPago 03, transferencia electronica de fondos: everything in this
  * company is paid by SPEI, which is the whole premise.
+ *
+ * `issuePlace` is `LugarExpedicion`, the postal code the invoice was issued from,
+ * and it is the invoice half of the plaza comparison in control 2: an account whose
+ * plaza sits in another state than the state the supplier invoices from is a
+ * question worth asking. Every supplier here invoices from Nuevo Leon, so the value
+ * is one constant and `./clabe.ts` says why.
  */
 export function makeCfdi(
   rng: Rng,
@@ -121,6 +127,7 @@ export function makeCfdi(
     total: round2(subtotal + iva),
     paymentMethod: spec.termsDays > 15 ? "PPD" : "PUE",
     paymentForm: "03",
+    issuePlace: ISSUE_POSTAL_CODE,
     synthetic: true,
   };
 }

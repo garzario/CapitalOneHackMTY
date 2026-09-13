@@ -29,6 +29,7 @@
 
 import { nameMatch } from "@hackmty/cep";
 import type {
+  Actor,
   AssistantMessage,
   Cfdi,
   ConsortiumPull,
@@ -43,7 +44,7 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { runMoney, sumAmounts } from "@hackmty/core";
+import { runLevels, runMoney, sumAmounts } from "@hackmty/core";
 import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
@@ -67,7 +68,9 @@ import {
   insertLedgerTx,
   insertPaymentComplements,
   insertSatListVersion,
+  latestCancellation,
   latestDecision,
+  latestListPublisher,
   latestRunWeek,
   listCfdis,
   listCfdisByIssuer,
@@ -105,7 +108,9 @@ import {
 } from "@hackmty/seed";
 import { assessRun } from "./assess";
 import { assistantMessagesFrom } from "./assistant/session";
+import { levelled } from "./levels";
 import type {
+  Cancellation,
   CompanyIdentity,
   ConsortiumLookup,
   IntakeRecord,
@@ -222,12 +227,17 @@ export class PostgresRepository implements Repository {
         // An instruction always has a supplier row by the time it is stored.
         continue;
       }
-      items.push({
-        instruction: row.instruction,
-        supplier: row.supplier,
-        decision: row.decision ?? null,
-        findings: row.findings,
-      });
+      /* Through `levelled`, like the memory store, so the two cannot answer a
+         different level for the same line. Neither is a column: see the note at
+         the top of `0012_assistant_and_payment_events.sql`. */
+      items.push(
+        levelled({
+          instruction: row.instruction,
+          supplier: row.supplier,
+          decision: row.decision ?? null,
+          findings: row.findings,
+        }),
+      );
     }
 
     const actions = items.map((item) => item.decision?.action);
@@ -242,6 +252,7 @@ export class PostgresRepository implements Repository {
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
         ...runMoney(items),
+        ...runLevels(items),
       },
       items,
     };
@@ -426,6 +437,14 @@ export class PostgresRepository implements Repository {
     return readVerificationEvents(this.sql, instructionId, beneficiaryAccount);
   }
 
+  async cancellation(instructionId: string): Promise<Cancellation | undefined> {
+    return latestCancellation(this.sql, instructionId);
+  }
+
+  async publisher(listVersion: string): Promise<Actor | undefined> {
+    return latestListPublisher(this.sql, listVersion);
+  }
+
   /**
    * The turns of one conversation, out of the same `assistant_message` rows the
    * memory store folds. The fold is shared with the memory path on purpose: two
@@ -477,7 +496,7 @@ export class PostgresRepository implements Repository {
   async recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
     reason?: string,
   ): Promise<Decision | undefined> {
@@ -493,7 +512,8 @@ export class PostgresRepository implements Repository {
       delayCostPerDay: current.delayCostPerDay,
       findings: current.findings,
       decidedAt,
-      decidedBy,
+      decidedBy: actor.name,
+      decidedByRole: actor.role,
     };
     if (reason !== undefined) {
       decision.reason = reason;

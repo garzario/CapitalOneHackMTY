@@ -21,17 +21,36 @@ export type Clabe = string;
  * digits inside one institution and raises `plaza_changed`, and this type is the
  * row that turns a code into words.
  *
- * `city` and `state` are filled only from a dated snapshot of the Banxico plaza
- * table, and this repository holds no such snapshot yet: the detector compares
- * codes and no screen names a city. Until one lands with its retrieval date,
- * nothing may render a plaza name, because a city invented next to a real account
- * number is the kind of claim ADR-0002 forbids outright.
+ * `city` and `state` are filled only from a dated snapshot, and that snapshot now
+ * exists: `./snapshot/plazas-2026-09-13.csv`, 786 plazas, read through
+ * `lookupPlaza` in `./plazas.ts`. Read `./snapshot/README.md` before quoting it
+ * anywhere, because its provenance is weaker than the participant table's and the
+ * code is built around that. What a plaza code is, is primary: Banco de Mexico and
+ * the ABM publish the same sentence. The catalogue itself is published by neither,
+ * and the rows come from the plaza table a SPEI participant publishes.
+ *
+ * The consequence is a rule and not a preference. A code the snapshot does not
+ * carry yields no name and no claim, the snapshot never raises a finding or
+ * changes a severity, and every sentence that names a plaza prints the three
+ * digits beside the name so the reader can check it against the committed file. A
+ * city invented next to a real account number is the kind of claim ADR-0002
+ * forbids outright, and a city asserted on a catalogue nobody can open is the same
+ * claim with extra steps.
  */
 export interface Plaza {
   /** The three digits as they appear in the CLABE, zero padded, e.g. "180". */
   code: string;
+  /** The place, cased as the catalogue publishes it: "DISTRITO FEDERAL". */
   city: string;
-  /** Two-letter state code, "NL" and never "Nuevo Leon". */
+  /**
+   * The state, abbreviated as the catalogue abbreviates it: "NL", "DF", "COA",
+   * "EDOMEX", "TAMPS". Two to six letters, and never the name spelled out.
+   *
+   * It used to say two letters. That was written before any catalogue was in
+   * hand, and the one that landed abbreviates eleven of the thirty-two states in
+   * more than two, so the contract follows the data rather than the other way
+   * round. `snapshot/README.md` lists all thirty-two with their plaza counts.
+   */
   state: string;
 }
 
@@ -113,6 +132,21 @@ export interface Cfdi {
   paymentMethod: "PUE" | "PPD";
   /** SAT c_FormaPago, for example "03" transferencia. */
   paymentForm?: string;
+  /**
+   * CFDI 4.0 `LugarExpedicion`, which the SAT defines as the postal code the
+   * invoice was issued from. Five digits, and the only geography a CFDI carries.
+   *
+   * Control 2 reads it: an account whose plaza sits in another state than the
+   * state the supplier invoices from is a question worth one sentence, and it is
+   * a question the ledger cannot ask on its own because the plaza lives in the
+   * account number and the postal code lives in the invoice. `stateOfPostalCode`
+   * in `./plazas.ts` does the mapping and answers `undefined` far more often than
+   * it answers a state, which is deliberate.
+   *
+   * Optional because a CFDI this repository did not parse may not carry it and a
+   * missing place must never become a finding.
+   */
+  issuePlace?: string;
   synthetic: boolean;
 }
 
@@ -613,6 +647,21 @@ export interface Decision {
    */
   decidedBy?: string;
   /**
+   * The role that name was acting in, from the `X-Actor` header of the request.
+   *
+   * `decidedBy` answers who and this answers in what capacity, which is the half
+   * an auditor reads first: a release over a finding is the owner's exception to
+   * approve (`decideRequirement` in `./actor.ts`), and a document that printed
+   * the name without the role would leave whoever reads it a year later unable to
+   * tell an approved exception from a clerk exceeding theirs.
+   *
+   * Absent on a decision the engine signed itself, because `SYSTEM_DECIDER` is
+   * not a person and has no role, and absent on a decision taken before the
+   * header existed. The evidence letter of issue #204 reads it next to
+   * `decidedBy`, and the constancia prints both.
+   */
+  decidedByRole?: ActorRole;
+  /**
    * Why that person chose this action, in their own words.
    *
    * Absent on the engine's own proposal, because the engine's reasoning is the
@@ -620,7 +669,9 @@ export interface Decision {
    * the urgent payment: a clerk releases something the engine held, and the
    * responsibility has a name in `decidedBy` and an argument here. Both land on
    * the `decision_made` ledger event, so a release nobody can explain later is
-   * not a thing this product allows.
+   * not a thing this product allows. Required on the two shapes
+   * `decideRequirement` calls the owner's: an exception approved with no argument
+   * is the record ADR-0002 refuses to hold.
    */
   reason?: string;
 }
@@ -955,14 +1006,45 @@ export interface PaymentReceipt {
   synthetic: boolean;
 }
 
-/** Append-only ledger event. The retroactive sweep is a replay over these. */
+/**
+ * Append-only ledger event. The retroactive sweep is a replay over these.
+ *
+ * Every row a person caused carries them: `actor` on the eight variants that have
+ * it (`instruction_received`, `payment_sent`, `payment_cancelled`,
+ * `intake_image`, `sat_list_published`, `cent_sent`, `cep_verified` and
+ * `verification_call`), `Decision.decidedBy` plus `decidedByRole` on
+ * `decision_made`, and `AssistantMessage.actor` on a turn somebody typed. The API
+ * requires the `X-Actor` header on every write precisely so that this type can
+ * answer "who" without a join.
+ *
+ * Three variants deliberately carry nobody, and the absence is the statement.
+ * `payment_settled` and `payment_failed` are the rail answering, not a person
+ * acting, and `cep_awaited` is a wait. Naming the clerk on them would read as a
+ * second action she never took, and the event above each of them already carries
+ * the name and the clave de rastreo these follow. `cfdi_received` and
+ * `complement_received` are documents arriving from the SAT side of the world,
+ * which nobody in this company signs either.
+ *
+ * The fields are optional because the generator writes most of these variants
+ * for the seeded company, where no person typed anything, and because the ledger
+ * predates the header. An event a request created always has one.
+ */
 export type LedgerEvent =
   | { type: "cfdi_received"; at: string; cfdi: Cfdi }
   | { type: "complement_received"; at: string; complement: PaymentComplement }
   | {
+      /**
+       * A payment instruction reached the product.
+       *
+       * `actor` is whoever posted it, from the `X-Actor` header the intake route
+       * requires, and it is optional only because the generator writes this event
+       * for the seeded company, where no person typed anything. Every instruction
+       * a request created carries one.
+       */
       type: "instruction_received";
       at: string;
       instruction: PaymentInstruction;
+      actor?: Actor;
     }
   | {
       /**
@@ -1066,10 +1148,19 @@ export type LedgerEvent =
       instructionId?: string;
     }
   | {
+      /**
+       * A version of a SAT list was loaded into this instance.
+       *
+       * `actor` is who posted it, which the sweep constancia prints: a document
+       * that prices eight months of deductions against a list has to say who put
+       * that list in front of it. Optional for the same reason
+       * `instruction_received` is, the generator writes this event too.
+       */
       type: "sat_list_published";
       at: string;
       listVersion: string;
       entries: SatListEntry[];
+      actor?: Actor;
     }
   | {
       /**
@@ -1096,6 +1187,8 @@ export type LedgerEvent =
        * that settled, and this is the flag that makes that impossible.
        */
       simulated: boolean;
+      /** Who pressed the button. The probe costs a centavo of somebody's money. */
+      actor?: Actor;
     }
   | {
       /**
@@ -1117,7 +1210,22 @@ export type LedgerEvent =
       /** Why nothing was found, in one sentence a clerk can act on. */
       reason: string;
     }
-  | { type: "cep_verified"; at: string; cep: Cep; supplierRfc: Rfc }
+  | {
+      /**
+       * A CEP was accepted as evidence about who holds an account.
+       *
+       * `actor` is who handed it over, which matters more here than on most of
+       * these rows: the primary path is a person pasting a document they
+       * downloaded, so the ledger records whose download it was. Absent when the
+       * one-cent pipeline resolved the CEP itself, where the `cent_sent` above it
+       * already carries the name.
+       */
+      type: "cep_verified";
+      at: string;
+      cep: Cep;
+      supplierRfc: Rfc;
+      actor?: Actor;
+    }
   | {
       /**
        * A verification call was placed to the supplier and it ended. The event
@@ -1150,6 +1258,16 @@ export type LedgerEvent =
        * the demo leans on when there is no telephony on site.
        */
       recordedBy?: string;
+      /**
+       * Who made the request, from the `X-Actor` header.
+       *
+       * It carries the role `recordedBy` cannot, and it is present on an agent
+       * call too, where `recordedBy` is absent: somebody still chose to ring a
+       * supplier about a payment. The two agree by the time they are stored,
+       * because the route refuses a `recordedBy` that is not the name on the
+       * header.
+       */
+      actor?: Actor;
     }
   | { type: "decision_made"; at: string; decision: Decision };
 
@@ -1163,4 +1281,33 @@ export interface Metrics {
   recall: number;
   falsePositiveRate: number;
   perDetector: Record<Detector, { tp: number; fp: number; fn: number }>;
+  /**
+   * The same evaluation read the way a clerk reads the screen: not "did control
+   * 2 fire" but "did this payment come out `alerta` when it should have".
+   *
+   * A control can be right and the line still wrong. Two `warning` findings and
+   * one missed `critical` is a good per-control row and a payment that reads
+   * `precaucion` when it should read `alerta`, which is the failure the clerk
+   * actually experiences. Per level is the only view that catches it, and it is
+   * the number to defend on `confiable`: a line the product called trustworthy
+   * and that was not is the one mistake this product cannot make twice.
+   *
+   * One case contributes to exactly one expected level and one predicted level,
+   * so the three cells sum to `cases` down each axis. Precision on a level is
+   * "of the lines we called this, how many were", recall is "of the lines that
+   * were, how many we called".
+   */
+  perLevel: Record<
+    Confidence,
+    {
+      /** Cases whose expected level is this one. */
+      expected: number;
+      /** Cases the engine put at this level. */
+      predicted: number;
+      /** Cases where both agree. */
+      agreed: number;
+      precision: number;
+      recall: number;
+    }
+  >;
 }

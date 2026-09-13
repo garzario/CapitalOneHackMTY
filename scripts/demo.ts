@@ -1,11 +1,12 @@
 /**
  * bun run demo
  *
- * Drives the five beats of `docs/10-demo-script.md` headless, plus two that are
+ * Drives the five beats of `docs/10-demo-script.md` headless, plus three that are
  * gates rather than stage beats: the one-cent verification travelling through a
- * rail, and the consortium network reaching a decision offline, which is what beat
- * 3 says the second chip on the screen is. It asserts the invariants each one
- * rests on. This is the command that runs before every rehearsal and before every
+ * rail, the consortium network reaching a decision offline, which is what beat 3
+ * says the second chip on the screen is, and the level and the state of every line
+ * with the evidence letter of the one a definitive listing cancelled. It asserts
+ * the invariants each one rests on. This is the command that runs before every rehearsal and before every
  * judge visit: if it is red, the demo is broken, whatever the screen says.
  *
  * By default it builds a freshly seeded API in memory, with no socket, no
@@ -61,6 +62,7 @@ import {
   assessNetwork,
   formatAmount,
   networkLabel,
+  plazaLabel,
   subtractAmounts,
   sumAmounts,
 } from "../packages/core/src/index.ts";
@@ -188,10 +190,24 @@ function remoteApi(base: string): Api {
   };
 }
 
+/**
+ * Who is driving the demo.
+ *
+ * Every write endpoint requires an `X-Actor` and answers 400 naming the header
+ * without one, so the beat sheet carries the persona of `docs/02-persona.md`. She
+ * is a clerk, which is the point: nothing on this path is the owner's exception,
+ * and a demo that had to be the owner to run would be saying the opposite of what
+ * `docs/02-persona.md` says about this company.
+ */
+const DEMO_ACTOR = "role=clerk; name=Lupita Elizondo";
+
 function post(body: unknown): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-actor": DEMO_ACTOR,
+    },
     body: JSON.stringify(body),
   };
 }
@@ -522,6 +538,32 @@ async function beatClabeForensics(api: Api, say: Say): Promise<void> {
     intake.decision.action !== "release",
     "the intake released a payment to an account that changed by two digits",
   );
+  /* One of the two digits is the plaza, which is the half of this case a clerk can
+     act on without counting digits: the account was opened somewhere else. Issue
+     #203 asks for the hero line to carry it and for both places to be named, so it
+     is asserted here rather than only in a unit test. */
+  need(
+    String(fresh.evidence.signals).includes("plaza_changed"),
+    `the hero finding carries no plaza_changed: ${String(fresh.evidence.signals)}`,
+  );
+  need(
+    typeof fresh.evidence.plazaCity === "string" &&
+      typeof fresh.evidence.previousPlazaPlaces === "string",
+    "the plaza finding does not name both places",
+  );
+  /* The invoice half is asserted on the SEEDED line and not on the posted one, and
+     the difference is the contract rather than an oversight: an instruction posted
+     from the QR page names no CFDI, so there is no LugarExpedicion to compare and
+     `detectClabe` makes no geographic claim at all. The seeded line settles four
+     invoices, all issued in Nuevo Leon, so it carries both comparisons. */
+  const seeded = stored.findings.find(
+    (finding) => finding.detector === "clabe_forensics",
+  );
+  need(
+    seeded !== undefined &&
+      String(seeded.evidence.signals).includes("plaza_off_invoice"),
+    "the seeded hero line does not contradict the LugarExpedicion of its invoices",
+  );
 
   say(`seeded line ${hero.clabeInstructionId}: ${stored.action}`);
   say(
@@ -532,6 +574,12 @@ async function beatClabeForensics(api: Api, say: Say): Promise<void> {
   );
   say(
     `  check digit ${String(fresh.evidence.checkDigit)}, so this is a changed account and not a typo`,
+  );
+  say(
+    `  plaza ${String(fresh.evidence.previousPlazaPlaces)} in the history and ${plazaLabel(String(fresh.evidence.plazaCode))} on this one, so one of the two digits moved the account to another state`,
+  );
+  say(
+    `  on the seeded line the invoices are issued in ${String(seeded?.evidence.invoicePostalCode)} (${String(seeded?.evidence.invoiceState)}), which contradicts that plaza; the line posted here names no invoice, so no geographic claim is made about it`,
   );
 }
 
@@ -650,6 +698,166 @@ async function beatSweep(api: Api, say: Say): Promise<void> {
      before this beat and the stage does not: the run-level pair and this climb are
      the same on both paths, the absolute at-risk total is not. */
   say(`  pesos at risk climbed by ${formatAmount(climb)} MXN on the same run`);
+}
+
+/**
+ * Beat 8. The level and the state of every line, and the letter of the one the
+ * list cancelled.
+ *
+ * This is the vocabulary of the whole product on one screen, and it is the beat
+ * that proves three things a judge asks about in the same breath.
+ *
+ * The run answers three words and never a number, which is ADR-0009 and the reason
+ * `estimateLoss` keeps its arithmetic inside the engine. The level and the state
+ * travel per line and are summarised on the run, and the two triples add up to the
+ * lines, so a screen cannot round a line away. And the supplier the publication of
+ * beat 3 made definitive reads `cancelado` rather than `rojo`, with a one-page
+ * letter naming the article, because comprobantes with no fiscal effect are not a
+ * hold somebody waits out.
+ *
+ * It runs after beat 3 on purpose: before the publication that supplier is
+ * presunto, which is a hold a person can answer, and the difference between the two
+ * is the point.
+ */
+async function beatLevels(api: Api, say: Say): Promise<void> {
+  need(hero !== undefined, "beat 1 did not run, so there are no hero lines");
+
+  const run = paymentRunSchema.parse(await json(api, "/api/v1/run/current"));
+  const { totals } = run;
+
+  need(
+    run.items.every(
+      (item) => LEVELS.includes(item.confidence) && STATES.includes(item.state),
+    ),
+    "a line answered a level or a state outside the ones ADR-0009 allows",
+  );
+  need(
+    totals.confiable + totals.precaucion + totals.alerta ===
+      totals.instructions,
+    "the three levels do not add up to the lines of the run",
+  );
+  need(
+    totals.rojo +
+      totals.cancelado +
+      totals.enviado +
+      totals.pendiente +
+      totals.liberado ===
+      totals.instructions,
+    "the five states do not add up to the lines of the run",
+  );
+
+  const listed = run.items.filter(
+    (item) => item.instruction.supplierRfc === hero.listedSupplierRfc,
+  );
+  need(
+    listed.length > 0,
+    `no line of the run pays ${hero.listedSupplierRfc}, so beat 3 had nothing to cancel`,
+  );
+  need(
+    listed.every(
+      (item) => item.state === "cancelado" && item.confidence === "alerta",
+    ),
+    "the definitively listed supplier's lines are not cancelado at alerta",
+  );
+
+  say(
+    `${totals.instructions} lines: ${totals.alerta} alerta, ${totals.precaucion} precaucion, ${totals.confiable} confiable`,
+  );
+  say(
+    `  states: ${totals.rojo} rojo, ${totals.cancelado} cancelado, ${totals.enviado} enviado, ${totals.pendiente} pendiente, ${totals.liberado} liberado`,
+  );
+
+  /* The hero lines, one row each, which is what the rehearsal reads out loud. The
+     cancelled one is in the list because it is the row this beat exists for: three
+     different state rules on three lines of one run. */
+  const rows = [
+    ...heroLineIds(hero),
+    ...listed.map((item) => item.instruction.id),
+  ];
+  for (const id of [...new Set(rows)]) {
+    const item = run.items.find((row) => row.instruction.id === id);
+    if (item === undefined) {
+      continue;
+    }
+    say(
+      `  ${item.instruction.id} ${item.confidence.padEnd(10)} ${item.state.padEnd(10)} ` +
+        `${formatAmount(item.instruction.amount).padStart(12)} MXN  ${item.confidenceRule} / ${item.stateRule}`,
+    );
+  }
+
+  /* And the letter of the cancelled line, which is the page the clerk sends the
+     supplier. One page, a real PDF, and it names the article rather than saying
+     the payment is held for reasons. */
+  const cancelled = listed[0];
+  if (cancelled === undefined) {
+    throw new Error("unreachable: the listed array was checked above");
+  }
+  const letter = await api.request(
+    `/api/v1/instructions/${cancelled.instruction.id}/carta`,
+  );
+  need(letter.status === 200, `the evidence letter answered ${letter.status}`);
+  need(
+    letter.headers.get("content-type") === "application/pdf",
+    "the evidence letter is not a PDF",
+  );
+  const page = latin1(await letter.arrayBuffer());
+  need(
+    page.includes("/Type /Pages /Count 1"),
+    "the evidence letter spilled onto a second page",
+  );
+  need(
+    page.includes("articulo 69-B"),
+    "the evidence letter does not name the article that cancelled the line",
+  );
+  need(
+    !page.includes("Tj") || !drawnText(page).toLowerCase().includes("seguro"),
+    "the evidence letter used the one word this product may not say",
+  );
+
+  say(
+    `  carta of ${cancelled.instruction.id}: one page, ${page.length} bytes, names articulo 69-B`,
+  );
+}
+
+const LEVELS: readonly string[] = ["confiable", "precaucion", "alerta"];
+const STATES: readonly string[] = [
+  "rojo",
+  "cancelado",
+  "enviado",
+  "pendiente",
+  "liberado",
+];
+
+/**
+ * The lines the rehearsal reads out loud, in the order the script names them.
+ *
+ * Deduplicated by the caller rather than here, because which of these three is the
+ * same line depends on the seed: on seed 69 the CLABE line and the releasable one
+ * are the same payment, and on another seed they are not.
+ */
+function heroLineIds(current: Hero): readonly string[] {
+  return [
+    current.clabeInstructionId,
+    current.verifyRelease.instructionId,
+    current.verifyBlock.instructionId,
+  ];
+}
+
+/**
+ * The bytes as latin1, one code unit per byte, which is what a PDF content stream
+ * is by the file format. Decoding it as UTF-8 would mangle the Spanish copy.
+ */
+function latin1(bytes: ArrayBuffer): string {
+  let out = "";
+  for (const byte of new Uint8Array(bytes)) {
+    out += String.fromCharCode(byte);
+  }
+  return out;
+}
+
+/** Only what the page draws, with the PDF scaffolding dropped. */
+function drawnText(page: string): string {
+  return [...page.matchAll(/\((.*?)\) Tj/g)].map((match) => match[1]).join(" ");
 }
 
 /**
@@ -812,7 +1020,7 @@ async function beatVerification(api: Api, say: Say): Promise<void> {
 async function verify(api: Api, line: VerifyLine) {
   const response = await api.request(
     `/api/v1/instructions/${encodeURIComponent(line.instructionId)}/verify-account`,
-    { method: "POST" },
+    { method: "POST", headers: { "x-actor": DEMO_ACTOR } },
   );
   need(
     response.status === 202,
@@ -1212,6 +1420,12 @@ await beat("6. the metrics endpoint answers", (say) => beatMetrics(api, say));
 await beat(
   "7. the consortium network reaches the decision, offline",
   beatNetwork,
+);
+/* Last, because it reads the run after beat 3's publication: the level and the
+   state of every line, and the letter of the line that list cancelled. */
+await beat(
+  "8. every line carries a level and a state, and the letter prints",
+  (say) => beatLevels(api, say),
 );
 
 for (const result of results) {

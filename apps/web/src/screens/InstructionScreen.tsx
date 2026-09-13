@@ -7,6 +7,7 @@
  */
 
 import type { Action } from "@hackmty/core";
+import { AnimatePresence } from "motion/react";
 import { useCallback, useState } from "react";
 import { ActionBar } from "../components/Decision";
 import { FindingPanel } from "../components/Findings";
@@ -24,6 +25,7 @@ import {
   SourceNotice,
 } from "../components/States";
 import { SupplierDrawer } from "../components/SupplierDrawer";
+import { currentActor } from "../lib/actor";
 import { decideInstruction, getInstruction } from "../lib/api";
 import {
   formatClabe,
@@ -34,7 +36,7 @@ import {
 import { ACTION_HELP, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockInstruction } from "../lib/mock";
 import { useResource } from "../lib/resource";
-import { Link, PATHS, verifyAccountPath } from "../lib/router";
+import { Link, PATHS, verifyAccountPath, verifyCallPath } from "../lib/router";
 
 export function InstructionScreen({ id }: { id: string }) {
   const load = useCallback(
@@ -63,7 +65,10 @@ export function InstructionScreen({ id }: { id: string }) {
             ...resource.data.decision,
             action,
             decidedAt: new Date().toISOString(),
-            decidedBy: "clerk@demo",
+            /* The offline path records the same two fields the API records, or
+               the mock would show a decision the API could not produce. */
+            decidedBy: currentActor().name,
+            decidedByRole: currentActor().role,
           },
         });
         setWriteError(
@@ -76,7 +81,7 @@ export function InstructionScreen({ id }: { id: string }) {
 
       const result = await decideInstruction(id, {
         action,
-        decidedBy: "clerk@demo",
+        decidedBy: currentActor().name,
       });
 
       setPending(null);
@@ -149,6 +154,21 @@ export function InstructionScreen({ id }: { id: string }) {
                 <p className="subtle t-xs">
                   {ACTION_HELP[resource.data.decision.action]}
                 </p>
+
+                {/* The call is a step in this decision, not a section of the
+                    app, so it is offered here and only when the decision asks
+                    for it. It left the rail for the same reason. */}
+                {resource.data.decision.action === "verify" ? (
+                  <>
+                    <Link to={verifyCallPath(id)} className="btn">
+                      Llamar para verificar
+                    </Link>
+                    <p className="subtle t-xs">
+                      El guion lleva los ultimos cuatro digitos de la cuenta,
+                      nunca la CLABE completa.
+                    </p>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -252,17 +272,24 @@ export function InstructionScreen({ id }: { id: string }) {
                   key={finding.id}
                   finding={finding}
                   proposedClabe={resource.data.instruction.clabe}
+                  instructionId={resource.data.instruction.id}
+                  supplierRfc={resource.data.supplier.rfc}
                 />
               ))
             )}
           </section>
 
-          {drawerOpen ? (
-            <SupplierDrawer
-              rfc={resource.data.supplier.rfc}
-              onClose={() => setDrawerOpen(false)}
-            />
-          ) : null}
+          {/* Mounted through AnimatePresence so the drawer leaves the way it
+              arrived. The condition stays inside it: a closed drawer is still
+              absent from the tree. */}
+          <AnimatePresence>
+            {drawerOpen ? (
+              <SupplierDrawer
+                rfc={resource.data.supplier.rfc}
+                onClose={() => setDrawerOpen(false)}
+              />
+            ) : null}
+          </AnimatePresence>
         </>
       ) : null}
     </>

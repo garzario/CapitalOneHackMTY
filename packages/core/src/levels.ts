@@ -393,3 +393,192 @@ function signalsOf(finding: Finding): string[] {
     .map((signal) => signal.trim())
     .filter((signal) => signal !== "");
 }
+
+/* -------------------------------------------------------------------------- */
+/* One line of a run, and the run itself                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The critical finding control 5 writes when the CEP contradicts the documents.
+ *
+ * It exists so a caller holding a run payload and no folded `VerificationState`
+ * still reads the state ADR-0009 row 3 describes. A `beneficiary_cep` finding is
+ * only ever written by `beneficiaryCepAdapter` with a Banxico document in hand,
+ * and `foldVerification` in `apps/api` reaches `blocked` off exactly this finding,
+ * so reading it off the line is the same statement rather than a second rule: the
+ * run screen and the instruction panel cannot disagree about a payment whose CEP
+ * named somebody else.
+ *
+ * Read off the findings and not off `decidedBy`, because a clerk who then holds
+ * the line replaces the engine's signature and the CEP still says what it said.
+ * Findings are added and never removed, which is what makes that safe.
+ */
+export function blockedByCep(findings: readonly Finding[]): boolean {
+  return findings.some(
+    (finding) =>
+      finding.detector === "beneficiary_cep" && finding.severity === "critical",
+  );
+}
+
+/**
+ * One line of a payment run, as little of it as the two derivations read.
+ *
+ * Structural on purpose, like `RunLine` in `./exposure.ts`: the run payload is
+ * assembled in `apps/api` and in `packages/db`, and neither type belongs in a
+ * package with no dependencies.
+ *
+ * `findings` is the line's own index and not `decision.findings`. They are the
+ * same set on a fresh decision and the index is the wider one afterwards, because
+ * `recordEngineDecision` unions findings into it and never removes one, so the
+ * rule that reads a definitive listing reads every row the clerk was shown.
+ */
+export interface LevelLine {
+  findings: readonly Finding[];
+  /** Absent or null while nothing has decided this line yet. */
+  decision?: DecisionStateInput | null;
+  /** The folded verification, when the caller holds one. See `blockedByCep`. */
+  verification?: VerificationStateInput | null;
+  /** The payment line, when this run has been executed. */
+  execution?: ExecutionStateInput | null;
+}
+
+/** The level and the state of one line, each with the rule that produced it. */
+export interface LineAssessment {
+  confidence: ConfidenceAssessment;
+  state: TransactionStateAssessment;
+}
+
+/**
+ * The level and the state of one line, in one call.
+ *
+ * This is what a run payload, an instruction panel and a document all read, and
+ * it is one function so the three cannot answer differently for one payment. It
+ * decides nothing: both halves are the pure rules of ADR-0009 over evidence that
+ * already exists.
+ *
+ * Two things it does that a bare `confidenceOf` plus `transactionStateOf` pair
+ * would leave to every caller, which is how issue #125 happened the first time.
+ * The decision handed to the state rules carries the line's own findings, so a
+ * definitive listing cancels whatever the stored decision remembers weighing. And
+ * a caller with no folded verification still gets the blocked one the line already
+ * proves, through `blockedByCep`.
+ */
+export function assessLine(line: LevelLine): LineAssessment {
+  const decision: DecisionStateInput | undefined =
+    line.decision === undefined || line.decision === null
+      ? undefined
+      : { ...line.decision, findings: line.findings };
+  const verification =
+    line.verification ??
+    (blockedByCep(line.findings) ? BLOCKED_VERIFICATION : undefined);
+
+  return {
+    confidence: assessConfidence(line.findings, decision),
+    state: assessTransactionState(decision, verification, line.execution),
+  };
+}
+
+const BLOCKED_VERIFICATION: VerificationStateInput = { state: "blocked" };
+
+/**
+ * A payment run counted by level and by state.
+ *
+ * Counts and never an average, for the reason `runMoney` gives for never summing
+ * an amount at risk inside a line: the mean of three words is not a word, and a
+ * run that reported `precaucion` as a whole would be hiding the one `alerta` line
+ * that is the reason the clerk opened the screen.
+ *
+ * The three level counts add up to the number of lines, and so do the five state
+ * counts, because every line has exactly one of each.
+ */
+export interface RunLevels {
+  confiable: number;
+  precaucion: number;
+  alerta: number;
+  rojo: number;
+  cancelado: number;
+  enviado: number;
+  pendiente: number;
+  liberado: number;
+}
+
+/** The run summarised by level and by state. See `RunLevels`. */
+export function runLevels(lines: readonly LevelLine[]): RunLevels {
+  const totals: RunLevels = {
+    confiable: 0,
+    precaucion: 0,
+    alerta: 0,
+    rojo: 0,
+    cancelado: 0,
+    enviado: 0,
+    pendiente: 0,
+    liberado: 0,
+  };
+
+  for (const line of lines) {
+    const { confidence, state } = assessLine(line);
+    totals[confidence.level] += 1;
+    totals[state.state] += 1;
+  }
+
+  return totals;
+}
+
+/* -------------------------------------------------------------------------- */
+/* What a definitive listing cancels a line with                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The sentence a definitive SAT listing cancels a payment with, or undefined when
+ * nothing on the line says the supplier is definitively listed.
+ *
+ * It exists because the cancellation is an event on the ledger and an event with
+ * no sentence against it is a line nobody can answer for. `payment_cancelled`
+ * requires a `reason` for that reason, and this is the one place it is written, so
+ * the letter, the timeline and a replay a year later read the same words.
+ *
+ * It names the article, which is the acceptance criterion of issue #204: article
+ * 49 Bis is one published resolution that is already final, and article 69-B
+ * `definitivo` voids the fiscal effect of the comprobantes retroactively. Neither
+ * is a hold somebody can wait out, which is why the line is cancelled and not
+ * stopped, and both are reopened the same way: a named owner with a written
+ * reason, never the product on its own.
+ */
+export function definitiveListingReason(
+  findings: readonly Finding[],
+): string | undefined {
+  const listing = findings.find(isDefinitiveSatListing);
+  if (listing === undefined) {
+    return undefined;
+  }
+
+  const rfc = textOf(listing.evidence.rfc) ?? listing.subject.id;
+  const publishedAt = textOf(listing.evidence.publishedAt);
+  const published =
+    publishedAt === undefined ? "" : `, publicada el ${publishedAt}`;
+
+  if (listing.evidence.article === SAT_49BIS_ARTICLE) {
+    const oficio = textOf(listing.evidence.oficio);
+    return (
+      `El proveedor ${rfc} esta en una resolucion definitiva del articulo ${SAT_49BIS_ARTICLE}` +
+      `${published}${oficio === undefined ? "" : `, oficio ${oficio}`}. ` +
+      `${CANCELLED_TAIL}`
+    );
+  }
+
+  const listVersion = textOf(listing.evidence.listVersion);
+  const version = listVersion === undefined ? "" : `, version ${listVersion}`;
+  return (
+    `El proveedor ${rfc} esta como definitivo en la lista del articulo 69-B${version}${published}. ` +
+    `Sus comprobantes no tienen efecto fiscal. ${CANCELLED_TAIL}`
+  );
+}
+
+const CANCELLED_TAIL =
+  "La linea queda cancelada y no sale en esta corrida. Solo el propietario puede reabrirla, " +
+  "con su nombre y un motivo escrito.";
+
+/** An evidence value read as prose, or undefined when it is not prose. */
+function textOf(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}

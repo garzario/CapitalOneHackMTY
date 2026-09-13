@@ -10,7 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Action, Finding } from "@hackmty/core";
 import type { PaymentRun, PaymentRunItem } from "./contract";
-import { orderItems, runVerdict } from "./run-view";
+import { countsFor, matchesFilter, orderItems, runVerdict } from "./run-view";
 
 let seq = 0;
 
@@ -85,6 +85,14 @@ function run(items: PaymentRunItem[]): PaymentRun {
       amountAtRisk: 999,
       retroactive69bBase: 999,
       retroactive69bExposure: 999,
+      confiable: 999,
+      precaucion: 999,
+      alerta: 999,
+      rojo: 999,
+      cancelado: 999,
+      enviado: 999,
+      pendiente: 999,
+      liberado: 999,
     },
     items,
   };
@@ -169,6 +177,42 @@ describe("runVerdict", () => {
     expect(verdict.releasedAmount).toBe(100_000);
   });
 
+  test("splits the stopped figure into held and to verify", () => {
+    /* The bar under the figure paints these two next to the released amount,
+       so a split that does not add back up to `stoppedAmount` would draw a
+       bar that contradicts the number above it. */
+    const verdict = runVerdict(
+      run([
+        item("h", "hold", 500_000),
+        item("v", "verify", 231_910.5),
+        item("r", "release", 100_000),
+      ]),
+    );
+
+    expect(verdict.heldAmount).toBe(500_000);
+    expect(verdict.toVerifyAmount).toBe(231_910.5);
+    expect(verdict.heldAmount + verdict.toVerifyAmount).toBe(
+      verdict.stoppedAmount,
+    );
+  });
+
+  test("leaves the verify half at zero when nothing is awaiting a call", () => {
+    /* A run of holds alone must not leave an amber segment in the bar, and
+       the empty segment is the one that is easy to leave behind when the
+       amounts are accumulated in the same loop. */
+    const verdict = runVerdict(
+      run([
+        item("a", "hold", 40),
+        item("b", "hold", 2),
+        item("c", "release", 9),
+      ]),
+    );
+
+    expect(verdict.toVerifyAmount).toBe(0);
+    expect(verdict.heldAmount).toBe(42);
+    expect(verdict.stoppedAmount).toBe(42);
+  });
+
   test("reads the items and never the totals", () => {
     /* The bug this pins: offline, pressing Retener rewrites one item and
        leaves `run.totals` untouched. A headline computed from the totals then
@@ -219,5 +263,58 @@ describe("runVerdict", () => {
     expect(verdict.totalAmount).toBe(0);
     expect(verdict.stoppedCount).toBe(0);
     expect(verdict.worst).toBeNull();
+  });
+});
+
+/**
+ * The filter decides what the table shows before anything else does, and it has
+ * one failure mode that would be invisible on the demo run and wrong on a real
+ * one: disagreeing with `runVerdict` about what "not leaving" means. Both read
+ * the same NOT_LEAVING list, and these tests are what keeps a third definition
+ * from being written next to a fourth.
+ */
+describe("the run filter", () => {
+  const items = [
+    item("a", "hold", 100),
+    item("b", "verify", 200),
+    item("c", "release", 300),
+    item("d", "release", 400),
+  ];
+
+  test("stopped is hold and verify, not just hold", () => {
+    const kept = items.filter((i) => matchesFilter(i, "stopped"));
+
+    expect(kept.map((i) => i.instruction.id)).toEqual(["a", "b"]);
+  });
+
+  test("released is the exact complement of stopped", () => {
+    const kept = items.filter((i) => matchesFilter(i, "released"));
+
+    expect(kept.map((i) => i.instruction.id)).toEqual(["c", "d"]);
+  });
+
+  test("all keeps everything", () => {
+    expect(items.filter((i) => matchesFilter(i, "all"))).toHaveLength(4);
+  });
+
+  test("the three buckets never drop or double-count a row", () => {
+    const counts = countsFor(items);
+
+    expect(counts).toEqual({ stopped: 2, released: 2, all: 4 });
+    expect(counts.stopped + counts.released).toBe(counts.all);
+  });
+
+  test("the counts agree with the headline the card prints", () => {
+    /* The card says "7 de 92" from runVerdict and the filter says "No salen 7"
+       from countsFor. Two numbers on one screen that are supposed to be the
+       same number is exactly the kind of thing that drifts. */
+    const verdict = runVerdict(run(items));
+
+    expect(countsFor(items).stopped).toBe(verdict.stoppedCount);
+    expect(countsFor(items).released).toBe(verdict.releasedCount);
+  });
+
+  test("an empty run has three empty buckets", () => {
+    expect(countsFor([])).toEqual({ stopped: 0, released: 0, all: 0 });
   });
 });

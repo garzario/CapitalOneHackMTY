@@ -8,6 +8,7 @@ import { type ApiDeps, createDeps } from "./deps";
 import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
 import { requestId } from "./middleware/request-id";
 import { beneficiaryRoutes } from "./routes/beneficiaries";
+import { cartaRoutes } from "./routes/carta";
 import { cepRoutes } from "./routes/cep";
 import { consortiumRoutes } from "./routes/consortium";
 import { constanciaRoutes } from "./routes/constancia";
@@ -77,6 +78,11 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   /* And a third, for the same reason: the one-cent verification is the rail, the
      CEP and the engine in one pipeline, and it stays one file. */
   v1.route("/instructions", verifyAccountRoutes(deps));
+  /* And a fourth. The evidence letter is the only PDF under this base path and it
+     gathers seven signals to print one page, which is a different job from intake
+     and from the human decision. Keeping it apart is one revert rather than a diff
+     inside a handler somebody is demoing. */
+  v1.route("/instructions", cartaRoutes(deps));
   v1.route("/suppliers", supplierRoutes(deps));
   v1.route("/sat", satRoutes(deps));
   v1.route("/cep", cepRoutes(deps));

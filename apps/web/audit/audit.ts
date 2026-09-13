@@ -42,13 +42,17 @@ const DETAIL_PATH = `/instructions/${HERO_INSTRUCTION_IDS[0] ?? ""}`;
 /** The widths issue #96 names: a small phone, a tablet, a laptop, a projector. */
 const WIDTHS = [390, 768, 1440, 1920];
 
+/* Hash paths. The app is a hash router: a bare `/sat` serves index.html, the
+   app finds an empty hash and redirects to the run, and the audit measures
+   the payment run six times while reporting six screens. `brand/shoot.ts`
+   carries the fragment for the same reason. */
 const ROUTES = [
-  { path: "/run", name: "payment run" },
-  { path: DETAIL_PATH, name: "instruction detail" },
-  { path: "/intake", name: "QR intake" },
-  { path: "/sat", name: "Article 69-B" },
-  { path: "/cep", name: "CEP viewer" },
-  { path: "/metrics", name: "metrics" },
+  { path: "#/run", name: "payment run" },
+  { path: `#${DETAIL_PATH}`, name: "instruction detail" },
+  { path: "#/intake", name: "QR intake" },
+  { path: "#/sat", name: "Article 69-B" },
+  { path: "#/cep", name: "CEP viewer" },
+  { path: "#/metrics", name: "metrics" },
 ];
 
 const SCHEMES = ["light", "dark"] as const;
@@ -360,7 +364,47 @@ const CONTRAST_PROBE = `(() => {
     ["--c-verify-ink", "--c-surface", 4.5, "verify figure as text"],
     ["--c-release-ink", "--c-surface", 4.5, "release figure as text"],
     ["--c-watermark-ink", "--c-surface", 4.5, "the synthetic watermark"],
+    // The marked row on the 69-B sweep: the supplier an evidence link arrived
+    // at, tinted so it is found without reading the list. Its subtle ink is
+    // lifted to muted by primitives.css, which is why muted is what is
+    // measured here.
+    ["--c-ink", "--c-accent-soft", 4.5, "the marked sweep row on its tint"],
+    ["--c-ink-muted", "--c-accent-soft", 4.5, "the RFC on the marked sweep row"],
     ["--c-border-strong", "--c-surface", 3, "a strong border"],
+    // The pill button's boundary is the hairline and not the strong border.
+    // WCAG 1.4.11 asks 3.0 of the boundary of an input, where the box is the
+    // only thing saying the control exists; a secondary button whose own word
+    // carries the affordance is not that case. Recorded at 1.0 so the number
+    // is on the report rather than in an argument, and so the day somebody
+    // puts this border on an input the pair is already here to be raised.
+    ["--c-border", "--c-canvas", 1, "the pill button's boundary, and the bar of a control with no hits"],
+    // The well: the ground every block on the run stands on, and the third
+    // surface in the app after the page and the panel. All three inks are worn
+    // on it -- a label, a caption and a count in the same cell.
+    ["--c-ink", "--c-well", 4.5, "text on a well"],
+    ["--c-ink-muted", "--c-well", 4.5, "a well's label"],
+    ["--c-ink-subtle", "--c-well", 4.5, "a well's caption and glyph"],
+    // The one dark card, which carries its own two inks the way the rail does.
+    // Nothing else in the app is set on this ground.
+    ["--c-card-dark-ink", "--c-card-dark", 4.5, "the figure on the dark card"],
+    ["--c-card-dark-ink-muted", "--c-card-dark", 4.5, "the sentence and the link under it"],
+    // The line around a well is a boundary between two surfaces and never the
+    // edge of a control, so WCAG 1.4.11 does not reach it -- the same argument
+    // as the pill button's border below. Recorded at 1.0 so the number is on
+    // the report instead of in an argument.
+    ["--c-well-line", "--c-canvas", 1, "the well's own boundary, a non-text edge"],
+    // The chart sits straight on the page: the bar of a control with hits is
+    // a non-text indicator on the canvas, and the label at the end of a quiet
+    // bar is the sentence that says nothing was found.
+    ["--c-hold", "--c-canvas", 3, "a control's bar in the chart"],
+    ["--c-ink-subtle", "--c-canvas", 4.5, "the Sin hallazgos label on the chart"],
+    // The rail is a navy brand panel with its own small palette. None of the
+    // pairs above touch it, and it is the one surface on every screen.
+    ["--c-rail-ink", "--c-rail", 4.5, "a rail item"],
+    ["--c-rail-ink-muted", "--c-rail", 4.5, "a rail item at rest"],
+    ["--c-rail-active-ink", "--c-rail-active", 4.5, "the current rail item"],
+    ["--c-rail-ink", "--c-rail-active", 4.5, "a rail item on hover"],
+    ["--c-rail-ink-muted", "--c-rail-active", 4.5, "muted ink on the active row"],
   ];
 
   const results = PAIRS.map(([fgToken, bgToken, need, what]) => {
@@ -420,7 +464,7 @@ async function main(): Promise<void> {
         await devtools.send("Emulation.setEmulatedMedia", {
           features: [{ name: "prefers-reduced-motion", value: "reduce" }],
         });
-        await devtools.send("Page.navigate", { url: `${base}${route.path}` });
+        await devtools.send("Page.navigate", { url: `${base}/${route.path}` });
         await wait(1800);
 
         const probe = await devtools.evaluate<{
@@ -460,7 +504,7 @@ async function main(): Promise<void> {
     });
 
     for (const route of ROUTES) {
-      await devtools.send("Page.navigate", { url: `${base}${route.path}` });
+      await devtools.send("Page.navigate", { url: `${base}/${route.path}` });
       await wait(1800);
 
       const probe = await devtools.evaluate<{

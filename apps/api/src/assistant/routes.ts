@@ -31,9 +31,9 @@ import { Buffer } from "node:buffer";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { ACTOR_REQUIRED, actorOf } from "../actor";
 import type { ApiDeps } from "../deps";
 import { fail, notFound, rejectInvalid } from "../http";
+import { ACTOR_HEADER, parseActorHeader } from "../middleware/actor";
 import { createRateLimit } from "../middleware/rate-limit";
 import {
   ASSISTANT_IMAGES_MAX,
@@ -85,10 +85,16 @@ export function assistantRoutes(deps: ApiDeps, api: ApiCaller) {
         "/messages",
         createRateLimit({ limit: ASSISTANT_TURN_LIMIT, label: "turns" }),
         async (c) => {
-          const actor = actorOf(c.req.raw.headers);
-          if (actor === undefined) {
-            return fail(c, 400, "bad_request", ACTOR_REQUIRED);
+          /* The same parser every other write uses, and the same sentence. Called
+             here rather than through `requireActor` for the reason that function's
+             own comment gives: a route that streams has to start the response
+             before a middleware could fail it, so the two that stream parse the
+             header themselves. */
+          const who = parseActorHeader(c.req.header(ACTOR_HEADER));
+          if (!who.ok) {
+            return fail(c, 400, "bad_request", who.message);
           }
+          const actor = who.actor;
 
           const parsed = await readBody(c.req.raw);
           if (!parsed.ok) {

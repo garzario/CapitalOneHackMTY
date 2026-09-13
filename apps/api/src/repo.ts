@@ -15,6 +15,7 @@
  */
 
 import type {
+  Actor,
   AssistantMessage,
   Cfdi,
   ConsortiumPull,
@@ -29,9 +30,10 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { runMoney, sumAmounts } from "@hackmty/core";
+import { runLevels, runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
 import { assistantMessagesFrom } from "./assistant/session";
+import { levelled } from "./levels";
 import type {
   InstructionDetail,
   PaymentRun,
@@ -85,6 +87,14 @@ export interface IntakeRecord {
 export interface LedgerQuery {
   since?: string;
   limit?: number;
+}
+
+/** What the run said when it dropped a line, which is all a reopening needs. */
+export interface Cancellation {
+  at: string;
+  reason: string;
+  /** Who dropped it by hand. Absent when the evidence dropped it. */
+  actor?: Actor;
 }
 
 export interface ResetSummary {
@@ -161,8 +171,14 @@ export interface Repository {
   ledger(query: LedgerQuery): Promise<LedgerEvent[]>;
   /**
    * Every event the verification of one instruction is folded out of, in append
-   * order: its `cent_sent`, `cep_awaited` and `decision_made`, plus the
-   * `cep_verified` of the account it pays to.
+   * order: its `cent_sent`, `cep_awaited`, `verification_call` and
+   * `decision_made`, plus the `cep_verified` of the account it pays to.
+   *
+   * `verification_call` is on the list because the call to the supplier is part of
+   * verifying who holds the account, and the evidence letter of issue #204 names it
+   * as one of its seven signals. `foldVerification` ignores it: the state machine
+   * turns on the CEP and a call is not a document, which is the distinction
+   * `docs/09-api.md` draws between the two.
    *
    * A targeted read rather than a slice of `ledger`, because the seeded company's
    * ledger is thousands of events long and that one answers the oldest 500: the
@@ -175,6 +191,29 @@ export interface Repository {
     instructionId: string,
     beneficiaryAccount: string,
   ): Promise<LedgerEvent[]>;
+  /**
+   * The `payment_cancelled` the run appended for one instruction, newest first,
+   * or undefined when nothing dropped the line.
+   *
+   * A targeted read and not a slice of `ledger`, for the reason
+   * `verificationEvents` gives: the seeded company's ledger is thousands of events
+   * long and that one answers the oldest 500, so a cancellation appended a minute
+   * ago would never be in the page. It exists because reopening a cancelled line
+   * is the owner's call (`decideRequirement` in @hackmty/core) and the route has to
+   * know which lines those are without a stored status column that could disagree
+   * with the ledger.
+   */
+  cancellation(instructionId: string): Promise<Cancellation | undefined>;
+  /**
+   * Who posted one SAT list version into this instance, or undefined when nobody
+   * did.
+   *
+   * The sweep constancia prints it, and undefined is a real answer rather than a
+   * gap: the committed official snapshot arrives with the repository and not
+   * through a request, so the page says the version was not loaded here instead of
+   * printing a name nobody signed.
+   */
+  publisher(listVersion: string): Promise<Actor | undefined>;
   /**
    * Every turn of one assistant conversation, in append order, so the panel's
    * memory is the ledger and not a second table.
@@ -194,11 +233,17 @@ export interface Repository {
    * A person confirms an action. `reason` is what they wrote about it, and it
    * travels with the decision so the `decision_made` event carries the argument
    * and not only the verdict.
+   *
+   * `actor` and not a bare name: `decidedBy` answers who and `decidedByRole`
+   * answers in what capacity, and an auditor reading the second one is what tells
+   * an approved exception from a clerk exceeding theirs. The route has already
+   * checked that the role is allowed to ask for this action; a repository
+   * records, it never decides.
    */
   recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
     reason?: string,
   ): Promise<Decision | undefined>;
@@ -350,12 +395,17 @@ export class MemoryRepository implements Repository {
         // An instruction always has a supplier row by the time it is stored.
         continue;
       }
-      items.push({
-        instruction: copy(instruction),
-        supplier: copy(supplier),
-        decision: copy(this.decisionRow(instruction.id) ?? null),
-        findings: copy(this.findingsFor(instruction.id)),
-      });
+      /* `levelled` attaches the level and the state through `assessLine` in
+         `@hackmty/core`, which is the one place either is derived. This store does
+         not know the ADR-0009 table and must not learn it. */
+      items.push(
+        levelled({
+          instruction: copy(instruction),
+          supplier: copy(supplier),
+          decision: copy(this.decisionRow(instruction.id) ?? null),
+          findings: copy(this.findingsFor(instruction.id)),
+        }),
+      );
     }
 
     const actions = items.map((item) => item.decision?.action);
@@ -373,6 +423,8 @@ export class MemoryRepository implements Repository {
            implementations of "how much did this run stop" is how a screen and a
            constancia end up disagreeing in front of a judge. */
         ...runMoney(items),
+        // And the run by level and by state, from the same file as the per-line pair.
+        ...runLevels(items),
       },
       items,
     };
@@ -562,7 +614,11 @@ export class MemoryRepository implements Repository {
   ): Promise<LedgerEvent[]> {
     return copy(
       this.data.ledger.filter((event) => {
-        if (event.type === "cent_sent" || event.type === "cep_awaited") {
+        if (
+          event.type === "cent_sent" ||
+          event.type === "cep_awaited" ||
+          event.type === "verification_call"
+        ) {
           return event.instructionId === instructionId;
         }
         if (event.type === "decision_made") {
@@ -574,6 +630,44 @@ export class MemoryRepository implements Repository {
         return false;
       }),
     );
+  }
+
+  /**
+   * The newest `payment_cancelled` for one instruction.
+   *
+   * The ledger is in append order, so the scan runs backwards and stops at the
+   * first hit: a line cancelled twice is answered with the cancellation that is
+   * standing, and the earlier one is still history.
+   */
+  async cancellation(instructionId: string): Promise<Cancellation | undefined> {
+    for (let index = this.data.ledger.length - 1; index >= 0; index -= 1) {
+      const event = this.data.ledger[index];
+      if (
+        event?.type === "payment_cancelled" &&
+        event.instructionId === instructionId
+      ) {
+        return copy({
+          at: event.at,
+          reason: event.reason,
+          ...(event.actor === undefined ? {} : { actor: event.actor }),
+        });
+      }
+    }
+    return undefined;
+  }
+
+  /** The newest `sat_list_published` for one version, scanned newest first. */
+  async publisher(listVersion: string): Promise<Actor | undefined> {
+    for (let index = this.data.ledger.length - 1; index >= 0; index -= 1) {
+      const event = this.data.ledger[index];
+      if (
+        event?.type === "sat_list_published" &&
+        event.listVersion === listVersion
+      ) {
+        return event.actor === undefined ? undefined : copy(event.actor);
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -621,7 +715,7 @@ export class MemoryRepository implements Repository {
   async recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
     reason?: string,
   ): Promise<Decision | undefined> {
@@ -631,7 +725,8 @@ export class MemoryRepository implements Repository {
     }
 
     current.action = action;
-    current.decidedBy = decidedBy;
+    current.decidedBy = actor.name;
+    current.decidedByRole = actor.role;
     current.decidedAt = decidedAt;
     /* Deleted and not left in place when no reason is given: a release with an
        argument, followed by a hold with none, must not read as if the second one

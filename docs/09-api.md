@@ -12,13 +12,13 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 |---|---|---|---|
 | GET | `/health` | `{ ok, service, version, dependencies }` | liveness, plus what this instance was configured with. See "Health, and what it may not check" below |
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
-| GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. See "The hold window" below |
+| GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold, confidence, confidenceRule, confidenceFindingIds, state, stateRule }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. The last five are the same level and state the run carries for that line. See "The hold window" and "Confidence and state" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
 | GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source, lists }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. `lists` answers for both SAT lists, article 69-B and article 49 Bis, and says which one could answer. Rate limited per client |
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
 | GET | `/api/v1/consortium/signal?rfc=&clabe=` | `{ rfc, clabe, network: NetworkSignal }` | what the SentryOne consortium holds for one beneficiary pair, read from the LOCAL snapshot and never from Snowflake. Both halves of the pair are required. `503 service_unavailable` when `ALLOW_CONSORTIUM` is unset, `404 not_found` when the network has never seen the pair or when nothing has been pulled. See "The consortium, and what the network can say" below |
-| GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand |
+| GET | `/api/v1/metrics` | `Metrics` | blind evaluation, recomputed on demand. `perDetector` and `perLevel` |
 | GET | `/api/v1/ledger?since=` | `{ events: LedgerEvent[] }` | append-only ledger, for the timeline |
 | GET | `/api/v1/sat/constancia?listVersion=` | `application/pdf` | constancia of the retroactive sweep for one loaded list version |
 | GET | `/api/v1/run/:id/constancia` | `application/pdf` | constancia of one weekly payment run. `current` is accepted as the id |
@@ -27,12 +27,12 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/assistant/sessions/:id` | `AssistantSession` | one conversation of the assistant panel, projected from the `assistant_message` events of that session id, on either store. `404` for a session nobody holds |
 | GET | `/api/v1/run/:id/execution` | `PaymentExecution` | what this run did on the payment rail, folded out of the ledger. `current` is accepted as the id. A run nobody has executed answers `200` with `lines: []` and `totals` at zero, because "nothing has been sent" is an answer and a `404` there would read as "no such run" |
 | GET | `/api/v1/payments/:id/receipt` | `PaymentReceipt` or `application/pdf` | the receipt of one payment. `:id` is the `receiptId` the execution line carries. JSON by default and the PDF on `Accept: application/pdf` or `?format=pdf`, and the two are the same object. See "The receipt and the carta" below |
-| GET | `/api/v1/instructions/:id/carta` | `application/pdf` | the one-page evidence letter of one instruction: the level with its findings, the decision and the name against it. See "The receipt and the carta" below |
+| GET | `/api/v1/instructions/:id/carta` | `application/pdf` | the one-page evidence letter of one instruction: the seven signals, the level with its findings, the state, the decision and the name against it. See "The receipt and the carta" below |
 | GET | `/api/v1/rails` | `{ active, rails, message? }` | which payment rails this server holds, which one is active and which of them has ever moved money. No key, no secret, no account. See "Which rails this server holds" below |
 
-`PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings }> }`.
+`PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings, confidence, confidenceRule, confidenceFindingIds, state, stateRule }> }`. The last five are the level and the state, derived and never stored, and they are specified under "Confidence and state" below.
 
-`totals` answers in line counts and in pesos, because the value of the product is the loss it prevents and not the minutes it saves. Counts: `instructions`, `held`, `toVerify`, `released`. Pesos, all MXN and exact to the centavo, from `runMoney` in `packages/core/src/exposure.ts`: `amount` (the whole run), `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount` (held plus to verify, the money that has not left), `amountAtRisk` (the largest single amount at risk on each line, added across lines, never the sum inside a line), `retroactive69bBase` and `retroactive69bExposure` (the subtotal already deducted to the suppliers this run's 69-B findings name, and the ISR plus IVA that reverses on it). The last two are zero until a publication has priced a supplier this run pays, and `POST /api/v1/sat/publish` is what prices one: it re-scores the pending lines of the current run in the same request, so the pair climbs as the list lands rather than after somebody reloads something. The whole-ledger figure for one publication is `SweepResult.totalExposure` on that endpoint, and this pair is the part of it the run in front of the clerk carries. Each supplier is counted once however many lines of the run pay it, because the sweep prices per supplier.
+`totals` answers in line counts and in pesos, because the value of the product is the loss it prevents and not the minutes it saves. Counts: `instructions`, `held`, `toVerify`, `released`, plus the eight of the level and the state, `confiable`, `precaucion`, `alerta`, `rojo`, `cancelado`, `enviado`, `pendiente` and `liberado`, from `runLevels` in `packages/core/src/levels.ts`. Pesos, all MXN and exact to the centavo, from `runMoney` in `packages/core/src/exposure.ts`: `amount` (the whole run), `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount` (held plus to verify, the money that has not left), `amountAtRisk` (the largest single amount at risk on each line, added across lines, never the sum inside a line), `retroactive69bBase` and `retroactive69bExposure` (the subtotal already deducted to the suppliers this run's 69-B findings name, and the ISR plus IVA that reverses on it). The last two are zero until a publication has priced a supplier this run pays, and `POST /api/v1/sat/publish` is what prices one: it re-scores the pending lines of the current run in the same request, so the pair climbs as the list lands rather than after somebody reloads something. The whole-ledger figure for one publication is `SweepResult.totalExposure` on that endpoint, and this pair is the part of it the run in front of the clerk carries. Each supplier is counted once however many lines of the run pay it, because the sweep prices per supplier.
 
 ### The lookup box, in detail
 
@@ -53,7 +53,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | Method | Path | Body | Effect |
 |---|---|---|---|
 | POST | `/api/v1/instructions` | `{ supplierRfc?, cfdiUuids?, clabe?, amount, source, text?, image? (base64), audio? (base64) }` | intake from the QR page. Runs all detectors, stores the instruction, findings and decision, returns them. If `image` or `audio` is present the CLABE is extracted first and `ocrConfidence` set, and a voice-note transcript lands in `text`; a typed `clabe` always wins over one a model read. Extraction is transcription only (`packages/extract`, docs/06 section 6.2.1). A server with no `GEMINI_API_KEY` answers 422 `unprocessable` and says so. |
-| POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy, reason? }` | a person confirms. Appends `decision_made`, carrying `decidedBy` and `reason` on the decision, so a release nobody can explain later is not a thing this product allows. Answers `{ instruction, decision, amountAtRisk, hold }`: `amountAtRisk` is the largest single amount at risk among the findings, stated rather than left to be re-derived, and `hold` is `null` exactly when the action is `release`. `reason` is optional in the contract and asked for by the screen on an override: an API that refused a release with no prose would be refused by the clerk instead, outside the product, where nothing is recorded at all. |
+| POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy, reason? }` | a person confirms. Appends `decision_made`, carrying `decidedBy`, `decidedByRole` and `reason` on the decision, so a release nobody can explain later is not a thing this product allows. Answers `{ instruction, decision, amountAtRisk, hold }`: `amountAtRisk` is the largest single amount at risk among the findings, stated rather than left to be re-derived, and `hold` is `null` exactly when the action is `release`. `decidedBy` has to be the name on `X-Actor`. The two owner-only shapes are a release over something and a decision on a cancelled line: a `role` that may not do it is `403` and one of them with no `reason` is `422`. `reason` stays optional on every other shape, because an API that refused an ordinary hold with no prose would be refused by the clerk instead, outside the product, where nothing is recorded at all. See "The actor on every write". A line a definitive SAT listing cancelled is the `reopen_cancelled` shape; see "What a definitive SAT listing does" below. |
 | POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only), runs the retroactive sweep over everything the ledger says is already paid, and re-scores the run. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult` plus `rescored`. See "What a publication re-scores" below |
 | POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | retrieves or accepts the CEP, checks the Banxico seal, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`, where `finding` is the `beneficiary_cep` finding `packages/engine` authors, or `null` when no pending payment goes to that account. See "The CEP, and what verify can prove" below. |
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand, and `recordedBy` travels onto the `verification_call` event so that entry carries a name like every other human action. A recorded outcome also carries `hold`, the window and the next step, which is how a `no_answer` answers "what now" in the same response, and that window is three days on a `hold` and one day on a `verify`, from `EXPECTED_DELAY_DAYS`. Never releases a payment: every response that reports a call carries `releasesPayment: false`, and no `decision_made` is ever appended. A `404` or a `400` carries only the error envelope, because there is no call to report. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
@@ -79,19 +79,52 @@ X-Actor: role=clerk; name=Lupita Elizondo
   `POST /api/v1/instructions/:id/decide` and `recordedBy` on a recorded `verify-call` are the two,
   and a mismatch is `400`, because a decision signed by one name under a header carrying another is
   a record nobody can rely on later.
-- `role` is checked on exactly one shape and `docs/02-persona.md` is why. That page puts a formal
+- `role` is checked on two shapes and `docs/02-persona.md` is why. That page puts a formal
   maker-checker in the anti-persona column: this company has one clerk who assembles the run and an
   owner working elsewhere in the business, and an approval chain it does not have is a control that
-  gets bypassed. So `owner` is required for the one thing that page says the owner does, approving
-  an exception, which here is a `decide` with `action: "release"` on a line that carries a finding.
-  Everything else, `POST /api/v1/run/:id/execute` included, is the clerk's own work, and a `role`
-  that is not allowed to do it is `403 forbidden`.
+  gets bypassed. So `owner` is required for the thing that page says the owner does, approving an
+  exception, and there are exactly two of those. Everything else,
+  `POST /api/v1/run/:id/execute` included, is the clerk's own work, and a `role` that is not allowed
+  to do it is `403 forbidden` with the sentence that says who can.
+  1. **A release over something.** `decide` with `action: "release"` on a line whose `confidence` is
+     not `confiable`, or on a line the standing decision was holding. The level and not a count of
+     findings, because an `info` finding stops nothing: a supplier who was listed and then cleared
+     their name carries a row that is history, and asking the owner to approve a payment nothing
+     stands against is how a control becomes a formality. `confidenceOf` in
+     `packages/core/src/levels.ts` is the same function the chip on the screen reads, and
+     `decideRequirement` in `packages/core/src/actor.ts` is the rule.
+  2. **Reopening a line the run cancelled.** Any `decide` on an instruction the ledger holds a
+     `payment_cancelled` for, whatever the new action is. A cancelled line is closed: the money did
+     not leave and the record says so, and putting it back in front of the run is a second decision
+     about the same pesos rather than housekeeping. The question is asked of the ledger and not of a
+     status column, because a stored status can disagree with the events it was derived from.
+- **Both of those need prose.** `reason` stays optional everywhere else, because an API that refused
+  an ordinary hold with no sentence would be refused by the clerk instead, outside the product, where
+  nothing is recorded at all. On these two it is required and a request without it is
+  `422 unprocessable` asking for it: an exception approved with no argument is the record ADR-0002
+  says this ledger must never hold. The 403 and the 422 are deliberately two answers, because "you
+  may not do this" and "say why" are two different things to tell a person.
 - `Actor` is a name and a role and not a user account. SentryOne holds no credentials and no
   session, because a product that asks a clerk to register before it can stop a bad payment is a
   product nobody opens on a Thursday. A deployment that needs authentication puts it in front of
-  this API, and the header stays what the ledger records.
-- The actor reaches the ledger: `payment_sent`, `payment_cancelled`, `intake_image` and the
-  `assistant_message` of a person's turn all carry it, and `Decision.decidedBy` already did.
+  this API, and the header stays what the ledger records. The header is caller-controlled, so it is
+  an identity this product records and not one it verifies, and
+  `docs/06-regulatory-privacy.md` section 4.4 says so in those words: the demo identity selector is
+  not authentication.
+- The actor reaches the ledger, on every event a person caused: `instruction_received`,
+  `sat_list_published`, `cep_verified`, `cent_sent` and `verification_call` carry `actor` as of this
+  issue, `payment_sent`, `payment_cancelled`, `intake_image` and the `assistant_message` of a
+  person's turn already did, and `decision_made` carries `Decision.decidedBy` plus
+  `decidedByRole`. Three carry nobody on purpose: `payment_settled` and `payment_failed` are the
+  rail answering rather than a person acting, and `cep_awaited` is a wait. Each of them follows an
+  event that does carry the name and the clave de rastreo, and putting a clerk on them would read as
+  a second action she never took.
+- `Decision` grows one field: `decidedByRole`, the capacity the signature was given in, absent on a
+  decision the engine signed `system`. It is the field the evidence letter of issue #204 reads next
+  to `decidedBy`, and the run constancia prints both under "Quien resolvio cada instruccion". The
+  sweep constancia prints who loaded the list version, off the `sat_list_published` event, and says
+  "No se cargo desde esta instancia" for the committed official snapshot rather than printing a name
+  nobody signed.
 
 ### Confidence and state, on every instruction and on the run
 
@@ -119,7 +152,54 @@ about one, and they are the vocabulary of the whole product: a level and a state
   the level, and a level with no evidence under it is not a thing this product shows.
 - The run carries them per line and in `totals`, as counts: `confiable`, `precaucion`, `alerta`,
   and `rojo`, `cancelado`, `enviado`, `pendiente`, `liberado`. Counts and not an average, for the
-  reason `runMoney` gives for never summing an amount at risk inside a line.
+  reason `runMoney` gives for never summing an amount at risk inside a line. The three levels add up
+  to `totals.instructions` and so do the five states, because every line carries one of each.
+- **The five keys, per line.** Every item of `GET /api/v1/run/current` and the body of
+  `GET /api/v1/instructions/:id` carry the same five, all derived by `assessLine` in
+  `packages/core/src/levels.ts` so the table and the panel cannot disagree about one payment.
+
+| Key | Value |
+|---|---|
+| `confidence` | `confiable`, `precaucion` or `alerta` |
+| `confidenceRule` | which rule of the ADR-0009 table fired: `sat_definitive`, `critical_finding`, `new_account_without_history`, `pending_verification`, `warning_finding`, `no_open_signal` |
+| `confidenceFindingIds` | the findings that produced the level, all of them on this line. Empty on `no_open_signal`, and also on a `pending_verification` the engine reached from its own `verify` action with no finding standing open, where the evidence is the action |
+| `state` | `rojo`, `cancelado`, `enviado`, `pendiente` or `liberado` |
+| `stateRule` | which state rule fired: `executed`, `execution_cancelled`, `verification_blocked`, `sat_definitive`, `stopped_for_a_person`, `execution_failed`, `released`, `undecided` |
+
+- A caller holding a run payload and no folded `VerificationState` still reads row 3 of the state
+  table, because a critical `beneficiary_cep` finding IS a blocked verification and `blockedByCep`
+  reads it off the line. The run and the instruction panel therefore answer the same state for a
+  payment whose CEP named somebody else, which is the disagreement issue #125 cost us once.
+
+### What a definitive SAT listing does, and who can undo it
+
+This is the one rule where the product stops a payment without waiting for anybody, and it is
+ADR-0009 row 4. The two halves meet on the ledger and nowhere else: this section writes the
+cancellation, and "The actor on every write" above owns who may undo it.
+
+- **It cancels, it does not hold.** A supplier published as `definitivo` under article 69-B, or named
+  in a final resolution under article 49 Bis, has comprobantes with no fiscal effect, retroactively.
+  There is nothing for a clerk to sit out, so the line reads `cancelado` with
+  `stateRule: "sat_definitive"` and not `rojo`.
+- **It lands on the ledger.** `POST /api/v1/sat/publish` appends one `payment_cancelled` per line the
+  publication made definitive, after the `decision_made` it already appended, so a replay reads as the
+  publication and then its consequences. `POST /api/v1/instructions` does the same for an instruction
+  that arrives naming a supplier already listed. `reason` comes from `definitiveListingReason` in
+  `packages/core/src/levels.ts` and names the article, the list version and the publication date.
+  `actor` is absent: nobody dropped the line by hand, and that field is optional for exactly this case.
+- **Once per line.** A second publication naming the same supplier re-scores the pesos and appends no
+  second cancellation, because `RescoredLine.cancellation` is null unless this publication is what made
+  the listing definitive. An append-only ledger with two cancellations of one line would read as two
+  events where there was one.
+- **That event is what makes the line the owner's to reopen.** `deps.repo.cancellation` reads it and
+  `decideRequirement` answers `reopen_cancelled`, so any `decide` on the line needs `role=owner` and a
+  written reason. The rules, the status codes and the sentences are in "The actor on every write"
+  above; nothing is repeated here, because two places that state one rule is how they start to differ.
+- **Nothing is deleted when an owner does reopen it.** The `payment_cancelled` stays on the ledger next
+  to the `decision_made` that carries the name and the argument, and the line then reads `liberado`
+  because `releasedByAPerson` makes the signature outrank the listing. A `hold` or a `verify` by the
+  owner leaves it `cancelado`, since only a release is a release. ADR-0002 forbids the product
+  overruling a person in either direction, and it forbids the reverse just as firmly.
 
 ### What a publication re-scores
 
@@ -396,10 +476,26 @@ paper and reads it again when the SAT asks.
 - `GET /api/v1/payments/:id/receipt` answers the `PaymentReceipt` as JSON, and the same object as a
   PDF on `Accept: application/pdf` or `?format=pdf`. It carries what left, to whom, under which clave
   de rastreo, on which rail, against which CFDI, and who executed the run.
-- `GET /api/v1/instructions/:id/carta` is the one-page evidence letter of issue #196: the level and
-  the state, every finding with its evidence in plain Spanish, the decision, the name that signed it
-  and the reason they gave. It is the page a clerk attaches to an email when a supplier asks why the
-  payment has not arrived, which is why it is one page and not a constancia.
+- `GET /api/v1/instructions/:id/carta` is the one-page evidence letter of issue #196. It is the page a
+  clerk attaches to an email when a supplier asks why the payment has not arrived, which is why it is
+  one page and not a constancia, and the page count is asserted by a test rather than intended. It
+  carries, in this order: the instruction with its supplier, amount, CFDI and how it arrived; the level
+  with the rule behind it and the state, plus the sentence that the level is the evidence we hold and
+  not a guarantee; the seven signals; the resolution with the action, the person who signed it, when,
+  and their written reason; every finding's explanation in plain Spanish; and the SHA-256 huella of the
+  ledger range with the note that it is not an electronic signature.
+- **The seven signals, and none of them is ever blank.** Both SAT lists (article 69-B from the versions
+  this instance holds plus the committed download, article 49 Bis with the reason it could not be
+  consulted when no machine-readable listing exists), the account with its participant and its plaza
+  code, the payment history behind that account, the CEP with its seal state and the holder-name
+  comparison, the verification call with its outcome, and what the clerk uploaded. A control that could
+  not answer prints why. A blank next to a control reads as a control that passed, which is the failure
+  `CompositionReport` prevents inside the engine and the same failure a letter can commit on paper.
+- **No number about the risk, on any of it.** The level is one of three words, and the expected loss,
+  the delay cost and the transcription confidence are all absent from the page: they are the engine's
+  own arithmetic, and a figure next to a supplier's name on a document this company signs is a
+  precision nobody earned. ADR-0009 forbids a probability, a percentage or a score on any document of
+  this product.
 - **The seal is `SealState` and never a boolean.** A receipt printed on a server with no
   `BANXICO_CEP_CERT_PEM`, or for a rail that produces no CEP at all, says "firma no verificada", and
   `valid` appears only when a sello actually validated. A document that claimed a seal nobody checked
@@ -505,6 +601,19 @@ answer, and what happens if the payment is urgent.
 - `null` rather than a zero-hour window when the action is `release`. A payment that was let go is not
   a hold that ran out.
 
+### The blind evaluation, per control and per level
+
+`GET /api/v1/metrics` answers the same `Metrics` the terminal prints, computed by the same function over the same labelled cases, so `bun run eval` and the screen can never disagree.
+
+It carries two views of one evaluation and they answer different questions.
+
+- `perDetector` is what a detector author fixes: did control 2 fire on the case that expected it.
+- `perLevel` is what a judge asks: did the line come out `alerta` when it should have. A control can be right and the payment still read `precaucion` when the documents say `alerta`, and the per-control table cannot show that. One case contributes to exactly one expected level and one predicted level, so both columns sum to `cases`. Precision on a level is "of the lines we called this, how many were", recall is "of the lines that were, how many we called".
+
+The row to defend is `confiable`. A line the product called trustworthy and that was not is the one mistake it cannot make twice, and a test on the endpoint fails if that precision ever drops below one.
+
+An `info` finding is scored as context and never as a false positive: a supplier that cleared its name and a beneficiary already verified with a CEP are both good news, and counting them as alerts would report a false-positive rate the product does not have.
+
 ### The constancias
 
 Two endpoints answer with a PDF rather than JSON, because the accountant files the document and reads it again when the SAT asks. They are the only non-JSON responses in the API.
@@ -537,7 +646,7 @@ curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' \
   | jq '.lists | map({article, answered, coverage, listed})'
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
-  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
+  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180102091764611","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' \
   | jq '{totalExposure, rescored: [.rescored[] | {instructionId, before, after: .decision.action}]}'
@@ -562,9 +671,34 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
 curl -s https://<host>/api/v1/rails | jq '{active, rails: [.rails[] | {id, configured, producesCep, live}]}'
 # What the instance was configured with. Never a key, and never a network call.
 curl -s https://<host>/health | jq '{ok, version, dependencies}'
+# The actor, which every write needs. A clerk cannot release a payment a finding
+# stopped: 403 with the sentence that says who can, and nothing is appended.
+curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \
+  -H 'content-type: application/json' -H 'x-actor: role=clerk; name=Lupita Elizondo' \
+  -d '{"action":"release","decidedBy":"Lupita Elizondo","reason":"urge"}' | jq '.error'
+# The owner can, with the reason, and the decision carries both the name and the role.
+curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \
+  -H 'content-type: application/json' -H 'x-actor: role=owner; name=Gerardo Villarreal' \
+  -d '{"action":"release","decidedBy":"Gerardo Villarreal","reason":"Hable con el proveedor, la cuenta es la suya."}' \
+  | jq '{action: .decision.action, by: .decision.decidedBy, role: .decision.decidedByRole, reason: .decision.reason}'
+# And with no header at all, the write is refused naming the header.
+curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
+  -d '{"simulate":true,"rfcs":["SYN080910HI8"]}' | jq '.error.message'
 # The level and the state of every line of the run, which is the vocabulary of the whole product.
 curl -s https://<host>/api/v1/run/current \
   | jq '[.items[] | {id: .instruction.id, confidence, state, action: .decision.action}] | .[0:5]'
+# The run by level and by state. Each group adds up to .totals.instructions.
+curl -s https://<host>/api/v1/run/current \
+  | jq '.totals | {instructions, confiable, precaucion, alerta, rojo, cancelado, enviado, pendiente, liberado}'
+# The one-page evidence letter. A real PDF, inline, never cached.
+curl -sD - -o carta.pdf \
+  https://<host>/api/v1/instructions/INS-2026-09-07-047/carta | head -4
+# Reopening a line a definitive listing cancelled. A clerk is refused with a 403 and
+# an owner with a written reason goes through. Both answers reach the ledger.
+curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-070/decide \
+  -H 'content-type: application/json' -H 'x-actor: role=clerk; name=Lupita Elizondo' \
+  -d '{"action":"release","decidedBy":"Lupita Elizondo","reason":"el proveedor insiste"}' \
+  | jq '.error.code'
 # The assistant. It reads, it answers and it proposes: the stream carries the reads as tool_result
 # and the offer as proposal, and nothing is written but the conversation until somebody clicks.
 curl -sN -X POST https://<host>/api/v1/assistant/messages \

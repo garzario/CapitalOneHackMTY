@@ -18,6 +18,189 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The level and the state on every line, the cancellation a definitive SAT listing writes, and the
+  one-page evidence letter (issue #204). The contract of issue #221 said what the two words are; this
+  is where they reach the wire and where one of them stops a payment.
+
+  `assessLine` and `runLevels` join `confidenceOf` and `transactionStateOf` in
+  `packages/core/src/levels.ts`, so one call answers both halves about one line and a run is counted
+  by level and by state. Two properties are in that function rather than in every caller, because both
+  are how the same payment starts reading differently on two screens. The decision handed to the state
+  rules carries the LINE's findings and not the ones the stored decision remembers weighing, since
+  `recordEngineDecision` unions findings into the line and never removes one. And a caller holding no
+  folded `VerificationState` still reads row 3 of the table, because a critical `beneficiary_cep`
+  finding IS a blocked verification and `blockedByCep` reads it off the line. `GET /api/v1/run/current`
+  carries `confidence`, `confidenceRule`, `confidenceFindingIds`, `state` and `stateRule` per item and
+  the eight counts in `totals`; `GET /api/v1/instructions/:id` carries the same five, through the same
+  function, so a judge who clicks a line of the run cannot be shown a different level on the panel.
+  Neither value is a column and `0012_assistant_and_payment_events.sql` already said why.
+
+  A definitive listing cancels the line rather than holding it. Under article 69-B `definitivo`, or a
+  final resolution under article 49 Bis, the comprobantes have no fiscal effect at all and
+  retroactively, so there is nothing for a clerk to wait out: `POST /api/v1/sat/publish` appends one
+  `payment_cancelled` per line the publication made definitive, after the `decision_made` so a replay
+  reads as the publication and then its consequences, and the intake does the same for an instruction
+  that arrives naming a supplier already listed. `definitiveListingReason` writes the sentence once and
+  it names the article, the version and the DOF date. It fires once per line: a second publication
+  naming the same supplier re-scores the pesos and appends nothing, because `RescoredLine.cancellation`
+  is null unless this publication is what made the listing definitive.
+
+  That event is the whole point, and it is where this change meets issue #199. `deps.repo.cancellation`
+  reads it off the ledger and `decideRequirement` answers `reopen_cancelled`, so any decision on the
+  line then needs `role=owner` and a written reason, with the `403` and the `422` that issue already
+  wrote. Nothing here restates that rule: the publication produces the fact and the actor rule reads it,
+  which is why the test for it appends no event of its own. Nothing is deleted when an owner does reopen
+  the line either. The cancellation stays on the ledger next to the `decision_made` that carries the
+  name and the argument, and `releasedByAPerson` is what makes the signature outrank the listing, which
+  is ADR-0002 refusing to overrule a person in either direction.
+
+  `GET /api/v1/instructions/:id/carta` is the one page a clerk attaches to an email when the supplier
+  rings. `evidenceLetter` in `packages/constancia/src/letter.ts` reuses the constancia generator, the
+  shared header and the same huella functions, and prints seven signals with the rule that none of them
+  may be blank: both SAT lists (article 49 Bis saying why it could not be consulted, because the SAT
+  publishes it one oficio at a time in the DOF and ships no file), the account with its participant and
+  plaza code and four digits, the payment history behind that account, the CEP with its seal state and
+  the holder-name comparison, the verification call, and what the clerk uploaded. Then the level with
+  the rule behind it, the state, the resolution with the person who signed it and their written reason,
+  every finding in plain Spanish, and the SHA-256 huella. One page is a test and not an intention, and
+  no number about the risk reaches it: the expected loss, the delay cost and the transcription
+  confidence all stay in the engine, because a figure next to a supplier's name on a document this
+  company signs is a precision nobody earned. `verification_call` joined
+  `readVerificationEvents` in `packages/db` so the letter can name the call; `foldVerification` ignores
+  it, since the state machine turns on the CEP and a call is not a document.
+
+  Beat 8 of `bun run demo` reads it all back: every line carries a level and a state, the two groups
+  add up to the lines of the run, and on seed 69 three lines carry three different state rules,
+  `released`, `verification_blocked` and `sat_definitive`. It then fetches the letter of the cancelled
+  line and checks it is one page and names the article. `docs/05-business-model.md` says what the
+  client is sold (two words and never a figure, and the commitment that does not attach to a payment an
+  owner reopened), `docs/08-data-model.md` adds the two domain types with no storage and the field note
+  on an absent `actor`, and `docs/09-api.md` carries the five keys, the cancellation and three more
+  lines a judge can paste.
+- The plaza of a CLABE as a signal control 2 can name, and the geography comparison neither document
+  can make alone (issue #203). Digits 4 to 6 of an account number are the plaza the branch that
+  opened it belongs to, and `detectClabe` already compared those three digits against the three
+  digits of the accounts a supplier had actually been paid on. What it could not do was say where
+  that is. `packages/core/src/snapshot/plazas-2026-09-13.csv` is the 786-row catalogue that closes
+  the gap, `lookupPlaza` and `plazaLabel` in `packages/core/src/plazas.ts` read it, and the finding
+  now names both places with both codes: "Cambio la plaza dentro del mismo banco: la cuenta conocida
+  esta en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF)". The second
+  comparison is new. `Cfdi.issuePlace` carries `LugarExpedicion`, the postal code a CFDI was issued
+  from and the only geography an invoice has, the parser reads it, `0013_cfdi_issue_place.sql` stores
+  it so the deployed API behaves like the in-memory one, and `plaza_off_invoice` fires when the plaza
+  of a new account and the state of the invoices it settles disagree. A brand-new account with no
+  history raises the level for lack of information and says so in those words:
+  `NO_PLAZA_HISTORY` reaches the evidence and `confidenceOf` answers `precaucion` under
+  `new_account_without_history`, which is the join a test asserts.
+
+  **The provenance is the part to read before quoting any of this, and `packages/core/src/snapshot/README.md`
+  says it in its first paragraph: this is not Banxico's file, because Banxico does not publish one.**
+  What is primary is the definition, and Banco de Mexico and the ABM publish the same sentence on
+  their own FAQs, three digits and a cheque-service plaza key. The catalogue itself is published by
+  neither, and the README carries five repeatable checks that establish the absence rather than
+  asserting it: the CEP app exposes an institution endpoint and no plaza one, the Internet Archive
+  index holds no Banxico URL containing the word, the single ABM URL that ever existed was already
+  answering 404 when it was captured in 2004, Circular 3/2012 and Circular 2019/95 contain no plaza
+  table, and the DOF full-text search answers zero notes. The rows come from the plaza table STP
+  publishes, the SPEI participant `packages/rail` documents as the production rail, whose help-centre
+  article now answers a login page, so the bytes were read from a public copy whose `sha256` the
+  README records. That chain buys exactly one permission and the code enforces it: the catalogue puts
+  a name on three digits, a code it does not carry yields no name and no signal, it never raises a
+  finding and never changes a severity, and every sentence that names a plaza prints the digits
+  beside the name so a reader checks the file instead of trusting us. `POSTAL_PREFIX_STATES` is
+  bounded the same way, the states the synthetic dataset uses and no more, with the SAT
+  `c_CodigoPostal` catalogue named as the national source and the import left as a follow-on, because
+  a 32-row national table written from memory would be a claim with no source.
+
+  The seeded dataset moved with it, and the TODO that asked for this is now answered rather than
+  deleted. `MTY_PLAZA_CODE` was `180`, and `180` is `DISTRITO FEDERAL`: the comment in
+  `packages/seed/src/sentryone/clabe.ts` had been asking since the generator was written for somebody
+  to check it before the detector treated a plaza mismatch as evidence, and it was right about the
+  cost of being wrong. The Monterrey metropolitan plaza is `580`, Pesqueria has `598` of its own, so
+  all 45 known accounts, the company's own account and the 92 run lines were re-minted into the plaza
+  of the municipality that banks there, ids and amounts untouched. The hero line is the case this was
+  built for: `INS-2026-09-07-047` now pays `012180102091764611` against the `012580100091764611` that
+  supplier has been paid on 52 times, two digits apart with a valid check digit as before, except one
+  of the two digits is the plaza, so the money would leave Nuevo Leon. `bun run demo` asserts that
+  line carries `plaza_changed` with both places named and that the seeded line contradicts the
+  `LugarExpedicion` of its own invoices, and a same-plaza account change still raises no plaza signal
+  at all, which is the half that keeps the control usable: 91 of the 92 lines are in `580` or `598`
+  and exactly one is not. Every peso figure in `docs/10-demo-script.md` is unchanged, because the
+  plaza adds a sentence and a chip and never a severity.
+- Where the software actually plugs into somebody else's stack, researched with a source and an
+  unverified column per surface (issue #205). Six of them in `docs/05`, ranked by what they cost and
+  by whether anybody has to agree to anything: the dispersal layout the ERP already exports and the
+  treasurer already uploads, which needs no counterparty; the STP rail, which changes what we are
+  rather than what we build; connectors to CONTPAQi, Siigo Aspel and SAP Business One; and email or
+  WhatsApp forwarding, which is the only one already built. `docs/07` draws the four seams they use,
+  all of which this repository already has. `docs/12` answers "no vamos a reemplazar nuestro SAP" in
+  thirty seconds and points at both.
+
+- The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
+  cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
+  clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
+  plaza where the only fact is that we have never paid it; a CEP that arrives while the run is open
+  and moves the line from precaucion to confiable; and the hard negative that pairs with the plaza
+  case. `Metrics` gains `perLevel`, so `GET /api/v1/metrics` and `bun run eval` report precision and
+  recall per confidence level as well as per control, and each case carries an `expectedLevel`
+  labelled from what the case is rather than derived through the rule table the engine applies. On
+  thirty-five cases: precision 87.0, recall 83.3, false positive rate 1.6, action agreement 33 of 35,
+  and `confiable` right on 12 of 12. The numbers in docs/11 and docs/12 are that run's.
+
+- The assistant drawer in `apps/web`, which is the front door of the product for the person who uses
+  it (issue #211). Lupita drops the screenshot that arrived on WhatsApp, asks why a line is red, and
+  presses the button on what the app proposes, without leaving the screen she is on: `AssistantDock`
+  mounts beside the shell rather than on a route, so the panel can read the line underneath it and a
+  question with no folio in it still has a subject.
+
+  The part worth reviewing is where ADR-0007 stops being a paragraph. `decodeToolCall` in
+  `apps/web/src/lib/assistant.ts` refuses any frame whose `tool` is outside the seven reads and any
+  frame whose `readOnly` is not the literal `true`, so a tool call that writes cannot be rendered even
+  when the bytes come off a socket, and `forbiddenVerdict` drops a token, a proposal summary or a
+  stored turn that says "seguro" in either language or states a probability, a percentage or a score,
+  which ADR-0009 forbids on any screen of this product. Dropped frames are counted and the panel says
+  how many, because an assistant that quietly loses a read is answering from its own memory. The same
+  function is run over the panel's own sources by `apps/web/src/lib/assistant.test.ts`: the vocabulary
+  rule is about what a component renders and not only about what a model sends.
+
+  Nothing in the drawer executes itself. `ProposalCard` prints the method, the path and the body of
+  the ordinary endpoint that would run, and the write happens in a click handler and nowhere else:
+  `confirmProposal` calls the endpoint that already existed for that action, sends `X-Actor`, and puts
+  the name of whoever pressed the button into `decidedBy` or `recordedBy`, because docs/09-api.md
+  refuses a body and a header that disagree about who acted. A release over a finding asks for the
+  owner's name and a written reason before the button enables, which is the role rule of
+  `docs/02-persona.md` visible on screen rather than only in the API. `execute_run` is the one
+  proposal the panel does not run: the payment run leaves from its own screen, which follows its own
+  stream line by line, and a second client for the one endpoint that moves money that is not a cent is
+  one too many. The level and the state on every card come from `assessConfidence` and
+  `transactionStateOf` in `packages/core`, so a line in the drawer reads the same as that line in the
+  table.
+
+  `apps/web/src/lib/sse.ts` is the decoder the panel needed and `EventSource` cannot provide, because
+  `EventSource` only ever issues a GET and this endpoint streams a reply to a POST. It is a state
+  machine over lines rather than a `split` over the body, which is the whole reason it exists: a chunk
+  boundary lands wherever the network put it, and a regex over one chunk drops every frame that
+  straddles one, which in practice is the long ones, which here are the tool results. `sse.test.ts`
+  feeds the same stream one character at a time and asserts the same frames.
+
+  Under `?data=mock` the drawer opens on the three-turn conversation `bun run web:mock` generated out
+  of this run's own finding and answers every turn out of the synthetic run with no request and no
+  model, which is what makes it demonstrable on a phone in a corridor. What it will not do is pretend:
+  a dropped screenshot is answered by saying the extraction runs on the server, and the fields it
+  shows are the dataset's own intake example rather than a reading of a file nothing read. Under
+  `?data=api` a failure is reported as a failure, and under `auto` it falls back to the synthetic
+  answer with the reason printed, exactly like `useResource`. Voice input is the browser's own
+  dictation in `es-MX` and this app uploads no audio: the assistant endpoint takes `text` and `images`,
+  so a recording would mean inventing a part the contract does not have, and the transcription path in
+  `packages/extract` stays where docs/06 section 6.2.1 documents it, on the intake.
+
+- `bun run offline`, the rehearsal for the Wi-Fi dying (issue #71). It runs `doctor` and then the
+  whole demo with `fetch` replaced by one that throws on anything that is not loopback, so a call
+  that leaves the machine fails with its URL in the message instead of hanging out a socket timeout
+  in front of the room. The keys stay in `.env`, because a dead uplink is not a missing key. The
+  local Postgres is untouched: it is a socket, not a fetch, and it is the reason the demo works
+  offline at all. `docs/10` carries the measured cold-clone path, twenty seconds of machine time
+  from `git clone` to seven green beats on a laptop that already has bun and Postgres.
 
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
@@ -80,6 +263,111 @@ then the screens, then the narrative, then the plumbing.
   that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
   not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
 
+- Who did it, on every write and on the ledger, with the two exceptions only the owner may approve
+  (issue #199). `X-Actor: role=clerk; name=Lupita Elizondo` is now required by every write endpoint
+  and read in one place, `apps/api/src/middleware/actor.ts`; a write without it is `400 bad_request`
+  naming the header and showing the form, which is a 400 and not a 403 because nothing about the
+  caller was rejected, the request did not say who was acting. The header is mounted per write route
+  rather than once over `/api/v1`, so a POST to a path that does not exist still answers `404` rather
+  than complaining about a header it would never have needed, and a table-driven test walks every
+  documented write path to catch a new endpoint that forgot it. Where a body already names a person,
+  `decidedBy` on a decision and `recordedBy` on a hand-recorded call, the two have to be the same
+  person and a mismatch is `400` with neither name echoed back, for the reason `rejectInvalid`
+  already gives about a CLABE.
+
+  The role guards exactly two shapes and `decideRequirement` in `packages/core/src/actor.ts` is the
+  rule, pure and unit-tested, so the screens and the assistant panel can show it before anybody
+  presses anything instead of discovering it in a refusal. A release on a line whose `confidence` is
+  not `confiable`, or on a line the engine was holding, is the exception `docs/02-persona.md` gives
+  the owner; and any decision on a line the run cancelled is the owner's too, because a cancelled line
+  is closed and putting it back in front of the run is a second decision about the same pesos. The
+  level and not a count of findings, because an `info` finding stops nothing: a supplier who was
+  listed and then cleared their name leaves a row that is history, and asking the owner to approve a
+  payment nothing stands against is how a control becomes a formality somebody clicks through. A
+  clerk asking for either is `403 forbidden` with the sentence that says who can and names the level,
+  and nothing is appended; the same request with no `reason` is `422 unprocessable` asking for the
+  argument, because an exception approved with no prose is the record ADR-0002 says this ledger must
+  never hold. `reason` stays optional everywhere else, since an API that refused an ordinary hold for
+  lack of a sentence would be refused by the clerk instead, outside the product, where nothing is
+  recorded at all. Whether a line was cancelled is asked of the ledger and not of a status column,
+  through one new repository read implemented on both stores, because a stored status can disagree
+  with the events it came from.
+
+  The ledger answers "who" without a join. `actor` now travels on `instruction_received`,
+  `sat_list_published`, `cep_verified`, `cent_sent` and `verification_call`, joining the four
+  variants that already carried one, and `Decision` grows `decidedByRole` next to `decidedBy` so a
+  document can tell an approved exception from a clerk exceeding theirs.
+  `packages/db/migrations/0013_decision_actor_role.sql` adds the one column that needed DDL, checked
+  to the two roles and nullable because the engine signs decisions too and `system` is not a person;
+  every other actor rides in the `payload` jsonb the event ledger already stores, so no other table
+  moved. Three events deliberately carry nobody: `payment_settled` and `payment_failed` are the rail
+  answering rather than a person acting and `cep_awaited` is a wait, each of them follows an event
+  that does carry the name, and putting a clerk on them would read as an action she never took.
+
+  The documents print it. The run constancia gains a "Quien resolvio cada instruccion" section with
+  the name, the capacity in Spanish and the argument, and calls the engine's own decisions `el motor
+  (automatico)` rather than dressing them as a signature; the sweep constancia says who loaded the
+  list version, off the `sat_list_published` event, and prints "No se cargo desde esta instancia" for
+  the committed official snapshot instead of a name nobody signed. `Decision.decidedByRole` is the
+  field the evidence letter of issue #204 reads next to the name.
+
+  `docs/06-regulatory-privacy.md` section 4.4 states in full what this is not: the demo identity
+  selector is not authentication, the header is caller-controlled, nothing verifies it, and a `curl`
+  can claim to be the owner as easily as the browser can. What the header satisfies is the
+  accountability rule of ADR-0002, that every action on somebody's money has a name against it in a
+  record nobody can rewrite, and the section lists what production needs instead, from an identity
+  provider in front of the API to per-company tenancy, none of which is in this repository. The
+  clerk's identity is personal data about an employee and is treated under the obligations of 4.2
+  like everything else on that page.
+
+- The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
+  `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
+  level and their state, "Enviar corrida" behind a second press and a name, the progress line by line
+  as the rail answers, the receipt of every payment that left, the run constancia and the bank layout
+  export. The lines the run does not take sit in their own table with the sentence that says why,
+  because a payment that disappears quietly is a payment somebody believes they made.
+
+  The part worth reading is `apps/web/src/lib/payments.ts`, which answers two different questions with
+  two different fields instead of collapsing them into one. Whether the run TAKES a line is the
+  decision, because `POST /api/v1/run/:id/execute` hands the rail every released line and nothing
+  else; whether a line the run took will be PAID is `transactionStateOf`, because a released line
+  whose beneficiary came back blocked, or whose supplier is definitively listed with nobody's
+  signature over it, reads `cancelado` and comes back off the rail as a `cancelled` line carrying a
+  reason. Collapsing the two is how a screen either hides a payment that was refused or offers one the
+  API was never going to send, and the generated run has one line of each kind, so both cases are on
+  screen rather than in a comment. Neither the level nor the state is computed here: `confidenceOf`
+  and `transactionStateOf` in `packages/core` answer both, the API's own `confidence` and `state` are
+  used when the payload carries them, and the module adds only the Spanish sentence under a state,
+  quoting the engine's own `explanation` or the rail's own `reason` rather than composing a second
+  account of one event.
+
+  Nothing leaves without a person and the screen is built so that is visible rather than claimed. The
+  name of whoever sends the run is a field on the page, it travels on `X-Actor`, the ledger records it
+  per line, and the button refuses to work without it. The confirmation press names the count and the
+  pesos and says that a SPEI does not come back. `GET /api/v1/rails` is what lets the screen say which
+  rail is live without reading an environment file: on the Nessie mirror it states that the sandbox
+  registers the outflow, moves no pesos and produces no CEP, which is why the receipt reads "sello no
+  verificado", and on STP it says the rail has never run live from this repository. A server with no
+  rail repeats the sentence `packages/rail` wrote instead of a paraphrase.
+
+  The layout export is the no-API path a small company actually uses: a CSV in SentryOne's own
+  columns, one row per line, and the screen says out loud that every bank publishes its own template
+  so the file is adjusted to the portal before it is uploaded. It carries only a line that may be paid
+  and that no rail is holding, which are the same two refusals the execute endpoint follows: a file
+  with a held payment in it would be the control being bypassed by the export, and a file repeating a
+  transfer already on the rail is how a supplier gets paid twice.
+
+  The stream rides `streamSse` and `sse.ts`, which the assistant panel landed for the same reason
+  this needed them: `EventSource` issues a bare GET and the execute stream starts with `confirm: true`
+  and an actor header. `executeRun` adds only what a frame means, a `line` per payment and a `done`
+  carrying the whole `PaymentExecution`, and it never retries, because a retried execute is a second
+  request to move money and the endpoint is idempotent per instruction precisely so a person decides
+  that rather than a client. The screen also listens on `GET /api/v1/events` and re-reads the
+  execution on any `payment_*` event, so a second screen watching the run moves with the first, and
+  folding a line is idempotent per instruction so the two channels delivering the same payment cannot
+  double it. Under `?data=mock` nothing opens at all: the generated execution is replayed line by line
+  in the browser, so the review, the progress, the receipts and the export are demonstrable on a phone
+  in a corridor.
 - The assistant panel: Gemini with function calling over this API's own reads, and a card a person
   presses (issue #197). `apps/api/src/assistant/` is the whole of it.
   `POST /api/v1/assistant/messages` answers `text/event-stream` with the five events of docs/09,
@@ -626,7 +914,119 @@ then the screens, then the narrative, then the plumbing.
   the statute provides for has not been filed, so the caps and the word guarantee stay out of any
   contract, price list and screen until both have happened.
 
+- The rest of the guarantee menu, eight options with a precedent and a weakness each, and the three we
+  would defend on stage (issue #194, second pass). The team asked for more alternatives than the four
+  layers above, stronger and better defended, so `docs/05-business-model.md` gains "The options, and the
+  one we would defend" inside the same section, written as a menu a judge can push on: every option
+  carries what it costs us, what it needs legally, the precedent with somebody else's document behind it,
+  and the honest weakness, in that order. (a) Guarantee by evidence depth rather than by price, so cover
+  attaches to payments that carried the full chain and the gate is the incentive to use the controls;
+  the precedent is Eftsure, which indemnifies only where its own engine matched the account to the
+  vendor's name and gave the payment a "green thumb" of approval, and the contrast is Ramp, which uses
+  the same audit log to place the loss on the customer. (b) A parametric trigger, with the finding that
+  kills the naive version: the FSI and IAIS paper defines the index as an objective measure "reported by
+  an independent third party (neither the insured nor insurer)", so our own append-only ledger cannot be
+  the index and the Banxico-signed CEP can, which makes the defensible design a two-part trigger, a CEP
+  holder mismatch as the index and the ledger as the audit record, with basis risk named out loud as the
+  known limitation. (c) The reserve, sized, and this is the arithmetic the earlier pass asserted instead
+  of showing: the per-event cap is exactly ten times what one company accrues to the reserve in a year,
+  because one is twelve months of fees and the other is a tenth of twelve months of fees, so the
+  break-even claim rate is 10.0 events per 100 companies a year at every tier and therefore at every
+  mix, against the 5.22 fraud events per 100 economic units INEGI publishes, 1.92 times of headroom,
+  with the whole table at 300, 1,000 and 3,000 companies pricing every ENVE event as if it qualified.
+  The same option names where it breaks, which is severity and not frequency: the direct cap is 4.61
+  times the channel cap, so in an adverse mix the break-even falls to 3.74 per 100, below the published
+  incidence, an overrun of MXN 48,052 at 300 companies and MXN 480,521 at 3,000, and three unexpected
+  direct events empty a 300-company reserve against twenty-nine at 3,000, which is why the tail matters
+  in year one and not in year three. It also refuses the word reinsurance, because reinsurance is cover
+  an insurer buys and we are not one. (d) The insurance layer done right, with the product class named,
+  funds transfer fraud and social engineering, and the pitch that writes itself: in Abraham Linc Corp.
+  v. Spinnaker Ins. Co. a claim went to discovery over whether the insured had followed an "established
+  and documented verification procedure" and it had "no documented procedure or protocol", only an
+  "unwritten protocol" of email, so we do not compete with the endorsement, we are the condition
+  precedent that makes it payable, and we hand the client the sublimit problem in writing, USD 100,000
+  against a USD 2,000,000 endorsement on a real policy and a published market range of USD 25,000 to
+  USD 250,000. Travelers' own coverage highlights admit the control the market demands is spoofable,
+  that a fraudster can amend the phone number in the email panel so the callback reaches them, which is
+  the setup for the one-centavo CEP probe, since the attacker does not hold Banxico's signing key. The
+  same option corrects how this route had been described internally: under article 102 LISF we are
+  **not** a licensed promoter, because that article is precisely the route that needs no agente de
+  seguros licence, and it comes with a services contract registered with the CNSF beforehand, CNSF
+  inspection of those operations, and article 104 making the insurer liable for our conduct in the
+  channel, which is a reason an insurer may refuse it. (e) The bank-embedded route, where the precedent
+  is a mandate rather than a product: the United Kingdom has required capped reimbursement for
+  authorised push payment fraud since 7 October 2024, split 50/50 between sending and receiving firm,
+  two exceptions only, five business days, GBP 100 maximum excess, no minimum claim, a 13-month window
+  and a GBP 85,000 cap, covering microenterprises and charities as well as individuals, and the
+  published returns are 88 percent of in-scope money lost reimbursed over eighteen months with 3 percent
+  of claims rejected for the customer not taking enough care. The moral hazard objection is answered with
+  a regulator's independent evaluation rather than intuition: APP fraud losses fell by about GBP 73
+  million a year with nearly 35,000 fewer scams, a short-term net benefit of GBP 17 million to GBP 29
+  million the evaluators call conservative, and "no evidence of market exits or reckless consumer
+  behaviour". The honest caveat rides in the same breath, that the regime's microenterprise is fewer than
+  ten employees and EUR 2 million so our 11 to 250 person persona sits outside its scope, and that Mexico
+  has no equivalent duty at all. (f) Claim assistance, which promises effort and evidence and never
+  recovery, and it rests on a finding that makes it urgent: Condusef's electronic channel is closed to
+  exactly this loss by its own published rules, because it cannot take a complaint involving more than
+  one financial institution or one where no contractual relationship with the institution is shown, so a
+  company discovers on the worst day that it needs an in-person appointment and, as a persona moral, a
+  notarial instrument, with the LPDUSF's procedural deadlines behind it and no deadline to pay anything.
+  The packet is the `carta`, the two constancias and the CEP, the window is short because the first 48
+  hours often decide whether stolen funds come back, and the baseline is stated rather than improved on
+  paper: one peso in four comes back today and we have no measurement of what a better file changes
+  about that. (g) Priority verification for the opposite error, the cent and the call attempted first
+  inside a published window for a line the owner marks urgent, with the month credited when we miss,
+  on top of the bound and the named release that already exist, and the weakness volunteered, that no
+  urgent field exists in the domain today, the queue behind it is a founder and not a rota, and no SLA
+  makes a supplier answer the telephone. (h) The legal floor, liability capped at the fees paid in the
+  preceding twelve months with the person's decision as the last act, which is above the Mexican
+  market's own floor rather than a retreat from it, and where the one thing nobody read is routed rather
+  than guessed: what a Mexican court would look at when asked to enforce or set aside such a cap in a
+  business-to-business contract of adhesion is not answered anywhere in this repository. The closing
+  ranking is explicit: (a), (b), (c) and (g) today with (f) shipping alongside and (h) underneath, (d)
+  as the partnership within twelve months of paying customers, (e) as the bank route we ask for and have
+  not got, and (d) named as the strongest option while (c) is the one we can do this week. Seventeen
+  sources, 75 to 91, all opened 2026-09-12 in the evening, and two of them correct earlier entries in
+  the same list rather than arguing with them: Eftsure's guarantee page opened after the afternoon's
+  redirect loop turned out to be a region cookie, so [60]'s sentence that nothing could be attributed to
+  Eftsure is superseded by [79] and the comparables table now reads that one vendor does publish a capped
+  indemnity; and Howden México is the first Mexican page found that offers cover for this loss, a broker
+  and not an insurer, saying in its own words that many policies will not cover it "porque el pago se ha
+  realizado legítimamente: a ojos del banco, es real". `docs/12-judge-qa.md` subsection 8 is rewritten
+  around it: a thirty-second spoken answer naming the three things that pay today and the precedent, two
+  follow-on blocks for the opposite error and for the reserve arithmetic, thirteen rows of what may be
+  said with the source against each, and a "do not say" list whose first two entries are the two things
+  the team had been saying loosely, that we would be a licensed promoter of insurance and that we would
+  reinsure the tail. Neither is true and both are corrected here rather than on stage. Nothing in the
+  menu has been reviewed by counsel, the article 20 consultation is still unfiled, and two of the eight
+  options end in a routed question instead of an answer. One consequence of merging #201 into this branch
+  is restated rather than left stale, because it lands inside this same section: the blind evaluation grew
+  from thirty labelled cases to thirty-five, so the false-finding share is 3 of the 23 findings it raised
+  and not 3 of 20, 13.0 percent and not 15, which moves the layer 4 projection to about 41 wrongly
+  stopped payments a year, about 68 days of wrong delay, MXN 24,000 at the median supplier price and MXN
+  46,900 at the mean, 2.2 to 4.3 times the annual subscription rather than two and a half to five, and
+  MXN 44 per event rather than MXN 38 for a company wrongly stopped every time. The credibility bullet
+  now carries the run's own figures, 87.0 percent precision, 83.3 percent recall, 1.6 percent false
+  positives and 33 of 35 on action agreement, and points at the level matrix that arrived with it,
+  because `confiable` right on twelve of twelve is the row a guarantee actually rides on.
+
 ### Changed
+
+- `docs/10-demo-script.md` is true against the app again (issue #79). Beat 2 says seven months of
+  replay because that is what the seeded ledger holds and what the screen shows; beat 5 carries the
+  thirty-five case numbers and stops claiming the labels were written by someone who had not read
+  the controls. The four-minute question is answered by counting rather than by asserting: 405
+  spoken words, 2:42 of talking at 150 words a minute, and a per-beat table showing that beats 3 and
+  4 have under five seconds of slack each and are the two that need a human to physically do
+  something. The checklist gains the boot line to read, because `bun run dev` from the repository
+  root does not hand `SEED` to the API and the fixture it serves instead makes every figure in the
+  file wrong. The same counts were stale in `docs/01`, `07`, `08`, `13`, `14` and the README.
+
+- `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
+  read the controls. The controls were merged first, `packages/seed/src/holdout/README.md` has said
+  so since #122, and a judge who reads the repository and then hears the stronger claim out loud has
+  found the one thing that costs more than the point it was worth. The sentence to say is that no
+  case was edited to make a control pass and the ones that disagree are still counted against us.
 
 - A second Capital One panel came to the table on the evening of 2026-09-12, said the project was
   interesting and then asked the one thing the afternoon's answers had given in categories instead of
@@ -1610,6 +2010,45 @@ then the screens, then the narrative, then the plumbing.
   migration section no longer describes a `supplier_weekly_outflow` aggregate that does not exist,
   and the threshold TODO is answered rather than left open, by stating that no refusal threshold was
   pre-registered before the first run and why claiming one would be false.
+- The web app is redesigned around Capital One's own design language, on top of the rename in
+  #152 (epic #82). The palette, the neutrals, the radii and the three decision colours are read
+  from Gravity, Capital One's design system, rather than invented: the page is white like theirs,
+  the neutrals are warm rather than blue-black, the accent is their brand navy `#013D5B` and the
+  release colour is their olive `#5C7F0B`. The interface is set in Hanken Grotesk, self-hosted as
+  one variable file per subset so the demo survives a room with no Wi-Fi, and it uses Capital One's
+  own weight hierarchy, which is the thing that makes their pages look like two typefaces when they
+  are one: display at 300, navigation and table data at 400, emphasis at 600. The rail's type is
+  matched to their navigation exactly, at 14px and weight 400. Their lockup appears once, in the
+  rail's foot, as attribution.
+- The rail is a brand panel. Its ground is Capital One's brand navy, the same value as the accent,
+  so the one piece of furniture on every screen is theirs and it is the first thing in the reading
+  order. It carries its own palette, because every one of the page's ink tokens is dark on dark in
+  there, and that palette does not change with the theme: a brand colour that shifts with the
+  operating system is not a brand colour. Two things the audit caught rather than the eye: the app's
+  focus ring is that same navy, so it has to invert inside the rail or keyboard focus vanishes where
+  a keyboard user starts, and the muted ink measured 4.2 against the active row, under AA.
+- The metrics page dropped the six-bullet essay on what the evaluation does and does not claim. The
+  argument belongs in `packages/seed/src/holdout/README.md` and in the judge Q&A, not on the screen;
+  what stays is the one line that is evidence rather than argument, that the figures on screen are
+  the ones `bun run eval` and `GET /api/v1/metrics` print.
+- The six sections moved from a row of tabs into a collapsible left rail, whose collapsed state is
+  remembered, and the shell's top bar now carries the page's single `h1`. Five screens stopped
+  repeating that title under it and keep only the sentence that says what they are for.
+- The payment run lost most of what was on it, and reads better for it. The three decision buttons
+  are gone from every row -- fifty-two coloured objects on one screen, inviting the decision to be
+  made from the one place that shows no evidence for it -- and deciding happens on the instruction,
+  next to the finding that explains it. The decision chip is gone too: a row's state is a 3px mark
+  on its left edge and a word in its own column. The alert rail, which listed the findings the table
+  was already sorted by, became a panel that names all six controls and what each one found,
+  including the ones that found nothing. Two of the three totals cards became a line of text beside
+  the one figure that decides whether the clerk can go home.
+- The run opens on its exceptions. A week of 92 instructions is 7 rows of work and 85 that say "this
+  one is fine", and the page was twelve screens tall as a result; a segmented filter above the table
+  (`No salen` / `Liberadas` / `Todas`) opens on the first and takes the page to under two screens.
+  Nothing is hidden: the headline card states the full count and the released total on every view,
+  and each segment carries its own size. Changing the filter animates the incoming rows; the first
+  paint does not animate, so the table is never blank in the frame a judge sees.
+
 - `detectBankReconciliation` buckets the expected payments by the day they are expected on and
   scans only the days inside the match window, instead of the whole company's documents once per
   outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from

@@ -32,7 +32,12 @@ import type {
   SatListEntry,
   SweepResult,
 } from "@hackmty/core";
-import { decide, SYSTEM_DECIDER, supplierModelOf } from "@hackmty/core";
+import {
+  decide,
+  definitiveListingReason,
+  SYSTEM_DECIDER,
+  supplierModelOf,
+} from "@hackmty/core";
 import { runControls } from "@hackmty/engine";
 import {
   normalizeRfc,
@@ -419,6 +424,22 @@ export interface RescoredLine {
   before: Action | null;
   /** The decision the engine reached on the new evidence. */
   decision: Decision;
+  /**
+   * The sentence that cancels this line, when THIS publication is what made the
+   * listing definitive, and null otherwise.
+   *
+   * Null and not a repeated sentence is what makes the cancellation land exactly
+   * once. A line that already carried a definitive row was already cancelled when
+   * that row arrived, so a second publication naming the same supplier re-scores
+   * the pesos and appends no second `payment_cancelled`: an append-only ledger with
+   * two cancellations of one line reads as two events and there was one.
+   *
+   * Issue #204 and ADR-0009 row 4 are what this is for. A definitive listing is not
+   * a hold somebody can wait out, because the comprobantes have no fiscal effect at
+   * all, so the line is cancelled rather than stopped and only a named owner
+   * reopens it with a written reason.
+   */
+  cancellation: string | null;
 }
 
 /**
@@ -501,11 +522,18 @@ export async function rescoreSweptLines(
     };
 
     await deps.repo.recordEngineDecision(decision);
+    /* Cancelled by this publication and not by a previous one. `item.findings` is
+       what the clerk was looking at a second ago and `report.findings` is what the
+       list just made true, so the difference is exactly the lines this request
+       cancelled. */
+    const before = definitiveListingReason(item.findings);
+    const after = definitiveListingReason(report.findings);
     rescored.push({
       instructionId: item.instruction.id,
       supplierRfc: item.instruction.supplierRfc,
       before: item.decision?.action ?? null,
       decision,
+      cancellation: before === undefined && after !== undefined ? after : null,
     });
   }
 
