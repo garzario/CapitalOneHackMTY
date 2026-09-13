@@ -377,10 +377,12 @@ this repository follows. Both are deliberate.
 >   and never eighteen, it promises no payment, it accuses nobody, it asks for no data, and no
 >   outcome it returns can release money on its own.
 > - **The evaluation is blind by construction, and we published the parts that disagree with us.**
->   The person who writes the labelled cases does not write the detectors and does not open that
->   folder until the code is merged, and the git history is the evidence that the separation held. On
->   thirty labelled cases the engine scores 85.0 percent precision, 81.0 percent recall and a 1.9
->   percent false-positive rate, and chooses the labelled action on 28 of the 30. Every mismatch in
+>   No case in the labelled set was edited to make a control pass, and the labels come from ADR-0002
+>   and the domain types rather than from reading the control source, which is weaker than writing
+>   them blind and is what actually happened. On thirty-five labelled cases the engine scores 87.0
+>   percent precision, 83.3 percent recall and a 1.6 percent false-positive rate, chooses the
+>   labelled action on 33 of the 35, and read the way a clerk reads the screen, twelve of the twelve
+>   payments that should have come out trustworthy did. Every mismatch in
 >   that table is one of four documented disagreements about how severe a finding is or whether it is
 >   provable, not a control that failed to fire and not a control that fired on a clean payment. All
 >   four are left in the table with both arguments written down, because a case set edited until it

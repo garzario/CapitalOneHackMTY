@@ -17,6 +17,8 @@
 import type { LedgerEvent } from "@hackmty/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  Actor,
+  AssistantSession,
   BeneficiaryRegistry,
   CepVerification,
   CepVerifyBody,
@@ -39,10 +41,31 @@ import type {
   VerifyCallResult,
   VerifyCallScript,
 } from "./contract";
+import { createSseDecoder, type SseFrame } from "./sse";
 
 export const API_TIMEOUT_MS = 6000;
 export const API_PREFIX = "/api/v1";
 export const EVENTS_PATH = `${API_PREFIX}/events`;
+export const ASSISTANT_MESSAGES_PATH = `${API_PREFIX}/assistant/messages`;
+
+/**
+ * The `X-Actor` header of every write, formatted the way docs/09-api.md reads it.
+ *
+ * Two keys separated by `;`, and `name` is the rest of its pair so a real name
+ * needs no quoting. A name carrying a `;` is refused by the API rather than
+ * truncated, so it is refused here too: a decision recorded under half a name is
+ * worse than a request that did not go out, and the panel can say so before
+ * anybody presses anything.
+ */
+export function formatActor(actor: Actor): string | null {
+  const name = actor.name.trim();
+
+  if (name === "" || name.length > 120 || name.includes(";")) {
+    return null;
+  }
+
+  return `role=${actor.role}; name=${name}`;
+}
 
 export type ApiFailure = {
   /** HTTP status, or 0 when the request never produced a response. */
@@ -66,6 +89,16 @@ export type ApiResult<T> =
 export type RequestOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
+  /**
+   * Who is acting, sent as `X-Actor`. Every write in this product carries it and
+   * the ledger event it appends records the name, because nothing here executes
+   * without a person: docs/09-api.md "The actor on every write".
+   *
+   * It lives on the options rather than on each signature so that every write
+   * already written gained the header without changing its arguments, and so a
+   * read can never accidentally claim somebody acted.
+   */
+  actor?: Actor;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,12 +138,23 @@ type JsonInit = {
   body?: unknown;
 };
 
+/** The actor header, or nothing, so one expression builds every header bag. */
+function actorHeaders(actor?: Actor): Record<string, string> {
+  if (actor === undefined) {
+    return {};
+  }
+
+  const value = formatActor(actor);
+
+  return value === null ? {} : { "x-actor": value };
+}
+
 async function request(
   path: string,
   init: JsonInit = {},
   options: RequestOptions = {},
 ): Promise<ApiResult<unknown>> {
-  const { signal, timeoutMs = API_TIMEOUT_MS } = options;
+  const { signal, timeoutMs = API_TIMEOUT_MS, actor } = options;
   const controller = new AbortController();
   const forwardAbort = () => controller.abort();
 
@@ -127,8 +171,12 @@ async function request(
       method: init.method ?? "GET",
       headers:
         init.body === undefined
-          ? { accept: "application/json" }
-          : { accept: "application/json", "content-type": "application/json" },
+          ? { accept: "application/json", ...actorHeaders(actor) }
+          : {
+              accept: "application/json",
+              "content-type": "application/json",
+              ...actorHeaders(actor),
+            },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: controller.signal,
     });
@@ -387,6 +435,34 @@ export async function getLedger(
 }
 
 /**
+ * One conversation of the assistant panel, projected from the
+ * `assistant_message` events of that session id.
+ *
+ * A read, so it carries no actor: `AssistantSession.actor` is who opened the
+ * conversation and it comes back on the payload, rather than being asserted by
+ * whoever is asking for it.
+ */
+export async function getAssistantSession(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<AssistantSession>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/assistant/sessions/${encodeURIComponent(id)}`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<AssistantSession>(
+        value,
+        (session) =>
+          typeof session.id === "string" && Array.isArray(session.messages),
+        "assistant session",
+      ),
+  );
+}
+
+/**
  * The constancia is a PDF, so it is a link and not a fetch.
  *
  * These build the href the anchor carries. Letting the browser navigate is what
@@ -636,6 +712,138 @@ export async function reseed(
 }
 
 /* ---------------------------------------------------------------- streaming */
+
+/**
+ * A POST that answers `text/event-stream`, frame by frame.
+ *
+ * `EventSource` cannot do this: it only issues a GET, and three endpoints of this
+ * API stream a reply to a POST because each of them is one piece of work the
+ * caller started and is waiting on. So the response body is read here and
+ * `createSseDecoder` turns the chunks into frames. This function knows nothing
+ * about the assistant: it moves frames, and `lib/assistant.ts` is what decides
+ * what a frame means, which is what keeps the contract check testable with no
+ * network in it.
+ *
+ * The timeout deliberately covers only the wait for the headers. A six second
+ * ceiling is right for a JSON route and wrong for a stream, where the whole point
+ * is that the answer arrives over time: a server that never responds still fails
+ * fast, and a server that is answering is never cut off mid-sentence. Cancelling
+ * is the caller's `signal`, which is what the close button uses.
+ */
+export type SseStreamInit = {
+  method: "POST";
+  /** A `FormData` for the multipart form, or a JSON value for the other one. */
+  body?: BodyInit;
+  json?: unknown;
+};
+
+export async function streamSse(
+  path: string,
+  init: SseStreamInit,
+  onFrame: (frame: SseFrame) => void,
+  options: RequestOptions = {},
+): Promise<ApiResult<void>> {
+  const { signal, timeoutMs = API_TIMEOUT_MS, actor } = options;
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort();
+
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+
+  let timedOut = false;
+  let timer: number | undefined = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const clearHeaderTimeout = () => {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timer = undefined;
+    }
+  };
+
+  try {
+    const json = init.json !== undefined;
+    const response = await fetch(path, {
+      method: init.method,
+      headers: {
+        accept: "text/event-stream",
+        ...(json ? { "content-type": "application/json" } : {}),
+        ...actorHeaders(actor),
+      },
+      body: json ? JSON.stringify(init.json) : init.body,
+      signal: controller.signal,
+    });
+
+    clearHeaderTimeout();
+
+    if (!response.ok) {
+      /* A refusal is JSON even on a route that answers a stream, which is what
+         lets the panel show the 422 naming the variable this server lacks. */
+      const payload = await response.json().catch(() => null);
+
+      return { ok: false, error: failureFrom(response.status, payload) };
+    }
+
+    const body = response.body;
+
+    if (!body) {
+      return {
+        ok: false,
+        error: {
+          status: response.status,
+          message: "This browser cannot read a streamed response.",
+        },
+      };
+    }
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    const frames = createSseDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      for (const frame of frames.push(
+        decoder.decode(value, { stream: true }),
+      )) {
+        onFrame(frame);
+      }
+    }
+
+    for (const frame of frames.flush()) {
+      onFrame(frame);
+    }
+
+    return { ok: true, data: undefined };
+  } catch (error) {
+    if (timedOut) {
+      return {
+        ok: false,
+        error: {
+          status: 0,
+          message: `The API did not answer within ${timeoutMs} ms.`,
+        },
+      };
+    }
+
+    if (isAbortError(error)) {
+      return { ok: false, error: { status: 0, message: "Request cancelled." } };
+    }
+
+    return {
+      ok: false,
+      error: { status: 0, message: "The stream was cut before it finished." },
+    };
+  } finally {
+    clearHeaderTimeout();
+    signal?.removeEventListener("abort", forwardAbort);
+  }
+}
 
 export type EventsStatus = "connecting" | "open" | "closed" | "unsupported";
 

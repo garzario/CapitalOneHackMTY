@@ -32,9 +32,9 @@
  * positive would report a false positive rate the product does not have.
  */
 
-import type { Detector, Finding, Metrics } from "@hackmty/core";
+import type { Confidence, Detector, Finding, Metrics } from "@hackmty/core";
 import type { ExpectedFinding, HoldoutCase } from "./types";
-import { ALL_DETECTORS } from "./types";
+import { ALL_DETECTORS, ALL_LEVELS } from "./types";
 
 /**
  * What the engine said about one finding. A real `Finding` satisfies this, and so does
@@ -50,6 +50,13 @@ export interface CasePrediction {
   findings: readonly PredictedFinding[];
   /** The action the engine chose, when it got as far as choosing one. */
   action?: HoldoutCase["expectedAction"];
+  /**
+   * The level the line would read at on the screen. Absent when the caller
+   * scored findings without deriving one, and then the case counts against
+   * every level's recall and against no level's precision: nothing was shown,
+   * so nothing can have been shown correctly.
+   */
+  level?: Confidence;
 }
 
 /** A per-detector cell of the confusion matrix, with the true negatives kept. */
@@ -71,6 +78,9 @@ export interface EvaluationRow {
   expectedAction: HoldoutCase["expectedAction"];
   predictedAction?: HoldoutCase["expectedAction"];
   actionMatches: boolean;
+  expectedLevel: Confidence;
+  predictedLevel?: Confidence;
+  levelMatches: boolean;
 }
 
 export interface Evaluation {
@@ -100,6 +110,16 @@ export function emptyMetrics(): Metrics {
   for (const detector of ALL_DETECTORS) {
     perDetector[detector] = { tp: 0, fp: 0, fn: 0 };
   }
+  const perLevel = {} as Metrics["perLevel"];
+  for (const level of ALL_LEVELS) {
+    perLevel[level] = {
+      expected: 0,
+      predicted: 0,
+      agreed: 0,
+      precision: 0,
+      recall: 0,
+    };
+  }
   return {
     cases: 0,
     truePositives: 0,
@@ -109,7 +129,58 @@ export function emptyMetrics(): Metrics {
     recall: 0,
     falsePositiveRate: 0,
     perDetector,
+    perLevel,
   };
+}
+
+/**
+ * The level matrix: how often the line on the screen read the way it should.
+ *
+ * A whole case at a time, not a finding, because that is what a clerk sees. The
+ * per-control table can be perfect while a payment still reads `precaucion`
+ * when it should read `alerta`, and that gap is the only thing this view exists
+ * to show.
+ *
+ * A prediction with no level counts against recall and not against precision.
+ * The engine did not put the line anywhere, so it cannot have put it in the
+ * wrong place; it can only have failed to put it in the right one.
+ */
+export function levelMatrix(
+  cases: readonly HoldoutCase[],
+  predictions: readonly CasePrediction[],
+): Metrics["perLevel"] {
+  const byCase = new Map(predictions.map((entry) => [entry.caseId, entry]));
+  const counts = {} as Record<
+    Confidence,
+    { expected: number; predicted: number; agreed: number }
+  >;
+  for (const level of ALL_LEVELS) {
+    counts[level] = { expected: 0, predicted: 0, agreed: 0 };
+  }
+
+  for (const holdout of cases) {
+    const predicted = byCase.get(holdout.id)?.level;
+    counts[holdout.expectedLevel].expected += 1;
+
+    if (predicted === undefined) {
+      continue;
+    }
+    counts[predicted].predicted += 1;
+    if (predicted === holdout.expectedLevel) {
+      counts[predicted].agreed += 1;
+    }
+  }
+
+  const perLevel = {} as Metrics["perLevel"];
+  for (const level of ALL_LEVELS) {
+    const cell = counts[level];
+    perLevel[level] = {
+      ...cell,
+      precision: ratio(cell.agreed, cell.predicted),
+      recall: ratio(cell.agreed, cell.expected),
+    };
+  }
+  return perLevel;
 }
 
 /** An `info` row is context for the clerk. Everything else is an alert. */
@@ -228,6 +299,11 @@ export function computeMetrics(
         ? {}
         : { predictedAction: prediction.action }),
       actionMatches,
+      expectedLevel: holdout.expectedLevel,
+      ...(prediction?.level === undefined
+        ? {}
+        : { predictedLevel: prediction.level }),
+      levelMatches: prediction?.level === holdout.expectedLevel,
     });
   }
 
@@ -257,6 +333,7 @@ export function computeMetrics(
       recall: ratio(tp, tp + fn),
       falsePositiveRate: ratio(fp, fp + tn),
       perDetector,
+      perLevel: levelMatrix(cases, predictions),
     },
     rows,
     actionAgreement,

@@ -687,7 +687,7 @@ of two years on the simulated publication with MXN 878,592.59 of base already de
 their 31 invoices: the base counts the settled ones only, because an invoice nobody has paid yet was
 not deducted yet and carries no retroactive exposure.
 
-**In the holdout set**, 10 of the 30 labelled cases are negatives, and they are where the
+**In the holdout set**, 12 of the 35 labelled cases are negatives, and they are where the
 false-positive rate is actually computed. The overlap with the list above is deliberate and the two
 are not the same artifact: the generator's version is a case injector that mutates a whole company
 and then measures what landed, and the holdout's version is a hand-written JSON file carrying only

@@ -108,8 +108,8 @@ Three commands worth knowing about. `bun test` runs 1,725 tests across 99 files 
 database and no API key, which is the fastest way to check that the intelligence is real. The 111
 database cases skip themselves unless `TEST_DATABASE_URL` names a database they may empty, and they
 share one, so run them a workspace at a time rather than all at once. `bun run eval` scores the six
-controls against 30 labelled holdout cases and prints precision, recall and the false positive rate
-per control. `bun run demo` drives the demo path headless and must be green
+controls against 35 labelled holdout cases and prints precision, recall and the false positive rate
+per control and per confidence level. `bun run demo` drives the demo path headless and must be green
 before any rehearsal or judge visit.
 
 The consortium network is opt-in, because it is the only part of the product that talks to a second

@@ -64,5 +64,6 @@
       "because": "The status is definitivo and the publication precedes this payment, so the deduction on this invoice has no fiscal effect. It is provable from the published list, not inferred."
     }
   ],
-  "expectedAction": "hold"
+  "expectedAction": "hold",
+  "expectedLevel": "alerta"
 }

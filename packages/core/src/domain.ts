@@ -1152,4 +1152,33 @@ export interface Metrics {
   recall: number;
   falsePositiveRate: number;
   perDetector: Record<Detector, { tp: number; fp: number; fn: number }>;
+  /**
+   * The same evaluation read the way a clerk reads the screen: not "did control
+   * 2 fire" but "did this payment come out `alerta` when it should have".
+   *
+   * A control can be right and the line still wrong. Two `warning` findings and
+   * one missed `critical` is a good per-control row and a payment that reads
+   * `precaucion` when it should read `alerta`, which is the failure the clerk
+   * actually experiences. Per level is the only view that catches it, and it is
+   * the number to defend on `confiable`: a line the product called trustworthy
+   * and that was not is the one mistake this product cannot make twice.
+   *
+   * One case contributes to exactly one expected level and one predicted level,
+   * so the three cells sum to `cases` down each axis. Precision on a level is
+   * "of the lines we called this, how many were", recall is "of the lines that
+   * were, how many we called".
+   */
+  perLevel: Record<
+    Confidence,
+    {
+      /** Cases whose expected level is this one. */
+      expected: number;
+      /** Cases the engine put at this level. */
+      predicted: number;
+      /** Cases where both agree. */
+      agreed: number;
+      precision: number;
+      recall: number;
+    }
+  >;
 }

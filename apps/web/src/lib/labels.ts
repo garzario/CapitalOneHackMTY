@@ -14,11 +14,16 @@
 
 import type {
   Action,
+  AssistantTool,
+  Confidence,
+  ConfidenceRule,
   Detector,
   FindingState,
   InstructionSource,
+  ProposalKind,
   SatListStatus,
   Severity,
+  TransactionState,
 } from "@hackmty/core";
 import type {
   CepSealState,
@@ -59,6 +64,24 @@ export const DETECTOR_LABEL: Record<Detector, string> = {
   supplier_behaviour: "Cambio de comportamiento",
   beneficiary_cep: "Beneficiario verificado con CEP",
   bank_reconciliation: "Conciliacion bancaria",
+};
+
+/**
+ * The screen that proves a finding, per detector, and the words on the link.
+ *
+ * Two detectors are missing on purpose rather than by omission. A duplicate
+ * invoice already carries its own origin inside the panel, and a bank
+ * reconciliation already carries the bank row it failed against: the proof is
+ * the block the reader is looking at, and there is no screen in the app that
+ * shows more of it than that. A link to nowhere new is furniture.
+ */
+export const EVIDENCE_ACTION: Partial<
+  Record<Detector, { label: string; kind: "sat" | "cep" | "call" }>
+> = {
+  sat_69b: { label: "Consultar en la lista 69-B", kind: "sat" },
+  beneficiary_cep: { label: "Verificar con el CEP", kind: "cep" },
+  clabe_forensics: { label: "Llamar al proveedor", kind: "call" },
+  supplier_behaviour: { label: "Llamar al proveedor", kind: "call" },
 };
 
 export const DETECTOR_ORDER: Detector[] = [
@@ -107,6 +130,26 @@ export const SOURCE_LABEL: Record<InstructionSource, string> = {
   pdf: "PDF",
   portal: "Portal",
   manual: "Captura manual",
+};
+
+/** Which Rune glyph draws a channel. The drawings are in `Icons.tsx`. */
+export type SourceGlyph = "mail" | "message" | "file-text" | "globe" | "pencil";
+
+/**
+ * The channel an instruction arrived by, as a shape.
+ *
+ * It sits next to `SOURCE_LABEL` because it is the same fact in the other
+ * channel, and a run row shows both: the tile says where it came from at a
+ * glance and the word under it says the same thing for anyone who cannot use
+ * the shape. A key rather than a component, so this file stays a dictionary of
+ * words with no view in it.
+ */
+export const SOURCE_ICON: Record<InstructionSource, SourceGlyph> = {
+  email: "mail",
+  whatsapp: "message",
+  pdf: "file-text",
+  portal: "globe",
+  manual: "pencil",
 };
 
 export const SAT_STATUS_LABEL: Record<SatListStatus, string> = {
@@ -209,6 +252,109 @@ export const SEAL_STATE_BADGE: Record<CepSealState, string> = {
   invalid: "badge badge-hold",
 };
 
+/**
+ * The three levels, in the only three words this product uses for them.
+ *
+ * `confiable` is a statement about the evidence we hold and nothing more. It is
+ * not "seguro": a SPEI cannot be recalled, so nobody can promise one is safe, and
+ * ADR-0009 forbids the word as a verdict in any language along with every
+ * probability, percentage and score. The level always arrives on screen with the
+ * findings that produced it, which is why `CONFIDENCE_RULE_LABEL` exists: the rule
+ * that fired is shown next to the level rather than left in a function.
+ */
+export const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confiable: "Confiable",
+  precaucion: "Precaucion",
+  alerta: "Alerta",
+};
+
+/** The level reuses the decision palette, so one colour means one thing. */
+export const CONFIDENCE_BADGE: Record<Confidence, string> = {
+  confiable: "badge badge-release",
+  precaucion: "badge badge-verify",
+  alerta: "badge badge-hold",
+};
+
+export const CONFIDENCE_HELP: Record<Confidence, string> = {
+  confiable:
+    "Los documentos que tenemos coinciden y no hay nada abierto en esta linea.",
+  precaucion: "Falta una comprobacion humana o la cuenta no tiene historial.",
+  alerta: "Los documentos ya prueban un problema en esta linea.",
+};
+
+/** Which rule gave the level, in the words of the table in ADR-0009. */
+export const CONFIDENCE_RULE_LABEL: Record<ConfidenceRule, string> = {
+  sat_definitive: "el proveedor esta listado en definitiva por el SAT",
+  critical_finding: "hay un hallazgo critico",
+  new_account_without_history: "la cuenta no tiene historial de pago detras",
+  pending_verification: "falta una verificacion",
+  warning_finding: "hay un hallazgo de atencion",
+  no_open_signal: "no hay ninguna senal abierta",
+};
+
+/**
+ * The state of one line, and the three public ones are not the whole set.
+ *
+ * `pendiente` and `liberado` are the two the run has always counted internally,
+ * and they are labelled here rather than folded into the other three because a
+ * line nobody has looked at is not green and a release on Wednesday is not
+ * `enviado` until the money leaves on Thursday. ADR-0009 argues both.
+ */
+export const STATE_LABEL: Record<TransactionState, string> = {
+  rojo: "En rojo",
+  cancelado: "Cancelado",
+  enviado: "Enviado",
+  pendiente: "Pendiente",
+  liberado: "Liberado",
+};
+
+/**
+ * `cancelado` is neutral on purpose: a line that did not go out is the product
+ * working, not an alarm. `rojo` is the one that carries the hold palette.
+ */
+export const STATE_BADGE: Record<TransactionState, string> = {
+  rojo: "badge badge-hold",
+  cancelado: "badge badge-neutral",
+  enviado: "badge badge-release",
+  pendiente: "badge badge-neutral",
+  liberado: "badge badge-verify",
+};
+
+/**
+ * The seven reads the assistant may perform, named for the clerk.
+ *
+ * Every one of them is a read of something this product already computed, and the
+ * list is closed: `AssistantTool` in the domain has no member that writes, which
+ * is ADR-0007 enforced in the type rather than in a sentence.
+ */
+export const ASSISTANT_TOOL_LABEL: Record<AssistantTool, string> = {
+  get_run: "Leer la corrida",
+  get_instruction: "Leer la instruccion y sus hallazgos",
+  get_verification: "Leer la verificacion de la cuenta",
+  get_execution: "Leer lo que hizo la corrida en el riel",
+  get_receipt: "Leer el comprobante del pago",
+  sat_lookup: "Consultar las listas del SAT",
+  consortium_signal: "Consultar la red SentryOne",
+};
+
+/** The five things the panel can offer, and there is no sixth. */
+export const PROPOSAL_KIND_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Verificar la cuenta con un centavo",
+  verify_call: "Llamar al proveedor para verificar",
+  decide: "Registrar una decision",
+  execute_run: "Enviar la corrida de pagos",
+  intake: "Dar de alta la instruccion",
+};
+
+/** The button each proposal puts in front of a person, in their words. */
+export const PROPOSAL_CONFIRM_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Enviar el centavo",
+  verify_call: "Hacer la llamada",
+  decide: "Firmar la decision",
+  execute_run: "Abrir la corrida para enviarla",
+  intake: "Dar de alta el pago",
+};
+
 export const ESTABLISHED_BY_LABEL: Record<string, string> = {
   payment_complement: "Complemento de pago",
   instruction: "Instruccion previa",
@@ -216,4 +362,4 @@ export const ESTABLISHED_BY_LABEL: Record<string, string> = {
 };
 
 /** The watermark text ADR-0002 requires on anything generated. */
-export const SYNTHETIC_LABEL = "datos sinteticos";
+export const SYNTHETIC_LABEL = "Datos sinteticos";

@@ -12,18 +12,30 @@
 
 import type {
   Action,
+  ActionProposal,
+  Actor,
+  ActorRole,
+  AssistantAuthor,
+  AssistantMessage,
+  AssistantSession,
+  AssistantTool,
+  AssistantToolCall,
   Cep,
   Cfdi,
   Clabe,
+  Confidence,
   Decision,
   VerificationState as DomainVerificationState,
   VerificationStateName as DomainVerificationStateName,
+  EvidenceValue,
   Finding,
   InstructionSource,
   LedgerEvent,
   Metrics,
   PaymentComplement,
   PaymentInstruction,
+  ProposalKind,
+  ProposalValue,
   RailId,
   Rfc,
   SatListEntry,
@@ -31,6 +43,7 @@ import type {
   SealState,
   Supplier,
   SweepResult,
+  TransactionState,
   VerificationOutcome,
   VerificationTurn,
 } from "@hackmty/core";
@@ -330,3 +343,75 @@ export interface ApiErrorBody {
     requestId: string;
   };
 }
+
+/* ---------------------------------------------------------------- assistant */
+
+/**
+ * The assistant panel, typed from the domain rather than from the screen.
+ *
+ * `AssistantMessage`, `AssistantToolCall`, `ActionProposal` and `AssistantSession`
+ * are the shapes `packages/core/src/domain.ts` gained with the contract of issue
+ * 221, so nothing here redeclares them: the panel, the API and the ledger read
+ * one definition. What this block adds is the two things only a caller needs, the
+ * request body of `POST /api/v1/assistant/messages` and the five events its
+ * stream carries, both straight out of the table in `docs/09-api.md`.
+ *
+ * ADR-0007 is what makes the typing worth reading rather than bureaucracy:
+ * `AssistantToolCall.readOnly` is the literal `true`, so a tool call that writes
+ * cannot be expressed, and `ActionProposal` is the only thing a turn can offer.
+ * The panel never turns one into a write on its own. `confirmProposal` in
+ * `./assistant.ts` is a person pressing a button, and it carries `X-Actor`.
+ */
+export type {
+  ActionProposal,
+  Actor,
+  ActorRole,
+  AssistantAuthor,
+  AssistantMessage,
+  AssistantSession,
+  AssistantTool,
+  AssistantToolCall,
+  Confidence,
+  EvidenceValue,
+  ProposalKind,
+  ProposalValue,
+  TransactionState,
+};
+
+/**
+ * One image the clerk dropped or pasted into the panel.
+ *
+ * The bytes stay a `File`: the turn is posted as `multipart/form-data`, which is
+ * the first form `docs/09-api.md` documents, so nothing has to be base64 encoded
+ * in a browser on a phone. `name`, `mediaType` and `bytes` are what the card
+ * shows, and all three are facts about the file the browser handed us rather
+ * than anything a model said about it.
+ */
+export interface AssistantImage {
+  file: File;
+  name: string;
+  mediaType: string;
+  bytes: number;
+}
+
+/** `POST /api/v1/assistant/messages`. A new `sessionId` is minted when absent. */
+export interface AssistantTurnBody {
+  sessionId?: string;
+  text: string;
+  images?: readonly AssistantImage[];
+}
+
+/**
+ * The five events of the assistant stream, as the panel consumes them.
+ *
+ * One for one with the table in `docs/09-api.md`: `token` is the answer as it is
+ * written, `tool_call` a read that started, `tool_result` that read answering,
+ * `proposal` the one action the turn offers, and `done` the whole stored turn,
+ * which is what `GET /api/v1/assistant/sessions/:id` replays.
+ */
+export type AssistantStreamEvent =
+  | { kind: "token"; text: string; sessionId?: string }
+  | { kind: "tool_call"; call: AssistantToolCall }
+  | { kind: "tool_result"; call: AssistantToolCall }
+  | { kind: "proposal"; proposal: ActionProposal }
+  | { kind: "done"; message: AssistantMessage };

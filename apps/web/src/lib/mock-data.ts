@@ -449,21 +449,21 @@ export const SAT_VERSIONS: readonly SatVersion[] = [
 
 /** The blind holdout, scored by the same controls the API scores it with. */
 export const METRICS: Metrics = {
-  "cases": 30,
-  "truePositives": 17,
+  "cases": 35,
+  "truePositives": 20,
   "falsePositives": 3,
   "falseNegatives": 4,
-  "precision": 0.85,
-  "recall": 0.8095238095238095,
-  "falsePositiveRate": 0.018518518518518517,
+  "precision": 0.8695652173913043,
+  "recall": 0.8333333333333334,
+  "falsePositiveRate": 0.015873015873015872,
   "perDetector": {
     "sat_69b": {
-      "tp": 2,
+      "tp": 3,
       "fp": 1,
       "fn": 1
     },
     "clabe_forensics": {
-      "tp": 7,
+      "tp": 9,
       "fp": 1,
       "fn": 1
     },
@@ -486,6 +486,29 @@ export const METRICS: Metrics = {
       "tp": 1,
       "fp": 0,
       "fn": 0
+    }
+  },
+  "perLevel": {
+    "confiable": {
+      "expected": 12,
+      "predicted": 12,
+      "agreed": 12,
+      "precision": 1,
+      "recall": 1
+    },
+    "precaucion": {
+      "expected": 12,
+      "predicted": 12,
+      "agreed": 11,
+      "precision": 0.9166666666666666,
+      "recall": 0.9166666666666666
+    },
+    "alerta": {
+      "expected": 11,
+      "predicted": 11,
+      "agreed": 10,
+      "precision": 0.9090909090909091,
+      "recall": 0.9090909090909091
     }
   }
 };
