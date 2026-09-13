@@ -523,9 +523,12 @@ Capital One allows third-party LLMs with explicit awareness of privacy, regulati
 per transaction. Here is all four in one rule.
 
 > **No LLM in the decision.** Every control is computed by deterministic rules and statistics in
-> `packages/core`. A model is used in exactly two places, both of them transcription of something a
-> human already sent us: **OCR of a CLABE that arrived as an image**, and **transcription of a voice
-> note**. The model reads characters. It never judges, never scores, never ranks and never decides.
+> `packages/core`. A model is used in exactly three places and none of them is the decision. Two are
+> transcription of something a human already sent us: **OCR of a CLABE that arrived as an image**,
+> and **transcription of a voice note**. The third is the **assistant panel**, which reads what the
+> engine already computed, answers in Spanish and offers a card a person presses (ADR-0007, section
+> 6.4 below). The model reads characters, it reads evidence, and it writes sentences. It never
+> judges, never scores, never ranks and never decides.
 
 Recorded as `docs/adr/0004-llm-boundary-and-privacy.md`.
 
@@ -628,6 +631,92 @@ Three consequences, which are the actual answer to the cost question.
 Never quote a model price from memory. Open the provider's pricing page, copy the number, stamp the
 date. A wrong price here is worse than an empty cell, because it feeds the margin row in
 `docs/05-business-model.md`.
+
+### 6.4 The assistant panel: what leaves, and what a conversation costs
+
+Section 6.3 prices the only model call this product had until 12 September, which is
+transcription of a file a person chose to send us. The panel of ADR-0007 adds a second one,
+and it is a different shape: a conversation, with the deterministic engine's own output going
+up as evidence and a Spanish answer coming back. So it gets its own transfer paragraph and its
+own arithmetic.
+
+**What leaves the perimeter, exactly.** Three things and no fourth.
+
+1. **The clerk's own sentence**, with every eighteen-digit run in it rewritten to the last four
+   digits before it is sent. She can paste a CLABE into the box; the model never receives one.
+2. **The evidence of the reads the turn performed**, which is what the nine tools in
+   `apps/api/src/assistant/tools.ts` project out of this API's own GET endpoints: the level, the
+   state, the rule behind the level, the findings with the engine's own Spanish explanation and
+   their evidence chips, the amounts, the dates, the SAT rows, the counts the consortium
+   answers. Every account in it is four digits, because `mask.ts` rewrites the whole payload on
+   the way out rather than trusting each tool to remember.
+3. **The prose of the earlier turns of the same conversation**, masked the same way.
+
+What never leaves: the image itself, the CFDI ledger, any XML, a CEP seal or certificate, the
+bank mirror, the company's account book, another tenant's identity, and the clerk's own name.
+The last one is worth stating because it is narrower than ADR-0007 requires: the ADR permits the
+image to be sent to the panel's model and this implementation does not send it, because
+everything the turn needs from a screenshot is what `packages/extract` already read off it, and
+`decidedBy` on a proposal is filled in from the `X-Actor` header on our side rather than by the
+model. `DROPPED_KEYS` in `mask.ts` is the list, matched on the key and not on the value, and
+`apps/api/src/assistant/mask.test.ts` asserts over a whole serialised request body that no
+eighteen-digit run survives.
+
+**Prices, as of 2026-09-12**, read from the Gemini API pricing page for the model
+`.env.example` actually configures, `gemini-3.6-flash`, paid tier: **USD 0.75 per 1M input
+tokens and USD 3.75 per 1M output tokens** through 31 December 2026, doubling on 1 January 2027.
+Converted at the Banco de Mexico FIX published for 11 September 2026, **MXN 16.9707 per USD**.
+Both constants live in `apps/api/src/assistant/cost.ts` with their source and their date, the
+cost of every turn is computed from them and written onto the `assistant_message` ledger event,
+and `cost.test.ts` pins the arithmetic against a worked example. A figure on an append-only row
+has to be reproducible five years later, which is why the rate is a stamped constant and not a
+live lookup.
+
+**Measured, not estimated.** `bun run eval:assistant` ran the twenty golden questions against
+the live model on 2026-09-13, through the real turn loop and the real endpoint:
+
+| Unit of work | Tokens | Cost |
+|---|---|---|
+| Twenty golden questions, live | 152,971 in, 24,999 out | **MXN 3.54** |
+| One question | about 7,650 in, 1,250 out | **MXN 0.177** |
+| One transcription of one screenshot | 1,237 in (1,092 image, 145 text), 1,197 out | **MXN 0.092** |
+| One screenshot dropped into the panel | two transcriptions plus one turn | **MXN 0.36** |
+| All six controls on all 120 instructions of a run | 0 | **MXN 0.00** |
+
+Three things in that table are worth reading twice.
+
+**The output side dominates, and thinking is why.** Output is priced five times higher than
+input, and `gemini-3.6-flash` thinks whether or not it is asked to: the transcription above
+spent 1,046 of its 1,197 output tokens thinking about a screenshot with six lines of text on it.
+That is also the correction to the table in section 6.3, which priced an image at USD 0.000207
+on Gemini 2.5 Flash-Lite: on the model this repository configures, the same image is
+**MXN 0.092**, about twenty-six times more. The conclusion the section reaches is unchanged and
+the number is not, so the number is restated here rather than left to be inferred.
+
+**A screenshot is transcribed twice, on purpose.** Once in the panel, to read the payee and
+attribute the supplier deterministically, and once inside `POST /api/v1/instructions`, which is
+what puts `imageRef` and `ocrConfidence` on the instruction and arms the `ocrChannel` evidence on
+the CLABE control. Posting the account as text would have saved MXN 0.09 and produced an
+instruction that looks typed, which weakens a control a clerk relies on; building a second intake
+path would have produced two pipelines that can disagree about a payment. Two fifths of a centavo
+is the cheaper mistake to not make.
+
+**Volume still costs nothing.** The hot path contains no inference: a tenfold spike in
+transaction volume moves none of the figures above, because the six controls are pure functions
+and the only model calls are the ones a person started by typing a question or dropping a
+photograph. One company on the four-run month of section 6.3, with twenty screenshots a run and
+a clerk asking forty questions a month, is **MXN 36** of panel and intake per month against a
+subscription of MXN 899. Doubling the price on 1 January 2027 makes it MXN 72, which is the
+sensitivity test and not a surprise.
+
+**The boundary is ADR-0007 and it is checked by running the suite.** No level, no action, no
+finding, no amount and no ranking on any screen of this product comes from the model:
+`confidenceOf`, `transactionStateOf`, `decide` and the six controls are deterministic and unit
+tested. The panel's tools are reads and a writing tool is unrepresentable in the contract. The
+proposal a turn ends with is an object the panel renders and a person presses, its payload is
+built from the endpoint contract on our side, and its Spanish sentence is checked against a
+forbidden-vocabulary list before it leaves, so the one line of copy a model is nearest to writing
+still obeys ADR-0009: three levels, never a probability, and never the word "seguro".
 
 ## 7. Synthetic data posture
 
@@ -837,6 +926,8 @@ All read on 2026-09-12. Statutes are the texto vigente published by the Cámara 
 | Banco de México, CEP validator, `https://www.banxico.org.mx/validador-cep-spei/`, including the 45 business day validation window | Section 4.3 |
 | Gemini API pricing, paid tier, `https://ai.google.dev/gemini-api/docs/pricing` | Section 6.3 |
 | Gemini API token counting, `https://ai.google.dev/gemini-api/docs/tokens` | Section 6.3 |
+| Gemini API pricing, `https://ai.google.dev/gemini-api/docs/pricing`, read 2026-09-12 | Section 6.4, and `apps/api/src/assistant/cost.ts` |
+| Banco de Mexico FIX, `https://www.banxico.org.mx/tipcamb/tipCamMIAction.do?idioma=sp`, published 2026-09-11, read 2026-09-12 | Section 6.4, and `apps/api/src/assistant/cost.ts` |
 | Snowflake, Virtual warehouses, `https://docs.snowflake.com/en/user-guide/warehouses-overview`, for per-second billing with a 60-second minimum each time a warehouse starts and 1 credit per hour for an X-Small | Section 8.6 |
 | Snowflake, Supported cloud regions, `https://docs.snowflake.com/en/user-guide/intro-regions`, including the single-region rule and the Mexico Central region | Section 8.5 |
 | Snowflake, Introduction to Secure Data Sharing, `https://docs.snowflake.com/en/user-guide/data-sharing-intro` | Section 8.1 and ADR-0006 |

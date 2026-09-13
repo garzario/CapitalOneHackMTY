@@ -125,6 +125,27 @@ describe("extractFromImage", () => {
     expect(config.responseMimeType).toBe("application/json");
     expect(config.responseSchema).toEqual(IMAGE_RESPONSE_SCHEMA);
     expect(config.temperature).toBe(0);
+    /* No `thinkingConfig` unless a caller pinned a budget. The model
+       `.env.example` configures answers `400 Request contains an invalid argument`
+       to the field itself, which was the whole photo intake path failing against
+       the configured model until 2026-09-12. See the note at the top of
+       `src/gemini.ts`. */
+    expect(config.thinkingConfig).toBeUndefined();
+  });
+
+  it("sends a thinking budget only when one was asked for", async () => {
+    const { calls, http } = stub([fixtureResponse(IMAGE_HANDWRITTEN)]);
+
+    await extractFromImage(pngHeaderBytes(), "image/png", {
+      ...KEY,
+      http,
+      thinkingBudget: 0,
+    });
+
+    const config = bodyOf(calls[0] as Recorded).generationConfig as Record<
+      string,
+      unknown
+    >;
     expect(config.thinkingConfig).toEqual({ thinkingBudget: 0 });
   });
 
