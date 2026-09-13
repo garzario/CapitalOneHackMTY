@@ -18,6 +18,15 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- Where the software actually plugs into somebody else's stack, researched with a source and an
+  unverified column per surface (issue #205). Six of them in `docs/05`, ranked by what they cost and
+  by whether anybody has to agree to anything: the dispersal layout the ERP already exports and the
+  treasurer already uploads, which needs no counterparty; the STP rail, which changes what we are
+  rather than what we build; connectors to CONTPAQi, Siigo Aspel and SAP Business One; and email or
+  WhatsApp forwarding, which is the only one already built. `docs/07` draws the four seams they use,
+  all of which this repository already has. `docs/12` answers "no vamos a reemplazar nuestro SAP" in
+  thirty seconds and points at both.
+
 - The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
   cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
   clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
