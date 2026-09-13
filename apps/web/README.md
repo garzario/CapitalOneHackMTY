@@ -59,7 +59,7 @@ Three things in the offline copy are deliberately narrower than the API's, all f
 all explained where they live in `src/lib/mock.ts`: the invoices are the ones this run settles, the
 retroactive sweep prices or a finding names, the payment complements are the ones that settle those,
 and the verified-beneficiary registry starts empty, which is what the API starts with too. The
-invoices are the one narrowing a screen can see, because the supplier drawer counts them, so that
+invoices are the one narrowing a screen can see, because the supplier profile counts them, so that
 field is read off the API whenever the API answered and labelled for this run when it was not.
 `docs/07-architecture.md` carries the numbers.
 
@@ -87,6 +87,8 @@ src/
     router.tsx        hash router, ~120 lines, no dependency
     run-view.ts       how the run screen reads the run: order and verdict
     payments.ts       which lines leave, which do not and why, and the bank layout
+    supplier-profile.ts  the expediente: the weekly buckets, the accounts with their
+                      plazas, both SAT lists and the consortium line
     format.ts         money, dates, CLABE blocks, digit diffs
     labels.ts         every Spanish word the clerk reads, in one dictionary
     sse.ts            the event-stream decoder, chunk boundaries included
@@ -98,11 +100,12 @@ src/
                       once per section change),
                       RunVerdict (the one figure), RunDonut (how the run splits),
                       RunFilter, Controls (the six controls),
-                      States, Primitives, Evidence, Decision, Findings, SupplierDrawer,
+                      States, Primitives, Evidence, Decision, Findings,
+                      BehaviourChart (what a supplier invoiced, week by week),
                       StatusCard, IntakeQr, QrCode, Receipt,
                       AssistantDock, AssistantPanel, AssistantCards
-  screens/            RunScreen, PaymentsScreen, InstructionScreen, IntakeScreen, SatScreen,
-                      CepScreen, MetricsScreen, VerifyCallScreen
+  screens/            RunScreen, PaymentsScreen, InstructionScreen, SupplierScreen,
+                      IntakeScreen, SatScreen, CepScreen, MetricsScreen, VerifyCallScreen
 ```
 
 The base components, which every screen is built from: `Button`, the `ConfidenceBadge` and
@@ -112,8 +115,8 @@ The base components, which every screen is built from: `Button`, the `Confidence
 object, it belongs there rather than inside one screen.
 
 Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
-change of host: `#/run`, `#/payments`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`,
-`#/metrics`, `#/verify-call`.
+change of host: `#/run`, `#/payments`, `#/instructions/:id`, `#/suppliers/:rfc`, `#/intake`, `#/sat`,
+`#/cep`, `#/metrics`, `#/verify-call`.
 
 `#/design` is the token sheet: every token and every base component on one page. It is a
 reference rather than a screen, so it is not in the rail and nothing in the product links

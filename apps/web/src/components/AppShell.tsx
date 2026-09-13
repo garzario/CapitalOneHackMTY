@@ -77,8 +77,11 @@ const NAV_GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
         to: PATHS.run,
         label: "Corrida",
         /* The verification call lights this one: it is an action on an
-           instruction of the run, and the rail should not go dark under it. */
-        match: ["run", "instruction", "verifyCall"],
+           instruction of the run, and the rail should not go dark under it. The
+           supplier profile is the same argument, one step further out: the
+           expediente is opened from a line of the run, so "Corrida" is still
+           where you came from. */
+        match: ["run", "instruction", "supplier", "verifyCall"],
         Icon: IconRun,
       },
       {

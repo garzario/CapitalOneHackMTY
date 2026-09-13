@@ -14,6 +14,7 @@ import {
   pathOf,
   queryOf,
   satPath,
+  supplierPath,
   targetFromHash,
   verifyAccountPath,
   verifyCallPath,
@@ -34,6 +35,13 @@ describe("parsePath", () => {
     expect(parsePath("/instructions/ins-2026w37-002")).toEqual({
       name: "instruction",
       id: "ins-2026w37-002",
+    });
+  });
+
+  test("reads the RFC out of the supplier path", () => {
+    expect(parsePath("/suppliers/SYN990202S02")).toEqual({
+      name: "supplier",
+      rfc: "SYN990202S02",
     });
   });
 
@@ -66,6 +74,31 @@ describe("parsePath", () => {
   test("ignores the query string when matching", () => {
     expect(parsePath("/intake?rfc=SYN010101AAA&amount=1000")).toEqual({
       name: "intake",
+    });
+  });
+});
+
+describe("supplierPath", () => {
+  test("round trips the RFC the expediente is about", () => {
+    expect(parsePath(supplierPath("SYN990202S02"))).toEqual({
+      name: "supplier",
+      rfc: "SYN990202S02",
+    });
+  });
+
+  /* An RFC typed with spaces is exactly what arrives from a form, and a bare
+     slash in the segment would parse as a third path segment and 404. */
+  test("encodes a value a path segment could not carry", () => {
+    expect(parsePath(supplierPath("SYN 990202/S02"))).toEqual({
+      name: "supplier",
+      rfc: "SYN 990202/S02",
+    });
+  });
+
+  test("is not the instruction path", () => {
+    expect(parsePath("/suppliers")).toEqual({
+      name: "notFound",
+      path: "/suppliers",
     });
   });
 });

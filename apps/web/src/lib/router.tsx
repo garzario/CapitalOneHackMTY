@@ -18,6 +18,7 @@ export type Route =
   | { name: "run" }
   | { name: "payments" }
   | { name: "instruction"; id: string }
+  | { name: "supplier"; rfc: string }
   | { name: "intake" }
   | { name: "sat" }
   | { name: "cep" }
@@ -44,6 +45,20 @@ export const DEFAULT_PATH = PATHS.run;
 
 export function instructionPath(id: string): string {
   return `/instructions/${encodeURIComponent(id)}`;
+}
+
+/**
+ * The supplier profile: everything this product holds about one counterparty.
+ *
+ * A route and not a drawer. The expediente answers four questions that each need
+ * their own block -- the history, the accounts with their plazas, the weekly
+ * behaviour and the two SAT lists -- and a panel sliding over the payment run had
+ * room for one of them. It also has to be linkable: a judge asking "show me the
+ * supplier whose plaza moved" should get a URL, and the assistant's `get_supplier`
+ * read has somewhere to point.
+ */
+export function supplierPath(rfc: string): string {
+  return `/suppliers/${encodeURIComponent(rfc)}`;
 }
 
 /** The verification call page, carrying the instruction it is about. */
@@ -137,6 +152,10 @@ export function parsePath(target: string): Route {
 
   if (segments.length === 2 && segments[0] === "instructions") {
     return { name: "instruction", id: decodeURIComponent(segments[1] ?? "") };
+  }
+
+  if (segments.length === 2 && segments[0] === "suppliers") {
+    return { name: "supplier", rfc: decodeURIComponent(segments[1] ?? "") };
   }
 
   return { name: "notFound", path };

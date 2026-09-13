@@ -7,7 +7,6 @@
  */
 
 import type { Action } from "@hackmty/core";
-import { AnimatePresence } from "motion/react";
 import { useCallback, useState } from "react";
 import { ActionBar } from "../components/Decision";
 import { FindingPanel } from "../components/Findings";
@@ -24,7 +23,6 @@ import {
   LoadingBlock,
   SourceNotice,
 } from "../components/States";
-import { SupplierDrawer } from "../components/SupplierDrawer";
 import { currentActor } from "../lib/actor";
 import { decideInstruction, getInstruction } from "../lib/api";
 import {
@@ -36,7 +34,13 @@ import {
 import { ACTION_HELP, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockInstruction } from "../lib/mock";
 import { useResource } from "../lib/resource";
-import { Link, PATHS, verifyAccountPath, verifyCallPath } from "../lib/router";
+import {
+  Link,
+  PATHS,
+  supplierPath,
+  verifyAccountPath,
+  verifyCallPath,
+} from "../lib/router";
 
 export function InstructionScreen({ id }: { id: string }) {
   const load = useCallback(
@@ -47,7 +51,6 @@ export function InstructionScreen({ id }: { id: string }) {
   const { resource, reload, replace } = useResource(load, { fallback });
   const [pending, setPending] = useState<Action | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const onDecide = useCallback(
     async (action: Action) => {
@@ -203,13 +206,16 @@ export function InstructionScreen({ id }: { id: string }) {
               <Field label="Proveedor">
                 <span className="code">{resource.data.supplier.rfc}</span>
                 <span className="block">
-                  <button
-                    type="button"
+                  {/* A route and not a drawer over this panel. The expediente
+                    carries the accounts with their plazas, the weekly
+                    behaviour and both SAT lists, which is more than a sheet
+                    sliding over the finding a clerk is reading. */}
+                  <Link
+                    to={supplierPath(resource.data.supplier.rfc)}
                     className="t-sm underline"
-                    onClick={() => setDrawerOpen(true)}
                   >
                     Ver expediente del proveedor
-                  </button>
+                  </Link>
                 </span>
               </Field>
               <Field label="Facturas que dice pagar">
@@ -278,18 +284,6 @@ export function InstructionScreen({ id }: { id: string }) {
               ))
             )}
           </section>
-
-          {/* Mounted through AnimatePresence so the drawer leaves the way it
-              arrived. The condition stays inside it: a closed drawer is still
-              absent from the tree. */}
-          <AnimatePresence>
-            {drawerOpen ? (
-              <SupplierDrawer
-                rfc={resource.data.supplier.rfc}
-                onClose={() => setDrawerOpen(false)}
-              />
-            ) : null}
-          </AnimatePresence>
         </>
       ) : null}
     </>
