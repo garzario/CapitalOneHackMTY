@@ -262,3 +262,165 @@ describe("pickMirrorAccount", () => {
     expect(pickMirrorAccount(rows)).toBeUndefined();
   });
 });
+
+describe("sending a line of the run", () => {
+  const ORDER = {
+    instructionId: "INS-2026-09-07-047",
+    runId: "run-2026w37",
+    beneficiaryAccount: CLABE,
+    amount: 42180.5,
+  };
+
+  it("records the instruction's own amount as a withdrawal and mints the clave from the id", async () => {
+    const { calls, client } = stub((_url, method) =>
+      method === "GET"
+        ? json([account(ACCOUNT_ID, MIRROR_ACCOUNT_NICKNAME)], 200)
+        : json({ code: 201, objectCreated: { _id: WITHDRAWAL_ID } }),
+    );
+
+    const sent = await railWith(client).send(ORDER);
+
+    expect(sent.rail).toBe("nessie");
+    expect(sent.state).toBe("sent");
+    expect(sent.amount).toBe(42180.5);
+    expect(sent.instructionId).toBe(ORDER.instructionId);
+    expect(sent.claveRastreo).toBe(
+      `${NESSIE_CLAVE_PREFIX}${WITHDRAWAL_ID.toUpperCase()}`,
+    );
+    expect(sent.simulated).toBe(false);
+
+    const write = calls.find((call) => call.method === "POST");
+    expect(write?.url).toContain(`/accounts/${ACCOUNT_ID}/withdrawals`);
+    expect(write?.body).toEqual({
+      medium: "balance",
+      transaction_date: "2026-09-11",
+      amount: 42180.5,
+      status: "pending",
+      description: "Dispersion SPEI de corrida de pagos",
+    });
+  });
+
+  /**
+   * A withdrawal and not a purchase, and nothing on the row that says who is being
+   * paid. The mirror's settled history is purchases because reconciliation needs a
+   * payee; a dispersal we originate must name nobody.
+   */
+  it("writes no supplier, no legal name and no CLABE into the sandbox", async () => {
+    const { calls, client } = stub((_url, method) =>
+      method === "GET"
+        ? json([account(ACCOUNT_ID, MIRROR_ACCOUNT_NICKNAME)], 200)
+        : json({ _id: WITHDRAWAL_ID }),
+    );
+
+    await railWith(client).send({
+      ...ORDER,
+      beneficiary: {
+        legalName: "Aceros y Laminas del Norte SA de CV",
+        rfc: "SYN080910HI8",
+        cfdiUuids: ["a1b2c3d4-1111-2222-3333-444455556666"],
+      },
+    });
+
+    const payload = JSON.stringify(
+      calls.filter((call) => call.method === "POST").map((call) => call.body),
+    );
+    expect(payload).not.toContain("Aceros");
+    expect(payload).not.toContain("SYN080910HI8");
+    expect(payload).not.toContain(CLABE);
+    expect(payload).not.toContain("INS-2026-09-07-047");
+    expect(payload).not.toContain("a1b2c3d4");
+  });
+
+  it("refuses an amount that is not a whole number of centavos", async () => {
+    const { client } = stub(() =>
+      json([account(ACCOUNT_ID, MIRROR_ACCOUNT_NICKNAME)], 200),
+    );
+
+    await expect(
+      railWith(client, ACCOUNT_ID).send({ ...ORDER, amount: 10.005 }),
+    ).rejects.toThrow(/centavos/);
+  });
+
+  it("never creates a customer or an account", async () => {
+    const { calls, client } = stub((_url, method) =>
+      method === "GET"
+        ? json([account(ACCOUNT_ID, MIRROR_ACCOUNT_NICKNAME)], 200)
+        : json({ _id: WITHDRAWAL_ID }),
+    );
+
+    await railWith(client).send(ORDER);
+
+    expect(
+      calls.filter(
+        (call) => call.method === "POST" && call.url.includes("/customers"),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("confirming what the mirror answers", () => {
+  const LINE = {
+    instructionId: "INS-2026-09-07-047",
+    state: "sent" as const,
+    sentAt: "2026-09-12T03:00:00.000Z",
+    amount: 42180.5,
+    reference: WITHDRAWAL_ID,
+    simulated: false,
+  };
+
+  it("settles a line the mirror answers back on the account", async () => {
+    const { client } = stub((url, method) =>
+      method === "GET" && url.includes("/withdrawals")
+        ? json([{ _id: WITHDRAWAL_ID, amount: 42180 }], 200)
+        : json({ message: "no" }, 400),
+    );
+
+    const confirmed = await railWith(client, ACCOUNT_ID).confirm([LINE]);
+
+    expect(confirmed).toHaveLength(1);
+    expect(confirmed[0]?.state).toBe("settled");
+    expect(confirmed[0]?.detail).toContain("sandbox");
+  });
+
+  /**
+   * The strongest thing the sandbox can say is that the row is there. A row it does
+   * not answer is not a settlement, and silence is never read as one.
+   */
+  it("leaves a line the mirror does not answer on sent", async () => {
+    const { client } = stub((url, method) =>
+      method === "GET" && url.includes("/withdrawals")
+        ? json([], 200)
+        : json({ message: "no" }, 400),
+    );
+
+    const confirmed = await railWith(client, ACCOUNT_ID).confirm([LINE]);
+
+    expect(confirmed[0]?.state).toBe("sent");
+  });
+
+  it("reads a failed listing as nothing confirmed rather than as a failure", async () => {
+    const { client } = stub(() => json({ message: "Error" }, 500));
+
+    const confirmed = await railWith(client, ACCOUNT_ID).confirm([LINE]);
+
+    expect(confirmed[0]?.state).toBe("sent");
+    expect(confirmed[0]?.detail).toContain("no pudo listarse");
+  });
+
+  it("asks the mirror once for the whole run, not once per line", async () => {
+    const { calls, client } = stub((url, method) =>
+      method === "GET" && url.includes("/withdrawals")
+        ? json([{ _id: WITHDRAWAL_ID }], 200)
+        : json({ message: "no" }, 400),
+    );
+
+    await railWith(client, ACCOUNT_ID).confirm([
+      LINE,
+      { ...LINE, instructionId: "INS-2026-09-07-048", reference: "other" },
+    ]);
+
+    expect(
+      calls.filter((call) => call.url.includes("/withdrawals")),
+    ).toHaveLength(1);
+  });
+});

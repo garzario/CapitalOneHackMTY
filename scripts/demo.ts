@@ -34,8 +34,11 @@ import {
   intakeResponseSchema,
   metricsSchema,
   type PaymentRunItem,
+  paymentExecutionSchema,
+  paymentReceiptSchema,
   paymentRunSchema,
   satPublishResponseSchema,
+  skippedLineSchema,
   verificationStateSchema,
 } from "../apps/api/src/schemas.ts";
 import {
@@ -1044,6 +1047,197 @@ async function verify(api: Api, line: VerifyLine) {
   return read;
 }
 
+/**
+ * The beat where the money leaves.
+ *
+ * Until ADR-0008 the demo stopped at the decision and the SPEI left from the
+ * company's own banking portal, which left the honest answer to "why would Lupita
+ * upload the screenshot" at "because we asked her to". This beat is the other half:
+ * the released lines leave on the rail, each one comes back with a clave de rastreo
+ * and a receipt, the held ones do not move, and a second press of the button sends
+ * nothing.
+ *
+ * Five invariants and every one of them is a thing a judge can ask about at the
+ * table.
+ *
+ * 1. **Only the released lines go.** Every held or pending line is reported as
+ *    skipped with a sentence, and none of them is in the execution.
+ * 2. **Every sent line carries a clave de rastreo and a receipt.** The clave is what
+ *    a CEP is filed under, so a line without one is a payment nobody can look up.
+ * 3. **The pesos decompose exactly.** The five buckets add up to the execution, to
+ *    the centavo, which is the check a judge does with a calculator.
+ * 4. **A second call sends nothing new.** It answers `409` and the ledger does not
+ *    move.
+ * 5. **The rail is named out loud.** On this path it is the in-process one, so every
+ *    event carries `simulated: true` and the beat prints that rather than letting a
+ *    rehearsal look like a bank.
+ */
+async function beatExecution(api: Api, say: Say): Promise<void> {
+  if (base !== undefined) {
+    const execution = paymentExecutionSchema.parse(
+      await json(api, "/api/v1/run/current/execution"),
+    );
+    say(
+      `${execution.totals.lines} lineas ejecutadas en esa instancia, ${formatAmount(execution.totals.amount)} MXN, which is the read endpoint answering`,
+    );
+    say(
+      "the run is not executed against a deployed instance from this script: it is a real write on the company mirror and this beat runs before every rehearsal",
+    );
+    return;
+  }
+
+  const before = paymentRunSchema.parse(await json(api, "/api/v1/run/current"));
+  const released = before.items.filter(
+    (item) => item.decision?.action === "release",
+  );
+  need(
+    released.length > 0,
+    "the run has no released line, so nothing can leave",
+  );
+
+  const response = await api.request("/api/v1/run/current/execute", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-actor": DEMO_ACTOR },
+    body: JSON.stringify({ confirm: true }),
+  });
+  need(
+    response.status === 202,
+    `execute answered ${response.status}, expected 202`,
+  );
+
+  /* The `done` frame is the execution itself and the lines the run left alone are
+     their own `skipped` frames, which is the shape `apps/web/src/lib/api.ts` reads. */
+  const stream = await response.text();
+  const frames = stream.split("\n\n");
+  const dataOf = (block: string): unknown =>
+    JSON.parse(/^data:\s*(.+)$/m.exec(block)?.[1] ?? "null");
+  const execution = paymentExecutionSchema.parse(
+    dataOf(frames.find((block) => block.includes("event: done")) ?? ""),
+  );
+  const skipped = frames
+    .filter((block) => block.includes("event: skipped"))
+    .map((block) => skippedLineSchema.parse(dataOf(block)));
+
+  need(execution.totals.lines > 0, "the execution did nothing at all");
+  need(
+    execution.totals.sent + execution.totals.settled > 0,
+    "no line left the bank, so there is nothing to show",
+  );
+  need(
+    execution.lines
+      .filter((line) => line.state === "sent" || line.state === "settled")
+      .every(
+        (line) =>
+          line.claveRastreo !== undefined && line.receiptId !== undefined,
+      ),
+    "a sent line came back with no clave de rastreo or no receipt",
+  );
+  /* A cancelled or failed line carries a sentence instead of a clave, because
+     nothing left for it. Beat 3 is why there are any: the simulated 69-B
+     publication lands before this beat runs, so a line the engine had released is
+     cancelled here on the evidence rather than paid. */
+  need(
+    execution.lines
+      .filter((line) => line.state === "cancelled" || line.state === "failed")
+      .every(
+        (line) => (line.reason ?? "") !== "" && line.claveRastreo === undefined,
+      ),
+    "a line that did not leave carries a clave de rastreo or no reason",
+  );
+  need(
+    skipped.every((line) => (line.reason ?? "") !== ""),
+    "a line was left out of the run with no reason against it",
+  );
+  const sent = new Set(execution.lines.map((line) => line.instructionId));
+  need(
+    skipped.every((line) => !sent.has(line.instructionId)),
+    "a line is both skipped and sent, which is two answers about one payment",
+  );
+  const buckets =
+    execution.totals.queuedAmount +
+    execution.totals.sentAmount +
+    execution.totals.settledAmount +
+    execution.totals.failedAmount +
+    execution.totals.cancelledAmount;
+  need(
+    Math.round(buckets * 100) === Math.round(execution.totals.amount * 100),
+    `the five buckets add to ${formatAmount(buckets)} and the execution is ${formatAmount(execution.totals.amount)}`,
+  );
+
+  // The read endpoint folds the same execution out of the ledger.
+  const read = paymentExecutionSchema.parse(
+    await json(api, "/api/v1/run/current/execution"),
+  );
+  need(
+    read.totals.lines === execution.totals.lines,
+    `the stream ended with ${execution.totals.lines} lines and the ledger folds to ${read.totals.lines}`,
+  );
+
+  // And the receipt of the first line that left is a document, with the seal it
+  // can prove and nothing more.
+  const receiptId = execution.lines.find((line) => line.receiptId !== undefined)
+    ?.receiptId as string;
+  const receipt = paymentReceiptSchema.parse(
+    await json(
+      api,
+      `/api/v1/payments/${encodeURIComponent(receiptId)}/receipt`,
+    ),
+  );
+  need(
+    receipt.sealState !== "valid",
+    "a receipt on the in-process rail reported a validated Banxico seal, which nobody verified",
+  );
+  need(
+    receipt.beneficiaryAccountLast4.length <= 4,
+    "a receipt printed more than four digits of the account",
+  );
+
+  // A second press of the button sends nothing.
+  const again = await api.request("/api/v1/run/current/execute", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-actor": DEMO_ACTOR },
+    body: JSON.stringify({ confirm: true }),
+  });
+  need(
+    again.status === 409,
+    `a second execute answered ${again.status}, expected 409`,
+  );
+  const after = paymentExecutionSchema.parse(
+    await json(api, "/api/v1/run/current/execution"),
+  );
+  need(
+    after.totals.lines === read.totals.lines,
+    "a second execute moved the ledger",
+  );
+
+  say(
+    `${execution.totals.lines} de ${before.totals.instructions} lineas salieron por el riel, ${formatAmount(execution.totals.amount)} MXN, ejecutadas por ${execution.startedBy?.name ?? "nadie"}`,
+  );
+  say(
+    `  ${execution.totals.settled} confirmadas, ${execution.totals.sent} enviadas, ${execution.totals.failed} rechazadas, ${execution.totals.cancelled} canceladas`,
+  );
+  for (const line of execution.lines.slice(0, 5)) {
+    say(
+      `  ${line.instructionId} ${line.state.padEnd(9)} ${formatAmount(line.amount).padStart(12)} MXN  clave ${line.claveRastreo ?? "sin clave"}  comprobante ${line.receiptId ?? "sin comprobante"}`,
+    );
+  }
+  const cancelled = execution.lines.filter(
+    (line) => line.state === "cancelled",
+  );
+  if (cancelled.length > 0) {
+    say(
+      `  ${cancelled.length} linea(s) cancelada(s) por la evidencia y no por una persona: ${cancelled.map((line) => line.instructionId).join(", ")}`,
+    );
+    say(`    ${cancelled[0]?.reason ?? ""}`);
+  }
+  say(
+    `  ${skipped.length} lineas no salieron: ${[...new Set(skipped.map((line) => line.rule))].join(", ")}`,
+  );
+  say(
+    "the rail here is the in-process one (every payment event carries simulated: true) and there is no CEP for these claves, so the receipt reads firma no verificada; the live Nessie run is in the pull request of #198",
+  );
+}
+
 /** Beat 5. The metrics endpoint answers, and says how many cases it holds. */
 async function beatMetrics(api: Api, say: Say): Promise<void> {
   const metrics = metricsSchema.parse(await json(api, "/api/v1/metrics"));
@@ -1426,6 +1620,13 @@ await beat(
 await beat(
   "8. every line carries a level and a state, and the letter prints",
   (say) => beatLevels(api, say),
+);
+/* Last of all, because it is the only beat that moves money: it turns the states beat
+   8 just read into `enviado` and `cancelado`, so anything that reads a level has to run
+   before it. */
+await beat(
+  "9. the released lines leave on the rail, with a clave and a receipt each",
+  (say) => beatExecution(api, say),
 );
 
 for (const result of results) {

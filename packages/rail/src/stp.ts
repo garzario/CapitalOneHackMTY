@@ -48,12 +48,16 @@ import { BANXICO_INSTITUTION_SNAPSHOT, lookupInstitution } from "@hackmty/core";
 import {
   assertClaveRastreo,
   assertNoIdentity,
+  assertPaymentAmount,
   CENT_AMOUNT,
   CENT_DESCRIPTION,
   type CentRequest,
   type CentSent,
   claveRastreoFrom,
+  PAYMENT_DESCRIPTION,
+  type PaymentOrder,
   type PaymentRail,
+  type PaymentSent,
   RailConfigError,
   RailSendError,
 } from "./rail";
@@ -268,6 +272,51 @@ export class StpRail implements PaymentRail {
   async sendCent(request: CentRequest): Promise<CentSent> {
     const sentAt = this.now();
     const order = this.orderFor(request, sentAt);
+    const id = await this.register(order);
+
+    return {
+      rail: "stp",
+      claveRastreo: order.claveRastreo,
+      sentAt,
+      amount: CENT_AMOUNT,
+      reference: id,
+      senderSpeiKey: STP_SPEI_KEY,
+      simulated: false,
+    };
+  }
+
+  /**
+   * One line of the payment run, as the same `registraOrden` with the
+   * instruction's own amount.
+   *
+   * `sent` and never `settled`, and there is no `confirm` on this class. An order
+   * STP accepted is an order STP accepted: the proof that the transfer happened is
+   * the CEP Banxico publishes for its clave de rastreo, which the pipeline already
+   * resolves through `packages/cep`, and asking STP to restate its own acceptance
+   * would be the same claim twice wearing a different name. This is the rail that
+   * produces a real CEP and that is where its settlement comes from.
+   */
+  async send(order: PaymentOrder): Promise<PaymentSent> {
+    const sentAt = this.now();
+    const amount = assertPaymentAmount(order.amount);
+    const built = this.orderForPayment(order, sentAt, amount);
+    const id = await this.register(built);
+
+    return {
+      rail: "stp",
+      state: "sent",
+      claveRastreo: built.claveRastreo,
+      sentAt,
+      amount,
+      instructionId: order.instructionId,
+      reference: id,
+      senderSpeiKey: STP_SPEI_KEY,
+      simulated: false,
+    };
+  }
+
+  /** Signs the order, posts it, and answers the id STP accepted it under. */
+  private async register(order: StpOrder): Promise<string> {
     const signed: StpOrder = { ...order, firma: this.sign(order) };
 
     const response = await this.http(
@@ -301,15 +350,7 @@ export class StpRail implements PaymentRail {
       );
     }
 
-    return {
-      rail: "stp",
-      claveRastreo: order.claveRastreo,
-      sentAt,
-      amount: CENT_AMOUNT,
-      reference: String(id),
-      senderSpeiKey: STP_SPEI_KEY,
-      simulated: false,
-    };
+    return String(id);
   }
 
   /**
@@ -347,6 +388,51 @@ export class StpRail implements PaymentRail {
       cuentaBeneficiario: request.beneficiaryAccount,
       rfcCurpBeneficiario: "ND",
       conceptoPago: assertNoIdentity(CENT_DESCRIPTION),
+      referenciaNumerica: reference,
+    };
+  }
+
+  /**
+   * The order of one payment of the run, field for field.
+   *
+   * Identical to the probe's except for `monto`, and that is ADR-0008 in one method:
+   * the rail sends the amount the instruction carries to the account the instruction
+   * names, and there is no field here a caller could use to say anything else.
+   *
+   * `nombreBeneficiario` stays empty for the payment too, and that is deliberate
+   * rather than inherited. SPEI does not validate it and the receiving bank ignores
+   * it; what ends up on the CEP is the holder the receiving bank knows, which is the
+   * answer control 5 exists to read. Sending the supplier's legal name would put our
+   * assumption into the document we are going to quote back as evidence.
+   */
+  orderForPayment(
+    order: PaymentOrder,
+    sentAt: string,
+    amount: number,
+  ): StpOrder & { firma?: string } {
+    const reference = this.reference();
+    const clave = claveRastreoFrom(
+      STP_CLAVE_PREFIX,
+      `${order.instructionId}${reference}`,
+    );
+
+    return {
+      institucionContraparte: speiKeyOfClabe(order.beneficiaryAccount),
+      empresa: this.config.empresa,
+      fechaOperacion: sentAt.slice(0, 10).replace(/-/g, ""),
+      claveRastreo: assertClaveRastreo(clave),
+      institucionOperante: STP_SPEI_KEY,
+      monto: amount,
+      tipoPago: STP_PAYMENT_TYPE_THIRD_PARTY,
+      tipoCuentaOrdenante: STP_ACCOUNT_TYPE_CLABE,
+      nombreOrdenante: this.config.nombreOrdenante,
+      cuentaOrdenante: this.config.clabeOrdenante,
+      rfcCurpOrdenante: this.config.rfcOrdenante,
+      tipoCuentaBeneficiario: STP_ACCOUNT_TYPE_CLABE,
+      nombreBeneficiario: "",
+      cuentaBeneficiario: order.beneficiaryAccount,
+      rfcCurpBeneficiario: "ND",
+      conceptoPago: assertNoIdentity(PAYMENT_DESCRIPTION),
       referenciaNumerica: reference,
     };
   }

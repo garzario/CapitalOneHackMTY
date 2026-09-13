@@ -13,10 +13,13 @@ import { cepRoutes } from "./routes/cep";
 import { consortiumRoutes } from "./routes/consortium";
 import { constanciaRoutes } from "./routes/constancia";
 import { eventRoutes } from "./routes/events";
+import { executeRoutes } from "./routes/execute";
 import { health } from "./routes/health";
 import { instructionRoutes } from "./routes/instructions";
 import { ledgerRoutes } from "./routes/ledger";
 import { metricsRoutes } from "./routes/metrics";
+import { railRoutes } from "./routes/rails";
+import { receiptRoutes } from "./routes/receipts";
 import { runRoutes } from "./routes/run";
 import { satRoutes } from "./routes/sat";
 import { seedRoutes } from "./routes/seed";
@@ -70,6 +73,10 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   );
 
   v1.route("/run", runRoutes(deps));
+  /* A second router on `/run`, for the reason `/instructions` has three: the payment
+     execution is the rail, the ledger and the bank mirror in one pipeline, and it
+     stays one file that can be reverted in one commit. */
+  v1.route("/run", executeRoutes(deps));
   v1.route("/instructions", instructionRoutes(deps));
   /* A second router on the same base path. `/:id/verify-call` cannot collide
      with `/:id` or `/:id/decide`, and keeping the voice integration in its own
@@ -88,6 +95,8 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   v1.route("/cep", cepRoutes(deps));
   v1.route("/consortium", consortiumRoutes(deps));
   v1.route("/beneficiaries", beneficiaryRoutes(deps));
+  v1.route("/payments", receiptRoutes(deps));
+  v1.route("/rails", railRoutes(deps));
   v1.route("/metrics", metricsRoutes(deps));
   v1.route("/ledger", ledgerRoutes(deps));
   v1.route("/events", eventRoutes(deps));

@@ -43,7 +43,12 @@ import type {
   NameMatch,
   NetworkSignal,
   PaymentComplement,
+  PaymentExecution,
+  PaymentExecutionLine,
+  PaymentExecutionTotals,
   PaymentInstruction,
+  PaymentLineState,
+  PaymentReceipt,
   ProposalKind,
   ProposalValue,
   RailId,
@@ -245,6 +250,20 @@ export const railIdSchema = z.enum([
   "nessie",
   "stp",
 ]) satisfies z.ZodType<RailId>;
+
+/**
+ * Where one line of an executed run stands on the rail.
+ *
+ * Five states and `sent` and `settled` are never collapsed: a transfer is
+ * acknowledged when the rail says so, not when we asked.
+ */
+export const paymentLineStateSchema = z.enum([
+  "queued",
+  "sent",
+  "settled",
+  "failed",
+  "cancelled",
+]) satisfies z.ZodType<PaymentLineState>;
 
 /**
  * What can be proven about the Banxico seal. `valid` is only ever the answer when
@@ -630,6 +649,29 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     at: instantSchema,
     instructionId: z.string().min(1),
     claveRastreo: z.string().min(1).optional(),
+    /* The three fields ADR-0008 added, all optional so every writer that predates
+       the execution keeps working: the seed records a SPEI the company sent from its
+       own banking portal and there was no run, no rail and nobody at a button. */
+    runId: z.string().min(1).optional(),
+    rail: railIdSchema.optional(),
+    actor: actorSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("payment_settled"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    claveRastreo: claveRastreoSchema,
+    receiptId: z.string().min(1),
+    runId: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("payment_failed"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    /** Required: a failure nobody can read is a line that quietly disappears. */
+    reason: z.string().min(1).max(1000),
+    claveRastreo: z.string().min(1).optional(),
+    runId: z.string().min(1).optional(),
   }),
   z.object({
     type: z.literal("payment_cancelled"),
@@ -637,7 +679,7 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     instructionId: z.string().min(1),
     reason: z.string().min(1).max(1000),
     runId: z.string().min(1).optional(),
-    /** Absent exactly when nobody dropped the line by hand. */
+    /** Absent exactly when nobody dropped the line by hand: the evidence did. */
     actor: actorSchema.optional(),
   }),
   z.object({
@@ -959,6 +1001,119 @@ export const verificationStateSchema = z.object({
   updatedAt: instantSchema,
 }) satisfies z.ZodType<VerificationState>;
 
+/* -------------------------------------------------------------------------- */
+/* The payment execution                                                       */
+/* -------------------------------------------------------------------------- */
+
+export const paymentExecutionLineSchema = z.object({
+  instructionId: z.string().min(1),
+  state: paymentLineStateSchema,
+  /** Pesos of this line, so the execution adds up without a join back. */
+  amount: amountSchema,
+  claveRastreo: claveRastreoSchema.optional(),
+  rail: railIdSchema.optional(),
+  sentAt: instantSchema.optional(),
+  receiptId: z.string().min(1).optional(),
+  /** Why a failed or cancelled line did not go out, in one sentence. */
+  reason: z.string().min(1).max(1000).optional(),
+}) satisfies z.ZodType<PaymentExecutionLine>;
+
+/**
+ * Counts and pesos, never one of them.
+ *
+ * The five peso buckets are disjoint and add up to `amount` exactly, which is an
+ * identity a judge can check against the rows underneath.
+ */
+export const paymentExecutionTotalsSchema = z.object({
+  lines: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  sent: z.number().int().nonnegative(),
+  settled: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  amount: z.number().nonnegative(),
+  queuedAmount: z.number().nonnegative(),
+  sentAmount: z.number().nonnegative(),
+  settledAmount: z.number().nonnegative(),
+  failedAmount: z.number().nonnegative(),
+  cancelledAmount: z.number().nonnegative(),
+}) satisfies z.ZodType<PaymentExecutionTotals>;
+
+export const paymentExecutionSchema = z.object({
+  runId: z.string().min(1),
+  lines: z.array(paymentExecutionLineSchema),
+  totals: paymentExecutionTotalsSchema,
+  startedBy: actorSchema.optional(),
+  startedAt: instantSchema.optional(),
+  updatedAt: instantSchema,
+}) satisfies z.ZodType<PaymentExecution>;
+
+/**
+ * The receipt of one payment.
+ *
+ * `sealState` is a state and never a boolean, and the account is four digits. Both
+ * are honesty rules in the shape rather than in a comment: a receipt printed for a
+ * rail that produces no CEP reads "firma no verificada", and a document that leaves
+ * the building does not need the other fourteen digits.
+ */
+export const paymentReceiptSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string(),
+  instructionId: z.string().min(1),
+  claveRastreo: claveRastreoSchema,
+  rail: railIdSchema,
+  amount: amountSchema,
+  sentAt: instantSchema,
+  settledAt: instantSchema.optional(),
+  supplierRfc: rfcSchema,
+  beneficiaryName: z.string().min(1),
+  beneficiaryAccountLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+  beneficiaryBank: z.string().min(1),
+  cfdiUuids: z.array(uuidSchema),
+  sealState: sealStateSchema,
+  cepAt: instantSchema.optional(),
+  executedBy: actorSchema,
+  synthetic: z.boolean(),
+}) satisfies z.ZodType<PaymentReceipt>;
+
+/**
+ * One line the run did not send, with the row of the ADR-0009 state table that
+ * decided it.
+ *
+ * It is on the stream and not in `PaymentExecution`, because a line nobody released
+ * was never part of what the run did on the rail: it is on the run screen, `rojo`,
+ * in front of a person. What a clerk watching the execution needs is to see that it
+ * was left out on purpose rather than lost, and that is exactly this event.
+ */
+export const skippedLineSchema = z.object({
+  instructionId: z.string().min(1),
+  amount: amountSchema,
+  state: z.enum(["rojo", "cancelado", "enviado", "pendiente", "liberado"]),
+  rule: z.string().min(1),
+  reason: z.string().min(1).max(1000).optional(),
+});
+
+/**
+ * `GET /api/v1/rails`. No key, no account, no fingerprint.
+ *
+ * `configured` is whether the variables exist and never what they contain, and
+ * `live` is whether that rail has ever actually moved money from this repository,
+ * so a screen cannot claim the production path has run when it has not.
+ */
+export const railRowSchema = z.object({
+  id: railIdSchema,
+  configured: z.boolean(),
+  producesCep: z.boolean(),
+  live: z.boolean(),
+  detail: z.string().min(1),
+});
+
+export const railsResponseSchema = z.object({
+  active: railIdSchema.nullable(),
+  rails: z.array(railRowSchema),
+  message: z.string().min(1).optional(),
+});
+
 export const supplierDetailSchema = z.object({
   supplier: supplierSchema,
   cfdis: z.array(cfdiSchema),
@@ -1217,6 +1372,45 @@ export const seedBodySchema = z.object({
 });
 
 /**
+ * How many lines one request may name.
+ *
+ * The seeded run holds around ninety, a real weekly run of a company this size holds
+ * a few hundred, and a thousand is past anything a clerk reviews in one sitting. The
+ * cap is here so a body cannot become a denial of service against a rail that charges
+ * per request.
+ */
+export const EXECUTE_LINES_MAX = 1000;
+
+/**
+ * `POST /api/v1/run/:id/execute`.
+ *
+ * `confirm: true` is required and it is the literal `true`, not a boolean: there is no
+ * body shape that means "execute, and no I did not confirm". `instructionIds` narrows
+ * the set of lines and can never widen it past what the decisions allow, which is
+ * enforced by `planRunExecution` and not by this schema.
+ */
+export const executeBodySchema = z.object({
+  instructionIds: z
+    .array(z.string().min(1).max(200))
+    .min(1)
+    .max(EXECUTE_LINES_MAX)
+    .optional(),
+  confirm: z.literal(true),
+});
+
+/**
+ * `POST /api/v1/run/:id/layout/response`, the bank portal's answer to the file.
+ *
+ * The file arrives as text because that is what the portal hands back, and it is
+ * parsed by `readLayoutResponse` in `@hackmty/rail` rather than here: the separator,
+ * the header spelling and the column order are the portal's and a zod schema cannot
+ * hold all of them.
+ */
+export const layoutResponseBodySchema = z.object({
+  file: z.string().min(1).max(1_000_000),
+});
+
+/**
  * A judge types the RFC by hand, so it is normalised before it is validated.
  *
  * `normalizeRfc` from `@hackmty/sat` upper-cases and strips the separators a
@@ -1303,4 +1497,10 @@ export type VerifyCallScriptResponse = z.infer<
 >;
 export type SeedBody = z.infer<typeof seedBodySchema>;
 export type VerificationStateResponse = z.infer<typeof verificationStateSchema>;
+export type PaymentExecutionResponse = z.infer<typeof paymentExecutionSchema>;
+export type PaymentReceiptResponse = z.infer<typeof paymentReceiptSchema>;
+export type ExecuteBody = z.infer<typeof executeBodySchema>;
+export type SkippedLine = z.infer<typeof skippedLineSchema>;
+export type LayoutResponseBody = z.infer<typeof layoutResponseBodySchema>;
+export type RailsResponse = z.infer<typeof railsResponseSchema>;
 export type AssistantMessageBody = z.infer<typeof assistantMessageBodySchema>;

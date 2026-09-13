@@ -87,6 +87,7 @@ import {
   markInstructionSent,
   readAssistantMessages,
   readLedger,
+  readPaymentEvents,
   readVerificationEvents,
   recordKnownAccount,
   replaceConsortiumSnapshot,
@@ -115,6 +116,7 @@ import type {
   ConsortiumLookup,
   IntakeRecord,
   LedgerQuery,
+  PaymentEventQuery,
   Repository,
   ResetSummary,
   SweepSnapshot,
@@ -458,6 +460,10 @@ export class PostgresRepository implements Repository {
     );
   }
 
+  async paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]> {
+    return readPaymentEvents(this.sql, query);
+  }
+
   /* --------------------------------------------------------------- writes */
 
   /**
@@ -471,6 +477,28 @@ export class PostgresRepository implements Repository {
     if (event.type === "payment_sent") {
       await markInstructionSent(this.sql, event.instructionId, event.at);
     }
+  }
+
+  /**
+   * Adds one outflow to the company's bank mirror.
+   *
+   * The account comes off the company row, the same one `bankMirror` reads back, so
+   * the executed line lands in the statement the reconciliation control looks at
+   * rather than in an account nobody queries. No company row means no mirror to add
+   * to, and the write is a no-op rather than a row in a made-up account.
+   *
+   * `insertLedgerTx` already carries `on conflict do nothing`, so a second write of
+   * the same transfer changes nothing. That matters: two rows for one payment is
+   * control 6's `cfdi_paid_twice` finding raised by our own bookkeeping.
+   */
+  async recordBankOutflow(tx: Omit<LedgerTx, "accountId">): Promise<void> {
+    const company = await getCompany(this.sql);
+    if (company === undefined) {
+      return;
+    }
+    await insertLedgerTx(this.sql, [
+      { ...tx, accountId: company.bankAccountId },
+    ]);
   }
 
   async saveIntake(record: IntakeRecord): Promise<void> {

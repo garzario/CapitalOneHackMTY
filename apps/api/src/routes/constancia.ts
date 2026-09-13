@@ -35,6 +35,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
+import { executionOf } from "../execution";
 import { notFound, rejectInvalid } from "../http";
 import { pdfResponse } from "../pdf";
 import { runRetroactiveSweep } from "../pipeline";
@@ -108,6 +109,10 @@ export function constanciaRoutes(deps: ApiDeps) {
           findings: item.findings,
         }));
 
+        /* What was decided and what left are two halves of one answer since
+           ADR-0008, and the SAT asks about the second one. The execution is folded
+           out of the same ledger the digest is taken over, so the table on the page
+           and the huella under it describe the same facts. */
         const bytes = runConstancia({
           company,
           issuedAt: deps.clock.now(),
@@ -116,6 +121,7 @@ export function constanciaRoutes(deps: ApiDeps) {
           runId: run.id,
           weekOf: run.weekOf,
           items,
+          execution: await executionOf(deps, run),
         });
 
         return pdfResponse(c, bytes, constanciaFilename("run", run.id));

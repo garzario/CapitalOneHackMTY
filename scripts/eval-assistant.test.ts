@@ -119,10 +119,30 @@ describe("the golden questions", () => {
     }
   });
 
+  /**
+   * How long a window the ledger is read over.
+   *
+   * Generous on purpose, and then the count is subtracted rather than assumed to be
+   * this turn's. A one millisecond window drops a row written inside that same
+   * millisecond, which made this fail about one run in four; and reading the ledger
+   * with no window at all answers the OLDEST page, which on the seeded company is
+   * eight months of CFDIs and none of the conversation.
+   */
+  const LEDGER_WINDOW_MS = 600_000;
+
+  /** The `assistant_message` rows of the recent window, in append order. */
+  async function recentTurns() {
+    const events = await deps.repo.ledger({
+      since: new Date(Date.now() - LEDGER_WINDOW_MS).toISOString(),
+      limit: 2000,
+    });
+    return events.filter((event) => event.type === "assistant_message");
+  }
+
   /** One turn, with the case's recorded plan loaded, and what it left behind. */
   async function take(golden: GoldenCase): Promise<void> {
     current = plannedModel(golden);
-    const since = new Date(Date.now() - 1).toISOString();
+    const before = (await recentTurns()).length;
     const response = await app.request("/api/v1/assistant/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-actor": ACTOR_HEADER },
@@ -141,10 +161,9 @@ describe("the golden questions", () => {
 
     /* Two rows on the ledger per turn, and the cost on the answer. A case that
        streamed an answer and wrote nothing would be a panel with no audit trail. */
-    const events = await deps.repo.ledger({ since, limit: 2000 });
-    const turns = events.filter((event) => event.type === "assistant_message");
-    expect(turns.length).toBe(2);
-    const answer = turns[1];
+    const turns = await recentTurns();
+    expect(turns.length - before).toBe(2);
+    const answer = turns.at(-1);
     if (answer?.type !== "assistant_message") {
       throw new Error("expected the second row to be the answer");
     }

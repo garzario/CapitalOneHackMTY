@@ -97,6 +97,39 @@ export interface Cancellation {
   actor?: Actor;
 }
 
+/**
+ * Which payment events to read: the ones of one run, or the ones of one clave de
+ * rastreo.
+ *
+ * Exactly one of the two is set by every caller this product has, and both are here
+ * rather than in two methods because the answer is the same four event kinds folded
+ * the same way. A query with neither answers nothing rather than the whole ledger: a
+ * filter that silently became "everything" is how a read of one receipt turns into a
+ * scan of every payment the company ever made.
+ */
+export interface PaymentEventQuery {
+  runId?: string;
+  claveRastreo?: string;
+  /**
+   * Payments of these instructions, whatever run they belong to.
+   *
+   * It answers one question the run filter cannot: has this instruction EVER been
+   * paid. Every SPEI before ADR-0008 left from the company's own banking portal and
+   * the seed records those with no run on them, so the execution has to ask this
+   * before it offers a line to a rail. An empty array answers nothing, like a query
+   * with no filter at all.
+   */
+  instructionIds?: readonly string[];
+}
+
+/** The four event kinds a `PaymentExecution` is folded out of. */
+export const PAYMENT_EVENT_TYPES = [
+  "payment_sent",
+  "payment_settled",
+  "payment_failed",
+  "payment_cancelled",
+] as const;
+
 export interface ResetSummary {
   seed: number;
   suppliers: number;
@@ -225,9 +258,40 @@ export interface Repository {
    * `404` for.
    */
   assistantMessages(sessionId: string): Promise<AssistantMessage[]>;
+  /**
+   * The four payment events a `PaymentExecution` is folded out of, in append order,
+   * for one run or for one clave de rastreo.
+   *
+   * A targeted read for the same reason `verificationEvents` is one: the seeded
+   * company's ledger is thousands of events long and `ledger` answers the oldest 500,
+   * so a payment that left a minute ago would never be in the page.
+   *
+   * The `runId` filter is what keeps an executed run apart from the company's own
+   * history. Every SPEI before ADR-0008 left from the company's banking portal and
+   * the seed records those as `payment_sent` with no run on them, so a filter on the
+   * run answers what THIS run did and nothing else. The clave filter is the receipt
+   * lookup, which holds no run id of its own.
+   */
+  paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]>;
 
   /* Writes. Each one is append-only from the ledger's point of view. */
   appendEvent(event: LedgerEvent): Promise<void>;
+  /**
+   * Adds one outflow to the company's bank mirror.
+   *
+   * It exists because of control 6. `bank_reconciliation` compares what the bank
+   * posted against the company's own documents, so a run that left through
+   * `packages/rail` with nothing on the statement would have every line reported as
+   * `payment_not_in_mirror`, which is true of a real bank for about a day and false
+   * the moment we are the ones who posted the movement. The row is the mirror of what
+   * the rail wrote and it names no payee, exactly like the rail's own row.
+   *
+   * The account is the repository's to fill in and not the caller's: the Postgres
+   * store reads it off the company row and the memory store off the statement it
+   * already holds, and a caller that guessed it would write the outflow into an
+   * account `bankMirror` does not read.
+   */
+  recordBankOutflow(tx: Omit<LedgerTx, "accountId">): Promise<void>;
   saveIntake(record: IntakeRecord): Promise<void>;
   /**
    * A person confirms an action. `reason` is what they wrote about it, and it
@@ -286,6 +350,16 @@ export interface Repository {
 }
 
 const DEFAULT_LEDGER_LIMIT = 500;
+
+/**
+ * The account an executed outflow lands on when this store holds no statement yet.
+ *
+ * It is the id `buildBankMirror` in `./synthetic.ts` stamps on every row, so the
+ * first executed line of an empty store is in the same account as the seeded ones
+ * would have been. `bank_reconciliation` never filters on it; it is here so two rows
+ * of one statement cannot end up in two accounts.
+ */
+const FALLBACK_BANK_ACCOUNT = "acc-synthetic-mtx";
 
 /**
  * Handed out on every read so a handler cannot mutate the store by accident.
@@ -681,11 +755,78 @@ export class MemoryRepository implements Repository {
     return copy(assistantMessagesFrom(this.data.ledger, sessionId));
   }
 
+  /**
+   * The payment events of one run, or of one clave de rastreo.
+   *
+   * Same matching rules as `readPaymentEvents` in `packages/db`, and the same reason
+   * for writing them out twice rather than normalising in one place: normalising here
+   * and not in SQL is how the two repositories start answering different things for
+   * the same ledger, and the parity suite would not catch it because it asks both
+   * through this method.
+   */
+  async paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]> {
+    const ids =
+      query.instructionIds === undefined
+        ? undefined
+        : new Set(query.instructionIds);
+    if (
+      query.runId === undefined &&
+      query.claveRastreo === undefined &&
+      ids === undefined
+    ) {
+      return [];
+    }
+    return copy(
+      this.data.ledger.filter((event) => {
+        if (
+          !(PAYMENT_EVENT_TYPES as readonly string[]).includes(event.type) ||
+          !("instructionId" in event)
+        ) {
+          return false;
+        }
+        const row = event as {
+          instructionId: string;
+          runId?: string;
+          claveRastreo?: string;
+        };
+        if (query.runId !== undefined && row.runId !== query.runId) {
+          return false;
+        }
+        if (
+          query.claveRastreo !== undefined &&
+          row.claveRastreo !== query.claveRastreo
+        ) {
+          return false;
+        }
+        return ids === undefined || ids.has(row.instructionId);
+      }),
+    );
+  }
+
   /* --------------------------------------------------------------- writes */
 
+  /**
+   * Appends one event, and projects `payment_sent` onto its instruction.
+   *
+   * The projection is the same one `PostgresRepository` does with
+   * `instructions.sent_at`, and it is what lets the run screen and the execution plan
+   * separate "not paid yet" from "paid and missing from the bank mirror" without
+   * folding the whole ledger on every read. Without it the memory store would offer a
+   * line for a second send after a restart, which is the one bug this endpoint may
+   * not have.
+   */
   async appendEvent(event: LedgerEvent): Promise<void> {
     const stored = copy(event);
     const last = this.data.ledger.at(-1);
+
+    if (stored.type === "payment_sent") {
+      const instruction = this.data.instructions.find(
+        (row) => row.id === stored.instructionId,
+      );
+      if (instruction !== undefined && instruction.sentAt === undefined) {
+        instruction.sentAt = stored.at;
+      }
+    }
 
     if (last !== undefined && Date.parse(stored.at) < Date.parse(last.at)) {
       // A backdated event is legal (a CFDI can arrive late) but rare, so pay
@@ -696,6 +837,25 @@ export class MemoryRepository implements Repository {
     }
 
     this.data.ledger.push(stored);
+  }
+
+  /**
+   * Adds one outflow to the bank mirror, or leaves it alone when it is already there.
+   *
+   * Idempotent on the id, because the id is derived from the clave de rastreo and a
+   * second write of the same transfer would make control 6 report one payment as two
+   * outflows, which is its `cfdi_paid_twice` finding raised by our own bookkeeping.
+   */
+  async recordBankOutflow(tx: Omit<LedgerTx, "accountId">): Promise<void> {
+    if (this.data.bankMirror.some((row) => row.id === tx.id)) {
+      return;
+    }
+    /* The account of the statement this store already holds, so an executed line
+       lands where the seeded outflows are. With an empty mirror there is nothing to
+       read it off, and then the name below is the one the generator uses. */
+    const accountId =
+      this.data.bankMirror[0]?.accountId ?? FALLBACK_BANK_ACCOUNT;
+    this.data.bankMirror.push(copy({ ...tx, accountId }));
   }
 
   async saveIntake(record: IntakeRecord): Promise<void> {

@@ -37,6 +37,8 @@ import {
   intakeResponseSchema,
   ledgerResponseSchema,
   metricsSchema,
+  paymentExecutionSchema,
+  paymentReceiptSchema,
   paymentRunSchema,
   satPublishResponseSchema,
   satVersionsResponseSchema,
@@ -1201,6 +1203,118 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
         expect(run.items.map((item) => item.instruction.id)).toEqual(
           expected.items.map((item) => item.instruction.id),
         );
+      },
+      REMOTE_TIMEOUT_MS,
+    );
+
+    it(
+      "executes the run on Postgres, folds the same execution and writes the outflow",
+      async () => {
+        /* The whole of issue #198 on the other store, and the assertion that matters
+           is the last one: the execution is folded out of the ledger, so the `done`
+           payload of the stream and `GET /api/v1/run/:id/execution` have to answer the
+           same thing on Postgres as they do in memory. */
+        const { app } = createTestApp({
+          repo: pg,
+          clock: {
+            now: () => TEST_NOW,
+            newId: (prefix) =>
+              `${prefix}-pg-${String(++mintedIds).padStart(4, "0")}`,
+          },
+          rail: async () => ({
+            ok: true,
+            rail: new FakeRail({ now: () => TEST_NOW }),
+          }),
+        });
+        const run = await pg.currentRun();
+        const mirrorBefore = (await pg.bankMirror()).length;
+
+        const response = await app.request(
+          `/api/v1/run/${encodeURIComponent(run.id)}/execute`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-actor": "role=clerk; name=Lupita Elizondo",
+            },
+            body: JSON.stringify({ confirm: true }),
+          },
+        );
+        expect(response.status).toBe(202);
+
+        const text = await response.text();
+        const block = text
+          .split("\n\n")
+          .find((part) => part.includes("event: done"));
+        const done = paymentExecutionSchema.parse(
+          JSON.parse(/^data:\s*(.+)$/m.exec(block ?? "")?.[1] ?? "null"),
+        );
+        expect(done.totals.lines).toBeGreaterThan(0);
+
+        const read = paymentExecutionSchema.parse(
+          await (
+            await app.request(
+              `/api/v1/run/${encodeURIComponent(run.id)}/execution`,
+            )
+          ).json(),
+        );
+        expect(read).toEqual(done);
+
+        // Control 6 reads the statement, so the outflows have to be on it.
+        expect((await pg.bankMirror()).length).toBe(
+          mirrorBefore + read.totals.lines,
+        );
+
+        // Every sent line has a receipt, and the receipt is rebuilt from the ledger.
+        const receiptId = read.lines[0]?.receiptId as string;
+        const receipt = paymentReceiptSchema.parse(
+          await (
+            await app.request(
+              `/api/v1/payments/${encodeURIComponent(receiptId)}/receipt`,
+            )
+          ).json(),
+        );
+        expect(receipt.runId).toBe(run.id);
+        expect(receipt.executedBy.name).toBe("Lupita Elizondo");
+
+        // And a second call sends nothing new.
+        const again = await app.request(
+          `/api/v1/run/${encodeURIComponent(run.id)}/execute`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-actor": "role=clerk; name=Lupita Elizondo",
+            },
+            body: JSON.stringify({ confirm: true }),
+          },
+        );
+        expect(again.status).toBe(409);
+
+        await pg.load({ seed: SEED });
+      },
+      REMOTE_TIMEOUT_MS,
+    );
+
+    it(
+      "reads the same payment events as the memory store, filter for filter",
+      async () => {
+        const run = await pg.currentRun();
+        const fromPostgres = await pg.paymentEvents({
+          instructionIds: run.items.map((item) => item.instruction.id),
+        });
+        const fromMemory = await memory.paymentEvents({
+          instructionIds: run.items.map((item) => item.instruction.id),
+        });
+
+        expect(fromPostgres.map((event) => event.type)).toEqual(
+          fromMemory.map((event) => event.type),
+        );
+        // A query with no filter answers nothing on both stores, rather than the
+        // whole ledger: a filter that silently became "everything" is how a read of
+        // one receipt turns into a scan of every payment the company ever made.
+        expect(await pg.paymentEvents({})).toEqual([]);
+        expect(await memory.paymentEvents({})).toEqual([]);
       },
       REMOTE_TIMEOUT_MS,
     );

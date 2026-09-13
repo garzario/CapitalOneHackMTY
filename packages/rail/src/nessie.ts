@@ -1,9 +1,13 @@
 /**
- * The demo rail: the one-cent probe as an outflow on the company's Nessie mirror.
+ * The demo rail: the one-cent probe and the payment run, as outflows on the
+ * company's Nessie mirror.
  *
  * Nessie is the company's bank mirror in this product (ADR-0002, docs/09-api.md),
- * and that is exactly what it is here too. The cent is recorded as a WITHDRAWAL on
- * the mirror account: money leaving the account with no payee named. The mirror's
+ * and that is exactly what it is here too. Both movements are recorded as
+ * WITHDRAWALS on the mirror account: money leaving the account with no payee named.
+ * `sendCent` is the probe and `send` is one line of the run, which ADR-0008 added
+ * next to it, and the second is the first with the instruction's own amount in place
+ * of the centavo and nothing else different. The mirror's
  * settled history is pushed as purchases, because a purchase carries a payee and
  * reconciliation needs one, and that is the opposite of what the probe needs. The
  * probe must name nobody: a row in a sandbox any other team can read with our key
@@ -49,12 +53,17 @@ import {
 import {
   assertClaveRastreo,
   assertNoIdentity,
+  assertPaymentAmount,
   CENT_AMOUNT,
   CENT_DESCRIPTION,
   type CentRequest,
   type CentSent,
   claveRastreoFrom,
+  PAYMENT_DESCRIPTION,
+  type PaymentConfirmation,
+  type PaymentOrder,
   type PaymentRail,
+  type PaymentSent,
   RailConfigError,
   RailSendError,
 } from "./rail";
@@ -170,6 +179,130 @@ export class NessieRail implements PaymentRail {
       reference,
       simulated: false,
     };
+  }
+
+  /**
+   * Sends one line of the payment run, as an outflow on the same mirror account.
+   *
+   * A WITHDRAWAL and not a purchase, exactly like the probe and for a reason that
+   * survives the difference in amount: a purchase carries a payee, and a row in a
+   * sandbox any other team can read with our key has no business naming the supplier
+   * being paid. The mirror's settled history is pushed as purchases because
+   * reconciliation needs a payee on a row it is matching; a dispersal we are
+   * originating must name nobody, and the supplier, the invoice and the account stay
+   * in our own ledger where the receipt reads them from.
+   *
+   * What the sandbox does with the amount is the quirk this comment exists for: a
+   * Nessie amount is stored as a whole number, so 42,180.50 reads back as 42,180, and
+   * the balance does not move at all. Verified on 2026-09-13 by posting one. The
+   * exact centavos live in our ledger, which is the same reason docs/09-api.md gives
+   * for the mirror's whole-peso amounts, and it is why an executed run on this rail
+   * proves the flow and nothing about the pesos.
+   */
+  async send(order: PaymentOrder): Promise<PaymentSent> {
+    const accountId = await this.mirrorAccountId();
+    const sentAt = this.now();
+    const amount = assertPaymentAmount(order.amount);
+    const description = assertNoIdentity(PAYMENT_DESCRIPTION);
+
+    const row = await this.client
+      .createWithdrawal(accountId, {
+        medium: CENT_MEDIUM,
+        transaction_date: monterreyDay(sentAt),
+        amount,
+        status: CENT_STATUS,
+        description,
+      })
+      .catch((cause: unknown) => {
+        throw new RailSendError(
+          "nessie",
+          `the payment was not recorded on the bank mirror: ${messageOf(cause)}`,
+        );
+      });
+
+    const reference = row._id;
+    if (typeof reference !== "string" || reference.trim() === "") {
+      throw new RailSendError(
+        "nessie",
+        "Nessie accepted the withdrawal and answered without an id, so there is no row to mint a clave de rastreo from",
+      );
+    }
+
+    /* `sent` and never `settled`, and this is the line of the file most worth
+       reading. The `status` on the row is the one WE posted: the sandbox echoes it
+       back unchanged, so it can never be the sandbox acknowledging anything, and
+       writing "completed" here would be us signing a settlement on our own behalf.
+       What the sandbox CAN answer is whether the row is on the account, and that is
+       `confirm` below, asked as its own question. */
+    return {
+      rail: "nessie",
+      state: "sent",
+      claveRastreo: assertClaveRastreo(
+        claveRastreoFrom(NESSIE_CLAVE_PREFIX, reference),
+      ),
+      sentAt,
+      amount,
+      instructionId: order.instructionId,
+      reference,
+      simulated: false,
+    };
+  }
+
+  /**
+   * Asks the mirror which of the rows it answers back on the account.
+   *
+   * One listing for the whole run rather than one read per line, because
+   * `GET /accounts/{id}/withdrawals` is the only path that answers a withdrawal at
+   * all: `/withdrawals/{id}` is not a route, and asking for it answers
+   * `403 Missing Authentication Token`, which is Nessie's way of saying wrong path.
+   * Verified on 2026-09-13.
+   *
+   * What a `settled` from this method means, stated so nobody has to shorten it: the
+   * sandbox answers that row back on that account, which is the strongest thing a
+   * sandbox can acknowledge. No pesos moved, no CEP exists, and the receipt for the
+   * line says `sealState: not_checked` for exactly that reason. It is still a second
+   * fact and not a restatement of the first: a POST can be accepted and the row can
+   * be absent, and then this method says `sent` and the line stays `sent`.
+   */
+  async confirm(sent: readonly PaymentSent[]): Promise<PaymentConfirmation[]> {
+    if (sent.length === 0) {
+      return [];
+    }
+    const accountId = await this.mirrorAccountId();
+    const at = this.now();
+    const rows = await this.client
+      .listWithdrawals(accountId)
+      .catch(() => undefined);
+
+    if (rows === undefined) {
+      /* A listing that failed is not a settlement and not a failure of the
+         transfer. The lines stay where they are and the sentence says why. */
+      return sent.map((line) => ({
+        instructionId: line.instructionId,
+        state: "sent" as const,
+        at,
+        detail:
+          "el espejo no pudo listarse, asi que la linea se queda en enviada: nadie confirmo el movimiento",
+      }));
+    }
+
+    const present = new Set(
+      rows
+        .map((row) => row._id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+
+    return sent.map((line) => {
+      const found = line.reference !== undefined && present.has(line.reference);
+      return {
+        instructionId: line.instructionId,
+        state: found ? ("settled" as const) : ("sent" as const),
+        at,
+        detail: found
+          ? "el espejo bancario responde el movimiento en la cuenta (sandbox: no se movieron pesos y no hay CEP)"
+          : "el espejo bancario todavia no responde el movimiento en la cuenta",
+      };
+    });
   }
 
   /** The mirror account this key holds, found once and remembered. */
