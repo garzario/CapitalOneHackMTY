@@ -28,6 +28,7 @@ import {
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
+import { currentActor } from "../lib/actor";
 import {
   decideInstruction,
   type EventsStatus,
@@ -95,7 +96,10 @@ function withDecision(
             ...item.decision,
             action,
             decidedAt: new Date().toISOString(),
-            decidedBy: "clerk@demo",
+            /* The offline path records the same two fields the API records, or
+               the mock would show a decision the API could not produce. */
+            decidedBy: currentActor().name,
+            decidedByRole: currentActor().role,
           },
         }
       : item,
@@ -172,7 +176,7 @@ export function RunScreen() {
 
       const result = await decideInstruction(instructionId, {
         action,
-        decidedBy: "clerk@demo",
+        decidedBy: currentActor().name,
       });
 
       setPending(null);

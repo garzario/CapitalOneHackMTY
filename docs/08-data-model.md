@@ -124,6 +124,7 @@ erDiagram
     numeric delay_cost_per_day
     timestamptz decided_at
     text decided_by "null until a person decides"
+    text decided_by_role "clerk or owner, null on the engine proposal"
     text reason "what that person wrote, null on the engine proposal"
   }
   DECISION_FINDING {
@@ -233,6 +234,8 @@ laptops.
 | `0009_consortium_snapshot.sql` | any Postgres 16+ | `consortium_snapshot` and the one-row `consortium_pull`: the local projection of the cross-tenant network |
 | `0010_rail_events.sql` | any Postgres 16+ | `cent_sent` and `cep_awaited` as ledger event types, the two the one-cent verification appends |
 | `0011_decision_reason.sql` | any Postgres 16+ | `decisions.reason`, the argument a person wrote when they overrode the engine, next to the name in `decided_by` |
+| `0012_assistant_and_payment_events.sql` | any Postgres 16+ | the five ledger event types the assistant panel and the payment execution append |
+| `0013_decision_actor_role.sql` | any Postgres 16+ | `decisions.decided_by_role`, the capacity the signature was given in, checked to the two roles of `ActorRole` |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
@@ -529,6 +532,7 @@ and a re-seed of the company should not throw away a pull.
 | `message_text` rather than `text` | `text` is a type name in Postgres and reads badly as a column. It is the one column name that is not the domain field spelled in snake_case, and `rows.ts` maps it back |
 | `sent_at timestamptz` nullable | Projected from the `payment_sent` event. Absent while the instruction is still pending, which is what separates "not paid yet" from "paid and missing from the bank mirror", and the second is a `bank_reconciliation` finding |
 | `decided_by text` nullable | Null until a person decides. The system proposes, a human disposes, and the column is the proof |
+| `decided_by_role text` nullable, checked | The capacity that name was acting in, from the `X-Actor` header of the request. It is the half an auditor reads first, because a release over a finding is the owner's exception to approve and a document printing only the name cannot tell that from a clerk exceeding theirs. Null for the same reason `decided_by` is, plus one more: `SYSTEM_DECIDER` is not a person and has no role. The check keeps the two roles of `ActorRole` so a third one is a migration rather than a typo in a request body |
 
 ## Synthetic data methodology
 

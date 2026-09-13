@@ -501,9 +501,10 @@ expected loss is on the instruction screen and each finding carries its own peso
 One honest gap worth volunteering before it is found, and one figure that is now worth pointing at
 rather than talking around.
 
-- That screen still sends a fixed `clerk@demo` and does not ask for the reason before an override, so
-  today the reason is recorded when it is sent and by the demo the screen asks for it under the person's
-  own name (#174).
+- Since #199 the screen sends the identity the header carries rather than a fixed string, and the API
+  refuses an override that has no reason with a `422` asking for it, so the prose is no longer optional
+  on the one shape where it matters. What the screen still owes is asking for it before the click
+  instead of after the refusal, and the identity selector itself (#174).
 - The screen carries a third figure, "Costo de retrasar un dia", and since #182 it reads a number on
   every one of the 92 payments: between MXN 101.98 and MXN 4,611.27, MXN 1,120.05 on the hero line.
   `Supplier.delayCostPerDay` is priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` from
@@ -514,9 +515,17 @@ rather than talking around.
   catalogue of a synthetic company, so the honest sentence is "asi valuamos la relacion en esta empresa
   sintetica, y en una real el dato sale de sus contratos".
 
-The API deliberately does not refuse a release with no prose, because an API that did would be refused
-by the clerk instead, outside the product. Verified: `POST /api/v1/instructions/:id/decide` with
-`decidedBy` and no `reason` answers 200.
+The API refuses a release with no prose on exactly the shape where the prose is the point, and nowhere
+else. A release on a line that is not `confiable`, or one the engine was holding, is the owner's
+exception: a clerk asking for it is `403` with the sentence that says who can, and the owner asking for
+it with no `reason` is `422` asking for the argument. The same two answers guard a decision on a line
+the run cancelled. Every other decision still takes no prose, because an API that refused an ordinary
+hold for lack of a sentence would be refused by the clerk instead, outside the product, where nothing
+is recorded at all. Verified in `apps/api/src/routes/instructions.test.ts`: the tests
+`refuses a clerk releasing a payment a finding stopped, and says who can`,
+`asks the owner for the argument, and refuses the release without one` and
+`releases it for the owner with a reason, and the ledger says who and why`, plus
+`carries no reason when nobody wrote one, rather than the last one` for the ordinary case.
 
 ### 5c. "What if the calculation is wrong? How sure are you about the percentages?"
 
@@ -720,9 +729,10 @@ Five gaps to volunteer, in this order, because each one is cheaper said than fou
   policy does not exist off the shelf yet.
 - **The false-positive cap is priced on synthetic data and the screen is not ready for it.** Six of 92
   lines stopped on one generated run and three of twenty findings were false over thirty labelled
-  cases, which is what shadow mode replaces. And the screens still send a fixed `clerk@demo` without
-  asking for the reason before an override, so a release under a named person is an API fact and not
-  yet a screen fact (#174).
+  cases, which is what shadow mode replaces. The name and the role are enforced on every write since
+  issue #199 and an override with no reason is refused, so the release under a named person is no
+  longer only an API fact; what the screens still owe is the identity selector and asking for the
+  reason before the click rather than after the refusal (#174).
 
 ### 9. "What percentage of supplier transfers in Mexico is stolen?" We answered 25.4 percent
 

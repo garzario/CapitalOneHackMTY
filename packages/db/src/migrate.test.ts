@@ -9,6 +9,7 @@ import {
   ASSISTANT_PAYMENT_EVENTS_MIGRATION,
   COMPANY_MIGRATION,
   CONSORTIUM_SNAPSHOT_MIGRATION,
+  DECISION_ACTOR_ROLE_MIGRATION,
   DECISION_REASON_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
@@ -518,6 +519,49 @@ describe("0012_assistant_and_payment_events.sql", () => {
   });
 });
 
+describe("0013_decision_actor_role.sql", () => {
+  it("adds the role a decision was signed in, and nothing else", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${DECISION_ACTOR_ROLE_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain("alter table decisions");
+    expect(statements[0]).toContain("add column if not exists decided_by_role");
+    /* The two roles of `ActorRole` and no third one, checked in the schema so a
+       typo in a request body cannot become a role nobody defined. */
+    expect(statements[0]).toContain("'clerk'");
+    expect(statements[0]).toContain("'owner'");
+    expect(text).not.toContain("create table");
+  });
+
+  it("keeps the column nullable, because the engine signs decisions too", async () => {
+    /* `SYSTEM_DECIDER` is not a person and has no role, and every decision taken
+       before the `X-Actor` header existed has none either. A not-null column here
+       would have to invent one for both. */
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${DECISION_ACTOR_ROLE_MIGRATION}`,
+    ).text();
+
+    expect(text).toContain("decided_by_role is null");
+    expect(text).not.toContain("not null");
+  });
+
+  it("touches the ledger event table not at all", async () => {
+    /* `actor` on a ledger event lives in `payload` jsonb, because `LedgerEvent`
+       keeps the discriminant in `type` and the rest of the variant in the
+       payload. Only the decision is projected into columns, so only the decision
+       needed DDL. */
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${DECISION_ACTOR_ROLE_MIGRATION}`,
+    ).text();
+    const ddl = splitSqlStatements(text).join("\n");
+
+    expect(ddl).not.toContain("ledger_events");
+  });
+});
+
 describe("MIGRATIONS", () => {
   it("runs the plain files before the ones that need the extension", () => {
     const first = MIGRATIONS.findIndex((spec) => spec.requiresTimescale);
@@ -536,6 +580,7 @@ describe("MIGRATIONS", () => {
       RAIL_EVENTS_MIGRATION,
       DECISION_REASON_MIGRATION,
       ASSISTANT_PAYMENT_EVENTS_MIGRATION,
+      DECISION_ACTOR_ROLE_MIGRATION,
       TIMESCALE_MIGRATION,
       SENTRYONE_TIMESCALE_MIGRATION,
       SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION,

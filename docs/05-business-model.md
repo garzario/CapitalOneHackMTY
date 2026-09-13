@@ -356,10 +356,14 @@ that stops being wrong. What the credit buys is that the first two cost us money
 - The payment was still stopped when the window closed, `expired` true on `holdWindow` with no release
   before it. If the owner released at hour two the bound did its job, and there is nothing to credit.
 
-**The honest consequences, volunteered rather than discovered.** Two of those conditions cannot be
-observed through the product today. The screens send a fixed `clerk@demo` and do not ask for the
-reason before an override, so a release under a named person is an API fact and not yet a screen fact
-(#174), and nothing carrying a cap is sold before the screen asks for the name and the argument. The
+**The honest consequences, volunteered rather than discovered.** Two of those conditions are only
+half observable through the product today. Since issue #199 every write carries the name and the role
+on `X-Actor`, the screens send the identity rather than a fixed string, and the API refuses an
+override that carries no reason, so a release under a named person with a written argument is now
+enforced rather than hoped for. What the screens still owe is the identity selector and asking for the
+reason before the click instead of after the refusal (#174), and nothing carrying a cap is sold before
+that screen exists, because a clerk who meets the refusal and gives up is a release that happened
+outside the product. The
 strongest contradiction, a CEP holder name that matched under a seal that validated, is the state
 layer 2 is also waiting for: `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal
 reads `not_checked` until the real Banxico certificate lands (#57). And for a duplicate-invoice or a

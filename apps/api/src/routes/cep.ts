@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import type { Read } from "../extraction";
 import { fail, notFound, rejectInvalid } from "../http";
+import { actorOf, requireActor } from "../middleware/actor";
 import { compareBeneficiaryName, runControlsFor } from "../pipeline";
 import { type CepVerifyBody, cepVerifyBodySchema } from "../schemas";
 
@@ -37,8 +38,10 @@ import { type CepVerifyBody, cepVerifyBodySchema } from "../schemas";
 export function cepRoutes(deps: ApiDeps) {
   return new Hono().post(
     "/verify",
+    requireActor,
     zValidator("json", cepVerifyBodySchema, rejectInvalid),
     async (c) => {
+      const actor = actorOf(c);
       const body = c.req.valid("json");
 
       const supplier = await deps.repo.findSupplier(body.supplierRfc);
@@ -64,11 +67,15 @@ export function cepRoutes(deps: ApiDeps) {
         cep,
         verifiedAt,
       });
+      /* Whose document it is. The primary path here is a person pasting a CEP
+         they downloaded themselves, so the ledger records whose download the
+         evidence came from. */
       await deps.emit({
         type: "cep_verified",
         at: verifiedAt,
         cep,
         supplierRfc: supplier.rfc,
+        actor,
       });
 
       return c.json({

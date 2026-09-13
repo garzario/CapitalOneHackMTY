@@ -186,10 +186,23 @@ export interface CreateInstructionBody {
   image?: string;
 }
 
-/** `POST /api/v1/instructions/:id/decide`. A person always confirms. */
+/**
+ * `POST /api/v1/instructions/:id/decide`. A person always confirms.
+ *
+ * `decidedBy` has to be the name on the `X-Actor` header of the same request, or
+ * the API answers 400: a decision signed by one name under a header carrying
+ * another is a record nobody can rely on later. `src/lib/api.ts` attaches the
+ * header and `src/lib/actor.ts` holds the identity, so a caller passes the name it
+ * reads from there.
+ *
+ * `reason` is what the person wrote. The API requires it on the two shapes that
+ * are the owner's, a release on a line something stands against and a decision on
+ * a line the run cancelled, and answers 422 asking for it when it is missing.
+ */
 export interface DecideBody {
   action: Action;
   decidedBy: string;
+  reason?: string;
 }
 
 /** `POST /api/v1/sat/publish`. Simulation accepts synthetic RFCs only. */

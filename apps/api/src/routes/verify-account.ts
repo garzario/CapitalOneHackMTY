@@ -32,6 +32,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { fail, notFound, rejectInvalid } from "../http";
+import { actorOf, requireActor } from "../middleware/actor";
 import { idParamSchema, type VerificationStateResponse } from "../schemas";
 import { verificationStateOf, verifyAccount } from "../verification";
 
@@ -61,10 +62,14 @@ export function verifyAccountRoutes(deps: ApiDeps) {
     )
     .post(
       "/:id/verify-account",
+      requireActor,
       zValidator("param", idParamSchema, rejectInvalid),
       async (c) => {
         const { id } = c.req.valid("param");
-        const outcome = await verifyAccount(deps, id);
+        /* Who spent the centavo. It lands on `cent_sent` and nowhere else: the
+           CEP, the wait and the engine's own decision are consequences of this
+           click rather than three more human actions. */
+        const outcome = await verifyAccount(deps, id, actorOf(c));
 
         if (!outcome.ok) {
           if (outcome.failure === "not_found") {
