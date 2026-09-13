@@ -11,7 +11,14 @@ questions at the table: how many people have this problem in Mexico and is there
 already doing it here and what problems do they face, and who exactly is the target user. Those
 three answers now open the file, ahead of the sizing, because that is the order they were asked in.
 Sources 1 to 12 are unchanged, 13 belongs to `docs/05-business-model.md` which numbers into this
-list, and everything from 14 on was added in that pass.
+list, and 14 to 47 were added in that pass.
+
+Extended again the same evening, after a second Capital One panel asked for the rate itself: what
+percentage of supplier transfers in Mexico is stolen. A teammate answered 25.4 percent, which is in
+no source this repository holds. "The rate on supplier transfers, and how it is derived" is the
+answer, and it is a bracket with its formulas on the page rather than a number. Sources 67 to 74
+arrived with it, every link opened on 2026-09-12, and two sentences already in the file were
+corrected against their own sources rather than left standing. Issue #192.
 
 ## Demand: how many have the problem and how we know
 
@@ -35,13 +42,16 @@ Four limits on those six rows, stated here so they are ours and not a judge's. T
 survey classifies units only as micro, pequena, mediana and grande and the release publishes no
 employee thresholds, so reading an 11-to-250 band onto pequena plus mediana is our approximation and
 not INEGI's; by frequency the ranking reverses, with large units averaging 4.1 crimes per victimised
-unit against 3.0 for medium and small [14]. Its `Fraude` category is neither defined nor broken down
-in the presentation, so bank fraud is not explicitly named and a supplier-impersonation subcategory
-does not exist, and the MXN 18,370 is in constant pesos at prices of the second half of July 2018
-[15]. KPMG surveyed more than 100 organisational leaders across 15 states in August 2024, so 45
-percent is 45 percent of respondents and not of Mexican companies [16]. Condusef's register counts
-claims by users of banks and does not separate personas morales from consumers, so not one of those
-5.2 million claims can be attributed to a company [17] [18].
+unit against 3.0 for medium and small [14]. Its `Fraude` category **is** defined, and the correction
+is ours: the presentation carries the category with no note, but the comunicado's own footnote to
+the distribution of crimes by type reads "Incluye fraude bancario y fraude al consumo del
+establecimiento" [14], so bank fraud is named and a first pass at this file was wrong to say it was
+not. What still does not exist is a supplier-impersonation subcategory, or any split between the two
+things the footnote bundles, and the MXN 18,370 is in constant pesos at prices of the second half of
+July 2018 [15]. KPMG surveyed more than 100 organisational leaders across 15 states in August 2024,
+so 45 percent is 45 percent of respondents and not of Mexican companies [16]. Condusef's register
+counts claims by users of banks and does not separate personas morales from consumers, so not one of
+those 5.2 million claims can be attributed to a company [17] [18].
 
 The reason a judge has never heard of this problem is in the same release: **90.3 percent of the
 crimes committed against economic units in 2023, 2.6 million of them, produced no complaint or no
@@ -109,8 +119,11 @@ file, which is how a company of 11 to 250 people actually pays suppliers, are ou
   microdata, which we did not open.
 - **No business-to-business share of SPEI.** Neither Banxico nor the ABM publishes it. Banxico SIE
   table CF891, *Numero de operaciones tercero a tercero en SPEI*, daily since 2009, is the primary
-  series and we could not read it: the page renders through JavaScript, the CSV, XLS and IQY export
-  endpoints return the page shell, and the REST API needs a token. So the 7,300 million rests on the
+  series and we could not read it: the page renders through JavaScript and the REST API needs a
+  token. The export endpoints were re-probed on 2026-09-12 and the first pass described them wrongly.
+  They do not return the page shell. `&tipoArchivo=CSV`, `&tipoArchivo=XLS`, `&tipoArchivo=IQY` and
+  `&formatoXLS=true` each answer HTTP 400 with the same 146-byte message about an invalid character
+  in a form field, which is a rejection and not a silent fallback. So the 7,300 million rests on the
   Governor's Senate remarks as reported [19] and not on a series we summed.
   <https://www.banxico.org.mx/SieInternet/consultarDirectorioInternetAction.do?sector=12&accion=consultarCuadro&idCuadro=CF891&locale=es>
 - **No SAT count of the standing EDOS population.** There is no buyer-side list; the SAT publishes
@@ -125,6 +138,208 @@ file, which is how a company of 11 to 250 people actually pays suppliers, are ou
 - **No survey of how many Mexican SMBs check the 69-B list, or how often.** Nothing published, from
   INEGI, Condusef, the IMCP or anyone private. `docs/05-business-model.md` measures it with the free
   supplier-register sweep and carries a stop condition on the result, instead of asserting a rate.
+
+## The rate on supplier transfers, and how it is derived
+
+A second Capital One panel came to the table on the evening of 2026-09-12 and asked for the rate
+itself: what exact percentage of supplier transfers in Mexico is stolen by fraudsters. A teammate
+answered **25.4 percent**. That number exists in no source this repository has opened and in no
+document it holds. It is banned, and the correction is the first thing in this section. Issue #192.
+
+The figure it was confused with is [18], and it counts the opposite thing: banks refunded **MXN
+1,265 million of the MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3
+percent**. That is the share of disputed pesos that came **back**, on claims by users of banks of
+every kind, and not the share of transfers that leave. Read as a loss rate it is wrong by three
+orders of magnitude, as the arithmetic below shows. Read correctly it is the better sentence anyway,
+because it says that three pesos in four never come home.
+
+**Nobody publishes the number the panel asked for.** Not Banxico, not Condusef, not the CNBV, not
+the ABM, not INEGI. What follows is what is published, what is not, and bounded derivations whose
+formula and inputs are on the page, so a judge can reject a cell instead of the method.
+
+### What is published
+
+| Number | What it counts | Source |
+|---|---|---|
+| **More than 7,300 million SPEI transfers in 2025**, up 36.8 percent on 2024 | Every SPEI operation, retail and corporate. The denominator of everything below | [19] |
+| **5,213,358 possible-fraud claims** against Mexican banks in full-year 2025, 72 percent of 7,235,597 claims, for **MXN 22,341 million** | Condusef's Buro de Entidades Financieras: claims users made **to their bank**, across every product | [17] |
+| **1,515,000 fraud claims in the first quarter of 2026**, up 31.5 percent, MXN 5,201 million claimed and MXN 1,265 million refunded | The same register a quarter later. The 24.3 percent is 1,265 divided by 5,201 | [18] |
+| **137,130 controversias** before Condusef from January to June 2026, up 6.7 percent on 128,475. The fourth most frequent cause is **transferencia electronica no reconocida, 7,742 claims**, 5.6 percent of the total, up 23.3 percent from 6,277 | Condusef's own quarterly Top 10, whose footnote defines controversias as the GO, GE, CO and REDECO processes together. A different and much smaller register than the Buro: these are the ones that reached the regulator. It is the only published Mexican count that isolates transfers | [69] |
+| **22,199 claims received by Condusef nationally** in the first quarter of 2026, **37.4 percent** of them related to a possible fraud, **94 percent** of those against banca multiple | Condusef's own comunicado, on the record from its president | [67] |
+| More than **35,000 possible-fraud claims** before Condusef between January and May 2026, up **18 percent** in banca multiple and close to **49 percent** in Sofipos and Sofomes year on year | The same office three weeks later, announcing the SEPROBAN agreement | [68] |
+| **522 fraud events per 10,000 economic units** in 2023, 8.5 percent of the 2.9 million crimes, against an all-crime rate of 6,114 per 10,000. INEGI's own footnote defines the category as one that **includes fraude bancario and fraude al consumo del establecimiento** | INEGI's victimisation survey of businesses, incidence by crime type. It is the only Mexican instrument that counts fraud **per company** rather than per claim | [15] [14] |
+| **MXN 18,370** per fraud in 2023, down from MXN 27,244 in 2021, at prices of the second half of July 2018 | The same survey, cost by crime type | [15] |
+| **93.9 percent of frauds against economic units produced no complaint and no investigation file** in 2023, down from 98.1 percent in 2021 | The same survey, cifra oculta by crime type. Every rate below is therefore a floor | [15] |
+| Cost of crime per economic unit in 2023 by size: micro **MXN 32,380**, pequena **MXN 157,273**, mediana **MXN 517,203**, grande **MXN 1,367,366**, national **MXN 54,451** | The same survey. This is the gradient the negotiation sentence rests on, and it is published rather than modelled | [15] |
+| Of the MXN 124.3 thousand million that crime cost economic units in 2023, **MXN 67.2 thousand million, 54.0 percent, was spending on preventive measures**, and the remaining 46.0 percent was losses | The same survey. The cost figures in the row above are those two added together | [14] |
+| **24 percent** of the cyberattacks reported by surveyed Mexican companies were impersonation of a supplier or of staff by email | KPMG Mexico, the only Mexican measurement that names this attack. A share of attacks, never a share of transfers | [16] |
+
+### What is not published, and we say it before a judge finds it
+
+- **No split of any Mexican fraud statistic by product.** The 5.2 million claims of 2025 [17] and the
+  1.5 million of the first quarter of 2026 [18] are not broken into cards, ATM, internet purchases or
+  transfers. The 7,742 unrecognised transfers [69] come from the other register, the one that reaches
+  Condusef, so the two cannot be divided into each other.
+- **No split between personas morales and consumers**, in either register [17] [18] [67] [68] [69].
+  Not one of those claims can be attributed to a company, and we never present them as business
+  losses.
+- **No split by financial sector in the register that isolates transfers.** The Top 10 [69] reports
+  controversias across every sector at once and carries no peso amounts, so the 7,742 cannot be
+  narrowed to banks and cannot be turned into money.
+- **No Mexican peso figure for supplier impersonation, business email compromise or a changed
+  CLABE.** KPMG gives the share of the attack, 24 percent [16], and no pesos anywhere.
+- **No cross of fraud against company size.** INEGI publishes prevalence by size, incidence by crime
+  type and cost by size as three separate charts [14] [15] and never crosses the first with the
+  third. Derivation 4 below crosses them and is labelled modelled for exactly that reason.
+- **No peso value for SPEI in 2025 that we could read at Banxico.** Source [19] is a secondary report
+  of the Governor's remarks and carries the count, not the value. Banxico SIE table CF891 was
+  re-probed on 2026-09-12 for this section and the result is in the bullet above: the page answers
+  HTTP 200 with about 164 KB of HTML that contains no table element, no series identifier, no
+  `CF891` and no year, the byte count drifts between requests, and every export parameter answers
+  HTTP 400. So no ratio in this file has pesos in its denominator.
+- **No business-to-business share of SPEI**, from Banxico or the ABM, so the denominator cannot be
+  narrowed to supplier payments and we do not pretend that it can.
+
+### Derivation 1, the ceiling: fraud claims per SPEI transfer
+
+    possible-fraud claims against banks in 2025 [17]      5,213,358
+    ------------------------------------------------  =  -------------  =  0.000714
+    SPEI transfers in 2025 [19]                          7,300,000,000
+
+**0.071 percent, about 7.1 claims per 10,000 transfers.** It is a ceiling and not an estimate, and
+both reasons push the same way. The numerator counts fraud claims across every banking product, cards
+and ATM and internet purchases included, while the denominator counts only SPEI, so most of the
+numerator never touched a transfer. And [19] says **more than** 7,300 million, so the true
+denominator is larger and the true quotient smaller. It is also a rate for all users of banks and not
+for companies, because no register separates them.
+
+### Derivation 2, the floor: unrecognised transfers per SPEI transfer
+
+    transferencia electronica no reconocida, Jan-Jun 2026 [69]      7,742
+    ---------------------------------------------------------  =  -------------  =  0.0000021
+    half of the 2025 SPEI transfers [19]                          3,650,000,000
+
+**0.00021 percent, about 2.1 per million transfers.** A floor, and the two errors in it do not push
+the same way, so the net direction is argued rather than asserted. The numerator counts only the
+claims escalated to Condusef, 137,130 controversias of every cause in six months [69], while claims
+made to the banks themselves ran at 5,213,358 for possible fraud alone in a year [17]: annualise the
+first and the second is about **nineteen times larger**, on a narrower definition. That pushes the
+quotient down. Against it, the denominator is half of a 2025 count used for a 2026 numerator while
+SPEI grows at 36.8 percent a year [19], so the true denominator is larger and the quotient smaller
+still, by at most that 37 percent. A factor of nineteen against a factor of 1.37 does not cancel, so
+this is a floor by about an order of magnitude.
+
+**So the published evidence brackets the answer between roughly 2 per million and 7 per 10,000
+transfers.** Say the bracket, never a point inside it. What the bracket settles is the shape of the
+answer: the rate the panel asked for is measured in hundredths of a percent at most, and a number
+near 25 percent is not a mistaken estimate of it, it is a different quantity.
+
+### Derivation 3, the one a company can act on: incidence per company per year
+
+A per-transfer rate is the wrong unit for a buyer, because nobody buys protection for a transfer,
+they buy it for a year. INEGI counts fraud per company, and that is the number to give.
+
+    fraud events per 10,000 economic units [15]     522
+    ------------------------------------------  =  ---  =  5.22 fraud events per 100 units
+    100                                            100
+
+**About 5 of every 100 economic units in Mexico live a fraud in a year**, on a category INEGI's own
+footnote says includes bank fraud [14]. The expected cost of that, on the national average:
+
+    522 / 10,000  x  MXN 18,370 [15]  =  MXN 958.91 per economic unit per year
+
+**And the uncomfortable half is said out loud: MXN 958.91 does not pay for MXN 10,788 of
+subscription.** That average is taken over every economic unit the survey covers, about 4.8 million
+on its own 27.2 percent and 1.3 million victims [14], most of them micro, and the fraud side alone
+does not carry this product there. The 93.9 percent cifra oculta [15] makes MXN 958.91 a floor rather
+than a central estimate, but a floor is not an argument. Two things carry it instead, and they are
+the next derivation and the fiscal side of this file.
+
+### Derivation 4, scaled to the band, and labelled modelled
+
+INEGI publishes the cost of crime by size but never crosses it with crime type. **The assumption is
+ours and it is stated so it can be rejected: a fraud costs a company of a given size in the same
+proportion as all crime does.** That is the only size gradient published [15].
+
+    size factor, pequena  =  MXN 157,273 / MXN 54,451  =  2.888
+    size factor, mediana  =  MXN 517,203 / MXN 54,451  =  9.499
+
+    expected annual fraud cost, pequena  =  MXN 958.91 x 2.888  =  MXN 2,770
+    expected annual fraud cost, mediana  =  MXN 958.91 x 9.499  =  MXN 9,108
+
+Against MXN 10,788 of annual subscription, the fraud side alone covers **25.7 percent** for a small
+company and **84.4 percent** for a medium one, before a single peso of fiscal exposure. The fiscal
+side covers the rest several times over: break-even is one held invoice of MXN 23,452 of subtotal in
+a year (`docs/05-business-model.md`), and the SAT rewrites the 69-B list every eleven days [3]
+whether or not anybody defrauds you.
+
+### The sentence for the boss, in the boss's units
+
+The clerk is sold minutes, and `docs/11-pitch.md` bans that sentence. The person who signs is sold a
+ratio, and every input in this table is published.
+
+| Sentence | Formula | Value |
+|---|---|---|
+| The subscription against what INEGI already measures a company this size spending and losing on crime in a year | MXN 10,788 / MXN 157,273 [15] | **6.9 percent** for a small company |
+| The same, for a medium company | MXN 10,788 / MXN 517,203 [15] | **2.1 percent** |
+| The monthly price against one week of the payment run that is on screen | MXN 899 / MXN 2,174,210.76 | **4.1 basis points**, and the whole year is 0.50 percent of that one week |
+| What comes back once it is gone | MXN 1,265 million / MXN 5,201 million [18] | **24.3 percent**, so 75.7 percent does not |
+
+Then the close, which is the part that converts, and it is an admission: **we do not know your rate
+and neither does anybody else.** The free supplier-register sweep in `docs/05-business-model.md`
+measures it from the company's own CFDI XML instead of from a national average, and the same document
+carries the condition that stops the product if 200 of those sweeps come back under a 5 percent hit
+rate. A company that runs the sweep stops buying our estimate and starts reading its own.
+
+### The international analogue, labelled as an analogue
+
+No Mexican institution publishes invoice fraud as a category. Abroad four institutions publish
+something close enough to fix the order of magnitude, and that is the only job they have here. None
+of the rows below is a Mexican fact.
+
+| Number | What it counts | Source |
+|---|---|---|
+| **Invoice and mandate scams in the United Kingdom in 2025: GBP 41.3 million over 2,305 cases and 3,729 fraudulent payments.** Of the losses, **GBP 28.0 million, 68 percent, fell on business accounts**, over 1,217 non-personal cases. Both the loss and the case totals are the lowest UK Finance has ever reported | UK Finance counts exactly our attack: the payer intends to pay a real supplier and a criminal redirects it, usually by intercepting or compromising email | [70] |
+| All authorised push payment fraud in the same year: **GBP 576.4 million over 248,070 cases**, of which non-personal **GBP 75.6 million over 7,504 cases** | The same table, one level up | [70] |
+| **GBP 354.3 million returned to victims, 61.5 percent.** On invoice and mandate specifically, **GBP 20.0 million of GBP 41.3 million, 48 percent**, and on the business half **GBP 10.6 million of GBP 28.0 million, 37.9 percent** | The same table. The nearest foreign counterpart of the Mexican 24.3 percent [18] | [70] |
+| **5.55 thousand million Faster Payments transactions in 2025**, worth GBP 4.84 million million | Pay.UK, the operator. The denominator of the first derivation below | [71] |
+| **USD 3,046,598,558 lost to business email compromise in 2025 over 24,768 complaints**, an average of USD 123,005 each, and **86 percent of BEC losses moved by wire transfer or ACH** | FBI Internet Crime Complaint Center. BEC is 17.2 percent of the USD 17,697 million of cyber-enabled fraud losses it recorded, and its second largest category behind investment fraud | [73] |
+| **76 percent of 465 surveyed organisations** suffered attempted or actual payments fraud in 2025, a slight fall on 2024, with **checks the most affected method at 58 percent**, ahead of ACH and wire | Association for Financial Professionals. A share of respondents and never a share of companies, the same caveat that applies to KPMG [16]. The page calls business email compromise one of the most common forms and publishes no percentage for it, so none is quoted | [74] |
+
+Three derivations on those rows, each with its formula:
+
+    invoice-fraud payments per Faster Payment  =  3,729 / 5,550,000,000  =  0.0000672 percent
+                                                                        =  6.7 per 10 million
+
+    invoice and mandate as a share of business APP losses  =  28.0 / 75.6  =  37.0 percent
+
+    average loss per business invoice-fraud case  =  GBP 28,000,000 / 1,217  =  GBP 23,007
+
+**The first is the one to say out loud.** In a country that publishes this category, that checks the
+payee's name before the payment and that has had a mandatory reimbursement regime since 2024, invoice
+fraud runs at about seven payments in every ten million. The second is the one that matters to the
+persona: **once the question is restricted to money leaving a business account, supplier
+impersonation is 37 percent of the loss**, the largest single category on the business half.
+
+Four caveats, volunteered rather than defended. UK Finance counts confirmed cases reported by its own
+members, so it is a floor in the United Kingdom too. Not every invoice payment rides Faster Payments,
+so the denominator of the first derivation is generous and the true rate is if anything lower. The
+reimbursement regime changes both who reports and who pays, which is exactly why the returned
+percentages are not comparable to Mexico's line for line. And the United Kingdom checks the payee's
+name where Mexico writes "(Dato no verificado por esta institucion)" into regla 25a of the SPEI rules
+[29] and lets a mobile confirmation screen mask an unvalidated name [30], so the British rate is a
+floor for Mexico and never an estimate of it.
+
+**One more thing this file refuses to claim.** Pay.UK's own milestone release for Confirmation of
+Payee reports two thousand million checks by 18 March 2024, more than 1.9 million a day across over a
+hundred organisations, and it attributes **no** percentage of any fraud fall to the service: a
+quotation in it calls CoP instrumental in reducing fraud and misdirected payments, and the only
+figures printed beside the milestone are industry-wide, overall fraud down 2 percent and authorised
+push payment fraud down 1 percent in the first half of 2023 [72]. The closest thing in the world to a
+mandated beneficiary-name check publishes a claim in words and no measured share of its own, so
+neither do we. What SentryOne ships is the evidence of six controls and an expected-loss decision put
+in front of a person who can override it by name, never a verdict and never a number for how much
+fraud it removes.
 
 ## Problem sizing
 
@@ -406,9 +621,11 @@ cell is the hit rate per supplier register, and that is measured, not assumed.
 ## Sources
 
 Every link was opened on **2026-09-12**. Source 3 is reproducible: download the file and count it.
-So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segmentation in
+So are 26 and 69. Sources 27, 28 and 44 are not cited in this file: they carry the segmentation in
 `docs/02-persona.md`, which links here rather than duplicating a source list. 13 sits in
-`docs/05-business-model.md`, which numbers into this list.
+`docs/05-business-model.md`, which numbers into this list. Sources 67 to 74 arrived with "The rate on
+supplier transfers, and how it is derived", and 14 and 15 were read again in the same pass and say
+more here than they did before.
 
 1. INEGI, *Censos Económicos 2024, resultados definitivos*, comunicado de prensa 79/25, 24 July
    2025. Units, size split and formality:
@@ -452,12 +669,29 @@ So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segme
     10 December 2024. Prevalence by unit size, the 1.3 million victimised establishments, the MXN
     124.3 thousand million cost at 0.51 percent of GDP, the MXN 54,451 average, the 4.1 against 3.0
     crimes per victimised unit, and the 90.3 percent with no complaint or investigation file against
-    12.2 percent reported. Reference year 2023:
+    12.2 percent reported. Reference year 2023. Read again on 2026-09-12 for the rate section, which
+    added three things from it. Footnote 1 to cuadro 3 and gráfica 4, the distribution and rate of
+    crimes by type, defines the `Fraude` category: "Incluye fraude bancario y fraude al consumo del
+    establecimiento". That footnote is in this comunicado and not in the presentation [15], which is
+    why an earlier pass of this file said the category was undefined and was wrong. The MXN 67.2
+    thousand million of spending on preventive measures, 54.0 percent of the MXN 124.3 thousand
+    million total, is in gráfica 11 and cuadro 8. And the survey's own universe is about 4.8 million
+    economic units, implied by its 27.2 percent prevalence on 1.3 million victims rather than
+    published as a count, which is a different universe from the 5,468,180 of the Censos Económicos
+    [1] and is the denominator of derivation 3:
     <https://www.inegi.org.mx/contenidos/saladeprensa/boletines/2024/ENVE/ENVE24.pdf>
 15. INEGI, *Encuesta Nacional de Victimización de Empresas ENVE 2024*, presentación ejecutiva,
-    December 2024. Slide 12 for the 2.9 million crimes, slide 15 for fraud at 8.5 percent and 522 per
-    10,000 units against 614 in 2021, slide 27 for MXN 18,370 against MXN 27,244, in constant pesos
-    at prices of the second half of July 2018:
+    December 2024. Slide 12 for the 2.9 million crimes and for the all-crime rate of 6,114 per 10,000
+    economic units, slide 15 for fraud at 8.5 percent and 522 per 10,000 units against 614 in 2021,
+    slide 27 for MXN 18,370 against MXN 27,244, in constant pesos at prices of the second half of
+    July 2018. Read again on 2026-09-12 for the rate section, which added two slides. The cost of
+    crime per economic unit by size, micro MXN 32,380, pequeña MXN 157,273, mediana MXN 517,203,
+    grande MXN 1,367,366 and national MXN 54,451 in 2023 against MXN 27,509, MXN 144,509, MXN
+    473,119, MXN 1,373,506 and MXN 50,145 in 2021, is the slide that points to tabulados VI.
+    *Pérdidas a consecuencia de la inseguridad*, A6.2 and A6.3. The cifra oculta by crime type, fraud
+    at 93.9 percent in 2023 against 98.1 percent in 2021, is the slide that points to tabulado III.
+    *Denuncia del delito*, 3.4. Neither slide crosses size with crime type, which is what derivation
+    4 does under an assumption of its own:
     <https://www.inegi.org.mx/contenidos/programas/enve/2024/doc/enve_2024_presentacion_ejecutiva.pdf>
 16. KPMG México, *Fraudes afectan a 45% de las organizaciones en México*, press release on the study
     *Impacto de los delitos financieros en México 2024*, 21 October 2024. Survey of more than 100
@@ -636,3 +870,72 @@ So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segme
     05 de junio de 2026`, three taxpayers: two `Definitivo` and one `Sentencia Favorable`. Linked
     from [45] together with a definitivos file and a sentencias favorables file:
     <https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Completo.csv>
+67. CONDUSEF, *CONDUSEF alerta sobre incremento de fraudes y llama a fortalecer la educación
+    financiera*, comunicado 081, 28 May 2026, read 2026-09-12. Of the 22,199 claims CONDUSEF received
+    nationally from January to March 2026, 37.4 percent were related to a possible fraud and 94
+    percent of those were against banca múltiple. On the record from its president, Óscar Rosado
+    Jiménez, during a working visit to Durango. The comunicado names SMS, messaging apps and false
+    links as the growing modalities and says nothing about transfers between companies:
+    <https://www.condusef.gob.mx/?p=contenido&idc=2823&idcat=1>
+68. CONDUSEF, *CONDUSEF y SEPROBAN unen esfuerzos para fortalecer el combate al fraude financiero y
+    proteger a las personas usuarias*, comunicado 090, 18 June 2026, read 2026-09-12. More than
+    35,000 possible-fraud claims between January and May 2026, up 18 percent in banca múltiple and
+    close to 49 percent in Sofipos and Sofomes against the same period of 2025. The increases are
+    concentrated in working-age bands, about 25 percent at 50 to 59 years, 22 percent at 40 to 49 and
+    close to 20 percent at 18 to 29, against the earlier picture of older victims. The percentages
+    are year-on-year changes and not shares, and the comunicado publishes no peso amount:
+    <https://www.condusef.gob.mx/?p=contenido&idc=2836&idcat=1>
+69. CONDUSEF, *Top 10 de Productos, Causas e Instituciones Financieras, Al 2° Trimestre (2025-2026),
+    enero-junio*, retrieved 2026-09-12, 630,610 bytes, `Last-Modified` 2026-07-22. Controversias,
+    which the file's own footnote defines as the GO, GE, CO and REDECO processes together, totalled
+    137,130 in January to June 2026 against 128,475 in the same period of 2025, up 6.7 percent.
+    *Transferencia electrónica no reconocida* is the fourth most frequent cause at 7,742, 5.6 percent
+    of the total, up 23.3 percent from 6,277, behind consumos no reconocidos at 18,481 and two
+    collection-practice causes. The file carries no split by financial sector, no split between
+    companies and consumers and no peso amounts, so the 7,742 is a count and nothing more. It is also
+    not yet linked from CONDUSEF's own statistics page, which on the same day still offered 2021 to
+    2025 only (<https://www.condusef.gob.mx/?p=contenido&idc=223&idcat=4>), so the citable link is the
+    file itself:
+    <https://www.condusef.gob.mx/documentos/estadistica/estad2026/TOP-10-2026-2doTrim.pdf>
+70. UK Finance, *Annual Fraud Report 2026*, page dated 15 June 2026 and PDF dated 12 June 2026,
+    1,464,259 bytes, retrieved 2026-09-12. Reference year 2025. The Invoice and Mandate Scam table
+    carries cases 2,305 total and 1,217 non-personal, payments 3,729 total, value GBP 41.3 million
+    total and GBP 28.0 million non-personal, and returned to victim GBP 20.0 million total and GBP
+    10.6 million non-personal, each against the five preceding years. Its key-stats block states the
+    lowest loss total and the lowest case total ever reported and the 68 percent non-personal share.
+    The APP summary table carries GBP 576.4 million over 248,070 cases with GBP 75.6 million over
+    7,504 non-personal cases and GBP 354.3 million returned. Malicious redirection, the family
+    invoice and mandate belongs to, is defined in the report as the payer intending to pay a
+    legitimate payee and paying a malicious third party instead:
+    <https://www.ukfinance.org.uk/system/files/2026-06/UK%20Finance%20Annual%20Fraud%20Report%202026.pdf>
+71. Pay.UK, *Faster Payment System*, page `dateModified` 2026-07-30, read 2026-09-12: "In 2025, the
+    Faster Payment System processed 5.55 billion transactions with a value of £4.84 trillion". The
+    page is the operator's own description of the system and carries no fraud figure:
+    <https://www.wearepay.uk/what-we-do/payment-systems/faster-payment-system/>
+72. Pay.UK, *Confirmation of Payee reaches two billion checks, helping protect UK consumers against
+    fraud*, press release datelined London, 18 March 2024, page `datePublished` 2024-04-08, read
+    2026-09-12. Over 100 organisations had implemented CoP with more than 1.9 million checks
+    completed every day, and the Payment Systems Regulator's mandate covered over 350 organisations
+    in 2024. The only fraud figures printed beside the milestone are industry-wide: fraud down 2
+    percent and APP fraud down 1 percent in the first six months of 2023 against the same period the
+    year before. A quotation from Pay.UK's Chief Business Development Officer and Anti-Fraud Lead
+    calls the service "instrumental in reducing fraud and misdirected payments", which is a claim in
+    words; the release attributes no percentage of any fall to CoP itself:
+    <https://www.wearepay.uk/confirmation-of-payee-reaches-two-billion-checks/>
+73. FBI Internet Crime Complaint Center, *2025 IC3 Annual Report*, 3,362,954 bytes, retrieved
+    2026-09-12. Business email compromise: USD 3,046,598,558 over 24,768 complaints, the second
+    largest cyber-enabled fraud loss behind investment at USD 8,648,617,756 and ahead of tech support
+    at USD 2,134,675,818. Cyber-enabled fraud totalled 452,868 complaints and USD 17,697,074,980, 45
+    percent of 2025 complaints and 85 percent of 2025 losses. The 86 percent is read off the BEC slice
+    of the chart of how complainants reported losing funds, whose largest category is wire transfer
+    and ACH; the chart is a share of reports and not of dollars. The complaint counts are complaints
+    filed with IC3 and not a measured population:
+    <https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf>
+74. Association for Financial Professionals, *2026 AFP Payments Fraud and Control Survey Report*,
+    product page read 2026-09-12. 465 corporate respondents, data for 2025: 76 percent of
+    organisations experienced attempted or actual payments fraud, a slight decline on 2024, and
+    checks were the most affected method at 58 percent, ahead of ACH and wire. The page says business
+    email compromise "remains one of the most common forms of payments fraud" and publishes no
+    percentage for it, and the comprehensive report is paywalled at USD 295, so no BEC share is
+    quoted from this source. The survey is in its 22nd year and is underwritten by Truist:
+    <https://www.afponline.org/publications-data-tools/reports/survey-research-economic-data/Details/payments-fraud>

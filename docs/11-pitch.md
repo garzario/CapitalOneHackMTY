@@ -92,6 +92,12 @@ than being corrected.
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
 | The blind evaluation | 30 labelled cases and 21 labelled expectations over six detectors, scored as 183 counts. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval`, re-read on 2026-09-12. **Re-run it before quoting it.** Say 30 cases, never a pair count: six detectors on thirty cases looks like 180 slots, and the matrix sums to 183 because a detector that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
 | Tests | 1,836 tests across 99 files on 2026-09-12: 1,725 passing, 111 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge |
+| The rate of fraud on supplier transfers | Nobody publishes it. The published evidence brackets it between about **2 per million and 7 per 10,000 transfers**. Say the bracket, never a point inside it | `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`, derivations 1 and 2, formulas and inputs on the page |
+| What comes back once the money is gone | **24.3 percent**, MXN 1,265 million refunded of MXN 5,201 million claimed for fraud in the first quarter of 2026, so 75.7 percent does not | `docs/04-market.md` source [18]. This is a refund share on disputed pesos and never a loss rate. It is the number 25.4 was confused with |
+| How often a Mexican company lives a fraud | **About 5 in every 100 economic units a year**, 522 fraud events per 10,000 units in 2023, on a category INEGI's own footnote says includes bank fraud | `docs/04-market.md` sources [15] and [14]. 93.9 percent of those frauds produced no complaint and no file, so it is a floor |
+| The subscription against what a company this size already spends and loses on crime in a year | **6.9 percent** for a small company, MXN 10,788 against MXN 157,273; **2.1 percent** for a medium one, against MXN 517,203 | `docs/04-market.md#the-sentence-for-the-boss-in-the-bosss-units`, INEGI cost of crime by size, source [15] |
+| The monthly price against the run on screen | **4.1 basis points**, MXN 899 against the MXN 2,174,210.76 of one week, and the whole year is 0.50 percent of that week | same section, arithmetic on the `This week's run` row of this table and the MXN 899 price row |
+| What supplier impersonation is worth where it is counted | In the United Kingdom in 2025, **GBP 28.0 million on business accounts, 68 percent of invoice and mandate losses**, and **37.0 percent of all business APP losses**. About **7 invoice-fraud payments per 10 million** Faster Payments | `docs/04-market.md` sources [70] and [71]. A foreign analogue, said as a foreign analogue, never as a Mexican number |
 
 The reference run amount in `docs/02-persona.md` is MXN 2,174,210.76, the same figure this table
 carries, so the pitch and the persona doc agree in front of a judge who reads both. That cell used to
@@ -651,6 +657,18 @@ positives, why Nessie at all, and how do you know it works. All four are in `doc
   is Banco de Mexico's own Regla 51a Bis. Say "no encontramos a nadie que venda las dos mitades
   juntas", and say the centavo is a commodity. See "The competition, and the two sentences that lose
   the room".
+- **Never say 25.4 percent, and never say any single percentage as the rate of fraud on supplier
+  transfers.** The number was said to a Capital One panel on the evening of 2026-09-12 and it is in
+  no source this repository holds. It is the 24.3 percent of [18] misremembered, which is the share
+  of disputed pesos banks gave back and not the share of transfers that leave, and as a loss rate it
+  is wrong by three orders of magnitude. The replacement is two sentences, in this order: **"nadie
+  publica esa tasa, ni Banxico ni Condusef ni el INEGI; la evidencia publicada la acota entre dos por
+  millon y siete por diez mil transferencias, y la derivacion esta en `docs/04-market.md` con las
+  formulas"**, and then the number that does convert, **"lo que si esta publicado es que de cada peso
+  reclamado por fraude regresa uno de cada cuatro, el 24.3 por ciento, asi que el 75.7 por ciento no
+  vuelve"**. If one number has to be said, say the INEGI one, about 5 of every 100 economic units a
+  year, and say it is a floor because 93.9 percent of those frauds were never reported. See
+  `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`.
 - Never say "no nos dio tiempo". Say what we cut and why, which is a judgment story.
 - If a gate in the table above is not ticked, say the version of the sentence that is true. The
   product is strong enough without the sentence that is not.

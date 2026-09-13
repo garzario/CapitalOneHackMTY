@@ -584,9 +584,59 @@ That is a hook failure and not a product failure, so the fix is the first senten
 
 Rests on: the hook table at the top of `docs/11-pitch.md`, with both halves cited at their primary
 source, Codigo Fiscal de la Federacion article 69-B and Ley de Sistemas de Pagos article 11. Say it
-first, every time. The honest gap to volunteer in the same breath: we have no frequency figure for how
-often this bites a company of this size, and the free supplier-register sweep in the go-to-market is
-the thing that measures it.
+first, every time. The honest gap to volunteer in the same breath: the only published frequency is
+national and per company, about 5 of every 100 economic units living a fraud in a year, and nobody
+publishes it for this size band or per transfer. Derivation 4 of
+`docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived` scales it to the band under
+an assumption it labels as ours, and the free supplier-register sweep in the go-to-market is the thing
+that measures the real one.
+
+## Second table of 12 September
+
+A second Capital One panel came to the table on the evening of 2026-09-12, after the afternoon round
+above. One question did the damage, and the answer below is the one to give. Issue #192.
+
+The rule for adding here is the rule of the section above, plus one this round earned: **a number said
+at a table that no source in this repository holds is written down as banned, with its replacement, in
+the same pass that finds it.** A wrong number is cheaper to retract in a file than on stage.
+
+### 1. "What percentage of supplier transfers in Mexico is stolen?" We answered 25.4 percent
+
+It is in no source this repository has opened. It is the 24.3 percent of `docs/04-market.md` source
+[18] misremembered, which is Condusef's refund share on disputed pesos and not a loss rate on
+transfers, so as an answer it was wrong by three orders of magnitude. It is now banned in the delivery
+rules of `docs/11-pitch.md` and the replacement is this, in about thirty seconds.
+
+> Nadie publica esa tasa. Ni Banxico, ni Condusef, ni el INEGI. Lo que si esta publicado acota la
+> respuesta: las reclamaciones por posible fraude ante los bancos en 2025 entre las transferencias
+> SPEI del mismo ano dan siete por cada diez mil, y eso es un techo porque el numerador incluye
+> tarjetas y cajeros; las transferencias no reconocidas que llegan hasta Condusef entre el mismo
+> denominador dan dos por millon, y eso es un piso porque ese registro es unas diecinueve veces mas
+> chico que el de los bancos. Entre dos por millon y siete por diez mil. La derivacion completa, con
+> formulas y fuentes, esta en `docs/04-market.md`. Y la cifra que si importa para una empresa no es
+> por transferencia sino por ano: el INEGI mide cinco fraudes por cada cien unidades economicas al
+> ano, y es un piso porque el 93.9 por ciento de esos fraudes nunca se denuncio.
+
+Then the close, which is the part that converts, and it is an admission: **we do not know your rate
+and neither does anybody else.** The free supplier-register sweep in `docs/05-business-model.md`
+measures it from the company's own CFDI XML, and the same document carries the condition that stops
+the product if 200 sweeps come back under a 5 percent hit rate.
+
+If the panel wants one number instead of a bracket, give the refund share, correctly labelled: **MXN
+1,265 million came back of MXN 5,201 million claimed for fraud in the first quarter of 2026, 24.3
+percent, so 75.7 percent does not.** That is the thesis in one official ratio, prevention before the
+SPEI rather than recovery after it, and it is the sentence 25.4 was reaching for.
+
+Rests on: `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`, sources [17],
+[18], [19], [69] and [15] there, every formula printed with its inputs. Two sentences already in that
+file were corrected in the same pass rather than defended: INEGI's `Fraude` category is defined after
+all, by a footnote in the comunicado [14] that the presentation omits, and Banxico's CF891 export
+endpoints answer HTTP 400 rather than returning the page shell.
+
+What not to do with this answer: do not volunteer the bracket before the fiscal hook. The 69-B loss
+needs no fraud at all, and a panel that hears a rate of two per million first has been handed a reason
+to think the fraud half is rare. Lead with the publication, which happens every eleven days whether or
+not anybody defrauds you, and keep the bracket for the question that asks for it.
 
 ## Rules for this sheet
 
@@ -597,5 +647,8 @@ the thing that measures it.
 - **Two sentences are banned outright: "nadie hace esto" and "nosotros inventamos la prueba del
   centavo".** Both break in one search, and the replacements are in section 1 of the table feedback.
   A claim about the competition is written as what we found or did not find, never as what exists.
+- **One number is banned outright: 25.4 percent as the rate of fraud on supplier transfers**, and so
+  is any other single percentage offered as that rate. Nobody publishes it. The answer is the bracket
+  in "Second table of 12 September" and the derivation behind it in `docs/04-market.md`.
 - If two people would answer differently, the answer is not written yet.
 - Every path named in this file has to exist when it is named. Check the paths at each milestone.
