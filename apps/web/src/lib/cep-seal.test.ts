@@ -24,6 +24,19 @@ describe("sealVerdict", () => {
     expect(sealVerdict(false).state).toBe("unverified");
   });
 
+  it("calls the reason parseCep writes not verified, never invalid", () => {
+    /* `not_checked` is what every CEP carries on a deployment with no
+       BANXICO_CEP_CERT_PEM, which is every deployment of this build: the document
+       was read whole and the seal was not checked. It was missing from the set,
+       so the screen called every CEP it has ever shown "Firma no valida", which
+       is the accusation this module exists to prevent. */
+    const verdict = sealVerdict(false, "not_checked");
+
+    expect(verdict.state).toBe("unverified");
+    expect(verdict.label).toContain("no verificada");
+    expect(verdict.label).not.toContain("no valida");
+  });
+
   it("calls a real verification failure invalid, and names the reason", () => {
     const verdict = sealVerdict(false, "signature_mismatch");
 

@@ -457,7 +457,183 @@ then the screens, then the narrative, then the plumbing.
   states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
   where the line between "no verificada" and "invalida" is drawn.
 
+- What a client gets when the product is wrong, on both sides of the error, and the law that decides
+  how any of it may be written (issue #194). A second Capital One panel asked on the evening of
+  2026-09-12 whether the subscription should include an insurance policy covering losses up to an
+  amount per tier, phrased as "you mark a payment as safe and it turns out to be fraud".
+  `docs/05-business-model.md` gains "When a released payment is fraud: what the client gets", four
+  layers at four stages of maturity, and the premise is corrected before anything is promised: `Action`
+  in `packages/core/src/domain.ts` is `hold`, `verify` or `release` and there is no fourth value
+  meaning safe. Layer 1 exists today and is evidence rather than safety: the six controls and their
+  findings from `runControls`, the CEP holder name when it was obtained with `not_checked` never
+  dressed up as a pass, and the append-only `LedgerEvent`, which together are the file a client takes
+  to its bank, to an insurer or to the SAT inside the thirty-day window article 69-B opens. Layer 2 is
+  the commitment we can fund ourselves and it is labelled a proposal: four weeks of shadow mode at no
+  charge, a service credit, and a make-whole capped at the lower of twelve months of the tier and the
+  fees actually paid, MXN 10,788 direct and MXN 2,340 per client company through a firm, funded by
+  reserving 10 percent of collected subscription revenue. That reserve costs ten points of gross
+  margin, accrues one full cap per ten paying companies per year, and therefore stays solvent only
+  while qualifying events run at or below 10 percent of accounts a year, which is why the contract has
+  to cap the make-whole by the reserve balance as well as per company. It attaches only when all six
+  controls ran, the seal was `valid` and `nameMatch` was `match`, and the release was signed
+  `SYSTEM_DECIDER`, never after a person's override, so today almost nothing would qualify:
+  `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal reads `not_checked` until
+  the real Banxico certificate lands. Layer 3 is the insurance layer, which only an authorised insurer
+  may write and where our asset is the underwriting input nobody else brings. Layer 4 answers the error
+  the panel did not ask about and a payables desk meets every week, a legitimate payment held: the
+  delay is bounded by `HOLD_WINDOW_DAYS` in `packages/core/src/hold.ts`, which is the same
+  `EXPECTED_DELAY_DAYS` the expected loss was weighed against, three days for a hold and one for a
+  verification, the owner ends it whenever they want under their own name and written reason through
+  `POST /api/v1/instructions/:id/decide`, and the day already carries a price per supplier,
+  `Supplier.delayCostPerDay` from `packages/seed/src/sentryone/delay-cost.ts`, MXN 101.98 to MXN
+  4,611.27 across the 44 suppliers with a median of MXN 353.13. The proposed remedy is a service credit
+  against the next invoice at that price, capped at one month of the tier per event and two months per
+  rolling twelve months, MXN 1,798 direct and MXN 390 through a firm, leaving 66 percent gross margin
+  direct and 41 percent through a firm in the worst case where every account claims the whole cap every
+  year. What makes that layer worth reading is the arithmetic that rules out the obvious version of it:
+  6 of 92 lines stopped on the seeded run, 3 of the 20 findings the blind evaluation raised were false,
+  so about 78 days of wrong delay a year, MXN 27,500 at the median supplier price and MXN 53,800 at the
+  mean, against MXN 10,788 of annual subscription. Paying the full priced delay is two and a half to
+  five times the price, so it is not a commitment, it is an arithmetic error, and the cap is stated
+  with what it does not reach: on the most expensive line of the run it pays 8.8 percent of a three-day
+  hold. `docs/06-regulatory-privacy.md` gains section 2.2 with the law behind all four layers, read in
+  the texto vigente of the Ley de Instituciones de Seguros y de Fianzas on 2026-09-12. Article 20
+  reserves any operación activa de seguros to authorised Instituciones and Sociedades Mutualistas and
+  defines one as obliging oneself, against the payment of a sum of money, to repair a damage or pay a
+  sum of money should a future and uncertain event occur, which is what a payout on fraud would be;
+  article 24 makes a contract concluded against it produce no legal effect at all; article 495,
+  fracción I attaches three to fifteen years of prison and a fine; articles 91 and 93 reserve
+  intermediation to authorised agentes de seguros; and article 102 is the one lawful channel, a
+  contrato de adhesión contracted through a persona moral whose service contract is registered with the
+  Comisión in advance and which is then subject to its inspection. That is why every commitment here is
+  a price remedy against our own fees rather than an indemnity, why the delay credit is applied against
+  the next invoice, and why no proof of loss is asked: paying against evidence of a lost sale would be
+  resarcir un daño, the verb article 20 uses. Ten more sources, all opened 2026-09-12, are quoted
+  rather than characterised: Trustpair indemnifies with no amount, condition or exclusion on the page
+  and sells to the largest corporations in the world, nsKnox publishes only website terms that cap
+  liability at what the user paid it, Eftsure answered a redirect loop so nothing is attributed to it,
+  Verificamex takes "el más amplio deslinde de responsabilidad que en derecho proceda", and of the
+  three Mexican policies we opened the closest wording, BBVA's `Fraude Digital` for PyME, excludes our
+  loss twice, because our transfer is authorised by the client's own clerk from the bank's own portal.
+  `docs/12-judge-qa.md` gains subsection 8 of "Second table of 12 September" with the thirty-second
+  spoken answer and the five gaps to volunteer, and the ten sources this work opened are numbered 57 to
+  66, continuing the sequence `docs/04-market.md` and `docs/05-business-model.md` share. Nothing here has been reviewed by counsel and the article 20 consultation
+  the statute provides for has not been filed, so the caps and the word guarantee stay out of any
+  contract, price list and screen until both have happened.
+
 ### Changed
+
+- A second Capital One panel came to the table on the evening of 2026-09-12, said the project was
+  interesting and then asked the one thing the afternoon's answers had given in categories instead of
+  counts: narrow the market, and say exactly who sells this and through which channel (issue #193).
+  `docs/05-business-model.md` replaces "GTM in three steps" with "GTM: who sells this, to whom, and
+  through which channel", and every count in it is counted or admitted to be an assumption.
+  **The segment is narrowed until it is a list somebody could buy.** Formal manufacturers, wholesalers
+  and builders of 11 to 250 people in Nuevo Leon whose payment run touches 30 or more suppliers a week,
+  through four filters: 24,599 establishments in the band in the state, **6,476** of them in
+  manufacturing 3,240, wholesale trade 2,445 and construction 791, **6,114** of those in the thirteen
+  metropolitan municipalities led by Monterrey 2,261 and Apodaca 857, and **about 2,312** after INEGI's
+  blunt all-size national formality rate of 35.7 percent, which is too low for this band and is used
+  anyway. The fifth filter, 30 suppliers a week, **is published nowhere**: DENUE carries no payment data
+  and the ENAFIN tabulados render as a JavaScript shell, so it is a hypothesis with a measurement
+  attached and the 200 free sweeps are the measurement. The new source [48] is the DENUE 05_2026 Nuevo
+  Leon bulk file counted by us with the same strata filter as [26], reproducible in one command, and it
+  cross-checks by returning exactly the 737 accounting units for SCIAN 541211 that [26] already reports.
+  It also surfaces a disagreement between instruments that is now written down instead of smoothed over:
+  DENUE puts 24,599 establishments in the band in the state against the about 18,500 economic units
+  CE 2024 implies, a third apart on the same band in the same state, and neither number is wrong.
+  **Months 1 to 6 are founder-led, and the buyer is not the clerk.** Fabricio and Patricio take the
+  meetings, the opener is a free supplier-register sweep of which the stop condition already fixes 200,
+  about 8 a week, and the arithmetic of the conversations is written out with its two rates labelled as
+  assumptions with no benchmark behind them: 1 in 3 owners agreeing to a sweep is 600 conversations,
+  23 a week, about 5 a working day for two of the four calendars, and 1 in 4 exposed sweeps converting is
+  2 or 3 paying companies in six months. Carrying the whole 36-month SOM that way would be 7,200 owner
+  conversations, 46 a week for three years, which four founders who are also building the product cannot
+  do, so the channel is arithmetic rather than a growth lever. The buyer is **purchasing and finance**
+  and it is stated as two functions rather than a job title, because a function is what you can ask for
+  an introduction to: finance files the complementary return inside the thirty days and carries the 46
+  percent of a disallowed subtotal that reverses as ISR plus IVA, purchasing owns the register the
+  controls read and makes the telephone call when a payment is held. The published evidence of that split
+  is a competitor's own promise and not our reading of an org chart, ValidX's "si no cumple, se retiene y
+  se notifica a Compras", with ENAFIN's 61.2 percent `Director(a) o gerente` used for the shape of the
+  sale and nothing more. The clerk of `docs/02-persona.md` stays the user and is not the buyer, since the
+  one thing the product does to her Thursday is make it slower on six lines out of ninety-two, and
+  `docs/02-persona.md` section 2 now says so in the same words.
+  **From month 6 the accounting firm is a reseller, against a denominator that is counted.** 143 of the
+  737 accounting and audit units in Nuevo Leon employ 11 to 250 people and 140 of those are metropolitan,
+  so the year-one target of 25 firms is 17.5 percent of a state rather than the 0.7 percent of a national
+  denominator this file used to quote. The partner economics are stated both ways because we do not set
+  the firm's resale price: MXN 3,900 to us, up to MXN 168,960 a year of billing if the firm resells at
+  our direct price at a 78.3 percent gross margin, or MXN 195 per client per month if it bundles it into
+  its own fee, against our MXN 2,620 gross per firm at 67.2 percent and a 0.69-month payback. Why a firm
+  sells it is written precisely enough to survive a tax question: the statutory obligation is the
+  client's, and what the firm carries is the work and the relationship. **Two sentences were wrong and
+  are corrected rather than quietly dropped.** Both published competitors sell *to* accounting firms and
+  not *through* them, and one of them does publish a customer count: Tesio's own home page positions it
+  as "Software fiscal con IA para contadores y despachos" and publishes "+2,400 contadores automatizan
+  con Tesio", self-reported and unaudited, and 69b.mx sells a `Corporativo` tier at MXN 1,999 a month
+  "Para equipos grandes y despachos" with unlimited monitored RFCs. That pair is the demand and it also
+  prices the ceiling, since our MXN 3,900 firm plan is **1.95 times** that tier and the whole argument for
+  the difference is that theirs monitors a list while ours decides a payment. Neither publishes a
+  reseller, partner or affiliate programme, so the firm as a reseller is labelled our bet.
+  **The integration channel is gated on ten paying firms** and the vendors' own pages are quoted for what
+  they do and do not publish: CONTPAQi states more than 6 thousand distributors and more than 1.2 million
+  user companies and publishes no distributor terms at all, Siigo Aspel publishes a tiered
+  certified-distributor directory with no total, and the SAT's list of proveedores autorizados de
+  certificacion **is not countable**, through four routes tried on 2026-09-12: a 1,477-byte JavaScript
+  shell, a legacy PAC page whose content block is empty and last modified 11 February 2014, the padron of
+  contadores publicos answering HTTP 500, and AMEXIPAC rendering its members as a logo carousel. So no
+  PAC count is quoted anywhere, and 69b.mx's own `API 69-B` is marked "Proximamente" with a waitlist, so
+  nobody in the category has proved that channel either. The chamber route is published and dated:
+  CAINTRA Nuevo Leon states more than 5,000 affiliated companies and signed an agreement with Afirme
+  Banco on 2026-09-10 at Expo Pyme Monterrey covering about 4,500 affiliated PyMEs, which is a bank
+  distributing a financial product to precisely our segment through a chamber two days before this was
+  written. It is credit and not a control, so it is carried as an analogy. COPARMEX Nuevo Leon publishes
+  only a national figure so none is used, ICPNL's 2,000 afiliados is quoted as self-reported, and the
+  IMCP answered HTTP 403 to three clients so no IMCP number appears at all.
+  **And a third route, from the same team meeting, with the intermediation dilemma answered rather than
+  deflected.** A bank embeds the control inside its own business banking so that the payment already runs
+  through it. The answer to "you are one more intermediary" is not that we are indispensable, it is where
+  the control sits: **SentryOne belongs where the payment executes**, and three published facts carry it.
+  60.4 percent of firms with six or more employed persons operate through the institution's own web page
+  against 35.0 percent on a mobile app. The despacho cannot be the last step because it holds no
+  credentials for the client's portal, which is already in `docs/02-persona.md`. And the verification
+  primitive is the rail's own: Regla 51a Bis of the SPEI rules has Banco de Mexico generate a one-centavo
+  order in its own name to read the holder out of the CEP, with Regla 72a obliging participants
+  generally. The gap is written by the banks themselves, HSBCnet selling beneficiary-name validation for
+  "unicamente cuentas HSBC" in files of up to 5,000 accounts inside a 07:00 to 22:00 window, and BBVA Net
+  Cash having the company type the holder's name itself behind a token challenge that authenticates the
+  employee and not the account holder. **Nessie is the bank of the demo**, which is a statement about
+  `scripts/nessie-mirror.ts`, `packages/nessie/src/mirror.ts` and the sixth control,
+  `bank_reconciliation`, rather than about a relationship, and **Capital One is named as the kind of bank
+  this route is for, which is a judgement about bank shape and not an agreement: nobody at Capital One or
+  at any other bank has agreed to anything.** It is third in the order and not first because a bank
+  integration is a procurement cycle and a security review measured in quarters, and the only thing that
+  survives either is evidence from companies already running the control, so the order is 200 sweeps, ten
+  paying firms, then the conversation. No count of Mexican banks is quoted, because the CNBV register was
+  not opened on this pass, and no published Mexican bank programme for small-business software partners
+  is cited either, because none was opened, which is why the route is an ask for a conversation rather
+  than an application to a programme known to exist.
+  **The pitch carries it on stage.** `docs/11-pitch.md` gains four rows in the numbers table, the segment
+  with its 6,476, 6,114 and about 2,312, the 143 of 737 reseller denominator, the MXN 1,999 despacho price
+  anchor with the 1.95 times it implies, and Tesio's 2,400 as the only customer count a competitor
+  publishes. The 3:25 market sentence now says the segment before the national figure and labels the
+  246,000 as the total, which is what the panel asked for. The 3:45 ask **is now the channel ask**, three
+  introductions to despachos of 11 or more people in Monterrey to run the sweep over real payment runs
+  plus one conversation with whoever owns business banking, so the ten real payment runs survive as what
+  the introductions are for. And the closing paragraph of "The business, in the three sentences that get
+  asked" carries the four motions in order with the bank route stated as an ask.
+  `docs/12-judge-qa.md` gains "Second table of 12 September": the question as it was asked, the
+  thirty-second answer, eleven allowed rows with a source each, five things not to say starting with any
+  claim that a bank has agreed to anything, and the honest gap volunteered in the same breath, which is
+  that the supplier-count filter is published nowhere and the two conversion rates have no benchmark at
+  all. `docs/04-market.md` gains the first-segment row, the instrument disagreement, Apodaca counted at
+  2,511 in the band and 857 in the three sectors, which closes the TODO it carried, the correction to the
+  channel assumption, the bank route with no bank count, and source [48]. The direct half of the SOM is
+  re-read against the narrowed segment and the consequence is said out loud: 600 direct companies would
+  be 9.3 percent of the 6,476, so that half leaves Nuevo Leon after the first year or it does not happen.
+  `docs/01-rubric-mapping.md` rows 8, 11 and 14 point at the renamed sections and row 11 now describes
+  counts instead of steps, and ADR-0006's link to the renamed GTM section is fixed.
 
 - The rate a second Capital One panel asked for on the evening of 2026-09-12, answered as a bracket
   with its arithmetic on the page instead of as the number a teammate said (issue #192). The question
@@ -517,7 +693,11 @@ then the screens, then the narrative, then the plumbing.
   the bracket before the fiscal hook, because a panel that hears two per million first has been handed
   a reason to think the fraud half is rare. The honest-gap line of section 6 was updated in the same
   pass, since it claimed we had no frequency figure at all and now there is a national one that is not
-  a figure for this size band.
+  a figure for this size band. The `Tests` row of the numbers table was re-read after the merge this
+  branch carries, because the cell says to do that and a judge who runs `bun test` next to the pitch
+  sees both numbers: 1,881 tests across 100 files, 1,769 passing, 112 skipped, 0 failing. The same
+  counts in `docs/01-rubric-mapping.md` row 7 still read 1,725 and 111 and were left alone, because
+  that file is not on this branch's path.
 
 - `docs/12-judge-qa.md` gains "Table feedback of 12 September and the answers": the six objections,
   a thirty-second answer each, and the file or the endpoint each answer rests on named once. The rule
@@ -609,6 +789,57 @@ then the screens, then the narrative, then the plumbing.
   and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
 
 ### Fixed
+
+- The API and the offline fallback of the web app were two different companies, so one RFC could carry
+  two legal names on one screen (issue #125). `apps/web/src/lib/mock.ts` held a hand-written run of
+  eight suppliers while the API booted the generated company from `@hackmty/seed`, and the two
+  disagreed about the legal name of every RFC they shared. The supplier drawer is where it showed: the
+  table row renders from the run payload and the drawer fetches `GET /api/v1/suppliers/:rfc`
+  separately, so when one of the two calls fell back and the other did not, one RFC named two companies
+  at the same time. The expensive version of the same bug is the API dropping mid-demo, when every name
+  on the projector changes at once. There is one dataset now. `bun run web:mock`
+  (`scripts/web-mock.ts`) writes `apps/web/src/lib/mock-data.ts` out of `loadSentryOne` at seed 69 for
+  the week of 2026-09-07, runs the same `assessRun` the API runs at boot at `runInstant(runDay)`, and
+  composes what a repository composes rather than stores through `MemoryRepository` itself: the run
+  totals through `runMoney`, the SAT version summaries, the blind holdout metrics and the priced
+  retroactive sweep. The three things the run does not carry are each built with the package that owns
+  it and marked in the output: the consortium signal, the CEP of a one-cent probe, and the five
+  one-cent verification states the API folds out of its ledger. `mock.ts` keeps the three jobs a
+  generated file should not do, which is composing the endpoint payloads, deriving the totals again
+  through `totalsFor` after a decision is applied with no API, and saying what is deliberately not one
+  for one with the API. The data is generated ahead of time and committed because the browser bundle
+  cannot import `@hackmty/seed`: it reaches `node:fs` through `@hackmty/sat` and `node:crypto` through
+  `@hackmty/consortium`, so a build-time import would either break the browser build or add a
+  dependency `apps/web` must not have. `scripts/web-mock.test.ts` is what makes "generated" mean
+  something. It regenerates the file and compares it byte for byte, and it boots a `MemoryRepository`
+  on the same company to assert that both sides answer the same legal name for all 44 suppliers, the
+  same amount, CLABE, action and findings on all 92 lines, the same totals, the same list versions and
+  the same metrics, which is the acceptance criteria of the issue written as assertions: 15 tests and
+  1,433 checks over the two sides. Three things in the offline copy are deliberately narrower than the
+  API's, and the narrowing is asserted rather than assumed. The invoices are the 156 of the company's
+  4,103 that a screen of this app can reach, which is the ones this run settles, the ones the
+  retroactive sweep prices and the ones a finding names, 8.8 KB gzipped against 208 KB for the whole
+  eight-month history. The payment complements are the 2 that settle those, because
+  `SupplierDetail.complements` is read by no component in `apps/web`. The verified-beneficiary registry
+  starts empty, which is what `sentryoneDataset` hands the API, because a browser with no API has
+  verified nothing. Every row the offline file does carry is the API's own row, every invoice a screen
+  can open is carried, and no supplier of the run answers with an empty file. That takes the web bundle
+  from 1,757 KB and 359 KB gzipped to 565 KB and 160 KB, and `chunkSizeWarningLimit` from 2000 to 700.
+  The one number the narrowing moves is the invoice count in the supplier drawer, which is the API's
+  whenever the API answered; offline the field is labelled "facturas de esta corrida" and says in one
+  line which invoices travelled, because printing 3 for an issuer that has 23 under the label
+  "facturas en el expediente" is issue #125 again. `docs/07-architecture.md` carries the difference and
+  the sizes. Four smaller things the one dataset exposed went with it. `PaymentRunTotals` in
+  `apps/web/src/lib/contract.ts` carried a TODO reading `held`, `toVerify` and `released` as peso sums
+  while `paymentRunTotalsSchema` in `apps/api/src/schemas.ts` had answered counts all along, and it now
+  reads counts and carries the seven peso fields `runMoney` puts on the run. `not_checked` was missing
+  from the unconfirmed set in `apps/web/src/lib/cep-seal.ts`, so every CEP this build has shown read as
+  "Firma no valida", which is the accusation that module exists to prevent. The CEP screen's example
+  was a hand-written `CepVerification` claiming `comprobable` over a seal nobody had checked, and is
+  now the answer `POST /api/v1/cep/verify` gives for the probe on the released line of the run. And the
+  folios written into the intake placeholder, the verification placeholder, `apps/web/audit/audit.ts`
+  and `apps/web/brand/shoot.ts` belonged to the dataset that is gone, so they are read off the run:
+  an audit or a README screenshot of the error state is no longer possible.
 
 - The demo company priced no supplier relationship, so the expected-loss trade-off weighed the pesos
   at risk against zero and the field the instruction screen calls "Costo de retrasar un dia" read

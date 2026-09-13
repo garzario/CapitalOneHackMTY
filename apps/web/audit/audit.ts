@@ -23,6 +23,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { HERO_INSTRUCTION_IDS } from "../src/lib/mock-data";
 
 const CHROME =
   process.env.CHROME_PATH ??
@@ -30,12 +31,20 @@ const CHROME =
 
 const PORT = 9334;
 
+/**
+ * The line the audit opens, read off the synthetic run rather than written down.
+ *
+ * A hardcoded folio here is a route that renders the error state the day the seed
+ * moves, and an audit that passes on an error state has audited nothing.
+ */
+const DETAIL_PATH = `/instructions/${HERO_INSTRUCTION_IDS[0] ?? ""}`;
+
 /** The widths issue #96 names: a small phone, a tablet, a laptop, a projector. */
 const WIDTHS = [390, 768, 1440, 1920];
 
 const ROUTES = [
   { path: "/run", name: "payment run" },
-  { path: "/instructions/ins-2026w37-002", name: "instruction detail" },
+  { path: DETAIL_PATH, name: "instruction detail" },
   { path: "/intake", name: "QR intake" },
   { path: "/sat", name: "Article 69-B" },
   { path: "/cep", name: "CEP viewer" },

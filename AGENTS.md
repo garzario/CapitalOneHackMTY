@@ -171,7 +171,7 @@ Five epics on GitHub (#80 to #84) with every issue linked as a sub-issue. Everyo
 | #83 Infrastructure and release | Fabian (fabbyyyy) | Vercel, Vultr, Tiger Data, sentryone.tech, accounts and keys, offline demo mode, the real one-cent CEP, release to main with v1.0.0, security scrub |
 | #84 Narrative and submission | everyone, Patricio closes | market and business model, pitch and Devpost, rubric mapping, process and README, video, rehearsals (Patricio); regulatory and privacy (Adan); architecture and data model (Fabian); persona, journey and demo script (Fabricio) |
 
-Scaffold PRs give every front typed stubs and mock data equal to the API's in-memory repository, so nobody waits to start. Reviewers: Patricio reviews Fabian, Fabian reviews Patricio, Fabricio reviews Adan, Adan reviews Fabricio; the lead reviews anything stalled past 90 minutes.
+Scaffold PRs give every front typed stubs and mock data equal to the API's in-memory repository, so nobody waits to start. "Equal" is now a property somebody checks rather than an intention: `apps/web/src/lib/mock-data.ts` is generated from the seeded company by `bun run web:mock` and `scripts/web-mock.test.ts` fails when the committed file stops matching the generator, or when the API and the offline fallback stop answering the same legal name, amount, CLABE, action or total. It was not equal for a while and issue #125 is what that cost. Reviewers: Patricio reviews Fabian, Fabian reviews Patricio, Fabricio reviews Adan, Adan reviews Fabricio; the lead reviews anything stalled past 90 minutes.
 
 ## Milestones
 

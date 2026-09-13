@@ -157,10 +157,27 @@ sits with one named person rather than a committee, which is why the hold screen
 somebody who is not in the ledger all day, why escalation is a phone call and not a ticket, and why
 the sale is one signature rather than a procurement cycle.
 
+**Two functions, and the title is the weaker half of the answer.** Narrowing the channel on 2026-09-12 in
+the evening forced this to be said as functions rather than as a job title, because a function is what
+you can ask for an introduction to (issue #193). The budget and the loss sit with **finance**, which
+files the complementary return inside the thirty days and carries the 46 percent of a disallowed subtotal
+that reverses as ISR plus IVA. The register the controls read sits with **purchasing**, which adds a
+CLABE, changes one when a supplier says its account moved, and telephones that supplier when a payment is
+held. The published evidence that this is the real split is a competitor's own promise and not our
+reading of an org chart: ValidX sells "si no cumple, se retiene y se notifica a Compras" [31]. The clerk
+above is the user and not the buyer, and what the product does to her Thursday is make it slower on the
+lines that carry a finding, which is the reason selling to her would be selling a control to the person it
+constrains. The full buying map is in
+`docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel`.
+
 ### 3. The channel, the despacho contable
 
 **16,356** accounting and audit units nationally, SCIAN 541211, **737 in Nuevo León**, and 12,130 of
-the 16,356 employ five people or fewer [26]. Two consequences. The 120 firms in the 36-month plan are
+the 16,356 employ five people or fewer [26]. Narrowed to the firms that could carry twenty client
+companies, **143 of the 737 employ 11 to 250 people and 140 of those 143 are metropolitan** [48], which
+is the denominator the firm-by-firm plan in `docs/05-business-model.md` works against and the reason the
+year-one target of 25 firms reads as 17.5 percent of a state rather than 0.7 percent of a country. Two
+consequences. The 120 firms in the 36-month plan are
 0.7 percent of that denominator, which makes the channel plan in `docs/05-business-model.md` an ask
 instead of an assertion. And three quarters of the channel is a firm of five people, so what it will
 accept is a per-client seat with no implementation, which is the shape of the MXN 195 per company
@@ -180,8 +197,10 @@ construction 10,509 establishments in the band, **89,523** in total, of which **
 30 people** [26]. Small enough that nobody has an ERP payment module, large enough to have a weekly
 run, which is the same pair of conditions the persona above is built on. The sector order is a
 judgement about supplier-list length and account churn, not a published ranking, and
-`docs/04-market.md#where-the-segment-actually-is` says so. The municipality-level count for Apodaca,
-where Metalicos del Norte sits, was not verified and is not claimed.
+`docs/04-market.md#where-the-segment-actually-is` says so. Narrowed to Nuevo León and to the first three
+of those sectors, the segment is **6,476** establishments, **6,114** of them metropolitan [48]. The
+municipality-level count for Apodaca, where Metalicos del Norte sits, is now verified rather than left
+open: **2,511** establishments in the band across all sectors and **857** in those three sectors [48].
 
 ### 5. Four anti-users, each for a different reason
 

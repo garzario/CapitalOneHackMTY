@@ -33,7 +33,7 @@ import {
 import type { SatLookup } from "../lib/contract";
 import { formatCount, formatDate, formatRfc } from "../lib/format";
 import { SAT_STATUS_BADGE, SAT_STATUS_LABEL } from "../lib/labels";
-import { mockSweep, SAT_VERSIONS } from "../lib/mock";
+import { LISTED_SUPPLIER_RFC, mockSweep, SAT_VERSIONS } from "../lib/mock";
 import {
   buildReplay,
   type Replay,
@@ -58,8 +58,14 @@ const MONTH_LABEL = [
   "dic",
 ];
 
-/** The synthetic supplier the offline sweep is about. Never sent to the API. */
-const OFFLINE_RFCS = ["SYN010101AAA"];
+/**
+ * The synthetic supplier the offline sweep is about. Never sent to the API.
+ *
+ * Read off the synthetic run rather than written down here, so it cannot drift
+ * from the company the API serves: it is the RFC the `sat_69b` finding of that
+ * run names. See the note on `rfcsToSimulate` below for what a constant cost.
+ */
+const OFFLINE_RFCS = [LISTED_SUPPLIER_RFC];
 
 function monthTick(month: string): string {
   const index = Number(month.slice(5, 7)) - 1;
