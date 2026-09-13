@@ -292,7 +292,7 @@ SentryOne
 > `GET /api/v1/metrics` sirve los mismos números, así que la pantalla de métricas es un reporte y no
 > una afirmación.
 >
-> Al 2026-09-13 la suite son 2,594 pruebas en 138 archivos: 2,476 pasando, 118 saltadas y 0
+> Al 2026-09-13 la suite son 2,912 pruebas en 150 archivos: 2,794 pasando, 118 saltadas y 0
 > fallando, y ninguna abre un socket.
 
 **EN**
@@ -355,7 +355,7 @@ SentryOne
 > `GET /api/v1/metrics` serves the identical numbers, so the metrics screen is a report and not a
 > claim.
 >
-> As of 2026-09-13 the suite is 2,594 tests across 138 files: 2,476 passing, 118 skipped and 0
+> As of 2026-09-13 the suite is 2,912 tests across 150 files: 2,794 passing, 118 skipped and 0
 > failing, and none of them opens a socket.
 
 ## Field 7, challenges we ran into
@@ -1069,7 +1069,7 @@ every row of it is a figure that appears above.
 | MXN 899 per company per month; MXN 3,900 per accounting firm for up to 20 client companies, MXN 195 each | [`docs/05-business-model.md`](05-business-model.md#who-pays-and-why-that-number) |
 | Break-even at one stopped invoice of MXN 23,452 of subtotal a year; 51 months and 111 months on MXN 100,000 | [`docs/05-business-model.md`](05-business-model.md), arithmetic on the MXN 46,000 row above |
 | TAM MXN 2,655 million, SAM MXN 948 million, SOM MXN 12.1 million a year | [`docs/04-market.md`](04-market.md#sizing), bottom-up, entities times price |
-| 2,594 tests across 138 files: 2,476 passing, 118 skipped, 0 failing | `bun test` on this branch, re-read 2026-09-13 |
+| 2,912 tests across 150 files: 2,794 passing, 118 skipped, 0 failing | `bun test` on this branch, re-read 2026-09-13 |
 | 35 labelled cases; precision 87.0 percent, recall 83.3 percent, false-positive rate 1.6 percent, action agreement 33 of 35, and `confiable` 12 of 12 | `bun run eval` on this branch, re-read 2026-09-13, and `GET /api/v1/metrics` |
 
 **Numbers deliberately not in this copy.** No probability and no percentage next to a payment or a

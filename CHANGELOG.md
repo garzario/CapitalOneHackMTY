@@ -98,6 +98,21 @@ section landed after that tag was cut.
 
 ### Changed
 
+- **The README review findings, and four docs that now carry the counts `bun test` answers** (issue
+  #216). Control 5 and the `cep.png` caption say where a judge reads them first what was only said
+  far below them, that the cent leaves on the Capital One Nessie sandbox where no pesos move and no
+  CEP is produced, so the screen prints `SELLO NO VERIFICADO` and `packages/cep` reports
+  `unconfirmed_scheme` rather than claiming a seal it cannot prove. The citation sentence under the
+  Thursday is scoped to the fraud and 69-B statistics `docs/04-market.md` actually sources, and the
+  run figures point at `docs/02-persona.md` and `docs/10-demo-script.md`, where seed 69 output
+  lives. The refund figure reads 24.3 rather than a silent 24, which is the number in
+  `docs/04-market.md`. The architecture diagram carries the Snowflake warehouse, `packages/extract`
+  and `packages/voice`, so every sponsor technology in the table under it has a node in the picture
+  above it. The gallery sentence is true of the PNGs and says what `tour.gif` is, since the shoot
+  script writes frames and prints an ffmpeg command rather than a GIF. And the suite was re-read on
+  this branch, 2,912 tests across 150 files with 2,794 passing, 118 skipped and 0 failing, where the
+  README said 2,709 across 143 and `docs/01-rubric-mapping.md`, `docs/11-pitch.md`,
+  `docs/13-devpost.md` and `docs/print/devpost-fields.md` still said 2,594 across 138.
 - **The recorrido opens itself, says one thing per stop, and points at what to look at** (issue
   #216). The tour existed and nobody found it: the invitation was a banner on `#/entrada`, which a
   visitor landing on the payment run never opened. The first load of a browser now opens it without

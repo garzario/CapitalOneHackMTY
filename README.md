@@ -36,7 +36,7 @@ exist, `INS-2026-09-07-029`.
 
 If the account is wrong there is nothing to reverse. An accepted transfer order is firme,
 irrevocable, exigible y oponible frente a terceros, and of every 100 pesos claimed for fraud in the
-first quarter of 2026 the banks returned 24.
+first quarter of 2026 the banks returned 24.3.
 
 If the SAT publishes that supplier on the Article 69-B list, the invoices she already deducted stop
 producing fiscal effect backwards: for every MXN 100 of subtotal already deducted, MXN 46 of tax
@@ -45,9 +45,12 @@ effect reverses between ISR and IVA, and the publication happens after the money
 Both losses are decided in the same minute, and nothing on her desk reads the two together.
 **SentryOne lives in the minute before sending.**
 
-Every figure above is cited to its primary source in
-[`docs/04-market.md`](docs/04-market.md#sources), and the run itself is synthetic and labelled
-synthetic on every screen that shows it.
+The fraud and Article 69-B statistics above are cited to their primary source in
+[`docs/04-market.md`](docs/04-market.md#sources). The figures of the run are not statistics at all:
+the 92 instructions, the 129 CFDIs, MXN 2,174,210.76, MXN 537,960.97, `INS-2026-09-07-029` and the
+28-employee company are seed 69 output, they live in [`docs/02-persona.md`](docs/02-persona.md) and
+[`docs/10-demo-script.md`](docs/10-demo-script.md), and the run is labelled synthetic on every
+screen that shows it.
 
 ## What it does
 
@@ -61,7 +64,7 @@ evidence on the screen next to the number it moved.
 | 2 | **CLABE forensics** | Can this account exist, has this supplier ever been paid on it, did the bank or the plaza change | The company's own ledger of accounts actually paid and the payment complements behind them, in `packages/core/src/clabe.ts` | [`finding-light.png`](assets/screenshots/finding-light.png) |
 | 3 | **Duplicate invoices** | Is this invoice about to be paid twice | The company's CFDI ledger, same issuer, amount, date window, folio or UUID collision | [`run-light.png`](assets/screenshots/run-light.png) |
 | 4 | **Supplier behaviour change** | Did this supplier's issuance rate, amount or concentration drift away from its own history | The same CFDI ledger over time, gated on sample size so a thin history says so instead of scoring | [`run-light.png`](assets/screenshots/run-light.png) |
-| 5 | **Beneficiary verification with the CEP** | Who actually owns the destination account | One cent of SPEI inside the same run, the CEP Banxico signs for it, XMLDSig against the Banxico certificate in `packages/cep/src/signature.ts`, holder name against the CFDI legal name, plus a cross-tenant corroboration snapshot | [`cep.png`](assets/screenshots/cep.png) |
+| 5 | **Beneficiary verification with the CEP** | Who actually owns the destination account | One cent of SPEI inside the same run and the CEP Banxico signs for it, which is the production path on `StpRail` and has never run live. In this demo the cent leaves on the Capital One Nessie sandbox, where no pesos move and no CEP is produced, so the screen prints `SELLO NO VERIFICADO` and `packages/cep` reports `unconfirmed_scheme` rather than claiming a seal it cannot prove. XMLDSig against the Banxico certificate in `packages/cep/src/signature.ts`, holder name against the CFDI legal name, plus a cross-tenant corroboration snapshot | [`cep.png`](assets/screenshots/cep.png) |
 | 6 | **Bank reconciliation** | Did money leave with no document behind it | The company's bank mirror on Capital One Nessie, reconciled against every CFDI and complement the company holds | [`payments-light.png`](assets/screenshots/payments-light.png) |
 
 Then one function decides. `decide` weighs the pesos at risk against what delaying this payment
@@ -81,13 +84,16 @@ it ([ADR-0007](docs/adr/0007-assistant-boundary.md)).
 
 ## The moments
 
-Captured by `bun run shoot:web`, which drives a headless browser at fixed widths in both themes with
-reduced motion on, so a capture is a fact about a build rather than a good moment.
+Every PNG below is captured by `bun run shoot:web`, which drives a headless browser at fixed widths
+in both themes with reduced motion on, so a capture is a fact about a build rather than a good
+moment. `tour.gif` is the exception and it comes out of the same script under `--frames`, shot dark
+only at one width and muxed by the ffmpeg command the script prints, because the script itself
+writes no GIF.
 
 | | |
 |---|---|
 | **The run, `#/run`.** 92 instructions, the pesos that are not leaving, the level on every line<br><img src="assets/screenshots/run-light.png" width="420" alt="The payment run"> | **The intake.** The photo the supplier sent on WhatsApp, read on a phone through the QR page<br><img src="assets/screenshots/intake-phone.png" width="200" alt="The QR intake page on a phone"> |
-| **The account and its plaza.** Two digits off the account paid 52 times, `580 (APODACA, NL)` against `180 (DISTRITO FEDERAL, DF)`<br><img src="assets/screenshots/finding-light.png" width="420" alt="The finding panel"> | **The cent and the CEP.** One cent sent, the clave de rastreo the rail answered, the holder name beside the CFDI legal name<br><img src="assets/screenshots/cep.png" width="420" alt="The CEP viewer"> |
+| **The account and its plaza.** Two digits off the account paid 52 times, `580 (APODACA, NL)` against `180 (DISTRITO FEDERAL, DF)`<br><img src="assets/screenshots/finding-light.png" width="420" alt="The finding panel"> | **The cent and the CEP.** One cent sent on the Nessie sandbox, the clave de rastreo the rail answered, the holder name beside the CFDI legal name, and `SELLO NO VERIFICADO` where a seal cannot be proved<br><img src="assets/screenshots/cep.png" width="420" alt="The CEP viewer"> |
 | **The SAT publishes, `#/sat`.** The sweep prices what the publication did to invoices already paid, and the lookup box answers a real RFC a judge picks<br><img src="assets/screenshots/sat.png" width="420" alt="The 69-B publication and the sweep"> | **The run leaving, `#/payments`.** 86 lines answered by the rail with a clave de rastreo each, and the six that did not move with the reason the engine wrote<br><img src="assets/screenshots/payments-light.png" width="420" alt="The run leaving"> |
 | **Who signs, `#/entrada`.** The person every write will carry, and what that person may do. A selector and not a login, and the screen says so<br><img src="assets/screenshots/entry.png" width="420" alt="The front door"> | **The whole product in a loop**, and the recorrido ends with SentryOne calling you as the owner<br><img src="assets/screenshots/tour.gif" width="420" alt="A loop over the product"> |
 
@@ -122,13 +128,20 @@ flowchart LR
     stp["StpRail, SPEI participant, not contracted"]
   end
 
+  subgraph models["language models, never on the decision path"]
+    extract["extract: Gemini, photo and voice note, transcription only"]
+    voice["voice: ElevenLabs, the verification call"]
+  end
+
   api["apps/api on Vultr, Hono, SSE"]
   db[("Postgres and Tiger Data, append-only ledger")]
   web["apps/web on Vercel, React"]
+  snow[("Snowflake, the fourth source, hashed and cross-tenant")]
 
   cfdi --> db
   sat --> satpkg
   cep --> ceppkg
+  snow --> cons
   satpkg --> eng
   ceppkg --> eng
   core --> eng
@@ -136,6 +149,8 @@ flowchart LR
   db --> api
   eng --> api
   api --> rails
+  api --> extract
+  api --> voice
   api --> web
 ```
 
@@ -241,7 +256,7 @@ Four commands worth knowing about:
   it, the committed SAT list snapshot, the CEP fixture, which database path is live and how much of
   it is migrated and seeded, and closes on whether this laptop can still demo with the network
   unplugged. `--strict` turns any warning into exit 1.
-- `bun test` runs 2,709 tests across 143 files with no network, no database and no API key: 2,591
+- `bun test` runs 2,912 tests across 150 files with no network, no database and no API key: 2,794
   pass, 118 skip and 0 fail, re-read on 2026-09-13. Both numbers move every time a workspace gains a
   file, so re-run the pair rather than quoting this line. The 118 are the database cases, which skip
   themselves unless `TEST_DATABASE_URL` names a database they may empty.
