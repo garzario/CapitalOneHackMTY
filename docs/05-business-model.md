@@ -1135,6 +1135,40 @@ running the control. So the order is 200 sweeps, then ten paying firms, then the
 reversing it would mean spending the quarters before we have the evidence that the conversation is
 about.
 
+### Where the software actually plugs in, and what each surface costs to build
+
+The three routes above answer who sells it. This one answers the question a purchasing manager asks
+thirty seconds later: **what do I have to replace to use this.** The answer has to be nothing, and
+that is a claim about integration surfaces rather than about intent, so each one is written here with
+the source that says it exists and the part of it nobody has verified.
+
+**The rule the whole section is built on: SentryOne sits between the ERP and the bank, never instead
+of the ERP.** The ERP owns the purchase order, the invoice and the ledger, and a company that has
+spent four years on CONTPAQi or SAP Business One is not moving. What the ERP does not own is the
+decision at the moment the money leaves, because that decision needs three things it does not hold:
+the SAT list, the CEP, and the history of every account this supplier has been paid on.
+
+| Surface | What it is | Build cost | The source | What is not verified |
+|---|---|---|---|---|
+| The dispersal layout | The file the ERP already exports and the treasurer already uploads to the bank. Read it, score every line, hand back the same file with the flagged lines removed and a report next to it | Lowest. A parser and a writer per bank format, and nothing to negotiate with anybody | BBVA's own payroll page describes loading operations "por archivo (subiendo un layout)", accepts spreadsheets in XLS, and names "los layouts 108 y 232 en formato TXT" [92] | The field-level specification of layouts 108 and 232 is behind BBVA's business banking portal and was not read. Banorte, Santander and HSBC each have their own and none was opened. So the count of formats is known to be more than one and its size is not |
+| The rail, directly | Order the SPEI ourselves through STP, an IFPE and a direct SPEI participant, so the decision and the execution are one step | Highest, and it changes what we are: ordering payments is a different regulatory posture from advising on them | STP publishes a technical documentation page and an APIs page at stp.mx [93] | **Nothing from STP is quoted here.** Both pages answered HTTP 403 to an automated fetch on 2026-09-13, so the API's shape, its authentication and whether it can be used by a non-IFPE third party on behalf of a client are all unread. `packages/rail` is built against our own interface with a simulated adapter, not against STP |
+| CONTPAQi | The ERP with the largest installed base in the segment | Medium, and Windows-shaped | CONTPAQi's cloud developer portal publishes exactly two products, `Timbra v 2` and `Timbra v 3`, both described as "Web API del Proyecto de Timbrado y Cancelación de CFDIs", REST with JSON, each requiring an administrator's authorisation [94] | **The published cloud API is CFDI stamping and not ERP data.** Reading invoices or writing a payment back is the desktop SDK, which third-party documentation describes as a COM library consumed from .NET on Windows [95]. That is a real integration and it is not a web API, and no CONTPAQi SDK licence terms were read |
+| Siigo Aspel | The other ERP named in the segment | Medium | Siigo describes Siigo API as "Una herramienta que te permite conectar otras aplicaciones o sistemas con Siigo Nube", able to "crear, consultar y actualizar" invoices, products and third parties, available on the `inicio`, `avanzado` and `premium` plans of Siigo Nube Gestión, with technical documentation published on Apiary [96] | The documentation was not opened, so no endpoint, rate limit or authentication scheme is quoted. It is also cloud only: an Aspel SAE installation on a local server is not this API |
+| SAP Business One | The upper end of the segment, the ERP the objection is usually named after | Medium, and the best documented of the three | SAP's Service Layer is a REST API over OData, with OData v4 the protocol for new integrations since FP 2405 and v3 deprecated but still supported, and the entity list published on the SAP Help Portal [97] | Version and licensing depend on the customer's own installation, and none was tested. Whether a partner may call a customer's Service Layer without an SAP partner agreement was not checked |
+| Email and WhatsApp forwarding | The intake nobody has to install. The clerk forwards the message the supplier sent, and it arrives as an instruction | Low, and it is the only surface that needs no cooperation from any vendor | Built and running: `POST /api/v1/instructions` takes `text`, an image or a voice note, and `packages/extract` transcribes and never decides. `docs/06-regulatory-privacy.md` section 6.2.1 carries the boundary | The forwarding address and the WhatsApp Business number do not exist yet. What is built is the endpoint behind them |
+
+**What this means for the objection.** "We are not replacing our SAP" is not a risk to argue with,
+it is the design. Every surface in the table above leaves the ERP as the system of record. The
+cheapest of them, the dispersal layout, needs no vendor to agree to anything: it reads a file the
+company already produces and hands back a file the bank already accepts.
+
+**And the honest ranking.** The layout surface is first because it is the only one with no
+counterparty. The bank route in the section above is the most valuable and the slowest, because a
+bank embedding the control is a sales cycle and not an integration. The ERP connectors sit between,
+gated behind the same ten paying firms, and the CONTPAQi row is the one to be careful about in a
+pitch: the public API is a stamping API, and saying "they publish an API" without that qualifier
+would be the kind of half-true a judge checks.
+
 ### What the buyer actually buys
 
 Not six controls and not a feature list. **One number, computed from their own XML, next to a
@@ -1491,6 +1525,41 @@ first Mexican page found that offers cover for this loss, which [63] to [66] cou
     Tipalti, Bill.com, Melio or Brex, on anything we could open on 2026-09-12. Medius and nsKnox were
     searched and no guarantee page surfaced, which is recorded as unverified rather than as absent.
     Accessed 2026-09-12: <https://support.ramp.com/bill-pay-fraud>
+92. BBVA Mexico, *Pago de nomina y seguimiento en tiempo real*, the bank's own business page, read
+    2026-09-13. It describes loading payments by "captura manual (una a una) o por archivo (subiendo
+    un layout)", accepts spreadsheets "en formato XLS", and names "los layouts 108 y 232 en formato
+    TXT". The field-level specification of either layout is behind the business banking portal and
+    was not read, and no other bank's format was opened:
+    <https://www.bbva.mx/empresas/servicios-digitales/nomina-en-tiempo-real.html>
+93. Sistema de Transferencias y Pagos STP, *Documentacion Tecnica* and *APIs*. **Not retrievable on
+    2026-09-13:** both URLs answered HTTP 403 to an automated fetch, so nothing about the API's
+    shape, its authentication or its terms of use is quoted anywhere in this file, and the rail row
+    in the table above says so rather than describing a document nobody here has read:
+    <https://stp.mx/documentacion-tecnica/> and <https://stp.mx/en/apis/>
+94. CONTPAQi, developer portal, read 2026-09-13. The portal publishes two products, `Timbra v 2` and
+    `Timbra v 3`, both described as "Web API del Proyecto de Timbrado y Cancelacion de CFDIs", states
+    "Nuestras APIs son REST" with JSON, and requires "la autorizacion de un administrador para usar
+    este producto" plus a per-product subscription. No ERP data API is published on it:
+    <https://developers.contpaqinube.com/>
+95. Community documentation for the CONTPAQi desktop SDK, read 2026-09-13, cited as the only
+    description found of how ERP data is reached. It states that CONTPAQi ships no official SDK
+    documentation with the installation, that the accounting SDK is a COM library, and that consuming
+    it needs a .NET desktop application. **A third-party repository and not a vendor document**,
+    which is why the table treats the desktop route as real but unpriced:
+    <https://github.com/AndresRamos/Contpaqi.Sdk.Contabilidad>
+96. Siigo Aspel, *Conocer informacion acerca de Siigo API*, the vendor's own customer portal, read
+    2026-09-13. Siigo API is "Una herramienta que te permite conectar otras aplicaciones o sistemas
+    con Siigo Nube para automatizar procesos del ciclo de venta y la gestion contable", covering
+    invoices, products and third parties, on the `inicio`, `avanzado` and `premium` plans of Siigo
+    Nube Gestion, with technical documentation at siigoapimexico.docs.apiary.io. That documentation
+    was not opened, so no endpoint or limit is quoted:
+    <https://siigonubeportaldeclientes.aspel.com.mx/conocer-informacion-acerca-de-siigo-api/>
+97. SAP, *Service Layer API Reference* and the SAP Learning course on the Service Layer, read
+    2026-09-13. The Service Layer is a REST API following OData; as of SAP Business One FP 2405 OData
+    v3 is deprecated and v4 is the protocol for new integrations, with v3 kept for backward
+    compatibility. No installation was tested and no partner terms were read:
+    <https://help.sap.com/doc/056f69366b5345a386bb8149f1700c19/10.0/en-US/Service%20Layer%20API%20Reference.html>
+
 
 Our own prices, the cost estimates and the channel plan are decisions, not findings. Each one is
 labelled above as a price, an estimate or an assumption, so a judge can disagree with a specific
