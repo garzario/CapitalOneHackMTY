@@ -128,6 +128,16 @@ export interface AgentConfigInput {
   ttsModelId?: string;
   /** Hard stop in seconds, so a call cannot run up a bill unattended. */
   maxDurationSeconds?: number;
+  /**
+   * Default values for the `{{name}}` slots of the stored prompt.
+   *
+   * Sent as `dynamic_variables.dynamic_variable_placeholders`, documented at
+   * https://elevenlabs.io/docs/agents-platform/customization/personalization/dynamic-variables.
+   * They exist so that a call placed with no variables reads a sentence that
+   * asks nothing, rather than reading the literal text `{{supplier}}` to a person
+   * who answered a telephone.
+   */
+  dynamicVariableDefaults?: Record<string, string>;
 }
 
 /**
@@ -145,6 +155,15 @@ export function buildAgentBody(
     first_message: config.firstMessage,
     language: config.language ?? "es",
   };
+
+  if (
+    config.dynamicVariableDefaults !== undefined &&
+    Object.keys(config.dynamicVariableDefaults).length > 0
+  ) {
+    agent.dynamic_variables = {
+      dynamic_variable_placeholders: config.dynamicVariableDefaults,
+    };
+  }
 
   const tts: Record<string, unknown> = {};
   if (config.voiceId !== undefined) {
@@ -322,6 +341,15 @@ export class VoiceClient {
     agentId: string;
     agentPhoneNumberId: string;
     toNumber: string;
+    /**
+     * This instruction's own words for the slots of the stored prompt.
+     *
+     * Sent as `conversation_initiation_client_data.dynamic_variables`, which the
+     * outbound-call reference documents as a map of string to any. It is how the
+     * supplier, the amount and the four digits reach one call without ever being
+     * written into the agent the provider stores.
+     */
+    dynamicVariables?: Record<string, string>;
   }): Promise<OutboundCall> {
     if (!isE164(params.toNumber)) {
       throw new VoiceError(
@@ -337,6 +365,14 @@ export class VoiceClient {
         agent_id: params.agentId,
         agent_phone_number_id: params.agentPhoneNumberId,
         to_number: params.toNumber,
+        ...(params.dynamicVariables === undefined ||
+        Object.keys(params.dynamicVariables).length === 0
+          ? {}
+          : {
+              conversation_initiation_client_data: {
+                dynamic_variables: params.dynamicVariables,
+              },
+            }),
       },
     );
 
