@@ -20,7 +20,7 @@
       .answer-list {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 2.6mm;
+        gap: 2.3mm;
         margin: 0;
         padding: 0;
         list-style: none;
@@ -31,7 +31,7 @@
         position: relative;
         border: 0.25mm solid var(--line);
         border-radius: 2mm;
-        padding: 2.8mm 3mm 3mm 9mm;
+        padding: 2.5mm 3mm 2.6mm 9mm;
         counter-increment: answers;
       }
 
@@ -74,11 +74,14 @@
         list-style: none;
       }
 
+      /* Nine rivals where there were five, on the same A4. The density is the
+         reason this block has its own column and the business model moved over
+         to the left one. Re-measure after any edit: the page clips silently. */
       .rival-list li {
         border-top: 0.25mm solid var(--line);
-        padding: 1.4mm 0;
-        font-size: 7pt;
-        line-height: 1.24;
+        padding: 1.1mm 0;
+        font-size: 6.6pt;
+        line-height: 1.2;
       }
 
       .rival-list li:first-child {
@@ -88,18 +91,42 @@
 
       .rival-list strong {
         display: inline;
-        font-size: 7.4pt;
+        font-size: 7pt;
       }
 
       .rival-list span {
         color: var(--muted);
       }
 
+      /* The claim and the banned sentences, which are the two things on this
+         block a judge can break, so they read differently from the roster. */
+      .claim {
+        margin-top: 2.4mm;
+        margin-bottom: 1.6mm;
+        font-size: 7.2pt;
+        line-height: 1.24;
+      }
+
+      .never {
+        margin-bottom: 0;
+        border-left: 0.6mm solid var(--hold);
+        padding-left: 2mm;
+        color: var(--hold);
+        font-size: 7pt;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      .model-note {
+        font-size: 7.6pt;
+        line-height: 1.26;
+      }
+
       .two-up {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 5mm;
-        margin-bottom: 5mm;
+        margin-bottom: 4mm;
       }
 
       .block-title {
@@ -143,56 +170,91 @@
             doscientos cincuenta personas cuya corrida del jueves le paga a decenas de proveedores a
             traves de una sola persona de administracion.
           </p>
+          <h2 class="block-title">El modelo, en tres frases</h2>
+          <p class="model-note muted">
+            La empresa paga MXN 899 al mes y el despacho contable paga MXN 3,900 por hasta veinte
+            empresas cliente, MXN 195 cada una. Se paga completo con una sola factura detenida de MXN
+            23,452 de subtotal al ano, porque de un subtotal rechazado se revierte el 46 por ciento
+            entre ISR e IVA. El canal son los despachos contables de Monterrey y su corredor
+            industrial, porque uno solo tiene el XML de veinte clientes.
+          </p>
         </div>
 
         <div>
           <h2 class="block-title">La competencia, una linea cada uno</h2>
           <ul class="rival-list">
             <li>
-              <strong>69b.mx</strong>
+              <strong>ValidX</strong>
               <span>
-                consulta un RFC contra cinco publicaciones del SAT, con constancia. Publicado: MXN 199
-                al mes por 30 RFCs monitoreados. Corre sobre una lista, nunca sobre un pago.
+                "antes de pagar: si no cumple, se retiene y se notifica a Compras", sobre cuatro listas del SAT.
+                Retiene el pago y nunca ve la cuenta.
               </span>
             </li>
             <li>
-              <strong>Tesio</strong>
+              <strong>Portal de Proveedores</strong>
               <span>
-                cruza los CFDI ya descargados contra la lista actualizada, con alerta el mismo dia,
-                vendido a despachos. Publicado: desde MXN 499 al mes. Se detiene en el libro fiscal y
-                nunca ve la cuenta.
+                de Monterrey: barre 69 y 69-B a diario y detiene el pago cuando vence un documento. 14,000
+                proveedores, cero capa bancaria.
               </span>
             </li>
             <li>
-              <strong>Trustpair</strong>
+              <strong>Verificamex</strong>
               <span>
-                verificacion de beneficiario antes de la corrida de cuentas por pagar, 190 paises. No
-                menciona Mexico, CFDI, SAT, SPEI ni CLABE en su material publico.
+                vende la prueba del centavo con lectura del CEP, MXN 9 a 18, y la regla 51a Bis del SPEI ya la
+                manda en nombre de Banxico.
               </span>
             </li>
             <li>
-              <strong>nsKnox</strong>
+              <strong>CONTPAQi</strong>
               <span>
-                proteccion de fraude en pagos B2B para corporativos y bancos. Verifica la cuenta e
-                ignora la situacion fiscal de la contraparte, que es la perdida mas grande aqui.
+                tiene las dos mitades, tablero fiscal y dispersion masiva, y su changelog muestra que no se
+                cruzan en el momento del pago.
               </span>
             </li>
             <li>
-              <strong>Eftsure</strong>
+              <strong>Bind ERP</strong>
               <span>
-                mas de 6 millones de negocios verificados. Mismo limite: la cuenta si, la factura y la
-                lista del SAT no.
+                su centro de ayuda: con un proveedor en la lista de EFOS el sistema "no restringira" la
+                operacion, "pero si te alertara".
+              </span>
+            </li>
+            <li>
+              <strong>Clara y Xepelin</strong>
+              <span>
+                dispersan cientos de SPEI, una desde un .xlsx que sube el pagador. Ninguna verifica a quien
+                recibe.
+              </span>
+            </li>
+            <li>
+              <strong>HSBCnet</strong>
+              <span>
+                si valida el nombre del beneficiario, y "unicamente cuentas HSBC", por archivo y en horario.
+                Higiene, no puerta.
+              </span>
+            </li>
+            <li>
+              <strong>69b.mx y Tesio</strong>
+              <span>
+                corren sobre la lista, desde MXN 199 y MXN 499 al mes. Ninguno ve la cuenta a la que esta por
+                salir el dinero.
+              </span>
+            </li>
+            <li>
+              <strong>Trustpair, nsKnox y Eftsure</strong>
+              <span>
+                verifican cuentas de beneficiarios para tesorerias corporativas fuera de Mexico. No mencionan
+                CFDI, SAT ni SPEI.
               </span>
             </li>
           </ul>
-          <h2 class="block-title" style="margin-top: 3mm">El modelo, en tres frases</h2>
-          <p class="muted">
-            La empresa paga MXN 899 al mes y el despacho contable paga MXN 3,900 por hasta veinte
-            empresas cliente, MXN 195 cada una. Se paga completo con una sola factura detenida de MXN
-            23,452 de subtotal al ano, porque de un subtotal rechazado se revierte el 46 por ciento
-            entre ISR e IVA. El canal son los despachos contables de Monterrey y su corredor
-            industrial, porque uno solo tiene el XML de veinte clientes y presenta la complementaria
-            cuando arranca el plazo de treinta dias.
+          <p class="claim">
+            <strong>Lo nuestro es la union:</strong> las dos mitades en una decision con evidencia,
+            antes de la transferencia. Leemos los dos articulos, 69-B y 49 Bis, y decimos que del 49
+            Bis no hay lista: son 14 oficios del DOF, no un archivo.
+          </p>
+          <p class="never">
+            Jamas se dice "nadie hace esto" ni "nosotros inventamos la prueba del centavo". Se dice
+            "no encontramos a nadie que venda las dos mitades juntas".
           </p>
         </div>
       </div>
@@ -202,10 +264,12 @@
         <li>
           <span class="heard">No supimos decir quien es la competencia</span>
           <span class="said">
-            Dos directos mexicanos que corren sobre una lista y nunca ven la cuenta. Tres plataformas
-            globales que si ven la cuenta y no mencionan Mexico, ni CFDI, ni SAT, ni SPEI. Y el statu
-            quo, que es el contador con una hoja de calculo y WhatsApp. Nosotros somos el unico que
-            junta las tres cosas en el momento del pago.
+            Si. La mitad fiscal retiene sin ver la cuenta: ValidX, Portal de Proveedores, 69b.mx,
+            Tesio. La del dinero dispersa SPEI sin verificar a quien recibe: Clara, Xepelin. El
+            centavo es commodity: lo vende Verificamex y Banxico lo manda en la regla 51a Bis.
+            CONTPAQi tiene ambas mitades y no se cruzan; Bind ERP avisa y no restringira; HSBCnet
+            solo valida cuentas HSBC; Trustpair, nsKnox y Eftsure verifican cuentas afuera. Lo
+            nuestro es la union, con evidencia, antes de la transferencia.
           </span>
         </li>
         <li>

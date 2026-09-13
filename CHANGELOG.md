@@ -551,6 +551,37 @@ then the screens, then the narrative, then the plumbing.
   released it. The blind holdout is deliberately left unpriced, because nothing in a labelled case
   document prices a relationship.
 
+- Three places still told the competition story the market research of PR #177 replaced, and all
+  three are now the one story (Refs #171 and #169). `docs/12-judge-qa.md` answer 1 of the table
+  feedback used to say "nosotros somos el unico que junta las tres cosas en el momento del pago"
+  while naming only 69b.mx, Tesio and three foreign platforms; it now names what `docs/04` documents,
+  in the order to say it: the fiscal camp already holds payments and never sees the account (ValidX,
+  Portal de Proveedores, 69b.mx, Tesio), the money camp disperses SPEI without verifying who receives
+  it (Clara, Xepelin), the one-centavo probe is a commodity that Verificamex sells metered and that
+  Banco de Mexico writes into Regla 51a Bis of the SPEI rules, CONTPAQi holds both halves and its own
+  changelog shows they never meet at the moment of payment, Bind ERP alerts and by its own help
+  centre "no restringira", HSBCnet validates beneficiary names for HSBC accounts only, and Trustpair,
+  nsKnox and Eftsure verify accounts for corporate treasuries abroad. The claim that replaces the old
+  one is the union of the fiscal half and the money half in a single decision, retain, verify or
+  release with the evidence attached, before the transfer is irrevocable, and the two sentences that
+  break in one search are written down as never to be said: "nadie hace esto" and "nosotros
+  inventamos la prueba del centavo". `docs/11-pitch.md` loses the same claim from the three timed
+  versions, from the "list is public and free" answer, from the bank answer, which now says out loud
+  that HSBCnet really does sell name validation for HSBC accounts only, and from the "why would an
+  accounting product not add this" answer, which now names CONTPAQi as the incumbent that already has
+  both halves; it gains the section "The competition, and the two sentences that lose the room", two
+  price-anchor rows, and a delivery rule for the two banned sentences. `docs/print/team-card.html`
+  carries nine competitor entries with one line each instead of five, the union claim and the two
+  banned sentences. The scope line those two files carry was drafted as "today 69-B, and by the demo
+  the 49 Bis list (#180)" and #180 merged before this branch did, so it says what is now true instead:
+  both articles are in the lookup, the control and the sweep, and the half to volunteer is that 49 Bis
+  answers `answered: false` with `coverage: "not_published_machine_readable"`, because the SAT
+  publishes it as fourteen DOF oficios and not as a file, which is also the answer to a competitor
+  advertising daily re-screening of it. No code moved: this touches `docs/12` and the card and nothing
+  under `packages/sat`. The card kept its single A4 page: the business model moved into the left
+  column so the roster gets a column of its own, and `docs/print/README.md` gains the headless
+  re-measurement, because `.page` clips silently and a PDF with one page is not evidence that nothing
+  was cut.
 - Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
   things the running product does not do, found by taking each claim to the code and to `curl`
   (issue #171). The verification-call deadline is one day and not three: `HOLD_WINDOW_DAYS` is
