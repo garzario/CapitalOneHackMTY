@@ -31,10 +31,13 @@
  *   sello digital under article 17-H Bis, fraccion XIV, and they stop being able
  *   to invoice.
  *
- * Fraccion XI refers the matter to the Ministerio Publico under article 113 Bis,
+ * Fraccion XI says the SHCP "procedera penalmente contra cualquier actividad
+ * relacionada con comprobantes fiscales falsos", in the terms of article 113 Bis,
  * whose second paragraph, added by the same decree, covers whoever "expida,
  * enajene, compre, adquiera o de efectos fiscales a comprobantes fiscales
- * falsos", with two to nine years of prison.
+ * falsos", with two to nine years of prison. That article requires a querella
+ * from the SHCP to prosecute, and names no other body: neither the fraccion nor
+ * the article mentions the Ministerio Publico, so neither does this file.
  *
  * Source, opened 2026-09-12: Codigo Fiscal de la Federacion, texto vigente, last
  * reform DOF 9 April 2026, <https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf>,
@@ -97,11 +100,28 @@ export const ART_49BIS_LABEL = "49 Bis";
 export const ART_49BIS_CORRECTION_DAYS = 30;
 
 /**
- * Where a reader checks the publications for themselves. The DOF full-text search
- * for `fraccion X del articulo 49 Bis` answered fourteen notes on 2026-09-12.
+ * Where a reader checks the publications for themselves, as a link that answers
+ * when it is opened.
+ *
+ * Two things verified on 2026-09-12 rather than assumed, both of which decide the
+ * shape of this constant:
+ *
+ * - **`busqueda_detalle.php` with no query string is not a search form.** It
+ *   answers `302 Found` to `/Error_BS.php`, so a bare link is a dead link and the
+ *   clerk who follows it concludes we made the list up. The query is part of the
+ *   citation.
+ * - **The DOF full-text search is accent sensitive.** The phrase spelled with its
+ *   two accents, one on `fraccion` and one on `articulo`, answers fourteen notes.
+ *   Spelled without them it answers ZERO, which is the worst failure available
+ *   here because it reads as "the list is empty" rather than as "you spelled it
+ *   wrong". They are percent-encoded in the URL below, which is also how this
+ *   file stays plain ASCII, exactly like `dates.ts`.
+ *
+ * `cantidadTotalResultados` in the answer is the total, and it read 14 on
+ * `ART_49BIS_SURVEYED_AT`.
  */
 export const ART_49BIS_DOF_SEARCH_URL =
-  "https://dof.gob.mx/busqueda_detalle.php";
+  "https://dof.gob.mx/busqueda_detalle.php?textobusqueda=fracci%C3%B3n+X+del+art%C3%ADculo+49+Bis&vienede=";
 
 /** The day the DOF and the SAT open-data catalogue were surveyed for this list. */
 export const ART_49BIS_SURVEYED_AT = "2026-09-12";

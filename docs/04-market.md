@@ -216,10 +216,11 @@ it points at the buyer rather than at the issuer.
 **What the SAT actually publishes is not a list.** Verified on 2026-09-12 at the source. The SAT open
 data catalogue carries article 69, article 69-B and article 69-B Bis, and has no 49 Bis dataset at all
 [45]. The DOF publishes 49 Bis one oficio at a time as an HTML note: a search for the exact phrase
-`fraccion X del articulo 49 Bis` answered **14 notes, naming 14 taxpayers, one each, between 10 July
-and 28 August 2026**, the first of them six months after the article came into force [46]. There is no
-CSV, no minisite page and no blob endpoint for it. The columns of the `Anexo 1` table of each oficio
-are transcribed in `packages/sat/src/snapshot/README.md` together with all fourteen note ids.
+`fracción X del artículo 49 Bis`, accents included, answered **14 notes, naming 14 taxpayers, one
+each, between 10 July and 28 August 2026**, the first of them six months after the article came into
+force [46]. There is no CSV, no minisite page and no blob endpoint for it. The columns of the
+`Anexo 1` table of each oficio are transcribed in `packages/sat/src/snapshot/README.md` together with
+all fourteen note ids.
 
 **So this is our coverage statement, and it is the same sentence in the product and in this
 document.** `packages/sat` ships the 49 Bis loader against that published layout, the thirty day
@@ -615,15 +616,20 @@ So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segme
     navigation of the minisite index lists the same three:
     <https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html>,
     <https://www.sat.gob.mx/minisitio/DatosAbiertos/index.html>
-46. Diario Oficial de la Federacion, full-text search for the exact phrase `fraccion X del articulo
-    49 Bis`, run 2026-09-12 at 17:30 local (UTC-6): 14 results, all of them oficios of the
-    Administracion Central de Fiscalizacion Estrategica of the SAT, published 10 July 2026 (oficios
+46. Diario Oficial de la Federacion, full-text search for the exact phrase `fracción X del artículo
+    49 Bis`, run 2026-09-12 at 17:30 local (UTC-6) and repeated at 18:20: 14 results, the count read
+    off the hidden `cantidadTotalResultados` field, all of them oficios of the Administracion Central
+    de Fiscalizacion Estrategica of the SAT, published 10 July 2026 (oficios
     500-05-00-00-00-2026-21468, 21469 and 21471), 7 August 2026 (21590, 21600, 21601, 24291, 24292),
-    14 August 2026 (24370, 24371, 24417) and 28 August 2026 (24472, 24524, 24525). Each names one
-    taxpayer in an `Anexo 1` table of seven columns; the columns, the note ids and the two date
-    formats the fourteen use are transcribed in `packages/sat/src/snapshot/README.md`. The same
-    search for `comprobantes fiscales falsos` returns nothing, so the phrase above is the one that
-    finds them: <https://dof.gob.mx/busqueda_detalle.php>, example note
+    14 August 2026 (24370, 24371, 24417) and 28 August 2026 (24472, 24524, 24525). All fourteen notes
+    were opened and each names exactly one taxpayer in an `Anexo 1` table of seven columns; the
+    columns, the note ids and the two date formats the fourteen use are transcribed in
+    `packages/sat/src/snapshot/README.md`. **Two spelling traps, both verified:** the accents are
+    load-bearing, `fraccion X del articulo 49 Bis` answers zero results, and the search page answers
+    `302` to an error page unless it carries its query string, so the citable link is
+    <https://dof.gob.mx/busqueda_detalle.php?textobusqueda=fracci%C3%B3n+X+del+art%C3%ADculo+49+Bis&vienede=>.
+    The same search for `comprobantes fiscales falsos` returns nothing, so the phrase above is the
+    one that finds them. Example note:
     <https://dof.gob.mx/nota_detalle.php?codigo=5797380&fecha=28/08/2026>
 47. SAT, *Listado completo de contribuyentes (Articulo 69-B Bis del CFF)*, open data, retrieved
     2026-09-12. 1,256 bytes, `Last-Modified` 2026-08-19, header states `Informacion actualizada al

@@ -22,6 +22,7 @@ import type {
 import {
   ANEXO_COLUMNS,
   ART_49BIS_CORRECTION_DAYS,
+  ART_49BIS_DOF_SEARCH_URL,
   ART_49BIS_FIRST_PUBLISHED_AT,
   ART_49BIS_FIXTURE_FILENAME,
   ART_49BIS_OFICIOS_PUBLISHED,
@@ -299,6 +300,23 @@ describe("the coverage of this build", () => {
     expect(listing.lastPublishedAt).toBe("2026-08-28");
     expect(listing.surveyedAt).toBe(ART_49BIS_SURVEYED_AT);
     expect(listing.source).toContain("dof.gob.mx");
+  });
+
+  it("hands out a search that answers, with the phrase and its accents in it", () => {
+    // Verified against the DOF on 2026-09-12, and both halves are the reason this
+    // test exists rather than a style preference. `busqueda_detalle.php` on its own
+    // answers 302 to /Error_BS.php, so a bare link is a dead link; and the search is
+    // accent sensitive, so the unaccented phrase answers zero results, which reads
+    // as "there is no list" instead of as "you spelled it wrong". This is the URL a
+    // clerk is handed in the lookup, so a future edit back to the bare page has to
+    // fail here.
+    expect(ART_49BIS_DOF_SEARCH_URL).toContain("textobusqueda=");
+    // The searched phrase, with the accent on each of its two long words.
+    expect(ART_49BIS_DOF_SEARCH_URL).toContain(
+      "fracci%C3%B3n+X+del+art%C3%ADculo",
+    );
+    expect(ART_49BIS_DOF_SEARCH_URL).toContain("49+Bis");
+    expect(official49BisListing().source).toBe(ART_49BIS_DOF_SEARCH_URL);
   });
 
   it("holds no rows of its own, so nothing can leak onto a screen", () => {
