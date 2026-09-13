@@ -1634,8 +1634,8 @@ then the screens, then the narrative, then the plumbing.
   that it is still not a login. A docs pass that lands after the features it describes has to be
   re-read against the base it merges onto, not against the base it branched from.
 
-  Every count is read off a run on this branch rather than adjusted: `bun test` answers 2,586 tests
-  across 138 files, 2,468 passing and 118 skipping, where the README said 1,725 across 99 and 111,
+  Every count is read off a run on this branch rather than adjusted: `bun test` answers 2,594 tests
+  across 138 files, 2,476 passing and 118 skipping, where the README said 1,725 across 99 and 111,
   `docs/07` said 1341 across 77 in two places, `docs/11` said 2,238 across 114, and `docs/01` said
   2,196 across 118. The 118 skips are the database cases in six files, all of them gated on
   `TEST_DATABASE_URL`. `bun run eval` answers 35 cases at 87.0 percent precision, 83.3 percent recall

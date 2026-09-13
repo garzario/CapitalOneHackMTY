@@ -50,7 +50,7 @@ flowchart LR
     KL["packages/core/src/levels.ts<br/>confidenceOf, transactionStateOf,<br/>planRunExecution"]
     KS["packages/sat<br/>matchRfc, sweep, priceSweep"]
     KP["packages/cep<br/>nameMatch"]
-    T["2586 tests, 138 files<br/>plus bun run eval"]
+    T["2594 tests, 138 files<br/>plus bun run eval"]
   end
 
   subgraph U[4 Surfaces]
@@ -420,7 +420,7 @@ a row the portal reports as paid with no clave on it is dropped rather than reco
 
 | Decision | Alternative considered | Why this, for this problem | What would make us switch |
 |---|---|---|---|
-| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 2586 tests across 138 files in 18.4 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
+| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 2594 tests across 138 files in 14.8 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
 | TypeScript monorepo, Bun workspaces | Separate repos, or one flat app | All four people commit on day one, and the engine is imported by the API, the tests, the metrics harness and the demo script with nothing published | Nothing in this window |
 | `packages/core`, pure functions, zero runtime dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
 | `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `SENTRYONE_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |

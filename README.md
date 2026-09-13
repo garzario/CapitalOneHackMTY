@@ -132,8 +132,8 @@ live and how much of it is migrated and seeded, and closes on whether this lapto
 the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
 warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
-Four commands worth knowing about. `bun test` runs 2,586 tests across 138 files with no network, no
-database and no API key, which is the fastest way to check that the intelligence is real: 2,468 pass
+Four commands worth knowing about. `bun test` runs 2,594 tests across 138 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real: 2,476 pass
 and 118 skip on 2026-09-13. Re-read the pair after a merge rather than quoting this line, because both
 move every time a workspace gains a file. Those 118 are the database cases, and they skip themselves unless
 `TEST_DATABASE_URL` names a database they may empty; they share one, so run them a workspace at a
