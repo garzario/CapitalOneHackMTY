@@ -45,7 +45,7 @@ import type {
   VerificationOutcome,
   VerificationStateName,
 } from "@hackmty/core";
-import { formatAmount } from "@hackmty/core";
+import { formatAmount, maskClabesInText } from "@hackmty/core";
 import {
   type ConstanciaCommon,
   localStamp,
@@ -389,8 +389,14 @@ function writeFindings(sheet: Sheet, findings: readonly Finding[]): void {
   }
 
   for (const finding of findings) {
+    /* The explanation is masked for the same reason every account on this page is:
+       control 2 writes the known account into its sentence, and a letter that said
+       "cuenta terminada en 4611" three lines above the whole eighteen digits would
+       be leaking the account in the act of redacting it. `maskClabesInText` is in
+       `@hackmty/core` so this page, the run constancia and the assistant answer the
+       same thing. */
     sheet.paragraph(
-      `${SEVERITY_LABEL[finding.severity]}, ${findingState(finding)}: ${finding.explanation}`,
+      `${SEVERITY_LABEL[finding.severity]}, ${findingState(finding)}: ${maskClabesInText(finding.explanation)}`,
       { grey: 0.25 },
     );
   }

@@ -32,10 +32,19 @@ export default defineConfig({
      * app falls back to when there is no API to request anything from, so a code
      * split would make it unavailable exactly when it is needed.
      *
-     * The bundle is 565 KB, 160 KB gzipped, which is over Rollup's 500 KB default
-     * and a long way under what it was: carrying all 4103 invoices made it 1757 KB
-     * and 359 KB gzipped, for an eight-month history no screen of this app opens.
-     * 700 is headroom for a screen, not for the whole history coming back.
+     * The bundle is 1106 KB, 306 KB gzipped, measured on 2026-09-13 against this
+     * config. It was 565 KB and 160 KB when this limit was chosen, and the screens
+     * of issues #207, #211 and #212 plus `recharts` are what moved it, so the limit
+     * no longer holds it and the build prints the warning on every run. That is
+     * stated rather than silenced: raising the number to hide a warning teaches
+     * nobody anything, and the fix is a code split of the screens, not a bigger
+     * limit. It is still a long way under what the data alone once cost: carrying
+     * all 4103 invoices made it 1757 KB and 359 KB gzipped, for an eight-month
+     * history no screen of this app opens.
+     *
+     * TODO(FabriBanda): split the screens behind `React.lazy` so the first paint
+     * stops carrying the metrics and design pages, or raise this deliberately and
+     * say why here.
      */
     chunkSizeWarningLimit: 700,
   },

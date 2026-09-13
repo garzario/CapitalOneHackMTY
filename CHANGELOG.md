@@ -1611,6 +1611,77 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- **A whole CLABE was leaving to the model, and printing on two documents** (issue #195, found
+  verifying the wave-1 merges). The account left through the one field nobody thought of as an
+  account: `Finding.explanation`. Control 2 writes the Spanish sentence a person reads, and that
+  sentence names the account the supplier has been paid into, "difiere en 2 digitos de la cuenta
+  012...611, que ya se pago 52 veces". Every surface masked the structured evidence beside it and
+  passed the prose straight through, so the assistant sent eighteen digits to Gemini while its own
+  `evidence.clabe` chip read `****4611`, and the evidence letter printed "cuenta terminada en 4611"
+  three lines above the whole number. ADR-0007 and `docs/06` section 6.2 both forbid a full CLABE
+  leaving the perimeter by name, so the code was wrong and the documents were right.
+
+  Reproduced against the seeded company with every one of the nine tools driven through a real turn:
+  one leak, in `get_instruction`, on the hero line the demo opens on. Fixed in four places and with
+  one implementation: `maskClabesInText`, `clabeLast4` and `carriesFullClabe` now live in
+  `packages/core/src/clabe.ts`, the file that already owns every CLABE rule, and the assistant
+  (`apps/api/src/assistant/mask.ts`), the evidence letter, the run constancia and the offline mock
+  call that one function instead of three. A second implementation is where the first leak lives,
+  which is the argument `packages/core/src/exposure.ts` already makes.
+
+  The existing test did not catch it and that is the more useful half. `tools.test.ts` asserted
+  `carriesFullClabe` over `get_instruction`, but on the hand-written fixture in `synthetic.ts`, whose
+  control 2 explanation names no account: the suite was green while the generated company the demo
+  runs on was not. The new case walks the stopped lines of the generated run and asserts per string
+  value, never over a serialised payload, because a false-positive rate of 0.015873015873015872
+  carries eighteen digits and is arithmetic rather than an account. `scripts/web-mock.ts` gained
+  `assertNoFullAccount`, which fails the generator rather than trusting it, next to the
+  `assertNoVerdict` it already had. The proposal payload is deliberately exempt: it is field for
+  field the body of the request the button sends, and `POST /api/v1/instructions` needs the whole
+  account, which is the property `turn.test.ts` already asserts.
+
+- **The offline panel and the API disagreed about the same read** (issue #195). With the account
+  masked online and not offline, `?data=mock` showed a judge a tool result the live panel
+  structurally cannot produce: the model behind it only ever saw four digits. Regenerated through
+  `bun run web:mock`, so `ASSISTANT_SESSION` reads `****4611` in both the answer and the chips. This
+  is the failure mode of issue 125 in a second place, which is why the generator now asserts it
+  rather than the reviewer noticing.
+
+- The contract said one `line` event per payment and the execution streams one per state (issue
+  #195). On `NessieRail` and `FakeRail` each payment arrives twice, `sent` then `settled`, which is
+  the distinction ADR-0008 refuses to collapse and the reason the payments screen can show progress
+  at all: an 87-line run measured 174 `line` events. A client that counted them would report twice
+  the payments it made. `docs/09` now says so, names `PaymentExecution.lines` as the count to trust,
+  and records that `StpRail` has no `confirm` so each payment there arrives once, as `sent`.
+
+- `docs/09` described a `/health` payload with a `dependencies` block the API did not answer, and
+  quoted the route's own comment while doing it (found verifying issue #195, at which point `/health`
+  returned three keys). Issue #200 landed the block in PR #243 while this verification was running and
+  the document is true again as written, so nothing changed here beyond confirming it: the deployed
+  route now answers `database`, `nessie`, `rail`, `consortium`, `cep`, `extraction` and `voice`.
+
+- ADR-0009 forbade "a percentage" on any screen, and the product shows three: the run composition,
+  the blind evaluation and the transcription confidence (issue #195). None of them is a verdict about
+  a payment and all three are reported next to what they divide, so the ADR now says precisely what it
+  forbids, which is a probability, percentage or score standing for the risk of a payment or for the
+  level of a line. The boundary that matters is unchanged and is now stated as the rule it always
+  was: none of the three appears on a document that leaves the building.
+
+- `bun run scrub` was red on `dev` and nobody had noticed, because CI does not run it (issue #195).
+  Two findings. The 32 hex digits in `docs/05` are the SAP Business One document id inside the
+  citation URL of source 97, a public address anybody can open, now allowed by name with its reason
+  and spelled as a character class so the allow list does not flag itself. The other is the squash
+  message of PR #224, which carries a "Generated with" line and a `Co-authored-by` trailer that
+  GitHub wrote: it is on `dev` and cannot be amended without rewriting shared history, so the commit
+  scan now passes the sha where a file scan passes a path and that one commit is recorded with what
+  happened. A gate that can never go green is a gate somebody starts ignoring, and the point of
+  recording it is that the NEXT violation still fails.
+
+- `apps/web/vite.config.ts` claimed a 565 KB bundle, 160 KB gzipped. It is 1106 KB and 306 KB,
+  measured 2026-09-13, and the warning prints on every build. The comment now carries the measured
+  number with its date and a TODO for the code split, because raising the limit to silence a warning
+  teaches nobody anything and "every number comes with a source" applies to a config comment too.
+
 - The photo and voice-note intake against the model this repository actually configures (issue
   #197, found while building the panel). `packages/extract` sent
   `thinkingConfig: { thinkingBudget: 0 }` on every request, which Gemini 2.5 accepts and

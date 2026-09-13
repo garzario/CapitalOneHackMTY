@@ -227,6 +227,49 @@ export function parseClabeParts(clabe: string): ClabeParts {
   };
 }
 
+/** How many trailing digits of an account survive a mask. */
+export const CLABE_VISIBLE_DIGITS = 4;
+
+/** The last four digits, which is how every surface of this product names an account. */
+export function clabeLast4(clabe: string): string {
+  return clabe.slice(-CLABE_VISIBLE_DIGITS);
+}
+
+/**
+ * `012580100091764611` becomes `****4611`, anywhere inside a sentence.
+ *
+ * It is here, in the file that owns every CLABE rule, because three surfaces need
+ * the same answer and two of them had already got it wrong by writing their own.
+ * `Finding.explanation` is the reason: control 2 writes the Spanish sentence a
+ * person reads, and that sentence names the account the supplier has been paid into
+ * ("difiere en 2 digitos de la cuenta 012...611, que ya se pago 52 veces"). Every
+ * surface that carries a finding therefore carries a full account in prose unless it
+ * masks the prose too, and masking the structured evidence next to it is not enough:
+ * the assistant was sending eighteen digits to a third party while its own
+ * `evidence.clabe` read `****4611`, and the evidence letter printed "cuenta terminada
+ * en 4611" three lines above the whole number.
+ *
+ * Pure, and deliberately a replace over any eighteen-digit run rather than a
+ * per-field projection: a detector that writes a new sentence tomorrow gets the mask
+ * for free, and the alternative, which is each surface remembering, is the shape of
+ * both leaks this function exists to close.
+ */
+export function maskClabesInText(value: string): string {
+  return value.replace(/\d{18}/g, (digits) => `****${clabeLast4(digits)}`);
+}
+
+/**
+ * True when this text still carries a full account number.
+ *
+ * The predicate a test asserts with, so a surface added later that forgets the mask
+ * fails the suite instead of failing at a judge's table. Asserted per string value
+ * and never over a serialised payload: a float such as a false-positive rate of
+ * 0.015873015873015872 carries eighteen digits and is not an account.
+ */
+export function carriesFullClabe(value: string): boolean {
+  return /\d{18}/.test(value);
+}
+
 /**
  * Digits that are read as one another, as groups.
  *

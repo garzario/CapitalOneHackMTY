@@ -42,6 +42,7 @@ import type {
 import {
   assessConfidence,
   executionLineOf,
+  maskClabesInText,
   transactionStateOf,
 } from "@hackmty/core";
 import type {
@@ -217,10 +218,30 @@ function toolCall(
     id: `${input.sessionId}-${input.seq}-tool-${index}`,
     tool,
     arguments: args,
-    result,
+    /* Masked for the reason `apps/api/src/assistant/mask.ts` masks it: a tool result
+       is what left the perimeter, so the API can only ever have sent four digits of
+       an account. An offline chip that showed eighteen would have the two modes of
+       this panel disagree about the same read, which is the failure issue 125 cost
+       us on a legal name and the reason `scripts/web-mock.test.ts` exists. The
+       issue number is written without its hash because `design/tokens.test.ts`
+       reads a three-digit one as a colour literal, which is why `lib/mock.ts`
+       spells it the same way. */
+    result: maskedResult(result),
     at: input.at,
     readOnly: true,
   };
+}
+
+/** Every string in a tool result, with any account in it down to four digits. */
+function maskedResult(
+  result: Record<string, EvidenceValue>,
+): Record<string, EvidenceValue> {
+  return Object.fromEntries(
+    Object.entries(result).map(([key, value]) => [
+      key,
+      typeof value === "string" ? maskClabesInText(value) : value,
+    ]),
+  );
 }
 
 /** Why the line is stopped: the engine's own explanation, then level and state. */
@@ -552,6 +573,13 @@ export function tokenize(text: string, wordsPerToken = 4): string[] {
 export function offlineTurn(input: OfflineTurnInput): AssistantStreamEvent[] {
   const answer = answerFor(input);
   const events: AssistantStreamEvent[] = [];
+  /* The answer quotes `Finding.explanation`, and control 2 writes the known account
+     into that sentence. Online the model never saw more than four digits of it, so it
+     could not write the other fourteen even if it tried; offline the sentence is the
+     engine's own and is masked here so the two modes read the same. The proposal
+     payload below is deliberately NOT masked: it is the body of the request the
+     button sends, and the intake endpoint needs the whole account. */
+  const text = maskClabesInText(answer.text);
 
   for (const call of answer.toolCalls) {
     const started: AssistantToolCall = {
@@ -566,8 +594,8 @@ export function offlineTurn(input: OfflineTurnInput): AssistantStreamEvent[] {
     events.push({ kind: "tool_result", call });
   }
 
-  for (const text of tokenize(answer.text)) {
-    events.push({ kind: "token", text });
+  for (const chunk of tokenize(text)) {
+    events.push({ kind: "token", text: chunk });
   }
 
   if (answer.proposal !== undefined) {
@@ -578,7 +606,7 @@ export function offlineTurn(input: OfflineTurnInput): AssistantStreamEvent[] {
     id: `${input.sessionId}-${input.seq}`,
     sessionId: input.sessionId,
     author: "assistant",
-    text: answer.text,
+    text,
     at: input.at,
   };
 
