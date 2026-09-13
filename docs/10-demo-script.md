@@ -513,3 +513,7 @@ volunteered reason costs nothing; a silent workaround looks like a trick.
 - Never demo from a branch. Always from what is deployed, or from `main`.
 - Never start a long agent run or a refactor inside the demo window.
 - Never say a number that is not on the screen.
+
+## Backup video
+
+A narrated recording of the stand beats exists for the case the room has no signal: `sentryone-demo.mp4` (2 minutes 39 seconds, 1600x1000, H.264 and AAC) and a 30-second cut, both attached to the v1.0.0 release on GitHub. It was produced without a person on camera: headless Chrome drove the app on the seeded company in `?data=mock`, the narration is the Spanish stand script read by the ElevenLabs voice of the verification call, and ffmpeg mixed one clip per beat under its segment. No binary lives in the repository. Everything on screen is the synthetic company and the recording says so on its title card.
