@@ -27,6 +27,7 @@
 
 export * from "./client";
 export * from "./fixtures";
+export * from "./numbers";
 export * from "./outcome";
 export * from "./owner-fixtures";
 export * from "./owner-outcome";

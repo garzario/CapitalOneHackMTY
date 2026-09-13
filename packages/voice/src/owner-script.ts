@@ -49,11 +49,11 @@
  * speech model and not by a person on a screen.
  */
 
+import { amountInWords } from "./numbers";
 import {
   BANNED_PHRASES,
   DEFAULT_COMPANY_NAME,
   last4,
-  spokenAmount,
   spokenLast4,
 } from "./script";
 
@@ -376,7 +376,13 @@ export function buildOwnerScript(input: OwnerScriptInput): OwnerScript {
     owner: input.ownerName?.trim() || DEFAULT_OWNER_NAME,
     company: input.companyName?.trim() || DEFAULT_COMPANY_NAME,
     supplier: input.supplierLegalName.trim(),
-    amount: spokenAmount(input.amount),
+    /* In words, never in digits. Heard on the live call of 2026-09-13: given
+       "$537,960.97 pesos" the text to speech model said "cincuenta y tres mil
+       setecientos noventa y seis pesos con noventa y siete centavos", a tenth of
+       the figure, to the one person this product lets release a payment. The
+       grouping comma is a convention the model does not have to honour, so
+       nothing spoken carries digits at all. `numbers.ts` has the rest. */
+    amount: amountInWords(input.amount),
     /* Spaced, so the model reads four characters one at a time instead of
        "nueve mil ochocientos ocho", which is what a live call answered when the
        digits went out compact. `clabeLast4` below stays compact, because that is

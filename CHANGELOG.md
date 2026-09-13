@@ -253,6 +253,28 @@ section landed after that tag was cut.
   Measured rather than reasoned this time: two API processes on two ports, one with `SEED=sentryone`
   and one with nothing, answering ninety-two and twelve.
 
+- **The owner heard a tenth of the amount he was being asked to release** (issue #216). On a real
+  call the owner line was handed `$537,960.97 pesos` as its `amount` variable, which is exactly right
+  on a screen, and the text to speech model read it out as "cincuenta y tres mil setecientos noventa
+  y seis pesos con noventa y siete centavos". A digit gone, the figure off by an order of magnitude,
+  said to the one person this product lets release a payment. The model is reading glyphs and
+  guessing at a grouping, and a comma every three digits is a convention it does not have to honour,
+  so there was nothing to fix in the prompt. `spokenLast4` had already learned the same lesson from
+  the other end, where "4611" came back as "cuatro mil seiscientos once".
+
+  Nothing spoken carries digits any more. `amountInWords` in `packages/voice/src/numbers.ts` writes
+  the amount in Mexican Spanish words up to nine digits of pesos, with the apocope before a masculine
+  noun ("un peso", "veintiún pesos", "ciento un pesos"), "mil" with no one in front of it, "cien"
+  against "ciento", and the "de" that a round million takes and a million with anything after it does
+  not. Under a peso it says the centavos alone, which is what the one-cent probe of `packages/rail`
+  is, and a round figure gets no centavos clause. It refuses a negative amount, an infinity and
+  anything above 999,999,999 pesos rather than saying it wrong, because past that the words would
+  need "mil millones" and Mexican Spanish does not agree with the rest of the Spanish-speaking world
+  about what that is. Both lines use it, the owner call and the supplier call, so the amount the
+  owner hears and the amount the supplier hears are built the same way, and the twenty-five figures
+  of the table in `numbers.test.ts` include the one that was said wrong. What a screen shows is
+  unchanged: `formatMoney` in `apps/web` is read with the eyes, where a comma helps.
+
 ## [1.0.0] - 2026-09-13
 
 Everything below is the content of `[1.0.0]`, the HackMTY 2026 submission. The order inside each

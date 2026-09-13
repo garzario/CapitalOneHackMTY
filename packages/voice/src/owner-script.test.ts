@@ -162,11 +162,35 @@ describe("buildOwnerScript", () => {
   test("says the amount, the supplier and four digits of the account", () => {
     expect(script.firstMessage).toContain(DEFAULT_OWNER_NAME);
     expect(script.firstMessage).toContain(DEFAULT_COMPANY_NAME);
-    expect(script.spoken[1]).toContain("$92,480.50 pesos");
+    expect(script.spoken[1]).toContain(
+      "noventa y dos mil cuatrocientos ochenta pesos con cincuenta centavos",
+    );
     expect(script.spoken[1]).toContain(SUPPLIER);
     expect(script.clabeLast4).toBe("7899");
     /* Spaced, because a live call read "4611" as a quantity. */
     expect(script.spoken[1]).toContain("7 8 9 9");
+  });
+
+  /**
+   * The reason this file stopped handing the provider a formatted figure. On the
+   * live call of 2026-09-13 the variable went out as "$537,960.97 pesos" and the
+   * text to speech model said "cincuenta y tres mil setecientos noventa y seis
+   * pesos con noventa y siete centavos", a tenth of the amount, to the person
+   * being asked whether to release it. The grouping comma is a convention the
+   * model does not have to honour, so the amount travels in words.
+   */
+  test("hands the provider the amount in words, with no digit in it", () => {
+    expect(script.dynamicVariables.amount).toBe(
+      "noventa y dos mil cuatrocientos ochenta pesos con cincuenta centavos",
+    );
+    expect(script.dynamicVariables.amount).not.toMatch(/\d/);
+    expect(script.dynamicVariables.amount).not.toContain("$");
+
+    const big = buildOwnerScript(input({ amount: 537_960.97 }));
+
+    expect(big.dynamicVariables.amount).toBe(
+      "quinientos treinta y siete mil novecientos sesenta pesos con noventa y siete centavos",
+    );
   });
 
   test("never puts the whole account anywhere, spoken or on the wire", () => {

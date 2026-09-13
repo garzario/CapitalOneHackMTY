@@ -28,12 +28,14 @@ const AGENT_OPENING: VerificationTurn = {
  * The situation and the question, in one agent turn.
  *
  * Two short sentences and one question, which is the whole call. It reads four
- * digits of the account and no more, and it names both plazas, which is the
- * signal that held the payment in the first place.
+ * digits of the account and no more, it says the amount in words because a
+ * figure with grouping commas was read out as a tenth of itself on a live call,
+ * and it names both plazas, which is the signal that held the payment in the
+ * first place.
  */
 const AGENT_QUESTION: VerificationTurn = {
   role: "agent",
-  text: "Son $92,480.50 pesos a Distribuidora Sintetica del Poniente, S.A. de C.V. La cuenta es nueva, termina en 7 8 9 9 y no es la que le hemos pagado antes. Esa cuenta se abrió en DISTRITO FEDERAL y las cuentas que ya le hemos pagado están en APODACA. ¿La retenemos hasta verificarla, o la libera bajo su nombre?",
+  text: "Son noventa y dos mil cuatrocientos ochenta pesos con cincuenta centavos a Distribuidora Sintetica del Poniente, S.A. de C.V. La cuenta es nueva, termina en 7 8 9 9 y no es la que le hemos pagado antes. Esa cuenta se abrió en DISTRITO FEDERAL y las cuentas que ya le hemos pagado están en APODACA. ¿La retenemos hasta verificarla, o la libera bajo su nombre?",
   atSecond: 11,
 };
 

@@ -8,7 +8,6 @@ import {
   REQUIRED_DISCLOSURE,
   renderVerificationText,
   scriptForInstruction,
-  spokenAmount,
   spokenLast4,
   VERIFICATION_CLOSING_LINE,
   VERIFICATION_TEMPLATE,
@@ -87,17 +86,6 @@ describe("spokenLast4", () => {
 
   test("says nothing when there were no digits to say", () => {
     expect(spokenLast4("")).toBe("");
-  });
-});
-
-describe("spokenAmount", () => {
-  test("says the currency out loud so pesos are never ambiguous", () => {
-    expect(spokenAmount(184_300)).toContain("184,300.00");
-    expect(spokenAmount(184_300).endsWith(" pesos")).toBe(true);
-  });
-
-  test("keeps the cents of a one-cent probe", () => {
-    expect(spokenAmount(0.01)).toContain("0.01");
   });
 });
 
@@ -316,9 +304,25 @@ describe("buildVerificationScript", () => {
     expect(built.firstMessage).toContain(
       "Distribuidora Sintetica del Poniente",
     );
-    expect(built.purpose).toContain("184,300.00");
+    expect(built.purpose).toContain(
+      "ciento ochenta y cuatro mil trescientos pesos",
+    );
     expect(built.question).toContain("7 8 9 9");
     expect(built.clabeLast4).toBe("7899");
+  });
+
+  /**
+   * The amount is said in words and the purpose line is the only place it is
+   * said. A live call of 2026-09-13 read "$537,960.97 pesos" out as a tenth of
+   * itself, because the grouping comma is a convention the text to speech model
+   * does not have to honour, so no sentence of this script carries a digit that
+   * is not one of the four of the account.
+   */
+  test("says the amount in words, so no comma is left to regroup", () => {
+    const built = script();
+
+    expect(built.purpose).not.toMatch(/\d/);
+    expect(built.purpose).not.toContain("$");
   });
 
   /**

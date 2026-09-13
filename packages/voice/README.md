@@ -59,6 +59,13 @@ When the supplier has no other account on file the purpose line drops the
 comparison and the question asks only whether this account is theirs. There is no
 third wording.
 
+`{amount}` arrives already in words, from `amountInWords` in `numbers.ts`, and
+`{4 digits}` arrives spaced. Nothing this package speaks carries a digit,
+because on live calls the text to speech model read `$537,960.97 pesos` out as a
+tenth of itself and "4611" as "cuatro mil seiscientos once": the grouping comma
+and the four characters of an account tail are conventions it does not have to
+honour. Digits are for the screen, where `formatMoney` in `apps/web` puts them.
+
 ## The rules the script may not break
 
 0. **The call says what it is, in the greeting.** "La línea automática de pagos a
