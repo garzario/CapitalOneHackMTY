@@ -518,6 +518,70 @@ then the screens, then the narrative, then the plumbing.
   states the three ways into that endpoint, the order the `claveRastreo` form tries them in, and
   where the line between "no verificada" and "invalida" is drawn.
 
+- What a client gets when the product is wrong, on both sides of the error, and the law that decides
+  how any of it may be written (issue #194). A second Capital One panel asked on the evening of
+  2026-09-12 whether the subscription should include an insurance policy covering losses up to an
+  amount per tier, phrased as "you mark a payment as safe and it turns out to be fraud".
+  `docs/05-business-model.md` gains "When a released payment is fraud: what the client gets", four
+  layers at four stages of maturity, and the premise is corrected before anything is promised: `Action`
+  in `packages/core/src/domain.ts` is `hold`, `verify` or `release` and there is no fourth value
+  meaning safe. Layer 1 exists today and is evidence rather than safety: the six controls and their
+  findings from `runControls`, the CEP holder name when it was obtained with `not_checked` never
+  dressed up as a pass, and the append-only `LedgerEvent`, which together are the file a client takes
+  to its bank, to an insurer or to the SAT inside the thirty-day window article 69-B opens. Layer 2 is
+  the commitment we can fund ourselves and it is labelled a proposal: four weeks of shadow mode at no
+  charge, a service credit, and a make-whole capped at the lower of twelve months of the tier and the
+  fees actually paid, MXN 10,788 direct and MXN 2,340 per client company through a firm, funded by
+  reserving 10 percent of collected subscription revenue. That reserve costs ten points of gross
+  margin, accrues one full cap per ten paying companies per year, and therefore stays solvent only
+  while qualifying events run at or below 10 percent of accounts a year, which is why the contract has
+  to cap the make-whole by the reserve balance as well as per company. It attaches only when all six
+  controls ran, the seal was `valid` and `nameMatch` was `match`, and the release was signed
+  `SYSTEM_DECIDER`, never after a person's override, so today almost nothing would qualify:
+  `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal reads `not_checked` until
+  the real Banxico certificate lands. Layer 3 is the insurance layer, which only an authorised insurer
+  may write and where our asset is the underwriting input nobody else brings. Layer 4 answers the error
+  the panel did not ask about and a payables desk meets every week, a legitimate payment held: the
+  delay is bounded by `HOLD_WINDOW_DAYS` in `packages/core/src/hold.ts`, which is the same
+  `EXPECTED_DELAY_DAYS` the expected loss was weighed against, three days for a hold and one for a
+  verification, the owner ends it whenever they want under their own name and written reason through
+  `POST /api/v1/instructions/:id/decide`, and the day already carries a price per supplier,
+  `Supplier.delayCostPerDay` from `packages/seed/src/sentryone/delay-cost.ts`, MXN 101.98 to MXN
+  4,611.27 across the 44 suppliers with a median of MXN 353.13. The proposed remedy is a service credit
+  against the next invoice at that price, capped at one month of the tier per event and two months per
+  rolling twelve months, MXN 1,798 direct and MXN 390 through a firm, leaving 66 percent gross margin
+  direct and 41 percent through a firm in the worst case where every account claims the whole cap every
+  year. What makes that layer worth reading is the arithmetic that rules out the obvious version of it:
+  6 of 92 lines stopped on the seeded run, 3 of the 20 findings the blind evaluation raised were false,
+  so about 78 days of wrong delay a year, MXN 27,500 at the median supplier price and MXN 53,800 at the
+  mean, against MXN 10,788 of annual subscription. Paying the full priced delay is two and a half to
+  five times the price, so it is not a commitment, it is an arithmetic error, and the cap is stated
+  with what it does not reach: on the most expensive line of the run it pays 8.8 percent of a three-day
+  hold. `docs/06-regulatory-privacy.md` gains section 2.2 with the law behind all four layers, read in
+  the texto vigente of the Ley de Instituciones de Seguros y de Fianzas on 2026-09-12. Article 20
+  reserves any operación activa de seguros to authorised Instituciones and Sociedades Mutualistas and
+  defines one as obliging oneself, against the payment of a sum of money, to repair a damage or pay a
+  sum of money should a future and uncertain event occur, which is what a payout on fraud would be;
+  article 24 makes a contract concluded against it produce no legal effect at all; article 495,
+  fracción I attaches three to fifteen years of prison and a fine; articles 91 and 93 reserve
+  intermediation to authorised agentes de seguros; and article 102 is the one lawful channel, a
+  contrato de adhesión contracted through a persona moral whose service contract is registered with the
+  Comisión in advance and which is then subject to its inspection. That is why every commitment here is
+  a price remedy against our own fees rather than an indemnity, why the delay credit is applied against
+  the next invoice, and why no proof of loss is asked: paying against evidence of a lost sale would be
+  resarcir un daño, the verb article 20 uses. Ten more sources, all opened 2026-09-12, are quoted
+  rather than characterised: Trustpair indemnifies with no amount, condition or exclusion on the page
+  and sells to the largest corporations in the world, nsKnox publishes only website terms that cap
+  liability at what the user paid it, Eftsure answered a redirect loop so nothing is attributed to it,
+  Verificamex takes "el más amplio deslinde de responsabilidad que en derecho proceda", and of the
+  three Mexican policies we opened the closest wording, BBVA's `Fraude Digital` for PyME, excludes our
+  loss twice, because our transfer is authorised by the client's own clerk from the bank's own portal.
+  `docs/12-judge-qa.md` gains subsection 8 of "Second table of 12 September" with the thirty-second
+  spoken answer and the five gaps to volunteer, and the ten sources this work opened are numbered 57 to
+  66, continuing the sequence `docs/04-market.md` and `docs/05-business-model.md` share. Nothing here has been reviewed by counsel and the article 20 consultation
+  the statute provides for has not been filed, so the caps and the word guarantee stay out of any
+  contract, price list and screen until both have happened.
+
 ### Changed
 
 - A second Capital One panel came to the table on the evening of 2026-09-12, said the project was
@@ -631,6 +695,70 @@ then the screens, then the narrative, then the plumbing.
   be 9.3 percent of the 6,476, so that half leaves Nuevo Leon after the first year or it does not happen.
   `docs/01-rubric-mapping.md` rows 8, 11 and 14 point at the renamed sections and row 11 now describes
   counts instead of steps, and ADR-0006's link to the renamed GTM section is fixed.
+
+- The rate a second Capital One panel asked for on the evening of 2026-09-12, answered as a bracket
+  with its arithmetic on the page instead of as the number a teammate said (issue #192). The question
+  was what percentage of supplier transfers in Mexico is stolen and the answer given at the table was
+  25.4 percent, which is in no source this repository holds: it is the 24.3 percent of Condusef's
+  refund share misremembered, a share of disputed pesos that came back rather than a share of
+  transfers that left, and as a loss rate it is wrong by three orders of magnitude. `docs/04-market.md`
+  gains "The rate on supplier transfers, and how it is derived" ahead of the sizing, and the honest
+  answer is that **nobody publishes that rate**, not Banxico, not Condusef, not the CNBV, not the ABM,
+  not INEGI. What is published brackets it. Possible-fraud claims against banks in 2025 over SPEI
+  transfers in the same year give **7.1 per 10,000**, a ceiling because the numerator counts cards and
+  ATM and internet purchases while the denominator counts only SPEI and because the denominator is a
+  "more than". Unrecognised electronic transfers that reached Condusef in the first half of 2026 over
+  half of that denominator give **2.1 per million**, a floor because the escalated register is about
+  nineteen times smaller than the one claims are made to; the two errors in that second ratio push in
+  opposite directions, a factor of nineteen against a factor of 1.37, so the net is argued in the file
+  rather than asserted. **Say the bracket, never a point inside it.** Three more derivations follow,
+  each with its formula and inputs printed so a judge can reject a cell instead of the method: INEGI's
+  522 fraud events per 10,000 economic units a year, which is the unit a buyer actually buys in, the
+  MXN 958.91 of expected annual cost it implies on the national average and the admission that this
+  does not pay for MXN 10,788 of subscription on its own, and the same figure scaled to pequena and
+  mediana through the only size gradient INEGI publishes, MXN 2,770 and MXN 9,108, labelled modelled
+  because the cross of size against crime type is ours and not INEGI's. The negotiation sentence is
+  the ratio that comes out of it, **6.9 percent** of what INEGI already measures a small company
+  spending and losing on crime in a year and **2.1 percent** for a medium one, and the close is an
+  admission rather than a claim: we do not know your rate and neither does anybody else, which is what
+  the free supplier-register sweep and its stop condition exist to measure. The international analogue
+  is labelled as an analogue: UK Finance counts our exact attack and puts **68 percent of invoice and
+  mandate losses on business accounts** and **37.0 percent of all business APP losses** on it, which
+  over Pay.UK's Faster Payments volume is about **7 payments in every 10 million**, and Pay.UK's own
+  Confirmation of Payee milestone attributes no measured share of any fraud fall to the service, so
+  neither do we. Eight sources were added, 67 to 74, every link opened on 2026-09-12.
+
+- Two sentences in `docs/04-market.md` were corrected against their own sources in the same pass,
+  because finding them and leaving them is worse than the original error (issue #192). INEGI's
+  `Fraude` category **is** defined: footnote 1 to cuadro 3 and grafica 4 of the comunicado reads
+  "Incluye fraude bancario y fraude al consumo del establecimiento", so bank fraud is named, and the
+  earlier claim that the category was neither defined nor broken down was true only of the
+  presentation. What still does not exist is a supplier-impersonation subcategory or any split between
+  the two things that footnote bundles. And Banxico SIE table CF891 does not answer its export
+  endpoints with the page shell: re-probed on 2026-09-12, `&tipoArchivo=CSV`, `&tipoArchivo=XLS`,
+  `&tipoArchivo=IQY` and `&formatoXLS=true` each answer HTTP 400 with the same 146-byte message about
+  an invalid character in a form field, which is a rejection and not a silent fallback, while the page
+  itself answers HTTP 200 with about 164 KB of HTML carrying no table element, no series identifier
+  and no year. Sources 14 and 15 were read again and now carry what was taken from them, including the
+  ENVE universe of about 4.8 million economic units that derivation 3 divides by, which is implied by
+  the survey's own 27.2 percent on 1.3 million victims and is a different universe from the 5,468,180
+  of the Censos Economicos.
+
+- `docs/11-pitch.md` and `docs/12-judge-qa.md` carry the answer and the ban (issue #192). The numbers
+  table gains six rows, the bracket among them, each pointing at the derivation rather than repeating
+  it. Delivery rules gain a third banned sentence next to "nadie hace esto" and "nosotros inventamos
+  la prueba del centavo": **25.4 percent, and any other single percentage offered as the rate of fraud
+  on supplier transfers**, with the two-sentence Spanish replacement written out, the bracket first and
+  then the 24.3 percent said correctly. `docs/12-judge-qa.md` gains "Second table of 12 September" with
+  the question, the thirty-second answer, the close and one instruction about order: do not volunteer
+  the bracket before the fiscal hook, because a panel that hears two per million first has been handed
+  a reason to think the fraud half is rare. The honest-gap line of section 6 was updated in the same
+  pass, since it claimed we had no frequency figure at all and now there is a national one that is not
+  a figure for this size band. The `Tests` row of the numbers table was re-read after the merge this
+  branch carries, because the cell says to do that and a judge who runs `bun test` next to the pitch
+  sees both numbers: 1,881 tests across 100 files, 1,769 passing, 112 skipped, 0 failing. The same
+  counts in `docs/01-rubric-mapping.md` row 7 still read 1,725 and 111 and were left alone, because
+  that file is not on this branch's path.
 
 - `docs/12-judge-qa.md` gains "Table feedback of 12 September and the answers": the six objections,
   a thirty-second answer each, and the file or the endpoint each answer rests on named once. The rule
