@@ -1,7 +1,7 @@
 /**
  * The receipt of one payment, as the page an accountant files.
  *
- * It is the third document of this package and it deliberately reuses everything the
+ * It is the fourth document of this package and it deliberately reuses everything the
  * two constancias already established: the same header, the same synthetic band, the
  * same ledger digest with the same sentence that it is not an electronic signature.
  * A receipt that looked like a different product would be a document somebody has to
@@ -34,7 +34,7 @@ import {
   type ConstanciaCommon,
   closeWithFingerprint,
   localStamp,
-  open,
+  openSheet,
 } from "./document";
 import { PdfDocument } from "./pdf";
 
@@ -71,7 +71,7 @@ export function paymentReceipt(input: PaymentReceiptInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Comprobante de pago",

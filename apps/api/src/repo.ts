@@ -29,8 +29,9 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { runMoney, sumAmounts } from "@hackmty/core";
+import { runLevels, runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
+import { levelled } from "./levels";
 import type {
   InstructionDetail,
   PaymentRun,
@@ -201,8 +202,14 @@ export interface Repository {
   ledger(query: LedgerQuery): Promise<LedgerEvent[]>;
   /**
    * Every event the verification of one instruction is folded out of, in append
-   * order: its `cent_sent`, `cep_awaited` and `decision_made`, plus the
-   * `cep_verified` of the account it pays to.
+   * order: its `cent_sent`, `cep_awaited`, `verification_call` and
+   * `decision_made`, plus the `cep_verified` of the account it pays to.
+   *
+   * `verification_call` is on the list because the call to the supplier is part of
+   * verifying who holds the account, and the evidence letter of issue #204 names it
+   * as one of its seven signals. `foldVerification` ignores it: the state machine
+   * turns on the CEP and a call is not a document, which is the distinction
+   * `docs/09-api.md` draws between the two.
    *
    * A targeted read rather than a slice of `ledger`, because the seeded company's
    * ledger is thousands of events long and that one answers the oldest 500: the
@@ -449,12 +456,17 @@ export class MemoryRepository implements Repository {
         // An instruction always has a supplier row by the time it is stored.
         continue;
       }
-      items.push({
-        instruction: copy(instruction),
-        supplier: copy(supplier),
-        decision: copy(this.decisionRow(instruction.id) ?? null),
-        findings: copy(this.findingsFor(instruction.id)),
-      });
+      /* `levelled` attaches the level and the state through `assessLine` in
+         `@hackmty/core`, which is the one place either is derived. This store does
+         not know the ADR-0009 table and must not learn it. */
+      items.push(
+        levelled({
+          instruction: copy(instruction),
+          supplier: copy(supplier),
+          decision: copy(this.decisionRow(instruction.id) ?? null),
+          findings: copy(this.findingsFor(instruction.id)),
+        }),
+      );
     }
 
     const actions = items.map((item) => item.decision?.action);
@@ -472,6 +484,8 @@ export class MemoryRepository implements Repository {
            implementations of "how much did this run stop" is how a screen and a
            constancia end up disagreeing in front of a judge. */
         ...runMoney(items),
+        // And the run by level and by state, from the same file as the per-line pair.
+        ...runLevels(items),
       },
       items,
     };
@@ -661,7 +675,11 @@ export class MemoryRepository implements Repository {
   ): Promise<LedgerEvent[]> {
     return copy(
       this.data.ledger.filter((event) => {
-        if (event.type === "cent_sent" || event.type === "cep_awaited") {
+        if (
+          event.type === "cent_sent" ||
+          event.type === "cep_awaited" ||
+          event.type === "verification_call"
+        ) {
           return event.instructionId === instructionId;
         }
         if (event.type === "decision_made") {

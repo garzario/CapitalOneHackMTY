@@ -111,13 +111,15 @@ export interface RunConstanciaInput extends ConstanciaCommon {
   execution?: PaymentExecution;
 }
 
-const ACTION_LABEL: Readonly<Record<Action, string>> = {
+/** How a proposed action is written on any document of this package. */
+export const ACTION_LABEL: Readonly<Record<Action, string>> = {
   hold: "Detenido",
   verify: "Por verificar",
   release: "Liberado",
 };
 
-const STATUS_LABEL: Readonly<Record<string, string>> = {
+/** How a 69-B situation is written on any document of this package. */
+export const STATUS_LABEL: Readonly<Record<string, string>> = {
   presunto: "Presunto",
   desvirtuado: "Desvirtuado",
   definitivo: "Definitivo",
@@ -138,7 +140,7 @@ const MONTERREY_OFFSET_MINUTES = -360;
 /**
  * One instant, as the person reading the document sees their own clock.
  *
- * Exported because all three documents of this package print instants and a second
+ * Exported because all four documents of this package print instants and a second
  * implementation would put two timezones on one desk.
  */
 export function localStamp(iso: string): string {
@@ -162,11 +164,11 @@ const NOT_A_SIGNATURE =
  * Draws the header every document of this package shares, and returns the sheet to
  * continue on.
  *
- * Exported for the same reason `localStamp` and `closeWithFingerprint` are: the
- * receipt in `./receipt.ts` is the third document here, and a header it drew itself
- * would drift away from the two constancias the first time somebody changed a margin.
+ * Exported because `./letter.ts` and `./receipt.ts` are the third and fourth
+ * documents and both are the same heading: the synthetic band, the title, the company
+ * and the instant. A second header would be a second document standard on one desk.
  */
-export function open(
+export function openSheet(
   doc: PdfDocument,
   input: ConstanciaCommon,
   title: string,
@@ -188,7 +190,11 @@ export function open(
   return sheet;
 }
 
-/** The digest block, identical on all three documents so it reads the same way. */
+/**
+ * The digest block, identical on both constancias and on the receipt so it reads the
+ * same way. The letter compresses the same digest into two fields, because it is one
+ * page by contract, and `./letter.ts` says so where it does it.
+ */
 export function closeWithFingerprint(
   sheet: Sheet,
   input: ConstanciaCommon,
@@ -227,7 +233,7 @@ export function sweepConstancia(input: SweepConstanciaInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Constancia de revision, articulo 69-B",
@@ -307,7 +313,7 @@ export function runConstancia(input: RunConstanciaInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Constancia de corrida de pagos",
@@ -591,7 +597,12 @@ function state(finding: Finding): string {
 }
 
 /** Suggested filename, so a browser saves something a person can find again. */
-export function constanciaFilename(kind: "sweep" | "run", id: string): string {
+export function constanciaFilename(
+  kind: "sweep" | "run" | "carta",
+  id: string,
+): string {
   const safe = id.replace(/[^A-Za-z0-9._-]+/g, "-");
-  return `constancia-${kind}-${safe}.pdf`;
+  return kind === "carta"
+    ? `carta-${safe}.pdf`
+    : `constancia-${kind}-${safe}.pdf`;
 }

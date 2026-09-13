@@ -48,7 +48,12 @@ import type {
   Supplier,
   SweepResult,
 } from "@hackmty/core";
-import { lookupInstitution, runMoney, sumAmounts } from "@hackmty/core";
+import {
+  lookupInstitution,
+  runLevels,
+  runMoney,
+  sumAmounts,
+} from "@hackmty/core";
 import type {
   CepVerification,
   InstructionDetail,
@@ -241,6 +246,10 @@ export function totalsFor(items: readonly PaymentRunItem[]): PaymentRunTotals {
     toVerify: countOf("verify"),
     released: countOf("release"),
     ...runMoney(items),
+    /* And the run by level and by state, from the same file as the pesos. A screen
+       that recomputed the money here and the levels somewhere else would be the
+       four implementations ADR-0009 removed. */
+    ...runLevels(items),
   };
 }
 
