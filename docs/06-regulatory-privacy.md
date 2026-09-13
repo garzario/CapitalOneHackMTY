@@ -346,7 +346,7 @@ business days.
 |---|---|---|
 | Beneficiary account holder name on a CEP | The receiving institution's Confirmación de Abono, retrieved for the client's own payment | It names whoever received the money. When the beneficiary is a persona física con actividad empresarial it is plainly personal data |
 | Supplier legal name, RFC and contact | The client's own CFDI ledger and payment instructions | An RFC of a persona física identifies that person directly |
-| The clerk's identity | `Decision.decidedBy` | It records who authorised a payment, which is data about an employee |
+| The clerk's identity | The `X-Actor` header, stored as `Decision.decidedBy` plus `decidedByRole` and as `actor` on the ledger events a person caused | It records who authorised a payment and in what capacity, which is data about an employee. See 4.4 for why the header is not authentication |
 | Voice notes and photographs of payment instructions | WhatsApp and email intake | A voice is biometric-adjacent, and an image of a document may carry a signature or a phone number |
 
 We treat all four as personal data and apply the law to all four. Whether a persona moral is a
@@ -431,6 +431,47 @@ read on the portal on 2026-09-12.
    `domain.ts` already keeps `Cep.signatureValid` and `Cep.xml` for exactly this reason.
    `TODO(garzario)`: add `validatedAt` to `Cep` so a stored verdict carries the date it was obtained,
    and make the UI show the age of a verification instead of presenting it as timeless.
+
+### 4.4 The identity selector is a demo affordance, not authentication
+
+Every write endpoint requires an `X-Actor` header carrying a name and a role, the API records it on
+the append-only ledger, and the screens pick it from a list of the two people in the synthetic
+company. **None of that is authentication and this page says so rather than letting a reader assume
+it.** The header is chosen by the caller, nothing verifies it, there is no password, no session and
+no account, and a `curl` can claim to be the owner as easily as the browser can.
+
+What the header is for is the thing ADR-0002 does demand: that every action on somebody's money has
+a person's name against it in a record nobody can rewrite. That is an accountability requirement and
+it is satisfied by recording the identity. It is not an access-control requirement, and we do not
+claim to satisfy one.
+
+Why it is built this way rather than with a login:
+
+- The product is opened in the middle of a payment run by one clerk who is already authenticated into
+  her bank and her CFDI portal. A registration step in front of "stop this payment" is the step that
+  makes somebody pay first and check later, which is the failure this product exists to prevent.
+- The 36 hours are better spent on the six controls than on a session store. An authentication
+  system built in a hackathon is the worst of both worlds: it looks like a control and it is not one.
+- The boundary is honest in the code. `ACTOR_HEADER` in `apps/api/src/middleware/actor.ts` carries
+  this paragraph in its own comment, `docs/09-api.md` says the header is caller-controlled, and
+  `apps/web/src/lib/actor.ts` says it in the data layer the selector reads.
+
+What production needs, and none of it is in this repository:
+
+| Need | What it means here |
+|---|---|
+| Authentication in front of the API | An identity provider the client's company already runs, terminating at the edge. The API keeps reading the same header, now written by something that verified who the caller is rather than by the caller |
+| A verified subject, not a typed name | The header value becomes a claim from a signed token, so `Actor.name` is what the provider asserts and not what a request said |
+| Authorisation that survives a replay | The role rule in `packages/core/src/actor.ts` stays exactly as it is, because it is a product rule about exceptions. What changes is that the role is taken from the token rather than from the request |
+| Per-company tenancy | SentryOne in production is multi tenant and the ledger is per company. Nothing in this repository enforces a tenant boundary on a write, because this repository holds one synthetic company |
+| A session record | Who logged in, from where and when, which is a different log from the ledger of what was done. The LFPDPPP obligations in 4.2 attach to both |
+
+The clerk's identity is personal data about an employee, which is why it is in the table in 4.1 and
+why it is treated under the same obligations as everything else on this page: it is recorded because
+the product has to be able to answer who released a payment, it is kept for the retention period of
+the ledger it belongs to, and it is never sent to a language model. `TODO(garzario)`: when the
+authentication sits in front of the API, state in this section which provider terminates it and what
+the token carries.
 
 ## 5. Ethics: nothing here accuses anyone
 

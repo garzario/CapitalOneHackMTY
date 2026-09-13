@@ -508,9 +508,10 @@ expected loss is on the instruction screen and each finding carries its own peso
 One honest gap worth volunteering before it is found, and one figure that is now worth pointing at
 rather than talking around.
 
-- That screen still sends a fixed `clerk@demo` and does not ask for the reason before an override, so
-  today the reason is recorded when it is sent and by the demo the screen asks for it under the person's
-  own name (#174).
+- Since #199 the screen sends the identity the header carries rather than a fixed string, and the API
+  refuses an override that has no reason with a `422` asking for it, so the prose is no longer optional
+  on the one shape where it matters. What the screen still owes is asking for it before the click
+  instead of after the refusal, and the identity selector itself (#174).
 - The screen carries a third figure, "Costo de retrasar un dia", and since #182 it reads a number on
   every one of the 92 payments: between MXN 101.98 and MXN 4,611.27, MXN 1,120.05 on the hero line.
   `Supplier.delayCostPerDay` is priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` from
@@ -521,9 +522,17 @@ rather than talking around.
   catalogue of a synthetic company, so the honest sentence is "asi valuamos la relacion en esta empresa
   sintetica, y en una real el dato sale de sus contratos".
 
-The API deliberately does not refuse a release with no prose, because an API that did would be refused
-by the clerk instead, outside the product. Verified: `POST /api/v1/instructions/:id/decide` with
-`decidedBy` and no `reason` answers 200.
+The API refuses a release with no prose on exactly the shape where the prose is the point, and nowhere
+else. A release on a line that is not `confiable`, or one the engine was holding, is the owner's
+exception: a clerk asking for it is `403` with the sentence that says who can, and the owner asking for
+it with no `reason` is `422` asking for the argument. The same two answers guard a decision on a line
+the run cancelled. Every other decision still takes no prose, because an API that refused an ordinary
+hold for lack of a sentence would be refused by the clerk instead, outside the product, where nothing
+is recorded at all. Verified in `apps/api/src/routes/instructions.test.ts`: the tests
+`refuses a clerk releasing a payment a finding stopped, and says who can`,
+`asks the owner for the argument, and refuses the release without one` and
+`releases it for the owner with a reason, and the ledger says who and why`, plus
+`carries no reason when nobody wrote one, rather than the last one` for the ordinary case.
 
 ### 5c. "What if the calculation is wrong? How sure are you about the percentages?"
 
@@ -654,7 +663,10 @@ a judge reproduces by downloading the DENUE Nuevo Leon file and filtering four `
 SCIAN 31-33, 43 and 23, `docs/02-persona.md` section 3 for why the despacho is the reseller and never the
 operator, and
 `docs/05-business-model.md#the-third-route-a-bank-embeds-the-control-where-the-payment-executes` for the
-intermediation dilemma.
+intermediation dilemma, and
+`docs/05-business-model.md#where-the-software-actually-plugs-in-and-what-each-surface-costs-to-build`
+for what a buyer has to install, which is the question that follows this one within thirty seconds
+and is answered in 7b.
 
 **The honest gap, volunteered in the same breath.** The supplier-count filter that makes this segment the
 right one, 30 or more suppliers a week, **is published nowhere**: DENUE carries no payment data and the
@@ -663,6 +675,48 @@ ENAFIN tabulados render as a JavaScript shell, so it is a hypothesis with a meas
 sweep and 1 in 4 exposed sweeps becoming a paying company, have no benchmark behind them at all. They are
 the first two things the first ten accounts will falsify, which is why the stop condition is written
 against the hit rate instead: a month of work can measure that one.
+
+### 7b. "No vamos a reemplazar nuestro SAP" (#205)
+
+The objection a purchasing manager raises thirty seconds after the demo lands, and it is not a risk
+to argue with: it is the design.
+
+**Thirty seconds.**
+
+> No reemplazamos nada. El ERP sigue siendo el sistema de registro, y nosotros nos ponemos entre el ERP
+> y el banco. La forma mas barata ni siquiera toca al ERP: la empresa ya exporta un layout de dispersion
+> y ya lo sube al banco, y nosotros leemos ese archivo, calificamos linea por linea y regresamos el
+> mismo archivo con las lineas detenidas fuera y el reporte al lado. BBVA documenta esa carga por
+> archivo en su propia pagina, con los layouts ciento ocho y doscientos treinta y dos. Si el cliente
+> quiere conector, SAP Business One publica su Service Layer y Siigo Aspel publica Siigo API. Y si
+> nunca quiere instalar nada, reenvia el correo o el WhatsApp del proveedor y eso ya entra hoy.
+
+| Allowed to say | Source |
+|---|---|
+| BBVA's own business page describes loading payments "por archivo (subiendo un layout)", takes XLS, and names "los layouts 108 y 232 en formato TXT" | [92] |
+| SAP Business One's Service Layer is a REST API over OData, v4 for new integrations since FP 2405, v3 deprecated and still supported | [97] |
+| Siigo API connects other systems to Siigo Nube and can create, read and update invoices, products and third parties, on the `inicio`, `avanzado` and `premium` plans | [96] |
+| Email, image and voice-note intake is built: `POST /api/v1/instructions` with `text`, `image` or `audio`, and `packages/extract` transcribes and never decides | `docs/09-api.md`, `docs/06-regulatory-privacy.md` section 6.2.1 |
+| CONTPAQi's public cloud API is CFDI stamping, `Timbra v 2` and `Timbra v 3`, and ERP data is the desktop SDK instead | [94] and [95] |
+
+**Do not say.** That we have a connector to any of them, because we have none: every row above is a
+published surface and not a built adapter. That CONTPAQi publishes an ERP API, because what it
+publishes is a stamping API and the ERP route is a Windows COM SDK. Anything about STP's API, because
+both of its documentation pages answered HTTP 403 on 2026-09-13 and nobody here has read them [93].
+Any bank layout other than BBVA's, because none was opened, and not even BBVA's field specification,
+which is behind the business banking portal.
+
+Rests on:
+`docs/05-business-model.md#where-the-software-actually-plugs-in-and-what-each-surface-costs-to-build`
+for the six surfaces with a source and an unverified column each, and
+`docs/07-architecture.md#how-this-scales-beyond-one-platform` for the four seams they use, which are
+the three this repository already has.
+
+**The honest gap, volunteered in the same breath.** Not one of these is built. The dispersal layout
+is the cheapest and it still needs a parser and a writer per bank format, and we know the count of
+formats is more than one and not what it is. The rail is the one that changes what we are rather than
+what we build: ordering a SPEI is a different regulatory posture from advising on one, and that
+question is routed in `docs/06` and not answered.
 
 ### 8. "You mark a payment as safe and it turns out to be fraud. What does the client get?" (#194)
 
@@ -799,9 +853,10 @@ Five gaps to volunteer, in this order, because each one is cheaper said than fou
   lines stopped on one generated run and three of the twenty-three findings the blind evaluation raised
   were false over thirty-five labelled cases, 13.0 percent, which is what shadow mode replaces. The
   projection in `docs/05` moved with it, about 41 wrongly stopped payments a year rather than 47, and it
-  was restated rather than left at the old number. And the screens still send a fixed `clerk@demo`
-  without asking for the reason before an override, so a release under a named person is an API fact and
-  not yet a screen fact (#174).
+  was restated rather than left at the old number. The name and the role are enforced on every write
+  since issue #199 and an override with no reason is refused, so the release under a named person is no
+  longer only an API fact; what the screens still owe is the identity selector and asking for the
+  reason before the click rather than after the refusal (#174).
 
 ### 9. "What percentage of supplier transfers in Mexico is stolen?" We answered 25.4 percent
 

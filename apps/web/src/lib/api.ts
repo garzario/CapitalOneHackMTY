@@ -12,10 +12,16 @@
  * 3. The shapes come from docs/09-api.md through src/lib/contract.ts, which
  *    composes the domain types in packages/core. The client never invents a
  *    field the contract does not have.
+ * 4. Every write carries `X-Actor`. The API requires it and answers 400 naming
+ *    the header without it, so the identity is attached here, once, rather than
+ *    remembered at eleven call sites. `src/lib/actor.ts` holds the identity and
+ *    says why it is not authentication.
  */
 
 import type { LedgerEvent } from "@hackmty/core";
+import { ACTOR_NAME_MAX_LENGTH } from "@hackmty/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { currentActor } from "./actor";
 import type {
   Actor,
   AssistantSession,
@@ -65,7 +71,11 @@ export const ASSISTANT_MESSAGES_PATH = `${API_PREFIX}/assistant/messages`;
 export function formatActor(actor: Actor): string | null {
   const name = actor.name.trim();
 
-  if (name === "" || name.length > 120 || name.includes(";")) {
+  if (
+    name === "" ||
+    name.length > ACTOR_NAME_MAX_LENGTH ||
+    name.includes(";")
+  ) {
     return null;
   }
 
@@ -172,16 +182,22 @@ async function request(
   }, timeoutMs);
 
   try {
+    const method = init.method ?? "GET";
+    /* The actor travels on every write and on no read. A GET that carried a name
+       would be saying somebody did something when they only looked, and a write
+       without one is refused by the API with a 400 naming the header, so the
+       identity this browser is acting as stands in when a caller named nobody. */
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (init.body !== undefined) {
+      headers["content-type"] = "application/json";
+    }
+    if (method !== "GET") {
+      Object.assign(headers, actorHeaders(actor ?? currentActor()));
+    }
+
     const response = await fetch(path, {
-      method: init.method ?? "GET",
-      headers:
-        init.body === undefined
-          ? { accept: "application/json", ...actorHeaders(actor) }
-          : {
-              accept: "application/json",
-              "content-type": "application/json",
-              ...actorHeaders(actor),
-            },
+      method,
+      headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: controller.signal,
     });

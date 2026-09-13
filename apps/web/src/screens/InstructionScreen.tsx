@@ -25,6 +25,7 @@ import {
   SourceNotice,
 } from "../components/States";
 import { SupplierDrawer } from "../components/SupplierDrawer";
+import { currentActor } from "../lib/actor";
 import { decideInstruction, getInstruction } from "../lib/api";
 import {
   formatClabe,
@@ -64,7 +65,10 @@ export function InstructionScreen({ id }: { id: string }) {
             ...resource.data.decision,
             action,
             decidedAt: new Date().toISOString(),
-            decidedBy: "clerk@demo",
+            /* The offline path records the same two fields the API records, or
+               the mock would show a decision the API could not produce. */
+            decidedBy: currentActor().name,
+            decidedByRole: currentActor().role,
           },
         });
         setWriteError(
@@ -77,7 +81,7 @@ export function InstructionScreen({ id }: { id: string }) {
 
       const result = await decideInstruction(id, {
         action,
-        decidedBy: "clerk@demo",
+        decidedBy: currentActor().name,
       });
 
       setPending(null);
