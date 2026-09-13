@@ -486,6 +486,29 @@ the token carries.
 - **No automated adverse action.** Nothing is declined, blocked, reported or scored by the system
   alone. `Action` is `hold`, `verify` or `release`, and all three are instructions to a person about
   the client's own money. None of them does anything to the supplier.
+- **The automated call says it is automated, in the greeting.** The verification call opens with
+  "Le habla Alejandro, de la línea automática de pagos a proveedores de Metálicos del Norte", before
+  it asks anything, and it repeats that sentence whenever it is asked who is speaking. Asked outright
+  whether it is a person or a recording, it answers that it is the automated payments line of the
+  company and that a person from the area reviews the result, and then carries on. It never claims to
+  be a person and it never names a technology: a supplier hangs up on "asistente virtual" and
+  `packages/voice` has a test that the words "asistente virtual", "sistema" and "inteligencia
+  artificial" are in neither the stored prompt nor any sentence a call renders. Three reasons, in the
+  order they are binding. A call about somebody's bank account that hid what it was would be the same
+  artifact as the fraud this control exists to catch, so the disclosure is the difference between the
+  control and the attack. The duty of information behind the aviso de privacidad of section 4.2 attaches to
+  the person who answers that telephone as much as to a form on a screen, and a greeting is where it
+  is cheapest to satisfy. And the voice
+  provider enforces it on its own: the first version of this prompt claimed to be a person and asked
+  for account confirmations, and every call came back `call_initialization_error 3000` with the word
+  unsafe and dropped at zero seconds. The disclosure is not a concession we made to the rules, it is
+  the only version of this call that connects.
+- **The call accuses nobody and asks for nothing.** It asks whether an account belongs to them and
+  whether the change came from them. It reads four digits of one account, never a whole CLABE and
+  never a digit of the account the supplier has always been paid on, it asks for no code and no
+  password, it promises no payment and no date, and it never says the word fraud. Four outcomes come
+  back and not one of them releases money: the release is a separate decision a person signs, per
+  `docs/07-architecture.md` and the `verification_call` event on the ledger.
 - **The domain types carry the rule.** `FindingState` is `comprobable` or `requiere_verificacion`.
   There is deliberately no third value meaning fraudulent. The product cannot express an accusation
   because the domain has no word for one. `Decision.decidedBy` is optional and absent until a person

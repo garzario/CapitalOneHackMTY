@@ -1325,6 +1325,72 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- **The payments line sounds natural, says what it is, and hangs up** (issue #250, closing #247 with
+  it). The verification call worked and it did not sound like anybody you would stay on the phone with:
+  nine and five second silences after every answer, the same two word either-or at the end of the
+  question and again on every re-ask, and a male voice introducing itself with a woman's name. Before
+  that, for one round, it did not ring at all: a prompt that claimed to be a person and then asked for
+  account confirmations came back `call_initialization_error 3000` with the word unsafe, and every call
+  dropped at zero seconds. Both halves are fixed in the same place, which is the agent configuration
+  and the script, and neither is fixed in a dashboard.
+
+  **The call discloses itself in the greeting, and that is what makes it connect.** "Buen día. Le habla
+  {{caller}}, de la línea automática de pagos a proveedores de {{company}}. ¿Hablo con {{supplier}}?"
+  Asked outright whether it is a person or a recording, it answers that it is the automated payments
+  line of the company and that a person from the area reviews the result, and carries on. `{{company}}`
+  is the company that owes the supplier money and no longer this product: a supplier who has invoiced
+  the same shop for years has never heard of SentryOne, so the old greeting was a stranger telephoning
+  about their bank account, which is the shape of the fraud this control exists to catch.
+  `docs/06-regulatory-privacy.md` carries the rule and the three reasons it is binding, in that order.
+
+  **The question asks for words, not for one of two.** "¿Me confirma que ustedes cambiaron su cuenta y
+  que la que termina en 6 8 1 2 es de ustedes?" The amount moved into a purpose line in front of it, so
+  the supplier hears their own invoice amount and the account it belongs to before they hear a
+  question. When a single word comes back the agent asks once more, shorter, and does not read the
+  digits again. `BANNED_PHRASES` is the pin: "si o no", "asistente virtual", "sistema" and
+  "inteligencia artificial" are asserted absent from the stored prompt, from every sentence a call
+  renders and from the defaults, folded so an accent cannot smuggle one past, and "línea automática" is
+  asserted present. The four digit rule, the rule that the account paid before is never read, and the
+  four outcomes are unchanged.
+
+  **It hangs up, and on one line.** Closing is a sequence the prompt spells out: what was recorded in
+  the supplier's own words, then `VERIFICATION_CLOSING_LINE` word for word, "Eso sería todo por hoy. Le
+  agradezco mucho su tiempo y que tenga excelente día.", then the `end_call` system tool. The constant
+  is exported because three places have to agree on it. An agent merely told to finish says the goodbye
+  and then holds the line open to the duration cap.
+
+  **What makes it sound like a person is three rules and six fields.** The rules: acknowledge in two
+  words before moving on, at most one pause word and only from a named list, and never say a sentence
+  it has already said. The fields, every one of them measured: `eleven_flash_v2_5`, whose first audio
+  byte arrives in 195 to 266 ms against 3812 to 4962 ms for `eleven_multilingual_v2` on the same
+  sentence, `turn_timeout` at 3 seconds where 7 was the dead air and 1 cut suppliers off,
+  `turn_eagerness` normal rather than patient, `speculative_turn` off because the half sentence that
+  matters here is the one where a supplier says no after saying sí, stability 0.55 and speed 1.0, and
+  `disable_first_message_interruptions` so the one turn that carries the disclosure always finishes.
+  `gemini-2.5-flash-lite` at temperature 0.25 writes the turns. All of it is in
+  `scripts/voice-agent.json` and `packages/voice/README.md` has the table.
+
+  **`bun run voice-setup` reads the agent before it writes it.** `VoiceClient.getAgent` is new, the
+  script prints the live value against the new one field by field, and the `PATCH` carries only the
+  twelve fields this repository decided on, so `asr`, the client events and anything the provider adds
+  later survive a rerun. A test pins the key set of the body for exactly that reason. The voice id left
+  the config file: it is read from `ELEVENLABS_VOICE_ID` and printed masked, and the phone number is no
+  longer printed at all.
+
+  **Six real calls on 2026-09-13, each one of which changed something.** The clean confirmation is
+  `conv_7801m2cw1wxve2kv9yf768p3600f`: 42 seconds, the four digits spaced, a different acknowledgement
+  on each of three turns, the summary in the supplier's own words, the goodbye once, `end_call`, and
+  reply gaps of 1, 2 and 1 seconds. Eighteen gaps across the six calls are all between 0 and 3 seconds,
+  fifteen of them at 1. Four defects came out of those calls and went back in as prompt rules: a
+  verbatim repeat of the whole question when asked to repeat it, a missing "una persona del área le da
+  seguimiento" in the close, a supplier asking for a moment read as nobody answering, and a goodbye
+  said twice when the line stayed open. The fifth went into the parser:
+  `parseVerificationOutcome` read "Sí, es mía" as `unclear`, so "es mia" and "la cambiamos" joined
+  `CONFIRMATIONS`, both safe under the negation rule, and the confirmation call now reads `confirmed`
+  off the supplier's own sentence. `docs/14-process.md#live-integrations-verified` lists every id and
+  what each call settled, and `docs/10-demo-script.md` carries the greeting and the closing line word
+  for word plus the rule that the stand plays the recording rather than dialling anybody.
+
 - **The Devpost submission is final copy now, and a person pastes it in minutes** (issue #76).
   `docs/13-devpost.md` was an M3 draft of a product that has since grown an assistant, a payment rail,
   a cross-company network on Snowflake, a second SAT list and the three levels and three states of

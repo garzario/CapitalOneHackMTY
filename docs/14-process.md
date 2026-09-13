@@ -164,12 +164,13 @@ was exercised against the real provider, three of them on 2026-09-12 and the pay
 
 | | |
 |---|---|
-| What ran | Two real outbound calls on 2026-09-12, and three more on 2026-09-13 for issue #206 |
+| What ran | Two real outbound calls on 2026-09-12, three more on 2026-09-13 for issue #206, and six more the same day for issue #250 |
 | Agent | `agent_3501m2ah6erkf46rxdmhy4xtsexw` |
 | Dialled from | The team's own imported Twilio number, the imported Twilio number (Monterrey local, kept out of the repository) |
 | Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product, and the number is in nobody's file here: the 2026-09-13 calls read it back out of the provider's own metadata for the 2026-09-12 ones |
 | Conversation ids, 2026-09-12 | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
-| Conversation ids, 2026-09-13 | `conv_8201m2cnt2fbf949zxnawp7hktfs`, `conv_0901m2cp16q0feht603dbz1t8a5r` and `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` |
+| Conversation ids, 2026-09-13, issue #206 | `conv_8201m2cnt2fbf949zxnawp7hktfs`, `conv_0901m2cp16q0feht603dbz1t8a5r` and `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` |
+| Conversation ids, 2026-09-13, issue #250 | `conv_4601m2cvy1prf9qswpd8yp3hmwmk`, `conv_7801m2cw1wxve2kv9yf768p3600f`, `conv_0301m2cw4j7jfhran9v90zfhr989`, `conv_8401m2cw6hc5eez9ms8rcpbb21rh`, `conv_8401m2cw8hexfptbwfhm26p1krqd` and `conv_1001m2cwcfftesebf2hqddsq0rw5` |
 | The first call | 18 seconds, ended by the remote party, transcript captured |
 | Cost | USD 0.016 for the first call, as the provider reports it |
 
@@ -197,10 +198,34 @@ answered "Si, lo que es" and then went off script, and no clause of that matches
 phrase, so the parser falls through to `unclear` with their last sentence as the quote. A bare "si"
 has never been a confirmation in this package and `unclear` releases nothing.
 
+#### What the six calls of 2026-09-13 settled, issue #250
+
+All six were placed with the variables `buildVerificationScript` returns for Aceros y Laminas del
+Norte SA de CV, MXN 184,300.00, an account ending 6812, `accountChanged` true. The agent discloses
+itself in the greeting, which is what made the calls connect at all: the version before these had
+claimed to be a person, and the provider refused every one of them with
+`call_initialization_error 3000` and the word unsafe, at zero seconds.
+
+| Call | What happened | What it settled |
+|---|---|---|
+| `conv_4601m2cvy1prf9qswpd8yp3hmwmk` | 55 s, answered "No creo" to the question. Reply gaps 1 s, 2 s, 2 s. The agent closed on "queda asentado que ese cambio no salio de ustedes", said the goodbye once and called `end_call` | The denial close and the hang up, live. It exposed a defect: asked to repeat, the agent read the whole purpose and question back word for word. The prompt now repeats the question only, shorter, and never the amount |
+| `conv_7801m2cw1wxve2kv9yf768p3600f` | 42 s, "Si, es mia", then the shorter second ask, then "Si". Reply gaps 1 s, 2 s, 1 s. `end_call` | **The clean confirmation.** The four digits spaced, the acknowledgement different on each of three turns, the summary in the supplier's own words, the goodbye once. It exposed the last defect: `parseVerificationOutcome` read "Si, es mia" as `unclear`, so "es mia" and "la cambiamos" joined `CONFIRMATIONS` and the call now reads `confirmed` |
+| `conv_0301m2cw4j7jfhran9v90zfhr989` | 41 s, confirmed again. Reply gaps 1 s, 1 s, 1 s. `end_call` | The fastest of the six, and the call where "Una persona del area le dara seguimiento" landed in the close after the prompt moved it into the closing sequence |
+| `conv_8401m2cw6hc5eez9ms8rcpbb21rh` | 21 s, "No" to the greeting. The agent asked once whether it was the right telephone and closed without asking about the account | The wrong-number path. It never reached the question, which is the point: a wrong number hears no amount and no digits |
+| `conv_8401m2cw8hexfptbwfhm26p1krqd` | 60 s, the supplier asked for a moment and then went quiet | The silence path, and it exposed two defects: a supplier asking for a moment was read as nobody answering, and the summary was said twice after the line stayed open. The prompt now waits through that silence and never repeats a goodbye it has already said |
+| `conv_1001m2cwcfftesebf2hqddsq0rw5` | 16 s, "Deja de marcarme". The agent apologised, said the goodbye once and called `end_call` | Somebody telling the line to stop. It does, in one turn, with an apology and no insistence. This is the call that ends the test series, and it is the behaviour we would want in front of a real supplier |
+
+Every one of the six hung up by itself: `termination_reason` reads "end_call tool was called." on five
+and "Call ended by remote party" on the silence call, where the agent had already called the tool.
+Eighteen reply gaps were measured across the six, as the agent turn minus the supplier turn before it,
+and every one is between **0 and 3 seconds**, fifteen of them at 1 s. The same measurement on the
+calls before this work gave 5 s and 9 s. No call contains "si o no", and
+`packages/voice/src/script.test.ts` pins that against the prompt rather than against a transcript.
+
 What the provider stores for this agent is now the template with its slots empty, which can be
 checked in the ElevenLabs dashboard: `GET /v1/convai/agents/{id}` answers a prompt whose
-`first_message` is "Hola, buen dia. Le llamo de parte de {{company}}..." and which carries no two
-digits in a row anywhere. The supplier, the amount and the four digits travel per call as
+`first_message` is "Buen día. Le habla {{caller}}, de la línea automática de pagos a proveedores de
+{{company}}. ¿Hablo con {{supplier}}?" and which carries no two digits in a row anywhere. The supplier, the amount and the four digits travel per call as
 `conversation_initiation_client_data.dynamic_variables`.
 
 ### The extraction, Gemini

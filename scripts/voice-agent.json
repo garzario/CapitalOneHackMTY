@@ -1,8 +1,19 @@
 {
   "name": "SentryOne, verificacion de cuenta",
-  "companyName": "SentryOne",
+  "companyName": "Metálicos del Norte",
+  "callerName": "Alejandro",
   "language": "es",
   "maxDurationSeconds": 150,
-  "voiceId": "",
-  "ttsModelId": ""
+  "ttsModelId": "eleven_flash_v2_5",
+  "optimizeStreamingLatency": 3,
+  "stability": 0.55,
+  "similarityBoost": 0.85,
+  "speed": 1,
+  "turnTimeoutSeconds": 3,
+  "turnEagerness": "normal",
+  "speculativeTurn": false,
+  "disableFirstMessageInterruptions": true,
+  "endCall": true,
+  "llm": "gemini-2.5-flash-lite",
+  "temperature": 0.25
 }

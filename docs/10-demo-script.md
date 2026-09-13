@@ -69,7 +69,7 @@ also Q&A cards, so nothing is lost by leaving them out, and the full version is 
 | 8 | 11 | "Tres presentaciones a despachos contables en Monterrey y una conversacion con banca empresarial, donde el pago ya se ejecuta." | 19 |
 | 9 | 7 | "De ciento dos a cuatro mil seiscientos once pesos al dia segun el proveedor." | 14 |
 | 10 | 8 | "Traigo siete nombres mas, con la fecha en que abrimos cada pagina." | 12 |
-| 11 | 5 | "Y si quiere la palabra del proveedor, la llamada le pregunta dos cosas en un si o un no: si ellos cambiaron su cuenta, y si la cuenta que termina en esos cuatro digitos es suya. Nunca le leemos la cuenta completa, ni un digito de la cuenta de siempre." Issue #206, with the live call in `docs/14-process.md#live-integrations-verified` | 44 |
+| 11 | 5 | "Y si quiere la palabra del proveedor, la linea automatica de pagos le llama y le pregunta dos cosas: que ellos cambiaron su cuenta, y que la cuenta que termina en esos cuatro digitos es suya. Nunca le leemos la cuenta completa, ni un digito de la cuenta de siempre." Issues #206 and #250, with the live calls in `docs/14-process.md#live-integrations-verified`. The recording is what plays here, per the section below | 44 |
 
 ### The cut ladder, pre-declared
 
@@ -296,6 +296,37 @@ The finding stands, the pesos at risk are on screen, and the clerk can hold the 
 their own name on it. And never say a critical finding could be released this way: rules 1 and 2 of
 `decide` return above the branch that weighs anything, so it cannot happen.
 
+### The verification call, and what plays if a judge asks
+
+**The stand pitch does not dial anybody.** Beat 5 is the cent and the CEP; the call is clause 11 and
+a Q&A card, and what plays when a judge asks to hear it is the recording of a real call, on the laptop
+and on the phone, playable with no network. Three reasons it is a recording and not a live demo. It
+takes between forty and sixty seconds, which is a quarter of the whole pitch. It needs the uplink, the
+telephony provider and somebody free to answer, and the one thing that can fail in front of a judge
+is the thing we cannot fix in front of a judge. And the call a judge would hear live is word for word
+the call on the recording, because both come out of `packages/voice`.
+
+**What the supplier hears first**, with the slots filled:
+
+> Buen día. Le habla Alejandro, de la línea automática de pagos a proveedores de Metálicos del Norte.
+> ¿Hablo con Aceros y Laminas del Norte SA de CV?
+
+**What it always ends on**, said once and followed by the agent hanging up itself:
+
+> Eso sería todo por hoy. Le agradezco mucho su tiempo y que tenga excelente día.
+
+**Say this while it plays.** "La llamada dice lo que es en la primera frase, porque una llamada
+automatica que pregunta por una cuenta de banco y esconde lo que es seria exactamente el fraude que
+estamos deteniendo. Pide la confirmacion en las palabras del proveedor, lee cuatro digitos y ni uno
+de la cuenta de siempre, no promete ningun pago, y cuelga ella. El resultado es evidencia, no una
+orden: la liberacion la firma una persona."
+
+**Never say** that the supplier could not tell it was automated, that it is a person, or that the
+call authorises the payment. If a judge asks whether the recording is a real supplier, the answer is
+no and it is volunteered: every call this product has placed went to a teammate's own mobile, the
+supplier on the recording is a teammate reading the part, and the company, the supplier and the
+account are the seeded synthetic ones.
+
 ### Numbers the screen shows
 
 Say these only while they are on the screen. `bun run demo` prints every one of them from the API
@@ -398,6 +429,8 @@ the difference between looking real and looking like a prototype.
       `bun run offline` was green on this machine today
 - [ ] Battery above 50 percent or plugged in
 - [ ] The recorded video is on the laptop and on a phone, playable with no network
+- [ ] The recording of the verification call is on the laptop and on the phone too, per
+      `#the-verification-call-and-what-plays-if-a-judge-asks`
 - [ ] `docs/12-judge-qa.md` open on a phone
 
 ## Offline fallback
@@ -473,9 +506,10 @@ volunteered reason costs nothing; a silent workaround looks like a trick.
 - The verification call confirms two things and nothing else: that the account changed, and the last
   four digits of the new one. Never say that it reads a CLABE, never read one out loud on stage, and
   never say it reads the account the supplier has always been paid on, because it reads no digit of
-  that one. If a judge asks for the wording, read it off `#/verify-call`, which answers the script
-  with no key and without ringing anybody. The calls we have placed went to a teammate's own mobile
-  and no supplier or counterparty has ever been called by this product.
+  that one. **The stand pitch does not place a live call.** If a judge asks to hear it, play the
+  recording, per the section below. If a judge asks for the wording, read it off `#/verify-call`,
+  which answers the script with no key and without ringing anybody. The calls we have placed went to
+  a teammate's own mobile and no supplier or counterparty has ever been called by this product.
 - Never demo from a branch. Always from what is deployed, or from `main`.
 - Never start a long agent run or a refactor inside the demo window.
 - Never say a number that is not on the screen.

@@ -95,7 +95,10 @@ describe("GET /api/v1/instructions/:id/verify-call", () => {
     const body = verifyCallScriptResponseSchema.parse(await res.json());
 
     expect(body.script.clabeLast4).toBe("6812");
-    expect(body.script.question).toContain("184,300.00");
+    expect(body.script.question).toContain("6 8 1 2");
+    /* The amount is in the purpose line, which is the second of the three the
+       clerk reads: this is your payment, and this is the one thing I need. */
+    expect(body.script.spoken[1]).toContain("184,300.00");
     expect(body.voiceConfigured).toBe(true);
     expect(body.releasesPayment).toBe(false);
     /* Side effect free: no request to the provider and nothing on the ledger. */
@@ -200,7 +203,7 @@ describe("POST /api/v1/instructions/:id/verify-call, placing the call", () => {
 
     expect(variables.account_last4).toBe("6 8 1 2");
     expect(variables.question).toContain("6 8 1 2");
-    expect(variables.question).toContain("si ustedes cambiaron su cuenta");
+    expect(variables.question).toContain("ustedes cambiaron su cuenta");
     expect(JSON.stringify(sent)).not.toContain(CLABE);
     expect(JSON.stringify(sent)).not.toMatch(/\d{18}/);
   });

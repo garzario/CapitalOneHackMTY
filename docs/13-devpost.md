@@ -799,8 +799,9 @@ turn and per transcription is in
 > the supplier?" is not a confirmation about a bank account. The outcome is confirmed, denied, no
 > answer or unclear, and none of the four releases a payment on its own.
 
-**Gate.** Passed, five times. Two real outbound calls on 2026-09-12 and three more on 2026-09-13 for
-issue #206, all on agent `agent_3501m2ah6erkf46rxdmhy4xtsexw`, every conversation id listed in
+**Gate.** Passed, eleven times. Two real outbound calls on 2026-09-12, three more on 2026-09-13 for
+issue #206 and six more the same day for issue #250, all on agent
+`agent_3501m2ah6erkf46rxdmhy4xtsexw`, every conversation id listed in
 [`docs/14-process.md`](14-process.md#the-verification-call-elevenlabs-over-twilio), dialled from the
 team's own imported number to a teammate's own mobile. No supplier and no real counterparty has ever
 been called by this product.
@@ -815,9 +816,19 @@ account read out, an off-topic request refused with "Mi funcion es unicamente co
 pago", and an outcome of `unclear` because the person answered and then went off script. `unclear` is
 the honest reading and it releases nothing.
 
-**What is still open, stated rather than hidden.** `ELEVENLABS_VOICE_ID` is empty, so the provider
-default applies instead of an id we invented, and the `verification_call` event reaches the ledger and
-the stream without being rendered in the instruction panel yet.
+**The six calls of issue #250 are what made it sound like a line somebody would stay on.** The call
+now says what it is in its first sentence, which is also what made it ring: the version that claimed to
+be a person came back `call_initialization_error 3000` with the word unsafe and dropped at zero seconds.
+The question no longer ends on a two word either-or, the answer is asked for in the supplier's own
+words, the agent hangs up itself on one goodbye, and the eighteen reply gaps measured across those six
+calls are all between 0 and 3 seconds against 5 and 9 before. The clean confirmation is
+`conv_7801m2cw1wxve2kv9yf768p3600f`, read as `confirmed` off "Sí, es mía".
+
+**What is still open, stated rather than hidden.** A live `denied` is covered by the fixtures and by
+the unit tests but not yet by a real call: the closest is a "No creo" the agent closed on as a change
+that did not come from them and the parser read as `unclear`. Both stop the payment. And the
+`verification_call` event reaches the ledger and the stream without being rendered in the instruction
+panel yet.
 
 ### Best Use of Tiger Data
 
