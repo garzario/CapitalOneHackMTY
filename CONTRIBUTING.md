@@ -157,6 +157,9 @@ git commit     # write the one real message
   (`squash_merge_commit_message: BLANK`), and a PR body still must not carry attribution lines,
   because reviewers and judges read the body too. Turn the attribution off in your assistant's
   settings before opening a PR.
+- **Human co-authors are fine, tools are not.** GitHub appends a `Co-authored-by` line for every
+  teammate whose commits ride in a squash; that is a person and it stays. The scrub and the hook
+  refuse the same line when it names a tool, a bot or a vendor mailbox.
 - No em dashes in prose. No emoji in commits, docs, YAML or UI copy. Plain ASCII punctuation.
 
 ## Pull requests
