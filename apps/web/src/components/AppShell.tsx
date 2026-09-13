@@ -59,7 +59,7 @@ import {
   toggleTheme,
   useTheme,
 } from "../lib/theme";
-import { openTour } from "../lib/tour-store";
+import { openTour, TOUR_LAUNCHER_ID } from "../lib/tour-store";
 import {
   IconIntake,
   IconList,
@@ -369,6 +369,9 @@ export function AppShell({
               on screen at every width cannot be covered by either. */}
             <button
               type="button"
+              /* Identified, because the overlay hands focus back here when it
+                 closes and neither holds a ref to the other. */
+              id={TOUR_LAUNCHER_ID}
               className="btn btn-sm topbar-tour"
               /* Named on the button and not only by the word inside it: the word
                  is hidden below 48rem, where the title and the synthetic mark

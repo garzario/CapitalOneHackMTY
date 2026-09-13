@@ -306,30 +306,49 @@ on the intake, where a voice note arrives with a payment instruction.
 dense financial table, and ninety-two rows of pesos do not explain themselves: `docs/10-demo-script.md`
 is what a person says over this product, and the tour is what the product says when nobody is talking.
 
-Three ways in, and all three open the same thing. The `Recorrido` button sits in the top bar beside
-the title, on every screen and at every width, because a judge arriving cold is looking at the top of
-the page and because the one free corner was already spent twice over by the assistant dock and the
-toasts. `#/entrada` greets a first visit with a banner, remembered in `localStorage` under
-`sentryone:tour-seen` and remembered the same way when it is dismissed, so nobody is invited twice.
-And `#/run?tour=1` opens it on arrival, which is what a printed card or a message can carry.
+**It opens itself, once.** The first load of a browser gets the tour without asking for it, because
+an invitation that has to be found is an invitation nobody takes, and a judge who walks up to an
+unattended stand is not going to go looking for a button. That one visit is remembered in
+`localStorage` under `sentryone:tour-seen`, written the moment it opens and read through a `try`, so
+a private window is greeted every time rather than left in front of an unexplained table. The card
+that appears carries `Saltar` and `Ver despues`, so the way out is on screen before anything else is.
+It replaced a banner on `#/entrada`, which a visitor landing on the run never saw.
 
-The nine stops are `tourSteps` in `src/lib/tour.ts`, in this order: why the product exists, the run,
-the capture arriving on WhatsApp, the account and its plaza, the cent and the Banxico receipt, the SAT
-publication, the run leaving, who signs, and the call. Each one is a title and at most two short
-sentences, under twenty-eight words of body, with no bullet list under it, and `lib/tour.test.ts`
-counts the words. It was three dense paragraphs and two bullets a stop, which is a wall of text in
-front of the product the tour exists to point at: the screen underneath is the explanation and the
-card is the caption on it. The overlay that renders them is `components/Tour.tsx`.
+Two ways back in after that. The `Recorrido` button sits in the top bar beside the title, on every
+screen and at every width, because the one free corner was already spent twice over by the assistant
+dock and the toasts; closing the tour hands focus back to it. And `#/run?tour=1` opens it on arrival,
+which is what a printed card or a message can carry.
+
+The nine stops are `tourSteps` in `src/lib/tour.ts`. The first is a welcome card and not a stop: the
+lockup, the headline `El ultimo control antes de que un pago sea irrevocable`, the three lines of
+Lupita's Thursday, `Empezar el recorrido` and how long the whole thing takes. The other eight are the
+run, the capture arriving on WhatsApp, the account and its plaza, the cent and the Banxico receipt,
+the SAT publication, the run leaving, who signs, and the call. Each of those is `Paso N de 9`, a
+title, at most two short sentences under twenty-eight words, and **one line that says what to look
+at** -- `Mira la cifra grande`, `Presiona Simular publicacion 69-B` -- printed in its own style
+because a visitor who reads nothing else on the card reads that one. `lib/tour.test.ts` counts every
+one of those lengths and fails a stop that lights something up without naming it. The overlay that
+renders them is `components/Tour.tsx`.
 
 It drives the real app rather than drawing pictures of it. Every stop navigates with `navigate`, the
 screen underneath is the screen the copy is about, and the stop that is about the assistant opens the
 real drawer -- which is why `AssistantDock` keeps its open state in a store (`lib/assistant-dock.ts`)
 instead of in itself. The spotlight is four veils around a hole rather than one box with a hole cut in
 it: the veils take the pointer so a stray click cannot derail the tour, and the gap does not, so the
-control a stop is pointing at is still pressable. The card docks in whichever bottom corner has more
-room beside that hole, because a tour card that covers its own spotlight is the oldest mistake in the
-form. Arrows move, `Escape` leaves, focus goes to the card on every step, and `useReducedMotion` is
-read where the animation is in JavaScript, exactly like the drawer.
+control a stop is pointing at is still pressable. It polls for the element for two seconds after the
+navigation, scrolls it into view once, draws a three-pixel ring in the hold red and re-measures on
+resize and on scroll; a target that never appears leaves the card with no ring rather than a ring
+around nothing. The ring travels from one target to the next under `--motion-base`.
+
+The card takes the first of the four corners that does not touch that hole, `placeCard` in
+`lib/tour.ts`, and the rectangle it chooses is a unit test rather than a thing to check by eye. It
+used to choose between left and right only, so the stop about the button that sends the run put its
+card on top of that button whichever side it took. A top corner stands under the top bar rather than
+on it, which is why `--topbar-h` is a token: the stylesheet and `CARD_TOP_GAP` have to agree about
+that distance or the measurement is of a card that is not where it looks. Below `48rem` the card is a bottom sheet instead
+and the target is scrolled to the top of the screen rather than the middle. Progress is nine dots,
+arrows move, `Escape` leaves, focus goes to the card on every step, and `useReducedMotion` is read
+where the animation is in JavaScript, exactly like the drawer.
 
 What a stop points at is a `data-tour` attribute on the real element, and the names are
 `TOUR_TARGETS` in `lib/tour.ts`. `lib/tour.test.ts` walks `src/` and fails when a name in that map is
@@ -339,9 +358,13 @@ whole viewport and the step still reads fine.
 **Two folios, one figure, and no constants.** The line the tour is about arrives from
 `GET /api/v1/tour`, which derives it the way `heroOf` does offline: the largest held amount carrying a
 CLABE forensics finding. A folio written into the tour is a tour that opens on a not-found page the
-day the seed moves, which is the rule `brand/shoot.ts` already follows, and the peso figure the first
-stop says in prose is the same kind of constant, so it travels on `TourLinks` beside the two folios
-rather than being typed into the paragraph a judge reads first.
+day the seed moves, which is the rule `brand/shoot.ts` already follows, and the peso figure the
+welcome card says in prose is the same kind of constant, so it travels on `TourLinks` beside the two
+folios rather than being typed into the paragraph a judge reads first.
+
+`brand/shoot.ts` and `audit/audit.ts` both set `sentryone:tour-seen` on every document they open,
+because a headless profile is a first visit every time and the first frame of a session would
+otherwise come back with the welcome card over whichever screen it was meant to be of.
 
 `heroOf` answers the API's own shape for both plazas, which is load-bearing rather than cosmetic:
 `plazasOf` in `apps/api/src/routes/tour.ts` sends plain place names because the telephone call says
@@ -386,11 +409,20 @@ not at a desk, he answers his telephone between two other things.
   own sentence. Anything else is printed exactly as it arrived, because a press that produces no
   request and no words is the one outcome a visitor cannot act on.
 
-Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off, nothing rings: the card prints
-the script the agent would read, built from the same line by `localScript`, and offers `Retener` and
-`Liberar` as a simulation. The result card then says `simulado` on it and says that nothing was
-written to the ledger, because a simulated answer that looks like a real one is the one thing this
-stop must not do.
+The stop is three things in a column and only ever one of them at a time is a form: the compact block
+with the field, the consent line and the button; a strip of three underneath it, `Marcando`,
+`En llamada`, `Termino`, because `processing` is the provider reading its own transcript and not a
+thing that happens to the person holding the telephone; and then the result card with the badge and
+the sentence. The block goes as soon as the call is under way, because a form still on screen while
+the telephone is ringing is a form that gets pressed twice.
+
+Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off, nothing rings, and the same
+block appears with `Simular` and `Retener` and `Liberar` where the button would be, so the flow is
+demonstrable at any stand with or without a server: the strip and the result card then run exactly as
+they do for a real call. The result says `simulado` on it and says that nothing was written to the
+ledger, because a simulated answer that looks like a real one is the one thing this stop must not do.
+The script the agent would read, built from the same line by `localScript`, is under the result in a
+`details` a visitor can open.
 
 `localScript` is the stand-in and the card says so. The stored prompt lives in `packages/voice` and
 the rendered call comes back from the API, including inside its `422`, so what the browser builds is

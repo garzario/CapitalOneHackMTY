@@ -8,15 +8,23 @@
  * `docs/10-demo-script.md` is the answer when a person is talking; this is the
  * answer when nobody is.
  *
- * Three rules hold the copy in this file.
+ * Four rules hold the copy in this file.
  *
- * **A stop is a title and at most two short sentences.** Under twenty-eight words
- * of body, no bullet list and nothing to look at underneath, and `lib/tour.test.ts`
- * counts the words. The first version of this file was three dense paragraphs and
- * two bullets per stop, nine times over: a wall of prose in front of the product,
- * which is the opposite of what a tour over the running screens is for. The
- * screen underneath is the explanation and the card is the caption on it, so when
- * a sentence and the screen say the same thing, the sentence goes.
+ * **A stop is a title, at most two short sentences, and one line that says where
+ * to look.** Under twenty-eight words of body, no bullet list, and the imperative
+ * line is a field of its own so the card can print it in its own style: a visitor
+ * who reads nothing else on the card still knows what to look at.
+ * `lib/tour.test.ts` counts both. The first version of this file was three dense
+ * paragraphs and two bullets per stop, nine times over: a wall of prose in front
+ * of the product, which is the opposite of what a tour over the running screens is
+ * for. The screen underneath is the explanation and the card is the caption on it,
+ * so when a sentence and the screen say the same thing, the sentence goes.
+ *
+ * **The first stop is a welcome card rather than a stop.** The lockup, one
+ * headline, the three lines of the scene and how long the whole thing takes. It is
+ * the only card with no spotlight under it, because there is nothing to point at
+ * until somebody has agreed to be shown around, and it is the card that has to
+ * earn the next eight.
  *
  * **Every number in it is this repository's.** The ninety-two transfers and the
  * peso figure come from the seeded company of `packages/seed`
@@ -89,20 +97,51 @@ export type TourTarget = (typeof TOUR_TARGETS)[keyof typeof TOUR_TARGETS];
 export type TourStep = {
   /** Stable id, for a key and for a test. */
   id: string;
-  /** Two or three words above the title: what kind of stop this is. */
-  eyebrow: string;
   title: string;
   /** The whole of what the stop says: two short sentences, one per entry. */
   body: readonly string[];
+  /**
+   * The one thing to do, in the imperative, when the stop expects the visitor to
+   * look at something on the screen underneath.
+   *
+   * A field of its own and not a third sentence, because the card prints it in
+   * its own style under the body: the sentences are why this screen matters and
+   * this line is where the eye goes. The stop that points at nothing carries
+   * none, and `lib/tour.test.ts` keeps it to one short line.
+   */
+  look?: string;
   /** Where the app goes when this step opens. Absent leaves it where it is. */
   route?: string;
   /** The element the spotlight cuts to, when this step has one. */
   target?: TourTarget;
   /** Opens the assistant drawer, for the stop that is about the drawer. */
   opensAssistant?: boolean;
-  /** The last stop renders the call instead of a body of its own. */
-  kind?: "call";
+  /**
+   * The two cards that are not a caption over a screen: the welcome, which is the
+   * lockup and the headline, and the call, which is a form.
+   */
+  kind?: "welcome" | "call";
 };
+
+/** The eyebrow of every card but the first: where the visitor is, in words. */
+export function stepLabel(index: number, total: number): string {
+  return `Paso ${index + 1} de ${total}`;
+}
+
+/** The primary of the welcome card, which is the only thing it asks for. */
+export const START_BUTTON = "Empezar el recorrido";
+
+/** Not now, from the welcome card. The top bar is how you come back. */
+export const LATER_BUTTON = "Ver despues";
+
+/** Out of the tour, from any card, and it is on every one of them. */
+export const SKIP_BUTTON = "Saltar";
+
+export const BACK_BUTTON = "Anterior";
+
+export const NEXT_BUTTON = "Siguiente";
+
+export const END_BUTTON = "Terminar";
 
 /** What the steps need from the data to point anywhere. */
 export type TourLinks = {
@@ -132,9 +171,12 @@ export function tourSteps(links: TourLinks): TourStep[] {
   return [
     {
       id: "why",
-      eyebrow: "El problema",
-      title: "Por que existe SentryOne",
-      /* Three lines and the only stop with three, because it is the one that has
+      /* The headline, and the whole argument of the product in one line: a SPEI
+         cannot be recalled, so the only place a control can stand is in front of
+         it. Everything in the eight stops after this one is that sentence with
+         evidence under it. */
+      title: "El ultimo control antes de que un pago sea irrevocable",
+      /* Three lines and the only card with three, because it is the one that has
          to land before anything else means anything: the hour, the person, the
          two losses and where the product sits. */
       body: [
@@ -142,87 +184,87 @@ export function tourSteps(links: TourLinks): TourStep[] {
         `Un clic y ${formatDecimal(links.heroAmount)} pesos no regresan. Y si el SAT publica al proveedor, tampoco la deduccion.`,
         "SentryOne vive en el minuto antes de enviar.",
       ],
+      kind: "welcome",
     },
     {
       id: "run",
-      eyebrow: "La corrida",
       title: "La corrida del jueves",
       body: [
-        "La cifra grande no es el total de la semana: son los pesos que no salen.",
+        "Esta es la corrida de la semana, ya revisada linea por linea.",
         "Cada linea trae su nivel, su estado y la razon detras.",
       ],
+      look: "Mira la cifra grande: son los pesos que no salen.",
       route: PATHS.run,
       target: TOUR_TARGETS.runHero,
     },
     {
       id: "intake",
-      eyebrow: "Como entra un pago",
       title: "La captura de WhatsApp, al chat",
       body: [
         "Asi llega un pago real: una foto. El asistente lee la cuenta y propone.",
         "Ejecuta una persona, y su nombre queda en el evento.",
       ],
+      look: "Mira el panel que se abrio a la derecha.",
       opensAssistant: true,
       target: TOUR_TARGETS.assistantPanel,
     },
     {
       id: "instruction",
-      eyebrow: "El hallazgo",
       title: "La cuenta y su plaza",
       body: [
         "El control compara la cuenta que llego contra las que ya se le pagaron.",
         "Tres digitos de la cuenta dicen en que ciudad se abrio.",
       ],
+      look: "Mira el primer hallazgo y su evidencia.",
       route: instructionPath(links.heroInstructionId),
       target: TOUR_TARGETS.instructionFindings,
     },
     {
       id: "cep",
-      eyebrow: "La cuenta, comprobada",
       title: "El centavo y el comprobante de Banxico",
       body: [
         "Antes del dinero va un centavo, y Banxico dice de quien es la cuenta.",
         "Si el titular no es el proveedor, la linea se bloquea.",
       ],
+      look: "Mira los dos nombres: la factura y Banxico.",
       route: verifyAccountPath(links.cepInstructionId),
       target: TOUR_TARGETS.cepNames,
     },
     {
       id: "sat",
-      eyebrow: "El riesgo fiscal",
       title: "El SAT publica",
       body: [
         "Cuando el SAT publica a un proveedor, tus deducciones sobre sus facturas se caen.",
         "El boton lo simula y recorre la bitacora para ponerlo en pesos.",
       ],
+      look: "Presiona Simular publicacion 69-B y mira la exposicion.",
       route: PATHS.sat,
       target: TOUR_TARGETS.satSimulate,
     },
     {
       id: "payments",
-      eyebrow: "La salida",
       title: "La corrida sale",
       body: [
-        "Esta es la unica pantalla que mueve dinero, y pide una segunda confirmacion.",
+        "Aqui sale la corrida, y pide una segunda confirmacion de una persona.",
         "Cada linea sale con su clave de rastreo, o se queda con su razon.",
       ],
+      look: "Mira el boton de enviar: es el unico que mueve dinero.",
       route: PATHS.payments,
       target: TOUR_TARGETS.paymentsSend,
     },
     {
       id: "who",
-      eyebrow: "Quien firma",
       title: "Quien decide",
       body: [
         "Cada escritura lleva un nombre y un papel, y la bitacora los guarda.",
         "Liberar lo que no es confiable es del dueno.",
       ],
+      look: "Mira quien esta actuando ahora mismo.",
       route: PATHS.entry,
       target: TOUR_TARGETS.entryPerson,
     },
     {
       id: "call",
-      eyebrow: "Tu turno",
       title: "Ahora te llamamos a ti",
       /* One sentence, and the card underneath is the field, the box and the
          button. Everything this stop used to say twice, once here and once in
@@ -246,6 +288,162 @@ export const TOUR_STEP_COUNT: number = tourSteps({
   heroAmount: 0,
   cepInstructionId: "x",
 }).length;
+
+/**
+ * How long the whole thing takes, said on the welcome card before anybody starts.
+ *
+ * A tour that does not say how long it is, is a tour a person declines rather
+ * than risks, and two minutes is the length of the eight captions after the
+ * welcome read out loud at the pace somebody reads a card while looking at a
+ * screen. The count is read off the list for the same reason the eyebrow is:
+ * nine is a fact about `tourSteps` and not a number to keep in step by hand.
+ */
+export const TOUR_MINUTES = 2;
+
+export const TOUR_LENGTH_NOTE = `${TOUR_STEP_COUNT} pasos, ${TOUR_MINUTES} minutos`;
+
+/* -------------------------------------------------- where the card can stand */
+
+/** A rectangle in viewport coordinates, which is what every rect here is. */
+export type TourBox = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
+export type TourSize = { width: number; height: number };
+
+/** Which corner the card takes. Two axes, because one of them was not enough. */
+export type TourPlace = { side: "left" | "right"; vert: "top" | "bottom" };
+
+/** Air around the target, so the ring does not sit on its own border. */
+export const SPOT_PAD = 8;
+
+/** The gutter the card keeps from the edge of the screen: `--space-6`, in px. */
+export const CARD_GAP = 24;
+
+/**
+ * And the gutter it keeps from the top, which is larger by a top bar.
+ *
+ * The bar carries the title and the two controls that belong to the whole app,
+ * and a card standing on them reads as a card that landed wrong. The stylesheet
+ * writes this same distance as `calc(var(--topbar-h) + var(--space-3))`, and the
+ * number has to be here as well because this is where the placement is measured:
+ * a model that thought the card was forty pixels higher than it is would call a
+ * corner free that the card actually overlaps.
+ */
+export const CARD_TOP_GAP = 64;
+
+/**
+ * The hole, padded, clamped to the viewport so no veil is given a negative size.
+ *
+ * The viewport is an argument rather than read off `window`, which is what lets
+ * this be a function with a test instead of a thing that only runs in a browser.
+ */
+export function spotlightHole(box: TourBox, view: TourSize): TourBox {
+  const top = Math.max(0, box.top - SPOT_PAD);
+  const left = Math.max(0, box.left - SPOT_PAD);
+
+  return {
+    top,
+    left,
+    width: Math.max(0, Math.min(view.width - left, box.width + SPOT_PAD * 2)),
+    height: Math.max(0, Math.min(view.height - top, box.height + SPOT_PAD * 2)),
+  };
+}
+
+/**
+ * The four corners, in the order they are preferred.
+ *
+ * Bottom left first because it is the one corner of this app nothing else uses:
+ * the assistant dock is bottom right and the toasts stack above it. The rest is
+ * the order that keeps the card as far from the rail and the top bar as the
+ * spotlight allows.
+ */
+const PLACES: readonly TourPlace[] = [
+  { side: "left", vert: "bottom" },
+  { side: "right", vert: "bottom" },
+  { side: "right", vert: "top" },
+  { side: "left", vert: "top" },
+];
+
+/**
+ * Where a card of that size sits in that corner.
+ *
+ * Exported because it is the other half of `placeCard`: the rule is that the
+ * card must not cover the spotlight, and a test can only check that by building
+ * the same rectangle the stylesheet draws.
+ */
+export function cardRectOf(
+  place: TourPlace,
+  card: TourSize,
+  view: TourSize,
+): TourBox {
+  return {
+    left: place.side === "left" ? CARD_GAP : view.width - CARD_GAP - card.width,
+    top:
+      place.vert === "top"
+        ? CARD_TOP_GAP
+        : view.height - CARD_GAP - card.height,
+    width: card.width,
+    height: card.height,
+  };
+}
+
+function overlapArea(a: TourBox, b: TourBox): number {
+  const x =
+    Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left);
+  const y =
+    Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top);
+
+  return Math.max(0, x) * Math.max(0, y);
+}
+
+/**
+ * Where the card goes, given the hole it must not cover.
+ *
+ * The first corner that does not touch the spotlight wins, in the preference
+ * order above, which is what makes the card sit still across steps that point at
+ * the same half of the screen. Only when all four overlap does it take the least
+ * bad one, and that is a real case: a findings block or the person picker is
+ * nearly the whole width of the screen, and then the card has to stand on
+ * something.
+ *
+ * It flips on both axes because one was not enough. The version this replaced
+ * chose a bottom corner by comparing the room on either side, so a target at the
+ * foot of the screen -- the button that sends the run -- was covered by the card
+ * that was describing it, whichever side it took.
+ */
+export function placeCard(
+  hole: TourBox | null,
+  card: TourSize,
+  view: TourSize,
+): TourPlace {
+  const first = PLACES[0] as TourPlace;
+
+  if (hole === null) {
+    return first;
+  }
+
+  let best = first;
+  let least = Number.POSITIVE_INFINITY;
+
+  for (const place of PLACES) {
+    const area = overlapArea(cardRectOf(place, card, view), hole);
+
+    if (area === 0) {
+      return place;
+    }
+
+    if (area < least) {
+      least = area;
+      best = place;
+    }
+  }
+
+  return best;
+}
 
 /* ------------------------------------------------------- the line it is about */
 

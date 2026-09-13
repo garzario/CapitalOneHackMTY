@@ -8,12 +8,21 @@
  * hole over the one element the step is talking about. Everything a visitor sees
  * through that hole is the product answering for itself.
  *
- * Four decisions worth their reasons.
+ * Five decisions worth their reasons.
  *
- * **The card is docked, not centred.** A modal in the middle of the viewport covers
- * the thing it is describing. Bottom left keeps the run's figures, the table and
- * the right-hand drawer visible, and it is the one corner nothing else in this app
- * uses: the toasts and the assistant dock are both bottom right.
+ * **It opens itself, once.** The first load of a browser gets the welcome card,
+ * with `Saltar` and `Ver despues` on it, and after that only the `Recorrido`
+ * button in the top bar or `#/run?tour=1` opens it. An invitation that has to be
+ * found is an invitation nobody takes, and the alternative it replaced was a
+ * banner on one screen that a visitor landing on the run never saw.
+ *
+ * **The card docks in the corner that does not cover the spotlight,** on both
+ * axes. Bottom left is the default because it is the one corner of this app
+ * nothing else uses -- the toasts and the assistant dock are both bottom right --
+ * and `placeCard` in `lib/tour.ts` moves it to any of the four when the thing the
+ * step points at is standing there. It used to choose between left and right
+ * only, so the stop about the button that sends the run put its card on top of
+ * that button whichever side it took.
  *
  * **The hole is four rectangles and not a clip path.** The four veils around the
  * target take the pointer, so a stray click cannot derail the tour, and the gap
@@ -26,19 +35,18 @@
  * stops, a fetch that replaces a skeleton with a table. One measurement is wrong in
  * both directions: too early lands on the loading state, and late enough to be safe
  * leaves a stale ring over the previous step while the visitor reads the new card.
- * So it measures on the frame the step opened on, then on a short interval until
- * the screen has stopped moving, and after that on resize and on scroll.
+ * So it polls for two seconds, then follows the element on resize and on scroll. A
+ * target that never appears leaves the card with no ring, which is a stop that
+ * still reads, rather than a ring drawn around nothing.
  *
  * **Escape and the arrows work everywhere except inside a field.** The last stop has
  * a telephone number in it, and a left arrow inside that field has to move the
  * caret rather than the tour.
  *
- * It is a `dialog` and `aria-modal` is false, which is the honest value rather than
- * a weaker one: the app behind is deliberately still there, one stop hands the Tab
- * order to the assistant drawer it just opened, and the spotlight leaves the
- * control it points at pressable. Focus moves to the card on every step, so a
- * screen reader reads the new step, and the card's own buttons are the first things
- * Tab reaches from there.
+ * It is a `dialog` with `aria-modal`, which is what the veil makes true: every
+ * click outside the hole lands on a veil, so the card is the surface a visitor is
+ * working in. Focus moves to the card on every step, so a screen reader reads the
+ * new step, and leaving hands focus back to the button that opens the tour.
  */
 
 import { motion, useReducedMotion } from "motion/react";
@@ -54,39 +62,60 @@ import { getTour } from "../lib/api";
 import { closeAssistant, openAssistant } from "../lib/assistant-dock";
 import { useResource } from "../lib/resource";
 import { navigate } from "../lib/router";
+import { useTheme } from "../lib/theme";
 import {
+  BACK_BUTTON,
+  END_BUTTON,
+  LATER_BUTTON,
   linksOf,
   mockTourConfig,
+  NEXT_BUTTON,
+  placeCard,
+  SKIP_BUTTON,
+  START_BUTTON,
+  spotlightHole,
+  stepLabel,
+  TOUR_LENGTH_NOTE,
   TOUR_STEP_COUNT,
+  type TourBox,
+  type TourSize,
   type TourStep,
   tourSteps,
 } from "../lib/tour";
-import { closeTour, useTourOpen } from "../lib/tour-store";
+import { closeTour, TOUR_LAUNCHER_ID, useTourOpen } from "../lib/tour-store";
 import { ErrorBlock, LoadingBlock, SourceNotice } from "./States";
 import { TourCall } from "./TourCall";
 
 /**
- * How often the spotlight re-measures its target while a step settles.
+ * How often the spotlight looks for its target, and for how long.
  *
  * A step is a navigation, a render and, on three of the stops, a request whose
  * answer replaces a skeleton with a table. None of that is on the tick the step
- * changed on, so the rect is taken again on this interval until the screen has
- * stopped moving.
+ * changed on, so the element is asked for on this interval for two seconds, and
+ * a step that still has no target after two seconds is a card with no ring.
  */
-const SETTLE_MS = 150;
+const SETTLE_MS = 100;
 
-/** How many of those before it stops asking: sixteen is two and a half seconds. */
-const SETTLE_TICKS = 16;
+/** Twenty of them, which is the two seconds the ring waits before giving up. */
+const SETTLE_TICKS = 20;
 
-/** Air around the target, so the ring does not sit on its own border. */
-const SPOT_PAD = 8;
+/** Below this the card is a bottom sheet, so neither axis is chosen. */
+const SHEET_WIDTH = 768;
 
 /** Every field a key press belongs to rather than to the tour. */
 const TYPING = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
-type Box = { top: number; left: number; width: number; height: number };
+/** The lockup, at the size the welcome card wears it, in its own proportion. */
+const LOCKUP = {
+  width: 152,
+  height: 48,
+  light: "/sentryone-lockup.svg",
+  /* The reverse one, for the dark card. The rail wears it in both appearances
+     because the rail is navy on either ground; this card is not. */
+  dark: "/sentryone-lockup-dark.svg",
+};
 
-function sameBox(a: Box | null, b: Box | null): boolean {
+function sameBox(a: TourBox | null, b: TourBox | null): boolean {
   if (a === null || b === null) {
     return a === b;
   }
@@ -99,41 +128,12 @@ function sameBox(a: Box | null, b: Box | null): boolean {
   );
 }
 
-/** The hole, padded, clamped to the viewport so no veil gets a negative size. */
-function holeOf(box: Box): Box {
-  const top = Math.max(0, box.top - SPOT_PAD);
-  const left = Math.max(0, box.left - SPOT_PAD);
-
-  return {
-    top,
-    left,
-    width: Math.max(
-      0,
-      Math.min(window.innerWidth - left, box.width + SPOT_PAD * 2),
-    ),
-    height: Math.max(
-      0,
-      Math.min(window.innerHeight - top, box.height + SPOT_PAD * 2),
-    ),
-  };
+function sameSize(a: TourSize, b: TourSize): boolean {
+  return Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
 }
 
-/**
- * Which bottom corner the card takes, given the hole it must not cover.
- *
- * The wider gap wins. On the widest targets -- a findings block, the person
- * picker -- both gaps are narrow and the card overlaps whichever side it is on;
- * it then keeps the default corner rather than flipping between two equally bad
- * answers on every step.
- */
-function dockSide(hole: Box | null): "left" | "right" {
-  if (hole === null || typeof window === "undefined") {
-    return "left";
-  }
-
-  const right = window.innerWidth - (hole.left + hole.width);
-
-  return right > hole.left ? "right" : "left";
+function viewport(): TourSize {
+  return { width: window.innerWidth, height: window.innerHeight };
 }
 
 const loadTour = (signal: AbortSignal) => getTour({ signal });
@@ -141,8 +141,15 @@ const loadTour = (signal: AbortSignal) => getTour({ signal });
 export function Tour() {
   const open = useTourOpen();
   const reduceMotion = useReducedMotion();
+  const theme = useTheme();
   const [index, setIndex] = useState(0);
-  const [box, setBox] = useState<Box | null>(null);
+  const [box, setBox] = useState<TourBox | null>(null);
+  const [view, setView] = useState<TourSize>(() =>
+    typeof window === "undefined" ? { width: 1440, height: 900 } : viewport(),
+  );
+  /* The card measures itself, because where it may stand depends on how big it
+     is: the call stop is twice the height of a caption. */
+  const [card, setCard] = useState<TourSize>({ width: 400, height: 300 });
   const cardRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const bodyId = useId();
@@ -176,6 +183,12 @@ export function Tour() {
     }
 
     closeTour();
+
+    /* Focus goes back to the control that opens the tour rather than to the top
+       of the document, which is where a removed dialog leaves it. */
+    window.requestAnimationFrame(() => {
+      document.getElementById(TOUR_LAUNCHER_ID)?.focus();
+    });
   }, []);
 
   /* The tour always starts at the beginning. A tour that resumes at step six is a
@@ -221,19 +234,63 @@ export function Tour() {
     cardRef.current?.focus();
   }, [open, index]);
 
+  /* The card's own size, watched rather than measured once: the call stop grows
+     when the result lands under the form, and a card that grew downwards out of a
+     top corner would be a card that walked over its own spotlight. */
+  useEffect(() => {
+    const element = cardRef.current;
+
+    if (!open || element === null || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      const rect = element.getBoundingClientRect();
+      const next = { width: rect.width, height: rect.height };
+
+      setCard((current) => (sameSize(current, next) ? current : next));
+    });
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [open]);
+
+  /* The viewport, as state, because where the card may stand is computed from it
+     and a resize changes the answer without changing the step. */
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onResize = () => {
+      setView((current) => {
+        const next = viewport();
+
+        return sameSize(current, next) ? current : next;
+      });
+    };
+
+    onResize();
+    window.addEventListener("resize", onResize);
+
+    return () => window.removeEventListener("resize", onResize);
+  }, [open]);
+
   const target = step?.target;
+  const narrow = view.width <= SHEET_WIDTH;
 
   /*
    * The spotlight.
    *
-   * Measured on the frame the step opens on and then on a short interval for the
-   * next two and a half seconds, rather than once after a delay. A single
-   * measurement is the version that was written first and it was wrong in both
-   * directions: too early lands on the loading state of a screen whose table has
-   * not arrived, and late enough to be safe leaves a stale ring over the previous
-   * step for most of a second, which is what a visitor is looking at while they
-   * read the new card. Re-measuring is one `querySelector` and one rect, so the
-   * cheap answer is to keep asking until the screen has settled.
+   * Measured on the frame the step opens on and then every hundred milliseconds
+   * for two seconds, rather than once after a delay. A single measurement is the
+   * version that was written first and it was wrong in both directions: too early
+   * lands on the loading state of a screen whose table has not arrived, and late
+   * enough to be safe leaves a stale ring over the previous step for most of a
+   * second, which is what a visitor is looking at while they read the new card.
+   * Re-measuring is one `querySelector` and one rect, so the cheap answer is to
+   * keep asking until the screen has settled.
    *
    * The interval stops itself; `resize` and `scroll` are what keep the ring on
    * the element after that, because both move the rect without changing the step.
@@ -260,18 +317,20 @@ export function Tour() {
       }
 
       /* Once, on the first measurement that found the element: scrolling on
-         every tick would fight a person who scrolled the screen themselves. */
+         every tick would fight a person who scrolled the screen themselves. On a
+         phone the card is the bottom of the screen, so the target is put near the
+         top rather than in the middle of what the sheet covers. */
       if (mayScroll && !scrolled) {
         scrolled = true;
         element.scrollIntoView({
-          block: "center",
+          block: narrow ? "start" : "center",
           inline: "nearest",
           behavior: reduceMotion ? "auto" : "smooth",
         });
       }
 
       const rect = element.getBoundingClientRect();
-      const next: Box = {
+      const next: TourBox = {
         top: rect.top,
         left: rect.left,
         width: rect.width,
@@ -302,7 +361,7 @@ export function Tour() {
       window.removeEventListener("resize", onMove);
       window.removeEventListener("scroll", onMove, { capture: true });
     };
-  }, [open, target, reduceMotion]);
+  }, [open, target, reduceMotion, narrow]);
 
   const back = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
@@ -356,15 +415,13 @@ export function Tour() {
     return null;
   }
 
-  const hole = box === null ? null : holeOf(box);
-  const progress = total === 0 ? 0 : ((index + 1) / total) * 100;
+  const hole = box === null ? null : spotlightHole(box, view);
   const last = index === total - 1;
-  /* Which corner the card docks in: the one with more room beside the thing the
-     step is pointing at. A tour card that covers its own spotlight is the oldest
-     mistake in the form, and the default corner covers the run's dark card and
-     the left half of a finding. With no target it stays bottom left, which is
-     the corner nothing else in this app uses. */
-  const side = dockSide(hole);
+  const welcome = step?.kind === "welcome";
+  /* Which corner the card docks in: the first of the four that does not touch
+     the spotlight. A tour card that covers its own spotlight is the oldest
+     mistake in the form. */
+  const place = placeCard(hole, card, view);
 
   return (
     <>
@@ -417,6 +474,9 @@ export function Tour() {
               height: hole.height,
             }}
           />
+          {/* The ring travels from the last target to this one under a CSS
+              transition on its four sides, which is `--motion-base` and collapses
+              to a millisecond under reduced motion with every other duration. */}
           <div
             aria-hidden="true"
             className="tour-ring"
@@ -433,42 +493,60 @@ export function Tour() {
       <motion.div
         ref={cardRef}
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
         tabIndex={-1}
         className="tour-card"
-        data-side={side}
+        data-side={place.side}
+        data-vert={place.vert}
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: reduceMotion ? 0 : 0.22,
+          duration: reduceMotion ? 0 : 0.2,
           ease: [0.2, 0.8, 0.2, 1],
         }}
       >
         <div className="tour-head">
-          <div className="tour-eyebrow">
+          {welcome ? (
+            /* The lockup, in the appearance a person chose. It is read off the
+               theme store and not off a media query, because `lib/theme.ts`
+               deliberately does not follow the operating system: the reverse
+               lockup on a light card would be white on white. */
+            <img
+              className="tour-lockup"
+              src={theme === "dark" ? LOCKUP.dark : LOCKUP.light}
+              alt="SentryOne"
+              width={LOCKUP.width}
+              height={LOCKUP.height}
+            />
+          ) : (
             <span className="eyebrow">
-              {`Recorrido · paso ${index + 1} de ${total === 0 ? TOUR_STEP_COUNT : total}`}
+              {stepLabel(index, total === 0 ? TOUR_STEP_COUNT : total)}
             </span>
-            {step !== null ? (
-              <span className="subtle t-xs">{step.eyebrow}</span>
-            ) : null}
-          </div>
+          )}
 
           <button type="button" className="btn btn-sm" onClick={exit}>
-            Salir
+            {SKIP_BUTTON}
           </button>
         </div>
 
-        {/* The bar repeats the count for the eye. The words above it are the
-            accessible version, so this is hidden rather than read twice. */}
-        <div aria-hidden="true" className="tour-progress">
-          <span
-            className="tour-progress-fill"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        {/* One dot per stop, for the eye. The eyebrow above says the same thing in
+            words, which is the version a screen reader gets, so this is hidden
+            rather than read twice. */}
+        {total > 0 ? (
+          <div aria-hidden="true" className="tour-dots">
+            {steps.map((dot, at) => (
+              <span
+                key={dot.id}
+                className="tour-dot"
+                data-state={
+                  at < index ? "done" : at === index ? "now" : "ahead"
+                }
+              />
+            ))}
+          </div>
+        ) : null}
 
         {resource.status === "loading" ? (
           <LoadingBlock label="Abriendo el recorrido" rows={3} />
@@ -484,7 +562,7 @@ export function Tour() {
 
         {step !== null && config !== null ? (
           <div className="tour-body" id={bodyId}>
-            <h2 id={titleId} className="t-lg">
+            <h2 id={titleId} className={welcome ? "m-0 t-xl" : "m-0 t-lg"}>
               {step.title}
             </h2>
 
@@ -493,6 +571,12 @@ export function Tour() {
                 {paragraph}
               </p>
             ))}
+
+            {/* The one line that says where to look, in its own style, because a
+                visitor who reads nothing else on the card reads this one. */}
+            {step.look !== undefined ? (
+              <p className="tour-look m-0">{step.look}</p>
+            ) : null}
 
             {step.kind === "call" ? <TourCall config={config} /> : null}
 
@@ -504,32 +588,49 @@ export function Tour() {
         ) : null}
 
         <div className="tour-foot">
-          <button
-            type="button"
-            className="btn btn-pill"
-            onClick={back}
-            disabled={index === 0}
-          >
-            Anterior
-          </button>
+          {welcome ? (
+            <>
+              <button type="button" className="btn btn-pill" onClick={exit}>
+                {LATER_BUTTON}
+              </button>
 
-          {last ? (
-            <button
-              type="button"
-              className="btn btn-pill btn-accent"
-              onClick={exit}
-            >
-              Terminar
-            </button>
+              <span className="tour-foot-main">
+                <span className="subtle t-xs">{TOUR_LENGTH_NOTE}</span>
+                <button
+                  type="button"
+                  className="btn btn-pill btn-accent btn-lg"
+                  onClick={forward}
+                  disabled={total === 0}
+                >
+                  {START_BUTTON}
+                </button>
+              </span>
+            </>
           ) : (
-            <button
-              type="button"
-              className="btn btn-pill btn-accent"
-              onClick={forward}
-              disabled={total === 0}
-            >
-              Siguiente
-            </button>
+            <>
+              <button type="button" className="btn btn-pill" onClick={back}>
+                {BACK_BUTTON}
+              </button>
+
+              {last ? (
+                /* The primary of the last card is the telephone, and it is in the
+                   form above: what a visitor is here to press is the one that
+                   rings them as the owner, not a button that ends a tour they
+                   have not taken yet. So this one is quiet. */
+                <button type="button" className="btn btn-pill" onClick={exit}>
+                  {END_BUTTON}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-pill btn-accent btn-lg"
+                  onClick={forward}
+                  disabled={total === 0}
+                >
+                  {NEXT_BUTTON}
+                </button>
+              )}
+            </>
           )}
         </div>
       </motion.div>

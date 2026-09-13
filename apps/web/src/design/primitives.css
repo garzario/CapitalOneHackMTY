@@ -1528,7 +1528,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    min-height: 3.25rem;
+    min-height: var(--topbar-h);
     padding: var(--space-2) var(--layout-gutter);
     background-color: var(--c-canvas);
     border-bottom: var(--border-width) solid var(--c-border);
@@ -2241,7 +2241,10 @@
     position: fixed;
     z-index: var(--z-tour);
     pointer-events: none;
-    border: 2px solid var(--c-hold);
+    /* Three pixels rather than two. The ring is read across a room, over a
+       screenshot and on a projector, and a hairline in the hold red on a dimmed
+       financial table is the one thing in this overlay that was hard to find. */
+    border: 3px solid var(--c-hold);
     border-radius: var(--radius-lg);
     transition:
       top var(--motion-base) var(--ease-standard),
@@ -2279,27 +2282,40 @@
     gap: var(--space-3);
   }
 
-  .tour-eyebrow {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 0;
+  /* The lockup of the welcome card, where every other card puts its eyebrow. */
+  .tour-lockup {
+    display: block;
+    width: 152px;
+    height: auto;
   }
 
-  /* The count, for the eye. The words above it are the version a screen reader
-     gets, so the component hides this from the accessibility tree. */
-  .tour-progress {
-    height: 3px;
+  /* One dot per stop, for the eye. "Paso 3 de 9" above it is the version a
+     screen reader gets, so the component hides these from the accessibility
+     tree. A bar said how far along in a fraction nobody can read at a glance;
+     nine dots say it as a shape, and the one you are on is the wide one. */
+  .tour-dots {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .tour-dot {
+    width: 6px;
+    height: 6px;
     border-radius: var(--radius-pill);
     background-color: var(--c-well-line);
-    overflow: hidden;
+    transition:
+      width var(--motion-base) var(--ease-standard),
+      background-color var(--motion-base) var(--ease-standard);
   }
 
-  .tour-progress-fill {
-    display: block;
-    height: 100%;
+  .tour-dot[data-state="done"] {
+    background-color: var(--c-border-strong);
+  }
+
+  .tour-dot[data-state="now"] {
+    width: 20px;
     background-color: var(--c-accent);
-    transition: width var(--motion-base) var(--ease-standard);
   }
 
   /* The one part of the card that scrolls. `min-height: 0` is what allows a flex
@@ -2314,16 +2330,56 @@
     gap: var(--space-3);
   }
 
+  /*
+   * The one line that says where to look, and the only thing on the card printed
+   * in its own style.
+   *
+   * It is the instruction and not the explanation: a visitor who reads nothing
+   * else reads this line and knows where their eye goes, which is what a tour
+   * over a running product is for. The rule down its left is the accent and not
+   * the hold red, because the ring outside is already the red and two reds would
+   * be two signals saying one thing.
+   */
+  .tour-look {
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--c-accent);
+    border-radius: var(--radius-sm);
+    background-color: var(--c-accent-soft);
+    color: var(--c-ink);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+  }
+
   .tour-foot {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
   }
 
+  /* The primary of the welcome card, with how long the tour is above it: a
+     person decides whether to start by reading the length, so it goes next to
+     the button rather than into the paragraph. */
+  .tour-foot-main {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-1);
+  }
+
   /* --------------------------------------------- the call of the last stop */
 
+  /* The stop is three things in a column: the block a person fills in, the strip
+     that says where the call has got to, and the answer. Only the first of them
+     is a form, so only the first of them is a well. */
   .tour-call {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .tour-block {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
@@ -2348,7 +2404,7 @@
     gap: var(--space-2);
   }
 
-  /* The four steps of one call. Colour is never the only signal: the steps that
+  /* The three steps of one call. Colour is never the only signal: the steps that
      have happened are in ink on the accent's pale ground and the ones ahead are
      subtle, and each one says in words which it is. */
   .tour-strip {
@@ -2418,26 +2474,6 @@
     gap: var(--space-2);
   }
 
-  /* ------------------------------------------------ the first-visit banner */
-
-  .tour-banner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    background-color: var(--c-accent-soft);
-    border: var(--border-width) solid var(--c-accent);
-    border-radius: var(--radius-lg);
-  }
-
-  .tour-banner-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-
   /* The control that opens the tour, beside the title. The word goes at the
      width where the title and the synthetic mark need the room and the glyph
      stays, which is why it is a triangle and not a letter; the button keeps its
@@ -2458,31 +2494,48 @@
     gap: var(--space-2);
   }
 
-  /* The other corner, taken when the spotlight is on the left of the screen. The
-     card moves rather than covering the thing it is pointing at, and the rule is
-     above the phone breakpoint because down there the card is the full width of
-     the screen and there is no side to choose. */
+  /* The other three corners, taken when the spotlight is standing in the default
+     one. The card moves rather than covering the thing it is pointing at, and
+     `placeCard` in `lib/tour.ts` is what decides which; the rules are above the
+     phone breakpoint because down there the card is the full width of the screen
+     and a corner is not a thing it can take. */
   @media (min-width: 48.0625rem) {
     .tour-card[data-side="right"] {
       left: auto;
       right: var(--space-6);
+    }
+
+    /* Under the top bar and not over it. The bar carries the title and the two
+       controls that belong to the whole app, and a card standing on them reads
+       as a card that landed wrong. `CARD_TOP_GAP` in `lib/tour.ts` is this same
+       distance, because the placement is measured there. */
+    .tour-card[data-vert="top"] {
+      bottom: auto;
+      top: calc(var(--topbar-h) + var(--space-3));
     }
   }
 
   /* On a phone the card is the bottom of the screen rather than a panel in a
      corner, because a 25rem card on a 390px viewport is the viewport. It keeps a
      gutter on both sides at every width and it is shorter, so the screen it is
-     explaining is still visible above it. */
+     explaining is still visible above it. Both placement axes are overridden
+     here rather than left off in the component: the card is measured and placed
+     in JavaScript, and a sheet that flew to the top of a phone would cover the
+     top bar and the thing the step had just scrolled into view. */
   @media (max-width: 48rem) {
-    .tour-card {
+    .tour-card,
+    .tour-card[data-side="right"],
+    .tour-card[data-vert="top"] {
       left: var(--space-3);
       right: var(--space-3);
+      top: auto;
       bottom: var(--space-3);
       width: auto;
-      /* Three quarters of a phone, which is what the last stop needs: the
-         telephone field and the consent box have to be reachable without
-         scrolling the card, and the screen above it is still visible. */
-      max-height: min(36rem, 76svh);
+      /* Two thirds of a phone. The last stop needs the telephone field and the
+         consent box reachable without scrolling the card, and every other stop
+         needs the third of the screen above the sheet, because that is where the
+         thing it is pointing at was scrolled to. */
+      max-height: min(34rem, 66svh);
       padding: var(--space-4);
       gap: var(--space-2);
     }

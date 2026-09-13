@@ -201,13 +201,42 @@ export const TOUR_CALL_STATUS_LABEL: Record<TourCallStatus, string> = {
   failed: "No se pudo completar",
 };
 
-/** In the order they happen, so the strip can draw what is behind and ahead. */
-export const TOUR_CALL_STATUS_ORDER: TourCallStatus[] = [
-  "initiated",
-  "in-progress",
-  "processing",
-  "done",
+/**
+ * The strip a visitor watches, in three words rather than in the provider's four.
+ *
+ * `processing` is the provider saying it is reading its own transcript, and on a
+ * card whose whole job is to be understood at a glance that is a fourth pill that
+ * says nothing to the person holding the telephone: they are still on the call
+ * until the answer lands. So the strip is what happens -- it rings, you talk, it
+ * ends -- and the fourth status folds into the middle one.
+ */
+export const TOUR_CALL_STRIP: readonly string[] = [
+  "Marcando",
+  "En llamada",
+  "Termino",
 ];
+
+/**
+ * Which of the three the call has reached, or minus one for a call that never
+ * got there.
+ *
+ * The provider reports four statuses in this order, `initiated`, `in-progress`,
+ * `processing`, `done`, and the mapping is written out rather than derived from a
+ * list, because the interesting part of it is exactly the pair that collapses.
+ * A failure is not a fourth step of the strip either: the strip comes off and the
+ * sentence underneath says what happened to the payment instead.
+ */
+export function stripIndexOf(status: TourCallStatus): number {
+  if (status === "initiated") {
+    return 0;
+  }
+
+  if (status === "in-progress" || status === "processing") {
+    return 1;
+  }
+
+  return status === "done" ? 2 : -1;
+}
 
 /**
  * What each answer did to the line.

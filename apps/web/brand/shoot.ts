@@ -121,6 +121,18 @@ const SAT_LOOKUP = `(async () => {
   return "ok";
 })()`;
 
+/**
+ * What every page in this script is told before it mounts: the tour is seen.
+ *
+ * `lib/tour-store.ts` opens the recorrido on the first load of a browser, and a
+ * headless profile is a first load every time. The key is the one that file
+ * writes, and the whole thing is wrapped for the same reason it is there: a
+ * browser that refuses storage must not take the page down with it.
+ */
+const TOUR_SEEN = `try {
+  localStorage.setItem("sentryone:tour-seen", "1");
+} catch {}`;
+
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
 const OUT_DIR = join(REPO_ROOT, "assets", "screenshots");
 
@@ -400,6 +412,15 @@ async function main(): Promise<void> {
     const devtools = await Devtools.connect(await pageSocket());
 
     await devtools.send("Page.enable");
+    /* Every capture starts as a browser that has already seen the recorrido.
+       The tour opens itself on a first visit, and a fresh profile is a first
+       visit, so without this the first frame of a session comes back with the
+       welcome card over whichever screen it was meant to be of. It is set on
+       the document rather than after the load, because the app reads the key
+       while it is mounting. */
+    await devtools.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: TOUR_SEEN,
+    });
     await mkdir(OUT_DIR, { recursive: true });
 
     if (frames) {

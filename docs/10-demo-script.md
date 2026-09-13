@@ -331,8 +331,11 @@ account are the seeded synthetic ones.
 
 **The pitch still dials nobody, and the recorrido is not in the four minutes.** It is what is offered
 after the pitch, to a judge who stayed, or to somebody who wants the product on their own phone while
-the next team sets up. **Recorrido** in the top bar opens nine stops over the running app, the
-visitor drives them, and the ninth one asks for their mobile number and telephones them as Gerardo
+the next team sets up. It also opens itself on their first load, which is the case the stand cannot
+staff: a judge who walks up while nobody is presenting gets the welcome card, with `Saltar` and
+`Ver despues` on it, instead of ninety-two rows of pesos. **Recorrido** in the top bar opens the same
+nine stops at any time, the visitor drives them, and the ninth one asks for their mobile number and
+telephones them as Gerardo
 Villarreal, the owner of the synthetic company. They hear the held line of `INS-2026-09-07-029`, the
 account that ends in four digits and is not the one this supplier has always been paid on, and one
 question, word for word `¿La retenemos hasta verificarla, o la libera bajo su nombre?`. What they

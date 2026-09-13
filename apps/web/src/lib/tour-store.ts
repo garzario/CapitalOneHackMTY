@@ -14,10 +14,13 @@
  * a step number in a global store would be a second place that knows how many
  * steps there are.
  *
- * It also remembers that somebody has seen it, which is what keeps the entry
- * screen's banner from greeting a judge who already took the tour. That lives in
- * `localStorage` and every read of it is defensive: a private window is allowed
- * to forget, and forgetting must never be the reason a screen fails to render.
+ * It also remembers that somebody has seen it, which is the whole of the
+ * first-visit rule: the tour opens itself once, on the first load of this
+ * browser, and never again on its own. That lives in `localStorage` and every
+ * read and write of it is wrapped, because a private window is allowed to forget
+ * and forgetting must never be the reason a screen fails to render. A browser
+ * that refuses storage gets the tour on every load, which is the failure worth
+ * having: the invitation is repeated instead of the product being unexplained.
  */
 
 import { useSyncExternalStore } from "react";
@@ -64,6 +67,37 @@ export function openTour() {
   open = true;
   publish();
 }
+
+/**
+ * The first visit, and only the first: the tour opens itself.
+ *
+ * The product opens on ninety-two rows of pesos, and a judge who walks up to an
+ * unattended stand has no way to know which of them is the product. An
+ * invitation that has to be found is an invitation that is not taken, so this is
+ * the one thing in the app that happens without being asked for, once, with
+ * `Saltar` and `Ver despues` on the card that appears.
+ *
+ * It answers whether it opened, so the caller can say nothing rather than guess.
+ */
+export function openTourOnFirstVisit(): boolean {
+  if (tourSeen()) {
+    return false;
+  }
+
+  openTour();
+
+  return true;
+}
+
+/**
+ * The control that opens the tour, by id, so closing can hand focus back to it.
+ *
+ * The launcher is in the top bar and the overlay is mounted beside the shell, so
+ * neither holds a ref to the other. An id is the smallest thing that crosses
+ * that gap, and a keyboard user who presses `Escape` lands back on the button
+ * they pressed rather than at the top of the document.
+ */
+export const TOUR_LAUNCHER_ID = "tour-launcher";
 
 export function closeTour() {
   if (!open) {

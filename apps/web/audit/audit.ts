@@ -554,6 +554,15 @@ async function main(): Promise<void> {
     const devtools = await Devtools.connect(await pageSocket());
     await devtools.send("Page.enable");
     await devtools.send("Runtime.enable");
+    /* Every page here is a browser that has already seen the recorrido. The
+       tour opens itself on a first visit and a headless profile is a first
+       visit every time, so without this the first route audited is audited
+       through a dimmed app with a dialog on top of it: the overflow, the
+       keyboard order and the contrast would all be of the overlay. It is set on
+       the document because the app reads the key while it is mounting. */
+    await devtools.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `try { localStorage.setItem("sentryone:tour-seen", "1"); } catch {}`,
+    });
 
     console.log("## Responsive\n");
 
