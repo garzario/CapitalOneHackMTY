@@ -104,8 +104,8 @@ live and how much of it is migrated and seeded, and closes on whether this lapto
 the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
 warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
-Three commands worth knowing about. `bun test` runs 1,670 tests across 97 files with no network, no
-database and no API key, which is the fastest way to check that the intelligence is real. The 109
+Three commands worth knowing about. `bun test` runs 1,719 tests across 99 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real. The 111
 database cases skip themselves unless `TEST_DATABASE_URL` names a database they may empty, and they
 share one, so run them a workspace at a time rather than all at once. `bun run eval` scores the six
 controls against 30 labelled holdout cases and prints precision, recall and the false positive rate

@@ -193,7 +193,7 @@ Transitorio Primero, and it changes who carries the risk.
   one runs in under a month.
 - **A different finding.** Inciso b) of fr. VIII: the taxpayer did not rebut, so the CFDI "se
   consideran falsos con efectos generales" for failing art. 29-A, fr. IX, which the same decree added
-  to require that a CFDI "ampare operaciones existentes, verdaderas o actos jurídicos reales", and
+  and which reads, in full, "Amparar operaciones existentes, verdaderas o actos jurídicos reales", and
   the operations "no producen ni produjeron efecto fiscal alguno". Same retroactivity as 69-B, in the
   same past tense, for a different reason: not that the operation never happened, but that the
   document is false.
@@ -208,11 +208,14 @@ Transitorio Primero, and it changes who carries the risk.
   certificado de sello digital** under art. 17-H Bis, fr. XIV, which the same decree added. Natural
   days, so weekends count. This is the single most important sentence in this section: the sanction
   for missing the window is not a tax bill, it is that the clerk's own company cannot invoice.
-- **And the criminal exposure moved to the buyer.** Fr. XI refers the matter to the Ministerio
-  Público under art. 113 Bis, whose second paragraph, added by the same decree, now covers whoever
-  "expida, enajene, compre, adquiera o **dé efectos fiscales** a comprobantes fiscales falsos", two
-  to nine years. A third paragraph, also new, says the offence is investigated independently of the
-  state of the administrative procedure.
+- **And the criminal exposure moved to the buyer.** Fr. XI: the SHCP "procederá penalmente contra
+  cualquier actividad relacionada con comprobantes fiscales falsos", in the terms of art. 113 Bis,
+  whose second paragraph, added by the same decree, now covers whoever "expida, enajene, compre,
+  adquiera o **dé efectos fiscales** a comprobantes fiscales falsos", two to nine years. A third
+  paragraph, also new, says the offence is investigated independently of the state of the
+  administrative procedure, and the article still requires a querella from the SHCP to prosecute.
+  It names no other body, so neither do we: the fraccion does not mention the Ministerio Público
+  and an earlier version of this section said it did.
 
 **What we do with it, stated exactly.** `packages/sat/src/art49bis.ts` holds the loader for the
 published layout, the thirty day window and a retroactive sweep that prices already deducted invoices
@@ -695,7 +698,7 @@ All read on 2026-09-12. Statutes are the texto vigente published by the Cámara 
 | Código Fiscal de la Federación, texto vigente, last reform DOF 09-04-2026, arts. 69, 69-B, 69-B Bis | Sections 2.1 and 3 |
 | The same text, arts. 42 fr. V inciso g), 49 Bis, 17-H fr. XIII, 17-H Bis fr. XIV, 29-A fr. IX, 29-A Bis and 113 Bis, each marked as added or reformed by the decree DOF 07-11-2025, whose Transitorio Primero sets 1 January 2026. `https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf`, retrieved 2026-09-12 at 17:25 local, 3,134,465 bytes | Section 3.3 |
 | SAT, Datos Abiertos, contribuyentes publicados, `https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html`, whose only article sections are 69, 69-B and 69-B Bis, and the 69-B Bis complete listing CSV, three taxpayers at a 5 June 2026 cut-off | Sections 3.2 and 3.3 |
-| Diario Oficial de la Federación, search for `fraccion X del articulo 49 Bis`, run 2026-09-12: fourteen oficios of the Administración Central de Fiscalización Estratégica, 10 July to 28 August 2026, one taxpayer each | Section 3.3 |
+| Diario Oficial de la Federación, full-text search for `fracción X del artículo 49 Bis`, **accents included, because the same phrase without them answers zero**, run 2026-09-12: fourteen oficios of the Administración Central de Fiscalización Estratégica, 10 July to 28 August 2026, one taxpayer each. The link that answers carries the query, since the bare page redirects to an error: `https://dof.gob.mx/busqueda_detalle.php?textobusqueda=fracci%C3%B3n+X+del+art%C3%ADculo+49+Bis&vienede=` | Section 3.3 |
 | Ley Federal de Protección de Datos Personales en Posesión de los Particulares, nueva ley DOF 20-03-2025, last reform DOF 14-11-2025, arts. 2, 5 to 12, 15, 21 to 33, 35, 36 | Sections 2, 2.1 and 4 |
 | Ley para Regular las Instituciones de Tecnología Financiera, DOF 09-03-2018, last reform DOF 14-11-2025, arts. 1, 3, 15, 22, 76, 77 | Sections 1 and 2 |
 | Ley de Protección y Defensa al Usuario de Servicios Financieros, DOF 18-01-1999, last reform DOF 14-11-2025, art. 2 | Sections 1 and 2 |

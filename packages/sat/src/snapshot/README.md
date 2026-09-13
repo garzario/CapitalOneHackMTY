@@ -29,10 +29,23 @@ about.
 | Data current to | 2025-12-31, stated by the file in its own first line |
 | `Last-Modified` on the server | 2026-01-22 |
 | Bytes | 4566277, committed unmodified |
+| `sha256` | `54b95d41c9ca0ea1296f2885d1234e58a562620e76ac2437d2521fc2bbf36685` |
 | Encoding | ISO-8859-1, read with the WHATWG `windows-1252` decoder |
 | Line endings | CRLF |
 | Rows | 14234 data rows on 14247 physical lines |
 | `listVersion` | `2025-12-31`, the date the file states it is current to |
+
+**Re-verified on 2026-09-12 at 18:07 local (UTC-6)**, which is the whole point of having
+a digest here. The file was downloaded again from the URL above and compared against the
+committed one: same 4566277 bytes, same `sha256`, same `Last-Modified` of 2026-01-22,
+byte for byte identical. So the counts `official.test.ts` asserts, 14234 rows, 91
+unreadable and 28935 situations, are counts of the file the SAT is serving right now and
+not of a file that drifted after it was committed. One command repeats the check:
+
+```
+curl -s http://omawww.sat.gob.mx/cifras_sat/Documents/Listado_Completo_69-B.csv \
+  | shasum -a 256
+```
 
 The file is public data. Its own first line says so: the listings are of
 `caracter publico` and are consultable on the SAT portal, and the oficios behind
@@ -213,10 +226,14 @@ efecto fiscal alguno". Then fraccion X, which is the clock this product cares ab
 | Reverse the fiscal effect through a complementary return | every third party who received those CFDI | **30 natural days from the DOF publication** |
 | Temporarily restrict the third party's own certificado de sello digital when they do not | SAT, under article 17-H Bis, fraccion XIV | after the 30 days |
 
-Fraccion XI refers the matter to the Ministerio Publico under article 113 Bis, whose
-second paragraph, added by the same 7 November 2025 decree, covers whoever "expida,
-enajene, compre, adquiera o de efectos fiscales a comprobantes fiscales falsos", with
-two to nine years of prison.
+Fraccion XI says that the Secretaria de Hacienda y Credito Publico "procedera
+penalmente contra cualquier actividad relacionada con comprobantes fiscales falsos", in
+the terms of article 113 Bis, whose second paragraph, added by the same 7 November 2025
+decree, covers whoever "expida, enajene, compre, adquiera o de efectos fiscales a
+comprobantes fiscales falsos", with two to nine years of prison. The same article
+requires a querella from the SHCP before anybody is prosecuted. Neither the fraccion nor
+the article names the Ministerio Publico, and an earlier draft of this file said they
+did, which is the kind of plausible addition a judge would be right to catch.
 
 Source: Codigo Fiscal de la Federacion, texto vigente, last reform DOF 9 April 2026,
 <https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf>, retrieved 2026-09-12 at 17:25
@@ -236,9 +253,23 @@ checks, both repeatable in a minute:
   <https://www.sat.gob.mx/minisitio/DatosAbiertos/index.html> lists the same three
   articles.
 - **The DOF publishes it one oficio at a time, as an HTML note.** A full-text search
-  for `fraccion X del articulo 49 Bis` at <https://dof.gob.mx/busqueda_detalle.php>
+  for the phrase `fracción X del artículo 49 Bis`, **written with its accents**,
   answered **14 notes** on 2026-09-12, each an oficio of the Administracion Central de
-  Fiscalizacion Estrategica naming **one taxpayer** in an `Anexo 1` table.
+  Fiscalizacion Estrategica naming **one taxpayer** in an `Anexo 1` table. The link
+  that answers, and the one `ART_49BIS_DOF_SEARCH_URL` carries, is the search with its
+  query string:
+  <https://dof.gob.mx/busqueda_detalle.php?textobusqueda=fracci%C3%B3n+X+del+art%C3%ADculo+49+Bis&vienede=>
+
+  Two traps in that sentence, both verified on 2026-09-12 and both worth a line here
+  because either one silently answers "there is no list":
+
+  - `https://dof.gob.mx/busqueda_detalle.php` on its own answers `302 Found` to
+    `/Error_BS.php`. It is not a form you can open and type into, so the query string
+    is part of the citation and not decoration.
+  - The search is **accent sensitive**. The same phrase spelled `fraccion X del
+    articulo 49 Bis` answers **zero results**, and the count comes back in the hidden
+    `cantidadTotalResultados` field either way. A maintainer who retypes the phrase
+    without the accents will conclude the publications stopped.
 
 | DOF date | Oficios, all prefixed `500-05-00-00-00-2026-` | `nota_detalle.php?codigo=` |
 |---|---|---|
@@ -281,12 +312,17 @@ notes rather than imagined:
 
 ### Refreshing, which is manual today
 
-There is no `curl` that gets this list. The steps, in full:
+There is no `curl` that gets this list as a list. The steps, in full:
 
-1. Open <https://dof.gob.mx/busqueda_detalle.php> and search the exact phrase
-   `fraccion X del articulo 49 Bis`. Every result is one oficio. Paginate: the form
-   posts `actualPage`, `globalPage` and `iniciaMuestra` and reports the total in the
-   hidden `cantidadTotalResultados` field.
+1. Open the search WITH its query string, because the bare page redirects to
+   `/Error_BS.php`, and spell the phrase WITH its accents, because without them the
+   same search answers zero:
+   <https://dof.gob.mx/busqueda_detalle.php?textobusqueda=fracci%C3%B3n+X+del+art%C3%ADculo+49+Bis&vienede=>
+   Every result is one oficio. The total comes back in the hidden
+   `cantidadTotalResultados` field, and the page shows ten at a time, so paginate with
+   `actualPage`, `globalPage` and `iniciaMuestra`. `curl -sG --data-urlencode
+   'textobusqueda=fracción X del artículo 49 Bis' --data-urlencode 'vienede='
+   https://dof.gob.mx/busqueda_detalle.php` is the same request from a terminal.
 2. For each note that is newer than the ones in the table above, open
    `https://dof.gob.mx/nota_detalle.php?codigo=<codigo>&fecha=<DD/MM/YYYY>` and copy
    the `Anexo 1` table into a CSV with the seven column names spelled as the note
@@ -312,8 +348,13 @@ Six data rows that exercise the loader: both date shapes, a buzon row, an estrad
 a legal name carrying a comma, an unreadable RFC and a row with no notice date. The
 same rules the synthetic 69-B rows follow apply, and for the same reason:
 
-- Every RFC starts with `SYN` and none of them exists.
-- Every legal name says SINTETICA or SINTETICO.
+- Every RFC the loader ACCEPTS starts with `SYN` and none of them exists. One row
+  carries `XXXXXXXXXXXX` on purpose, the way the SAT redacts an RFC by court order, and
+  the loader rejects it with its line number, so it never becomes an entry.
+- Every legal name the loader accepts says SINTETICA or SINTETICO, except the one row
+  whose name column is deliberately EMPTY, for which the loader falls back to the RFC
+  and the name reads `SYN050505EE5`. The test `names nobody real: every RFC it accepted
+  is synthetic` asserts exactly that pair of rules, so neither exception is a hole.
 - Every oficio number is prefixed `SIM-`, so it cannot be mistaken for one the SAT
   signed.
 - The first line of the file says, in Spanish, that it is not the SAT's file.

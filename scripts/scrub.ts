@@ -14,7 +14,10 @@
  * A history hit is reported as `dev/main` or as `branch`, because that is what
  * decides the remediation: a branch nobody merged is fixed with an amend and a
  * force-push by its author, and `dev` or `main` is the "If a key leaks" path in
- * SECURITY.md.
+ * SECURITY.md. A `branch` hit has one trap worth knowing before acting on it,
+ * printed with the finding: `git rev-list --all` walks remote-tracking refs, so a
+ * branch that was merged and deleted on the remote keeps answering out of a clone
+ * that has not run `git fetch --prune`, and there is no branch left to amend.
  *
  * It reads blobs through `git cat-file --batch` rather than `git log -p` on
  * purpose. `git log -p` calls the committed SAT list binary, because the file
@@ -542,12 +545,32 @@ if (hits.some((hit) => hit.surface === "tree")) {
 }
 if (onBranch) {
   console.log(
-    "  branch    only on an unmerged branch. Its author amends and force-pushes that branch. No history rewrite.",
+    "  branch    on a side branch, not on dev or main. Its author amends and force-pushes that branch. No history rewrite.",
+  );
+  console.log(
+    "            Check the branch still exists first. `git rev-list --all` walks remote-tracking refs, so a branch that was",
+  );
+  console.log(
+    "            merged and deleted on the remote keeps answering here until somebody prunes, and then there is nothing to amend:",
+  );
+  console.log(
+    "            `git branch -r --contains <sha>` names it, `git ls-remote --heads origin <branch>` says whether it is still there,",
+  );
+  console.log(
+    "            and `git fetch --prune` is the fix, in every clone. It happened on 2026-09-12, which is why it is printed here.",
   );
 }
 if (onMainline) {
   console.log(
     "  dev/main  reachable from a long-lived branch. Rotating the value is the fix. Rewriting history is a separate decision, and during the event it is usually the wrong one.",
+  );
+}
+if (hits.some((hit) => hit.surface === "commit")) {
+  console.log(
+    "  commit    in a commit message, which no diff scan reads and no file edit removes. `git log -1 <sha>` shows it. A message",
+  );
+  console.log(
+    "            already on dev or main cannot be amended, so rotate the value; one on a side branch is amended with that branch.",
   );
 }
 process.exit(1);
