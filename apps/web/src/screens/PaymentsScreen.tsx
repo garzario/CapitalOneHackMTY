@@ -44,6 +44,7 @@ import {
   LoadingBlock,
   SourceNotice,
 } from "../components/States";
+import { useActor } from "../lib/actor";
 import {
   executeRun,
   getCurrentRun,
@@ -60,10 +61,9 @@ import {
   formatMoney,
   formatPlural,
 } from "../lib/format";
-import { RAIL_LABEL } from "../lib/labels";
+import { RAIL_LABEL, ROLE_LABEL } from "../lib/labels";
 import {
   bankName,
-  DEMO_ACTOR,
   mockExecutionLines,
   mockRun,
   mockVerification,
@@ -82,7 +82,7 @@ import {
   runRows,
 } from "../lib/payments";
 import { reachesApi, useResource } from "../lib/resource";
-import { instructionPath, Link } from "../lib/router";
+import { instructionPath, Link, PATHS } from "../lib/router";
 
 /**
  * How fast the offline run replays, and how many lines per tick.
@@ -207,11 +207,31 @@ export function PaymentsScreen() {
   const [execution, setExecution] = useState<PaymentExecution | null>(null);
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [rails, setRails] = useState<RailsStatus | null>(null);
-  const [name, setName] = useState(DEMO_ACTOR.name);
+
+  /**
+   * Who is sending, and the field still exists.
+   *
+   * The name starts as whoever is selected on the entry screen, and the role
+   * that travels is theirs rather than a constant: a run sent by the owner used
+   * to reach the ledger as `role=clerk`, which is a signature that does not
+   * match the person who gave it. The field stays editable and on screen,
+   * because somebody is about to be responsible for what it says and a name
+   * hidden in a constant is nobody's.
+   */
+  const actor = useActor();
+  const [name, setName] = useState(actor.name);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [writeError, setWriteError] = useState<string | null>(null);
   const [openReceipt, setOpenReceipt] = useState<string | null>(null);
+
+  /* Changing the person on the entry screen is an explicit act, so the field
+     follows it. A half-typed name is not worth keeping over the answer to "who
+     is sending this run". */
+  useEffect(() => {
+    setName(actor.name);
+    setConfirming(false);
+  }, [actor.name]);
 
   /* Read inside the ledger callback, which must not re-subscribe every time the
      flag moves, and must not reload the execution while the stream is feeding it. */
@@ -343,7 +363,7 @@ export function PaymentsScreen() {
       return;
     }
 
-    const actor: Actor = { name: name.trim(), role: DEMO_ACTOR.role };
+    const signer: Actor = { name: name.trim(), role: actor.role };
 
     setWriteError(null);
     setConfirming(false);
@@ -358,7 +378,7 @@ export function PaymentsScreen() {
 
       setExecution({
         ...emptyExecution(run.id, startedAt),
-        startedBy: actor,
+        startedBy: signer,
         startedAt,
       });
 
@@ -386,7 +406,7 @@ export function PaymentsScreen() {
       return;
     }
 
-    void executeRun(run.id, { confirm: true }, actor, {
+    void executeRun(run.id, { confirm: true }, signer, {
       onLine: (line) =>
         setExecution((current) =>
           current === null
@@ -407,7 +427,7 @@ export function PaymentsScreen() {
 
       setExecution(result.data);
     });
-  }, [run, execution, offline, name, readExecution, stopReplay]);
+  }, [run, execution, offline, name, actor.role, readExecution, stopReplay]);
 
   const onExport = useCallback(() => {
     if (run === null) {
@@ -525,8 +545,11 @@ export function PaymentsScreen() {
                   />
                   <span className="subtle t-xs">
                     Va en el encabezado X-Actor y queda en el historial, linea
-                    por linea. Rol: cuentas por pagar, que es quien arma la
-                    corrida.
+                    por linea. Rol: {ROLE_LABEL[actor.role]}, el que elegiste en{" "}
+                    <Link to={PATHS.entry} className="underline">
+                      Entrada
+                    </Link>
+                    .
                   </span>
                 </div>
 

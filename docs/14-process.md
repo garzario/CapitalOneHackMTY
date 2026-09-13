@@ -124,7 +124,7 @@ The five epics, each with every related issue linked as a sub-issue:
 |---|---|---|
 | [#80](https://github.com/garzario/CapitalOneHackMTY/issues/80) Engine | Patricio | `packages/core`, `packages/cep`, `packages/sat`, `packages/seed`, `packages/engine`, `packages/extract`, `packages/voice` |
 | [#81](https://github.com/garzario/CapitalOneHackMTY/issues/81) Data platform and API | Fabian | `packages/db`, `apps/api`, the ledger, SSE, the Nessie mirror, the evaluation harness |
-| [#82](https://github.com/garzario/CapitalOneHackMTY/issues/82) UI/UX | Fabricio designs, Fabricio and Adan build | `apps/web`, brand and design system, the eight screens, persona and journey, the printed judge card |
+| [#82](https://github.com/garzario/CapitalOneHackMTY/issues/82) UI/UX | Fabricio designs, Fabricio and Adan build | `apps/web`, brand and design system, the ten screens, persona and journey, the printed judge card |
 | [#83](https://github.com/garzario/CapitalOneHackMTY/issues/83) Infrastructure and release | Fabian | Vercel, Vultr, Tiger Data, `sentryone.tech`, keys, offline demo mode, the real one-cent CEP, the release to `main` |
 | [#84](https://github.com/garzario/CapitalOneHackMTY/issues/84) Narrative and submission | everyone, Patricio closes | Market, business model, pitch, Devpost, rubric mapping, this file, the video, the rehearsals |
 

@@ -15,9 +15,9 @@ registered yet (issue #59, and the MLH .Tech offer is how it will be): the Verce
 carries both `sentryone.tech` and `www.sentryone.tech`, so the domain is a registration and two DNS
 records away from being the URL above.
 
-Three deep links worth opening in that order: `#/run` is the payment run, `#/payments` is where the
-run leaves, and `#/metrics` is the blind evaluation. The whole route table is in
-`apps/web/src/lib/router.tsx`.
+Four deep links worth opening in that order: `#/entrada` says who you are acting as and what this
+instance holds, `#/run` is the payment run, `#/payments` is where the run leaves, and `#/metrics` is
+the blind evaluation. The whole route table is in `apps/web/src/lib/router.tsx`, ten screens.
 
 ## The problem
 
@@ -70,8 +70,10 @@ screen.
 - **Sends the run, and that is where the money leaves.** A person reviews the released lines and
   confirms; each line goes out for its own instruction's amount to the account that instruction names,
   and comes back with a clave de rastreo, a receipt and a line on the run constancia. Every write
-  carries the name and the role of whoever made it, on an append-only ledger. SentryOne holds no
-  funds: it instructs the participant the company itself contracts. ADR-0008.
+  carries the name and the role of whoever made it, on an append-only ledger, and `#/entrada` is where
+  a person picks which of the two they are signing as. It is a selector and not a login: nothing
+  verifies it, and the screen says so on the screen. SentryOne holds no funds: it instructs the
+  participant the company itself contracts. ADR-0008.
 - Decides hold, verify or release by expected loss, and always leaves the final call to a person.
 
 ## Why it is different
@@ -130,9 +132,10 @@ live and how much of it is migrated and seeded, and closes on whether this lapto
 the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
 warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
-Four commands worth knowing about. `bun test` runs 2,459 tests across 128 files with no network, no
-database and no API key, which is the fastest way to check that the intelligence is real: 2,341 pass
-and 118 skip on 2026-09-13. Those 118 are the database cases, and they skip themselves unless
+Four commands worth knowing about. `bun test` runs 2,586 tests across 138 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real: 2,468 pass
+and 118 skip on 2026-09-13. Re-read the pair after a merge rather than quoting this line, because both
+move every time a workspace gains a file. Those 118 are the database cases, and they skip themselves unless
 `TEST_DATABASE_URL` names a database they may empty; they share one, so run them a workspace at a
 time rather than all at once. `bun run eval` scores the six controls against 35 labelled holdout
 cases and prints precision, recall and the false positive rate per control and per confidence level:
@@ -186,6 +189,9 @@ The finding panel with its evidence chips:
 |---|---|
 | ![Finding panel, light](assets/screenshots/finding-light.png) | ![Finding panel, dark](assets/screenshots/finding-dark.png) |
 
+The front door, which names the person every write will carry and lists what this build is configured
+with, read-only: [`entry.png`](assets/screenshots/entry.png).
+
 The rest, each one screen: the 69-B list and its lookup box
 [`sat.png`](assets/screenshots/sat.png), the CEP and the cent
 [`cep.png`](assets/screenshots/cep.png), the blind evaluation
@@ -195,8 +201,9 @@ The rest, each one screen: the 69-B list and its lookup box
 Narrower viewports, the way a clerk opens it from a phone or a 13-inch laptop:
 [`run-tablet.png`](assets/screenshots/run-tablet.png),
 [`run-phone.png`](assets/screenshots/run-phone.png),
-[`payments-phone.png`](assets/screenshots/payments-phone.png) and the QR intake page
-[`intake-phone.png`](assets/screenshots/intake-phone.png).
+[`payments-phone.png`](assets/screenshots/payments-phone.png), the QR intake page
+[`intake-phone.png`](assets/screenshots/intake-phone.png) and the front door
+[`entry-phone.png`](assets/screenshots/entry-phone.png).
 
 ## Stack, and why
 

@@ -34,6 +34,12 @@
  * header carried -- the tagline, the data-source line, the synthetic mark --
  * either moved into the rail's foot, where it is available and quiet, or was
  * cut. A judge reads the tagline once, in the pitch, not on every screen.
+ *
+ * One banner sits above the screen and only in one case: the API was asked and
+ * did not answer. That belongs to the frame for the same reason the synthetic
+ * mark does, because it is true of the whole page load rather than of the screen
+ * you happen to be on, and the screens underneath each report their own fallback
+ * without ever being able to say that first.
  */
 
 import {
@@ -51,10 +57,12 @@ import {
   IconList,
   IconMetrics,
   IconPanel,
+  IconPerson,
   IconReceipt,
   IconRun,
   IconSeal,
 } from "./Icons";
+import { OfflineBanner } from "./OfflineBanner";
 import { ToastProvider } from "./Toast";
 
 type NavItem = {
@@ -77,8 +85,11 @@ const NAV_GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
         to: PATHS.run,
         label: "Corrida",
         /* The verification call lights this one: it is an action on an
-           instruction of the run, and the rail should not go dark under it. */
-        match: ["run", "instruction", "verifyCall"],
+           instruction of the run, and the rail should not go dark under it. The
+           supplier profile is the same argument, one step further out: the
+           expediente is opened from a line of the run, so "Corrida" is still
+           where you came from. */
+        match: ["run", "instruction", "supplier", "verifyCall"],
         Icon: IconRun,
       },
       {
@@ -107,6 +118,20 @@ const NAV_GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
         label: "Metricas",
         match: ["metrics"],
         Icon: IconMetrics,
+      },
+    ],
+  },
+  {
+    /* Last, and in its own group, because it is not a section of the run: it is
+       who is acting and what this instance was configured with. A settings-like
+       entry at the foot of the rail is where a person looks for both. */
+    label: null,
+    items: [
+      {
+        to: PATHS.entry,
+        label: "Entrada",
+        match: ["entry"],
+        Icon: IconPerson,
       },
     ],
   },
@@ -327,6 +352,15 @@ export function AppShell({
           </header>
 
           <main id="main" className="screen">
+            {/* One line, above whatever screen you are on, when the API was
+                asked and did not answer. It is in the frame because it is a
+                fact about the page load rather than about a screen: each screen
+                reports its own fallback, and none of them can say first that
+                the server is not there at all. It renders nothing when the API
+                answers and nothing under `?data=mock`, where nothing was
+                asked. */}
+            <OfflineBanner />
+
             {children}
 
             {/* The disclaimer is not decoration and it is not optional: this is a

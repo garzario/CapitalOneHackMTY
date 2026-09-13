@@ -417,9 +417,10 @@ that stops being wrong. What the credit buys is that the first two cost us money
 half observable through the product today. Since issue #199 every write carries the name and the role
 on `X-Actor`, the screens send the identity rather than a fixed string, and the API refuses an
 override that carries no reason, so a release under a named person with a written argument is now
-enforced rather than hoped for. What the screens still owe is asking for the reason before the click
-instead of after the refusal (#174) and the person selector itself (#215), and nothing carrying a cap
-is sold before those screens exist, because a clerk who meets the refusal and gives up is a release
+enforced rather than hoped for, and since issue #215 **Entrada y ajustes** puts the person on screen,
+so which of the two signed a release is visible rather than only recorded. What the screens still owe
+is asking for the reason before the click instead of after the refusal (#174), and nothing carrying a
+cap is sold before that screen exists, because a clerk who meets the refusal and gives up is a release
 that happened outside the product. The
 strongest contradiction, a CEP holder name that matched under a seal that validated, is the state
 layer 2 is also waiting for: `beneficiary_cep` reads 0.0 percent in the blind evaluation and the seal

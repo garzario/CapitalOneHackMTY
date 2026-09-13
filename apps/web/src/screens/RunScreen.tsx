@@ -37,8 +37,7 @@
  * payment, the RFC under it opens the supplier's history.
  */
 
-import type { Rfc } from "@hackmty/core";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useMemo, useState } from "react";
 import { ControlsPanel } from "../components/Controls";
 import { SourceIcon } from "../components/Icons";
@@ -55,7 +54,6 @@ import {
   StreamStatus,
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
-import { SupplierDrawer } from "../components/SupplierDrawer";
 import {
   type EventsStatus,
   getCurrentRun,
@@ -76,7 +74,7 @@ import {
 } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { reachesApi, useResource } from "../lib/resource";
-import { instructionPath, Link } from "../lib/router";
+import { instructionPath, Link, supplierPath } from "../lib/router";
 import {
   countsFor,
   matchesFilter,
@@ -123,7 +121,6 @@ export function RunScreen() {
     [],
   );
   const { resource, reload } = useResource(load, { fallback: mockRun });
-  const [drawerRfc, setDrawerRfc] = useState<Rfc | null>(null);
   /* The exceptions are the default view. See the note on RunFilter in
      lib/run-view.ts for why a run of 92 opens on 7 rows and not on 92. */
   const [filter, setFilter] = useState<RunFilter>("stopped");
@@ -381,15 +378,19 @@ export function RunScreen() {
                                     {item.supplier.legalName}
                                   </Link>
                                   <span className="t-xs">
-                                    <button
-                                      type="button"
+                                    {/* The RFC opens the expediente. It used to
+                                      open a drawer over this table, which had
+                                      room for the invoices and for nothing
+                                      else; the profile is a route, so it is
+                                      linkable, it survives a reload, and a
+                                      middle click still opens it beside the
+                                      run. */}
+                                    <Link
+                                      to={supplierPath(item.supplier.rfc)}
                                       className="code link-quiet subtle"
-                                      onClick={() =>
-                                        setDrawerRfc(item.supplier.rfc)
-                                      }
                                     >
                                       {item.supplier.rfc}
-                                    </button>
+                                    </Link>
                                     <span className="subtle">
                                       {" · "}
                                       {SOURCE_LABEL[item.instruction.source]}
@@ -489,15 +490,6 @@ export function RunScreen() {
           </div>
         </div>
       ) : null}
-
-      {/* AnimatePresence keeps the drawer mounted long enough to leave the
-          way it arrived. The condition stays inside it, so the drawer is still
-          absent from the tree when it is closed. */}
-      <AnimatePresence>
-        {drawerRfc ? (
-          <SupplierDrawer rfc={drawerRfc} onClose={() => setDrawerRfc(null)} />
-        ) : null}
-      </AnimatePresence>
     </>
   );
 }

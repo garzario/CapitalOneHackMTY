@@ -3,8 +3,8 @@
 Issue #52. Persona: Lupita Elizondo, the sole administrative clerk at the synthetic 28-employee
 metalmecanica defined in `docs/02-persona.md`.
 
-The journey begins when a CFDI XML arrives by email and ends when the payment has left on the rail
-and its evidence is archived. Emotion uses a scale from -2, anxious, to +2, confident. Every product
+The journey begins at the front door, where a person says who they are acting as, runs through a CFDI
+XML arriving by email, and ends when the payment has left on the rail and its evidence is archived. Emotion uses a scale from -2, anxious, to +2, confident. Every product
 stage names the current screen and hash route that serves it, and the routes are the ones in
 `apps/web/src/lib/router.tsx`.
 
@@ -20,16 +20,18 @@ the payment order now, so every peso that leaves carries a CFDI, a decision and 
 
 ```mermaid
 flowchart TD
-  A["1. XML arrives by email<br/>Emotion: 0, routine<br/>Screen: Corrida de pagos, #/run"]
-  I["2. A payment arrives in the chat<br/>Emotion: -1, unsure<br/>Panel: Preguntar al asistente, over #/run"]
-  B["3. Thursday run is triaged by level<br/>Emotion: -1, time pressure<br/>Screen: Corrida de pagos, #/run"]
-  C["4. Lupita opens the evidence<br/>Emotion: -2, concerned<br/>Screen: Instruccion de pago, #/instructions/:id"]
+  Z["1. Entry: who is signing, and what this build holds<br/>Emotion: 0, oriented<br/>Screen: Entrada y ajustes, #/entrada"]
+  A["2. XML arrives by email<br/>Emotion: 0, routine<br/>Screen: Corrida de pagos, #/run"]
+  I["3. A payment arrives in the chat<br/>Emotion: -1, unsure<br/>Panel: Preguntar al asistente, over #/run"]
+  B["4. Thursday run is triaged by level<br/>Emotion: -1, time pressure<br/>Screen: Corrida de pagos, #/run"]
+  C["5. Lupita opens the evidence<br/>Emotion: -2, concerned<br/>Screen: Instruccion de pago, #/instructions/:id"]
   D{"What does the evidence require?"}
-  E["5. Verificar cuenta: the cent, the CEP and the comparison, in one press<br/>Emotion: 0, checking<br/>Screen: CEP, #/cep"]
-  F["6. A person confirms Retener, Verificar or Liberar<br/>Emotion: +1, in control<br/>Screen: Instruccion de pago, #/instructions/:id"]
-  G["7. The run leaves, line by line, with a name on it<br/>Emotion: +1, committed<br/>Screen: Salida de la corrida, #/payments"]
-  H["8. Receipt, constancia and the one-page letter are archived<br/>Emotion: +2, confident<br/>Screen: Lista 69-B, #/sat, and CEP, #/cep"]
+  E["6. Verificar cuenta: the cent, the CEP and the comparison, in one press<br/>Emotion: 0, checking<br/>Screen: CEP, #/cep"]
+  F["7. A person confirms Retener, Verificar or Liberar<br/>Emotion: +1, in control<br/>Screen: Instruccion de pago, #/instructions/:id"]
+  G["8. The run leaves, line by line, with a name on it<br/>Emotion: +1, committed<br/>Screen: Salida de la corrida, #/payments"]
+  H["9. Receipt, constancia and the one-page letter are archived<br/>Emotion: +2, confident<br/>Screen: Lista 69-B, #/sat, and CEP, #/cep"]
 
+  Z --> A
   A --> B
   I --> B
   B --> C --> D
@@ -51,14 +53,15 @@ asserted by a test rather than intended.
 
 | Stage | Trigger and user action | System result | Emotion | Exact screen |
 |---|---|---|---|---|
-| 1. Pre-trigger | A supplier's CFDI XML arrives by email. Lupita files it for Thursday. | The ledger records `cfdi_received`, links the synthetic supplier and makes the invoice available to the run. | 0, routine | **Corrida de pagos**, `RunScreen`, `#/run` |
-| 2. Intake in the conversation | A supplier sends payment details on WhatsApp. Lupita presses **Preguntar al asistente** and drags the screenshot into the chat. She types no CLABE. | `intake_image` records the reference, the media type and her name, never the bytes. `packages/extract` transcribes the account and nothing else, the supplier is attributed deterministically by matching the account against the ones this company has paid and then the payee against the legal names in the run, and when that answers the instruction is created through the same `POST /api/v1/instructions` the QR page posts to. The reply is a card with the level, the state and the findings. When the attribution does not answer, nothing is created and the turn ends with an `intake` proposal for her to complete. | -1, unsure | **Preguntar al asistente**, `AssistantPanel`, a dock over whichever route is open; or **Alta de una instruccion**, `IntakeScreen`, `#/intake` from the QR code |
-| 3. Trigger | On Thursday, Lupita opens the run and scans the highest pesos at risk first, reading the level and the state on each line. | `PaymentRun` shows totals in counts and in pesos and ranks instructions with their decisions and findings. Every line carries `confidence`, `confidenceRule`, `state` and `stateRule` from `packages/core/src/levels.ts`, so a level is always shown with the findings that produced it and never as a number. The reference synthetic run contains 92 payment instructions totaling MXN 2,174,210.76, of which MXN 785,289.86 is not leaving yet. | -1, time pressure | **Corrida de pagos**, `RunScreen`, `#/run` |
-| 4. Evidence | She opens one row, reads the evidence chips and opens the supplier history when needed. | The detail shows the CFDI link, the CLABE with its participant and its plaza, the source, the findings, the expected loss and the delay cost, without treating message text as evidence. The same five level and state keys arrive through the same function as on the run, so clicking a line cannot change its level. | -2, concerned | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id`; the supplier drawer, `SupplierDrawer`, which opens over it under the eyebrow `Proveedor` with the supplier's legal name as its title |
-| 5. Verification | For an unproved account, she presses **Verificar la cuenta con un centavo** once. She types nothing: no clave de rastreo, no XML, no statement to read. | The one cent leaves through the configured rail inside the same run, `cent_sent` records the clave de rastreo the bank gave back, the CEP for that clave is resolved and its seal checked as far as the server can, the holder is compared with the CFDI legal name, and the engine releases or blocks the instruction signed `system`. A verified account enters the beneficiary registry. | 0, checking | **CEP**, `CepScreen`, `#/cep`; **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
-| 6. Decision | She returns to the instruction and confirms **Retener**, **Verificar** or **Liberar**. Two shapes are not hers: a release over something that is not `confiable`, and any decision on a line the run already cancelled. Those need the owner and a written reason. | The API appends `decision_made` carrying `decidedBy`, `decidedByRole` and `reason`. Every write carries the `X-Actor` header, a clerk who asks for one of the two owner shapes is answered `403` with the sentence that says who can, and an owner who asks for one with no reason is answered `422` asking for it. SentryOne advises; a person decides. | +1, in control | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
-| 7. Execution | She reviews the released lines, presses **Enviar corrida**, confirms, and watches it go line by line. | `POST /api/v1/run/:id/execute` needs `confirm: true` and her name on the header. `planRunExecution` asks one question per line through the ADR-0009 state table: `liberado` goes, `cancelado` is dropped before anything is sent, `rojo` and `pendiente` stay in front of a person, `enviado` is already gone. Each line that leaves appends `payment_sent` with the clave de rastreo the rail filed, `payment_settled` once the rail can answer for it, and a receipt. The outflow is written to the company's own bank mirror, so control 6 reconciles the payment instead of reporting it missing. A server with no rail answers `503` and appends nothing. | +1, committed | **Salida de la corrida**, `PaymentsScreen`, `#/payments` |
-| 8. Post-outcome | She files the receipt of each payment, the run constancia, and the one-page letter for any supplier who rings to ask why a transfer has not arrived. | `cep_verified` preserves the verified beneficiary. A later `sat_list_published` event replays the ledger, prices prior exposure and cancels any line the publication made definitive. The four documents are real PDFs produced on the server with no headless browser, each carrying a SHA-256 huella of the ledger range and the sentence that it is not an electronic signature. | +2, confident | **CEP**, `CepScreen`, `#/cep`; **Lista 69-B**, `SatScreen`, `#/sat` |
+| 1. Entry | Lupita opens SentryOne and lands on **Entrada y ajustes**. She picks which of the two people of the company she is acting as, and reads what this instance is configured with. | The choice is the `X-Actor` header every write will carry, kept in `localStorage` so a reload does not hand the run to somebody else, and the page says on the screen rather than only in a file that this is not a login: no password, no session, nothing verified. The settings are read-only on purpose, each row naming the file and the constant it is, and the capability list is run through the same `decideRequirement` the API enforces, so the screen cannot offer something the API would answer `403` to. | 0, oriented | **Entrada y ajustes**, `EntryScreen`, `#/entrada` |
+| 2. Pre-trigger | A supplier's CFDI XML arrives by email. Lupita files it for Thursday. | The ledger records `cfdi_received`, links the synthetic supplier and makes the invoice available to the run. | 0, routine | **Corrida de pagos**, `RunScreen`, `#/run` |
+| 3. Intake in the conversation | A supplier sends payment details on WhatsApp. Lupita presses **Preguntar al asistente** and drags the screenshot into the chat. She types no CLABE. | `intake_image` records the reference, the media type and her name, never the bytes. `packages/extract` transcribes the account and nothing else, the supplier is attributed deterministically by matching the account against the ones this company has paid and then the payee against the legal names in the run, and when that answers the instruction is created through the same `POST /api/v1/instructions` the QR page posts to. The reply is a card with the level, the state and the findings. When the attribution does not answer, nothing is created and the turn ends with an `intake` proposal for her to complete. | -1, unsure | **Preguntar al asistente**, `AssistantPanel`, a dock over whichever route is open; or **Alta de una instruccion**, `IntakeScreen`, `#/intake` from the QR code |
+| 4. Trigger | On Thursday, Lupita opens the run and scans the highest pesos at risk first, reading the level and the state on each line. | `PaymentRun` shows totals in counts and in pesos and ranks instructions with their decisions and findings. Every line carries `confidence`, `confidenceRule`, `state` and `stateRule` from `packages/core/src/levels.ts`, so a level is always shown with the findings that produced it and never as a number. The reference synthetic run contains 92 payment instructions totaling MXN 2,174,210.76, of which MXN 785,289.86 is not leaving yet. | -1, time pressure | **Corrida de pagos**, `RunScreen`, `#/run` |
+| 5. Evidence | She opens one row, reads the evidence chips and opens the supplier history when needed. | The detail shows the CFDI link, the CLABE with its participant and its plaza, the source, the findings, the expected loss and the delay cost, without treating message text as evidence. The same five level and state keys arrive through the same function as on the run, so clicking a line cannot change its level. | -2, concerned | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id`; **Expediente del proveedor**, `SupplierScreen`, `#/suppliers/:rfc` |
+| 6. Verification | For an unproved account, she presses **Verificar la cuenta con un centavo** once. She types nothing: no clave de rastreo, no XML, no statement to read. | The one cent leaves through the configured rail inside the same run, `cent_sent` records the clave de rastreo the bank gave back, the CEP for that clave is resolved and its seal checked as far as the server can, the holder is compared with the CFDI legal name, and the engine releases or blocks the instruction signed `system`. A verified account enters the beneficiary registry. | 0, checking | **CEP**, `CepScreen`, `#/cep`; **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
+| 7. Decision | She returns to the instruction and confirms **Retener**, **Verificar** or **Liberar**. Two shapes are not hers: a release over something that is not `confiable`, and any decision on a line the run already cancelled. Those need the owner and a written reason. | The API appends `decision_made` carrying `decidedBy`, `decidedByRole` and `reason`. Every write carries the `X-Actor` header, a clerk who asks for one of the two owner shapes is answered `403` with the sentence that says who can, and an owner who asks for one with no reason is answered `422` asking for it. SentryOne advises; a person decides. | +1, in control | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
+| 8. Execution | She reviews the released lines, presses **Enviar corrida**, confirms, and watches it go line by line. | `POST /api/v1/run/:id/execute` needs `confirm: true` and her name on the header. `planRunExecution` asks one question per line through the ADR-0009 state table: `liberado` goes, `cancelado` is dropped before anything is sent, `rojo` and `pendiente` stay in front of a person, `enviado` is already gone. Each line that leaves appends `payment_sent` with the clave de rastreo the rail filed, `payment_settled` once the rail can answer for it, and a receipt. The outflow is written to the company's own bank mirror, so control 6 reconciles the payment instead of reporting it missing. A server with no rail answers `503` and appends nothing. | +1, committed | **Salida de la corrida**, `PaymentsScreen`, `#/payments` |
+| 9. Post-outcome | She files the receipt of each payment, the run constancia, and the one-page letter for any supplier who rings to ask why a transfer has not arrived. | `cep_verified` preserves the verified beneficiary. A later `sat_list_published` event replays the ledger, prices prior exposure and cancels any line the publication made definitive. The four documents are real PDFs produced on the server with no headless browser, each carrying a SHA-256 huella of the ledger range and the sentence that it is not an electronic signature. | +2, confident | **CEP**, `CepScreen`, `#/cep`; **Lista 69-B**, `SatScreen`, `#/sat` |
 
 ## The cent inside the run
 
@@ -128,8 +131,8 @@ be inferred.
    raised the finding. If she wants it in a sentence, she presses **Preguntar al asistente** and asks
    why the line is red: the panel answers over read-only tools and quotes the control's own Spanish
    rather than rewriting it.
-2. She checks the supplier history in `SupplierDrawer` and completes any independent verification
-   the evidence requires.
+2. She checks the supplier history in **Expediente del proveedor** at `#/suppliers/:rfc` and
+   completes any independent verification the evidence requires.
 3. She selects **Liberar**. Because the line is not `confiable`, this is the override shape:
    `decideRequirement` in `packages/core/src/actor.ts` answers `override_release`, so the header has
    to carry `role=owner` and the body has to carry a written reason. A clerk is refused with a `403`
@@ -168,8 +171,8 @@ product gap.
 **Example trigger:** the supplier has genuinely moved to a new account, so the CLABE is valid but
 is absent from `knownAccounts`.
 
-1. **Instruccion de pago** and `SupplierDrawer` show the new CLABE beside prior accounts and how
-   each was established, with the plaza of each account named as well as numbered: digits 4 to 6 are
+1. **Instruccion de pago** and **Expediente del proveedor** show the new CLABE beside prior accounts
+   and how each was established, with the plaza of each account named as well as numbered: digits 4 to 6 are
    the plaza the branch that opened it belongs to, so a foundry always paid in plaza 580 (APODACA,
    NL) that sends an account in plaza 180 (DISTRITO FEDERAL, DF) has changed something a clerk can
    ask about in one sentence.
@@ -232,16 +235,18 @@ alert funnel.
 
 Stated here rather than discovered by a judge clicking.
 
-- **There is no entry screen and no person selector yet** (issue #215). The identity every write
-  carries lives in `apps/web/src/lib/actor.ts`, which holds the two people of the synthetic company
-  and remembers the choice in `localStorage`; the control that lets somebody switch is not built, so
-  the browser acts as the clerk until it is. It is not authentication either way, and
-  `docs/06-regulatory-privacy.md` section 4.4 says that in full.
-- **The run totals do not yet show a count per level** (issue #208), and the instruction detail does
-  not yet ask for the override reason before the click instead of after the refusal (issue #174). The
-  API carries both halves already.
+- **The run totals show no count per level** (issue #208). Every line carries `confidence` and the
+  chip renders it, and `runLevels` already counts the three levels and the five states into `totals`,
+  so this is the payload reaching a number on the hero rather than anything the engine owes.
+- **The instruction detail does not ask for the override reason before the click** (issue #174), so a
+  clerk meets the `422` and then types the argument, instead of being asked for it first. The API
+  carries both halves, and `decideInstruction` in `apps/web/src/lib/api.ts` sends no `reason` yet.
 - **The blind evaluation's per-level matrix reaches no screen** (`perLevel` on
   `GET /api/v1/metrics`), which is the view a clerk reads and the one a judge asks for.
+- **Stage 1 is not authentication and never claims to be.** The person selector on
+  **Entrada y ajustes** writes the `X-Actor` header the ledger records, and nothing verifies it: no
+  password, no session, and a `curl` can claim to be the owner as easily as the browser. The screen
+  says that on the screen, and `docs/06-regulatory-privacy.md` section 4.4 says what production needs.
 
 ## Validation status
 

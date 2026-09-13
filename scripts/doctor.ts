@@ -20,7 +20,15 @@
  */
 
 import { resolve } from "node:path";
+import {
+  createDependencySource,
+  type Dependency,
+  railFactsOf,
+  readDependencies,
+} from "../apps/api/src/dependencies.ts";
 import { readConsortiumEnv } from "../packages/consortium/src/index.ts";
+import { closeSql } from "../packages/db/src/index.ts";
+import { resolveRail } from "../packages/rail/src/index.ts";
 import {
   type Check,
   type ConsortiumSnapshotFacts,
@@ -152,6 +160,22 @@ async function satSnapshotFacts(): Promise<{
   }
 }
 
+/**
+ * One `/health` dependency row as a line of this table.
+ *
+ * The sentence is the endpoint's own, word for word, so the two outputs cannot drift.
+ * Only `down` warns: `not_configured` is a statement about this laptop rather than a
+ * fault, which is the same distinction the endpoint draws and the same one
+ * `503 service_unavailable` draws against a `403`.
+ */
+function dependencyCheck(dependency: Dependency): Check {
+  return {
+    name: `dep ${dependency.name}`,
+    status: dependency.state === "down" ? "warn" : "ok",
+    detail: `${dependency.state}, ${dependency.detail}`,
+  };
+}
+
 const checks: Check[] = [];
 
 // 1. bun version, the only check that can fail the command.
@@ -231,6 +255,35 @@ checks.push(
       : { snapshot: consortiumSnapshot }),
   }),
 );
+
+/**
+ * 6c. the dependency lines `GET /health` answers, out of the same function.
+ *
+ * The point is the comparison. A judge, or whoever is awake at 04:00, can read this
+ * table next to `curl https://<api>/health` and the two say the same thing about the
+ * same seven capabilities, because both call `dependencyReport` in
+ * `apps/api/src/dependencies.ts` and neither has a second opinion to offer. The rows
+ * above answer "is this variable set"; these answer "what would the deployed API say
+ * about it", which is a different question and the one that matters when the screen
+ * is empty and nobody knows why.
+ *
+ * `resolveRail()` is called with no company here, which the Nessie rail does not need
+ * and the STP rail does: on a laptop configured for STP this line reports what a
+ * process that could not read the company would report, and the API's own row is the
+ * authority because it passes the company in. `--strict` is unaffected, because only
+ * `down` warns: an empty variable is already one row in the env section above and
+ * warning for it twice would move an exit code rather than tell anybody anything.
+ */
+const dependencies = await readDependencies({
+  source: createDependencySource(Bun.env),
+  rail: railFactsOf(resolveRail()),
+  checkedAt: new Date().toISOString(),
+});
+checks.push(...dependencies.map(dependencyCheck));
+
+/* The probe opens the shared client, so the command closes it rather than leaving a
+   pool open behind a process that is about to exit on its own. */
+await closeSql().catch(() => {});
 
 // 7. seed state, so nobody rehearses against an empty screen.
 checks.push(...(await checkSeedState({ root: ROOT })));

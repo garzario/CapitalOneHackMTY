@@ -35,6 +35,7 @@ import type {
 } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useActor } from "../lib/actor";
 import {
   IMAGE_TURN_TEXT,
   QUICK_PROMPTS,
@@ -42,13 +43,13 @@ import {
 } from "../lib/assistant";
 import {
   defaultInstructionId,
-  MOCK_ACTOR,
   mockAssistantSession,
   offlineTurn,
 } from "../lib/assistant-mock";
 import type { AssistantImage, AssistantStreamEvent } from "../lib/contract";
 import { useDictation } from "../lib/dictation";
 import { formatTime } from "../lib/format";
+import { ROLE_LABEL } from "../lib/labels";
 import { type DataMode, dataMode } from "../lib/resource";
 import { useRoute } from "../lib/router";
 import {
@@ -138,7 +139,13 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
     Record<string, readonly AssistantImage[]>
   >({});
 
-  const actor = MOCK_ACTOR;
+  /* Whoever is selected on the entry screen, live. It used to be the generated
+     clerk, which made the panel unable to offer the one thing that needs the
+     owner: `ProposalCard` reads this to decide whether a release over a finding
+     can be confirmed at all, and a panel that always believed it was talking to
+     the capturista asked for a name to be typed even when the owner was the one
+     holding the laptop. */
+  const actor = useActor();
 
   /** The line the panel is looking at, which is what a question with no folio is about. */
   const openInstructionId =
@@ -391,7 +398,15 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
 
       setSending(false);
     },
-    [messages.length, mode, onEvent, openInstructionId, playOffline, sessionId],
+    [
+      actor,
+      messages.length,
+      mode,
+      onEvent,
+      openInstructionId,
+      playOffline,
+      sessionId,
+    ],
   );
 
   const quickPrompt = (prompt: string) => {
@@ -451,8 +466,8 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
           </div>
           <p className="muted m-0 t-xs">
             No decide, no retiene y no manda dinero. Cada accion sale del
-            endpoint de siempre, con tu nombre en el evento: {actor.name},
-            capturista.
+            endpoint de siempre, con tu nombre en el evento: {actor.name},{" "}
+            {ROLE_LABEL[actor.role]}.
           </p>
           <SyntheticMark when={true} />
         </header>

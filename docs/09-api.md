@@ -10,7 +10,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 
 | Method | Path | Returns | Notes |
 |---|---|---|---|
-| GET | `/health` | `{ ok, service, version }` | liveness, and deliberately nothing else. The dependency block is specified under "Health, and what it may not check" below and is issue #200, not merged: what this instance holds is answered today by `GET /api/v1/rails` |
+| GET | `/health` | `{ ok, service, version, dependencies }` | liveness, plus what this instance was configured with, as seven ordered rows. See "Health, and what it may not check" below |
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold, confidence, confidenceRule, confidenceFindingIds, state, stateRule }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. The last five are the same level and state the run carries for that line. See "The hold window" and "Confidence and state" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
@@ -46,7 +46,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 - `lists` is the whole answer, one block per SAT list, and the four keys above are the 69-B block repeated at the top level so nothing that already read them breaks. Every block carries `article` and `answered`.
   - `{ article: "69-B", answered: true, listed, entries, effective?, source }`. It answers from the committed download plus any posted version, which is what the top-level keys say.
   - `{ article: "49 Bis", answered: false, coverage: "not_published_machine_readable", entries: [], note, publications }`. `note` is the sentence in Spanish a screen shows, and `publications` is `{ oficios, taxpayers, firstPublishedAt, lastPublishedAt, surveyedAt, url }`. **`answered: false` is the point of the field.** Article 49 Bis has been in force since 1 January 2026 and the SAT publishes that list one oficio at a time as a DOF note, with no CSV and no open-data dataset: fourteen oficios naming fourteen taxpayers between 10 July and 28 August 2026, counted at the DOF on 2026-09-12. A screen that rendered an empty `entries` as "no esta listado" would claim a check nobody ran, so the block refuses to carry a `listed` key at all. When a machine-readable listing exists the block becomes `{ answered: true, coverage: "loaded", listed, entries, effective?, source }` and nothing else on this endpoint changes. Provenance and the manual steps are in `packages/sat/src/snapshot/README.md`.
-- Rate limited per client: 30 requests per minute, answered with `429 rate_limited` plus `Retry-After`. Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. The counter is per process and keyed on the forwarded client address, which is caller-controlled: it stops one machine enumerating the list, and it is not a defence against a distributed client.
+- Rate limited per client: 30 requests per minute, answered with `429 rate_limited` plus `Retry-After`. Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. See "The rate limits, and what they are for" below for the bucket, the other two limits and the honest statement of what an in-process counter cannot defend against.
 - Nothing on this path touches a synthetic invoice. ADR-0002 keeps a real RFC to this box and to nothing else.
 
 ## Write
@@ -591,33 +591,85 @@ rail is live without reading an environment file it cannot see.
 - No secret is ever in this payload. That is the whole reason it is a separate endpoint rather than a
   field on `/health` that somebody extends without thinking.
 
+### The request id, on every response and every log line
+
+Every response carries `X-Request-Id`, and the error envelope carries the same string in
+`error.requestId`. It is echoed when the caller supplies one, up to 200 characters, and minted
+otherwise, so a trace stays intact from the web app through Vercel to the instance.
+
+What issue #200 added is the other half of it. Every request now writes one line,
+`[<id>] <method> <path> <status> <ms>ms`, so the id on a response is findable in the container log for
+the requests that went right as well as the ones that went wrong, which is what a correlation id is
+for. Two details are deliberate and both are tested in `apps/api/src/middleware/log.test.ts`:
+
+- **The query string is never logged.** `GET /api/v1/sat/lookup?rfc=` is the one endpoint in this API
+  that reads real data and it takes its argument in the query, so a logged URL would write a real
+  Mexican taxpayer's RFC into a file somebody pastes into an issue. `docs/06-regulatory-privacy.md` is
+  what that breaches. Path parameters are kept, because those are synthetic ids of our own company and
+  they are what makes the line useful.
+- **A streaming response is logged when the stream opens**, not when it closes. A line that waited for
+  an SSE connection to end would be written at the end of the demo, or never.
+
+### The rate limits, and what they are for
+
+Three limits, per client, in memory, all three a token bucket with the same headers and the same
+`429 rate_limited` envelope plus `Retry-After`. `RateLimit-Limit`, `RateLimit-Remaining` and
+`RateLimit-Reset` are on every response the limit counted.
+
+| What is counted | Limit | Why this one exists |
+|---|---|---|
+| Lookups on `GET /api/v1/sat/lookup` | 30 per minute | 14234 taxpayers is one afternoon of requests. The list is public and the SAT publishes it as a download, so this is not a secret to protect: it is our own service, and a scraper that turns it into an API costs us the demo |
+| Writes, every `POST` under `/api/v1` | 120 per minute | A write appends to the append-only ledger and three of them cost real money. Two a second sustained, the whole minute available at once: a clerk working a ninety-line run does not reach it, `bun run demo` does not reach it, and a retry loop in our own web app exceeds it in under a second |
+| Turns on `POST /api/v1/assistant/messages` | 20 per minute | Tighter than the writes and on top of them, because a turn calls a paid model. Twenty is far above what a person types and far below what a loop does in a second |
+
+- **A token bucket and not a fixed window.** A bucket refills continuously, so the clerk who confirms
+  eight lines in a row is never refused and the loop is throttled to the refill rate instead of being
+  released in batches at a window edge. `Retry-After` is then a real answer: the seconds until one
+  token exists, never zero. `RateLimit-Reset` is the seconds until the whole allowance is back.
+- **Reads other than the lookup are not counted at all.** A screen that stopped rendering the payment
+  run would be the rate limit taking the demo down, which is a worse outcome than anything it prevents.
+  The write limit is mounted on the `/api/v1` tree and skips `GET`, `HEAD` and `OPTIONS`, which is also
+  why a write endpoint added next week is covered without anybody remembering to cover it.
+- **What it is NOT.** The counter is per process, so two instances behind a load balancer hold their
+  own buckets, and the client is keyed on `X-Forwarded-For`, which the caller controls. It is not a
+  defence against a distributed client or against anybody willing to set that header. What it buys is
+  that one machine cannot walk the list or spend the token budget, and that a runaway loop cannot take
+  the API down mid-demo. Everything unattributable shares one bucket, which is where local development
+  and a health checker land together, and the limits are set high enough that sharing costs neither.
+
 ### Health, and what it may not check
 
-**What `GET /health` answers today**, and the whole of it: `{ ok: true, service: "api", version }`.
-`ok` is liveness and it is `true` whenever the process can answer, because a load balancer that
-restarts the container when the Banxico portal is slow takes the demo down for a reason that has
-nothing to do with the demo. `version` is bumped by hand, since the API has no build step and there
-is no generated version to drift.
+`GET /health` stays liveness and grows a block that says what this instance was configured with.
 
-**It may not touch the network, and today it touches nothing at all.** No Nessie call, no Banxico
-fetch, no Snowflake query, no database probe: a health check that depends on a third party is a
-health check that lies at 04:00, and `apps/api/src/routes/health.ts` has carried that comment since
-the first day. What this instance was configured with is answered instead by
-`GET /api/v1/rails`, which is a route that was written for the job and holds no secret.
-
-**The dependency block is specified and not built.** Issue #200 adds it and this is the shape it
-takes, written here so the endpoint is not invented twice:
-
-- `dependencies`, one row per capability: `database`, `nessie`, `rail`, `consortium`, `cep`,
-  `extraction` and `voice`, each `{ configured, state, detail?, checkedAt }` with `state` one of `up`,
-  `down` and `not_configured`. `not_configured` is a statement about this deployment and is never
-  reported as a failure, which is the same distinction `503 service_unavailable` draws against `403`.
-- `database` is the one dependency that may be probed, with a bounded `select 1`, reporting `down`
-  with a sentence rather than hanging. The other six stay `configured` and nothing more.
-- No secret, no connection string, no key fingerprint. `configured` is a boolean.
-
-Until it lands, nothing in this repository reads a `dependencies` key, and a screen or a pitch that
-says the health endpoint reports the dependencies is saying something this build does not do.
+- `{ ok: true, service, version, dependencies }`. `ok` is liveness and it is `true` whenever the
+  process can answer, because a load balancer that restarts the container when the Banxico portal is
+  slow takes the demo down for a reason that has nothing to do with the demo.
+- `dependencies` is an ordered array, one row per capability and always these seven in this order:
+  `database`, `nessie`, `rail`, `consortium`, `cep`, `extraction` and `voice`. Each row is
+  `{ name, configured, state, detail, checkedAt }` with `state` one of `up`, `down` and
+  `not_configured`. `not_configured` is a statement about this deployment and is never reported as a
+  failure, which is the same distinction `503 service_unavailable` draws against `403`. `detail` is
+  always present: a state with no sentence under it is a colour, and somebody reading it at 04:00
+  needs the variable name and the consequence.
+- **`up` means what this instance holds, plus the two checks that are cheap and ours.** It is not a
+  claim that a third party answered, and no `detail` says it is: the five rows that are configuration
+  say "Not probed from here" in those words.
+- **It may not touch the network.** No Nessie call, no Banxico fetch, no Snowflake query: a health
+  check that depends on a third party is a health check that lies at 04:00, which is what the route
+  comment in `apps/api/src/routes/health.ts` has said since the first day. Exactly two things are
+  probed, both bounded and both ours: `database`, with a `select 1` that gives up after 2000 ms and
+  reports `down` with a sentence rather than hanging, and `rail`, which is building the adapter and is
+  local work. `rail` is the row that separates a rail nobody named, which is `not_configured`, from a
+  rail somebody named and this process could not build, which is `down` because it is a typo or a
+  missing variable and nobody goes looking for those.
+- No secret, no connection string, no key fingerprint. `configured` is a boolean, every `detail` names
+  VARIABLES rather than what they hold, and a failed probe is classified into one of five sentences so
+  the driver's own message stays in the server log, keyed by the request id the caller also holds.
+- **`bun run doctor` prints the same lines**, as `dep <name>`, out of the same `dependencyReport` in
+  `apps/api/src/dependencies.ts`. That is the point of the block: the terminal on the laptop and
+  `curl https://<api>/health` answer the same seven rows with the same sentences, so "the deployed API
+  cannot reach the ledger" is never two facts that disagree. In the doctor's table only `down` warns,
+  because an empty variable already has its own row in the env section above it.
 
 ### The consortium, and what the network can say
 
@@ -744,8 +796,8 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
   | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
 # Which rails this server holds, and which of them has ever moved money. No secret in it.
 curl -s https://<host>/api/v1/rails | jq '{active, rails: [.rails[] | {id, configured, producesCep, live}]}'
-# Liveness, and that is all it answers. The dependency block is issue #200.
-curl -s https://<host>/health | jq '{ok, service, version}'
+# What the instance was configured with, seven rows, no key and no network call.
+curl -s https://<host>/health | jq '{ok, version, dependencies: [.dependencies[] | {name, state}]}'
 # The actor, which every write needs. A clerk cannot release a payment a finding
 # stopped: 403 with the sentence that says who can, and nothing is appended.
 curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \

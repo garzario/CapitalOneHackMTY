@@ -112,6 +112,25 @@ export function IconMetrics(props: IconProps) {
   );
 }
 
+/**
+ * Entry: a person, because the screen it names is about which of the two people
+ * of this company is acting.
+ *
+ * The one glyph here that is not a Rune drawing, and it says so rather than
+ * borrowing their attribution: the vendored subset carries no person, so this is
+ * a head and a pair of shoulders written by hand on the same 24-unit grid, at the
+ * same stroke weight, as one path so the draw in `primitives.css` treats it like
+ * every other one.
+ */
+export function IconPerson(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M12 4A3.6 3.6 0 1 0 12 11.2A3.6 3.6 0 0 0 12 4M5 20A7 7 0 0 1 19 20"
+    />
+  );
+}
+
 /** The rail's own collapse control. */
 export function IconPanel(props: IconProps) {
   return (

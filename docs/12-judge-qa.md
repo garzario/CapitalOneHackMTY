@@ -194,8 +194,8 @@ is a statistic. And that any of this validates Lupita: it sizes the population s
 | The one file to open on screen | `packages/core/src/clabe.ts` beside `packages/core/src/clabe.test.ts`: 1,057 lines of control 2 and 897 lines of test, 69 cases, 556 assertions, green in 85 ms with no network. Keep this row exact, because pointing at a file that does not exist is the worst possible answer at this table |
 | The algorithm in three sentences | Six independent detectors each read one kind of document and return findings that carry an amount at risk, a state that is either provable from documents or needs a human check, and the evidence that produced them. One expected-loss decision weighs the amount at risk against the cost of delaying that payment by a day, and returns hold, verify or release. Everything is a pure function over the domain types, so the whole engine runs in a unit test with no network, no database and no model |
 | Why that model and not machine learning | The output has to be defensible to a person who is legally responsible for the payment, the inputs are documents rather than behaviour, and the positives are rare enough that a supervised model would be fitting noise. We measure ourselves against labelled cases we did not write, which is the part a model would also need and usually skips |
-| The current honest gap | As of 2026-09-13 the six controls, the schema, the API, the assistant panel, the execution on the rail and the four documents are merged, the blind evaluation runs on demand, and the deployed pair answers. Three things are still open and they are screens rather than intelligence: there is no entry screen and no person selector (#215), so the browser acts as the clerk; the run totals show no count per level (#208); and the per-level matrix on `GET /api/v1/metrics` reaches no screen. The thing most likely to break in the demo is the SSE stream behind a conference proxy, which is why `?data=mock` exists and `bun run offline` is rehearsed. TODO(garzario): rewrite this cell at every milestone |
-| What is next | Closing the three screen gaps above, and the one piece of evidence this repository still owes: a real 0.01 MXN SPEI with the Banxico CEP that Banxico signs for it (#57), which is the only thing that would let a seal read `valid` instead of `not_checked` |
+| The current honest gap | As of 2026-09-13 the six controls, the schema, the API, the assistant panel, the execution on the rail and the four documents are merged, the blind evaluation runs on demand, and the deployed pair answers. Ten screens are built, the entry screen with the person selector and the supplier profile among them. Two things are still open and both are screens rather than intelligence: the run totals show no count per level (#208), and the per-level matrix on `GET /api/v1/metrics` reaches no screen. The thing most likely to break in the demo is the SSE stream behind a conference proxy, which is why `?data=mock` exists and `bun run offline` is rehearsed. TODO(garzario): rewrite this cell at every milestone |
+| What is next | Closing the two screen gaps above, and the one piece of evidence this repository still owes: a real 0.01 MXN SPEI with the Banxico CEP that Banxico signs for it (#57), which is the only thing that would let a seal read `valid` instead of `not_checked` |
 
 ### Fabian (`fabbyyyy`), data platform, API and deploy
 
@@ -328,8 +328,9 @@ produce a Banxico-signed CEP, it is written and unit tested on our side of the w
 run, because this team holds no `empresa` contract, so `GET /api/v1/rails` reports `live: false` for
 it. The Nessie mirror is a Capital One sandbox and not a bank: the probe and one whole run of 86 lines
 have been written to it for real, and no pesos moved and no CEP was produced. Still owed: a real cent
-with its Banxico CEP (#57), the entry screen and the person selector (#215), the count per level in
-the run totals (#208), and the demo video (#73). TODO, refresh at every milestone.
+with its Banxico CEP (#57), the count per level in the run totals (#208), the override reason asked for
+before the click rather than after the refusal (#174), and the demo video (#73). TODO, refresh at every
+milestone.
 
 **Where the data comes from.** A deterministic synthetic generator in `packages/seed` with a
 committed seed, plus the Nessie sandbox as the company's bank mirror for reconciliation. No real
@@ -610,7 +611,7 @@ rather than talking around.
 - Since #199 the screen sends the identity the header carries rather than a fixed string, and the API
   refuses an override that has no reason with a `422` asking for it, so the prose is no longer optional
   on the one shape where it matters. What the screen still owes is asking for it before the click
-  instead of after the refusal (#174), and the identity selector itself (#215).
+  instead of after the refusal (#174). The selector itself landed in #215, on **Entrada y ajustes**.
 - The screen carries a third figure, "Costo de retrasar un dia", and since #182 it reads a number on
   every one of the 92 payments: between MXN 101.98 and MXN 4,611.27, MXN 1,120.05 on the hero line.
   `Supplier.delayCostPerDay` is priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` from
@@ -955,7 +956,7 @@ Five gaps to volunteer, in this order, because each one is cheaper said than fou
   was restated rather than left at the old number. The name and the role are enforced on every write
   since issue #199 and an override with no reason is refused, so the release under a named person is no
   longer only an API fact; what the screens still owe is asking for the reason before the click rather
-  than after the refusal (#174) and the person selector itself (#215).
+  than after the refusal (#174). The person selector itself landed in #215.
 
 ### 9. "What percentage of supplier transfers in Mexico is stolen?" We answered 25.4 percent
 

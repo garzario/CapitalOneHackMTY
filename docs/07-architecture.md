@@ -50,14 +50,14 @@ flowchart LR
     KL["packages/core/src/levels.ts<br/>confidenceOf, transactionStateOf,<br/>planRunExecution"]
     KS["packages/sat<br/>matchRfc, sweep, priceSweep"]
     KP["packages/cep<br/>nameMatch"]
-    T["2459 tests, 128 files<br/>plus bun run eval"]
+    T["2586 tests, 138 files<br/>plus bun run eval"]
   end
 
   subgraph U[4 Surfaces]
     A["apps/api<br/>Hono, REST per docs/09-api.md"]
     AS["apps/api/src/assistant<br/>Gemini over our own GETs,<br/>reads and proposes"]
     SSE["GET /api/v1/events<br/>Server-Sent Events"]
-    W["apps/web, eight screens<br/>run, payments, instruction, intake,<br/>SAT, CEP, call, metrics"]
+    W["apps/web, ten screens<br/>entry, run, payments, instruction,<br/>supplier, intake, SAT, CEP,<br/>call, metrics"]
     V["verification call<br/>VerifyCallScreen plus packages/voice"]
     RL["packages/rail<br/>the only place money leaves:<br/>the centavo and the run"]
     R["packages/constancia<br/>four documents"]
@@ -418,7 +418,7 @@ a row the portal reports as paid with no clave on it is dropped rather than reco
 
 | Decision | Alternative considered | Why this, for this problem | What would make us switch |
 |---|---|---|---|
-| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 2459 tests across 128 files in 13.1 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
+| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 2586 tests across 138 files in 18.4 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
 | TypeScript monorepo, Bun workspaces | Separate repos, or one flat app | All four people commit on day one, and the engine is imported by the API, the tests, the metrics harness and the demo script with nothing published | Nothing in this window |
 | `packages/core`, pure functions, zero runtime dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
 | `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `SENTRYONE_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |
@@ -457,10 +457,12 @@ and both are deliberate.
 
 ### Deploy topology and commands
 
-Live as of 2026-09-12 15:32 CST: the web at <https://sentryone-one.vercel.app>, the API at
-<https://api.104.238.147.69.sslip.io>, the ledger on Tiger Data. The browser only ever talks to the
-Vercel origin: `vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle
-carries no base URL and there is no CORS configuration anywhere in `apps/api`.
+Live as of 2026-09-13 06:18 CST, re-verified end to end for issue #200: the web at
+<https://sentryone-one.vercel.app>, the API at <https://api.104.238.147.69.sslip.io>, the ledger on
+Tiger Data with all 14 migrations applied. The browser only ever talks to the Vercel origin:
+`vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle carries no base
+URL and there is no CORS configuration anywhere in `apps/api`. What that re-verification found, and
+what it cost, is in "What the redeploy of 2026-09-13 06:17 CST actually found" below.
 
 | Unit | Where | How it is deployed | Evidence |
 |---|---|---|---|
@@ -505,13 +507,15 @@ API's own answers rather than a second opinion. Three consequences worth knowing
 **The one number the narrowing moves, and what the screen does about it.** Carrying all 4103 invoices
 cost 208 KB gzipped against 8.8 for the 156, which is the difference between a 359 KB bundle and a
 160 KB one on a phone in a corridor. The price is that `CFDIS` is no longer the company's whole
-invoice history, and one field reads its length: "facturas en el expediente" in the supplier drawer.
-`GET /api/v1/suppliers/:rfc` still answers with the issuer's whole file, so whenever the API answered
-that count is the API's and nothing changed. When the drawer fell back, the same field would print 3
-for an issuer that has 23, and a count that changes with who answered is issue #125 itself. So the
-offline drawer labels the field "facturas de esta corrida", says in one line that only the invoices
-this run pays, the sweep prices or a finding names travel without the API, and for an issuer this
-week's run never touched it says that rather than "sin facturas".
+invoice history, and one field reads its length: "facturas en el expediente" in the supplier profile
+at `#/suppliers/:rfc`. `GET /api/v1/suppliers/:rfc` still answers with the issuer's whole file, so
+whenever the API answered that count is the API's and nothing changed. When the profile falls back,
+the same field would print 3 for an issuer that has 23, and a count that changes with who answered is
+issue #125 itself. So the offline profile labels the field "facturas de esta corrida", says in one
+line that only the invoices this run pays, the sweep prices or a finding names travel without the API,
+and for an issuer this week's run never touched it says that rather than "sin facturas". The weekly
+behaviour chart on that screen reads the same list and is narrowed with it, which is why the sentence
+under it names the endpoint the series came from.
 
 `scripts/web-mock.test.ts` is the guard. It regenerates the file and compares it byte for byte, and
 it boots a `MemoryRepository` on the same company to assert that both sides answer the same legal
@@ -560,12 +564,22 @@ Two operational notes that cost time to learn on the night.
   Caddy log. A rebuild through `refresh.sh` keeps the volume and costs nothing.
 
 The instance holds its configuration in `/srv/sentryone/.env`, written by cloud-init from the deploy
-machine's own `.env`: `DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`,
-`GEMINI_MODEL` and the three `ELEVENLABS_*` values. `ALLOW_SEED` is forced empty there, because
-`POST /api/v1/seed` would rewrite the demo company under the judges' feet. Two consequences worth
-stating rather than discovering: the values travel inside the Vultr user data, which anyone holding
-the Vultr API key can read back, and they are the same keys the laptops hold, so the rotation after
-the ceremony in `SECURITY.md` covers the box as well.
+machine's own `.env`. `FORWARDED_ENV` in `scripts/deploy-vultr.ts` is the list and it is the authority:
+`DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, the four
+`ELEVENLABS_*` values, `ALLOW_CEP_FETCH`, `BANXICO_CEP_CERT_PEM` and `ALLOW_CONSORTIUM`. `ALLOW_SEED`
+is forced empty there, because `POST /api/v1/seed` would rewrite the demo company under the judges'
+feet. Two consequences worth stating rather than discovering: the values travel inside the Vultr user
+data, which anyone holding the Vultr API key can read back, and they are the same keys the laptops
+hold, so the rotation after the ceremony in `SECURITY.md` covers the box as well.
+
+The last two names on that list arrived with #200, and how they were found is the argument for the
+endpoint: the refreshed instance answered `consortium: not_configured` on `/health`, because
+`ALLOW_CONSORTIUM` had never been forwarded, so the cross-tenant signal of #164 was off in production
+while the snapshot sat filled in Tiger Data. This page had been claiming `NESSIE_BASE_URL` reached the
+box as well, and it did not. Both are forwarded now, which means a PROVISION carries them; a refresh
+rebuilds the code and deliberately leaves `/srv/sentryone/.env` alone, so the instance serving the
+judges keeps the configuration it was provisioned with and turning the network on there is a team
+decision rather than a side effect of a deploy.
 
 **Tiger Data, wired.** One connection string does everything: `bun run migrate`, `bun run seed` and
 the deployed API all read `DATABASE_URL`, and `packages/db` opens it lazily through `postgres@3.4.9`
@@ -575,6 +589,101 @@ without losing the managed one. The password is not in this repository and is no
 image: it reaches the instance only through the user data described above, and `describeDatabaseUrl`
 in `apps/api/src/deps.ts` prints the host and the database and never the credentials, because that
 boot line is projected on a screen.
+
+### The topology answers for itself, as of 2026-09-13 (issue #200)
+
+Four units, two addresses, one ledger, and until this issue the only way to find out whether the
+deployed one held its configuration was to ssh in and guess. The closing change of #200 is that the
+topology now reports on itself, out of the same code in four places, and the contract for all of it is
+in `docs/09-api.md`.
+
+1. **`GET /health` carries a row per dependency.** `database`, `nessie`, `rail`, `consortium`, `cep`,
+   `extraction` and `voice`, each with `configured`, a `state` of `up`, `down` or `not_configured`, and
+   one sentence. Two things are probed and both are ours: a `select 1` bounded at 2000 ms, and building
+   the payment rail. Nothing reaches a third party, because a health check that depends on the Banxico
+   portal restarts the container when the Banxico portal is slow. Every sentence comes from
+   `dependencyReport` in `apps/api/src/dependencies.ts`, which is also what `bun run doctor` prints as
+   `dep <name>`, so the laptop and the box answer the same seven rows and cannot disagree about why a
+   screen is empty. No secret is in the payload: `configured` is a boolean, the details name variables,
+   and a failed probe is classified into one of five sentences so the driver's message stays in the log.
+2. **A request id on every response and every log line.** `X-Request-Id` was already on the response and
+   in the error envelope; now every request writes `[<id>] <method> <path> <status> <ms>ms`, so an id a
+   judge reads off a payload is findable in `docker compose logs`. The query string is deliberately
+   dropped, because `GET /api/v1/sat/lookup?rfc=` is the one endpoint that takes a real taxpayer's RFC.
+3. **A token bucket per client on every write**, 120 a minute, with the lookup box on 30 and an
+   assistant turn on 20. In memory, per process, keyed on the forwarded address, and the limits and the
+   honest statement of what that cannot defend against are in `docs/09-api.md`.
+4. **The Vercel rewrites are checked rather than remembered.** `scripts/vercel-rewrites.test.ts` reads
+   the route tree off the app and the rewrite sources off `vercel.json` and fails when a path exists that
+   the web origin cannot reach. That is the failure this deploy shape is most exposed to: the bundle
+   ships with no base URL, so a path no rewrite matches is a 404 on the product and a green suite. The
+   two rewrites cover two roots, `/api` and `/health`, and the endpoints under them have grown by the
+   assistant SSE, the execution stream, the layout response and the carta since those lines were written.
+   `/api/(.*)` and `/health` also carry `cache-control: no-store`, because a CDN that cached
+   `GET /api/v1/run/current` would show a judge last hour's run and a cached event stream is not a
+   stream. Those two header rules reach production with the next release PR to `main`; the rewrites
+   themselves have been live since #44.
+
+**How the box was moved onto this code, and why not with `--reinstall`.** `refresh.sh` on the instance,
+over ssh, which repoints the clone at a branch and rebuilds in place. It was the right tool for two
+reasons and both are worth writing down. A reinstall wipes the disk and takes the `caddy_data` volume
+with it, so Let's Encrypt issues again and there are five of those per week for one name; a refresh
+keeps the volume and costs nothing. And `scripts/deploy-vultr.ts` needs `VULTR_API_KEY`, which is IP
+restricted on this account: from the network of 2026-09-13 it answered "Vultr refused the key from this
+machine" with the allow-list instructions, so the API path was closed and the ssh path was open. That is
+the exact inverse of the note above it, where the venue let port 22 open and never delivered the banner,
+which is why both paths exist.
+
+```bash
+ssh -i ~/.ssh/sentryone_vultr root@104.238.147.69 /srv/sentryone/refresh.sh dev
+bun --env-file=.env run scripts/deploy-vultr.ts --smoke-only   # needs the Vultr key
+curl -s https://sentryone-one.vercel.app/health | jq '.dependencies[] | {name, state}'
+```
+
+`--smoke-only` now prints the dependency rows next to the run totals, so a deploy ends by proving the
+box holds its configuration as well as its code.
+
+**What the redeploy of 2026-09-13 06:17 CST actually found, in the order it found it.** The three
+defects below were all invisible to `bun test`, `bun run typecheck` and `bun run build`, and two of
+them had been in production for hours. This is the evidence for the closing claim of this page, which
+is not that the topology is nice but that it is now checkable.
+
+1. **The image could not be built from the tree.** `refresh.sh` stopped at
+   `bun install --frozen-lockfile` with "Workspace dependency @hackmty/rail not found":
+   `apps/api/Dockerfile` copies the workspace manifests one by one and `packages/rail` and
+   `packages/consortium` had never been added. So the instance had been serving the container from
+   before #164 and #198 existed, which means the deployed API had no payment run and no consortium
+   endpoint while the repository had both. The two lines are added and
+   `scripts/docker-image.test.ts` reads the workspace directories off disk so the list cannot drift
+   again.
+2. **The ledger was five migrations behind.** With the new image running, `/health` answered
+   `database: up` and the first assistant turn still failed. The request id found it in one grep:
+   `[smoke-200-assistant] POST /api/v1/assistant/messages 200 20ms` and then
+   `new row for relation "_hyper_6_1603_chunk" violates check constraint "ledger_events_type_check"`,
+   because `0010` through `0014` had never been applied to Tiger Data and `assistant_message` is not a
+   type the old constraint allows. `payment_sent` and `payment_cancelled` would have failed the same
+   way, which is to say the payment run of ADR-0008 could not have been executed against the deployed
+   instance. `bun run migrate` applied the five, idempotently, and `bun run doctor` now reports 14 of
+   14. That log line is the feature of this issue earning its keep on the day it shipped.
+3. **The consortium was off in production**, which is the `FORWARDED_ENV` paragraph above.
+
+After the five migrations, the verified state at 06:18 CST, all of it over HTTPS through the Vercel
+rewrite and none of it from the box directly:
+
+| What was checked | Result |
+|---|---|
+| `GET /health` | 200, seven dependency rows: `database up` (a `select 1` in 33 ms), `nessie up`, `rail up` (the nessie rail built), `cep up`, `extraction up`, `voice up`, `consortium not_configured` |
+| `POST /api/v1/assistant/messages` | 200 `text/event-stream` through the rewrite: `tool_call get_run`, `tool_result`, `token` and `done`, with `x-request-id` echoed back as the caller sent it, `x-accel-buffering: no` and `via: 1.1 Caddy` |
+| The turn was stored | `GET /api/v1/assistant/sessions/:id` answers both messages and the `execute_run` proposal, which is the write that had been failing |
+| The rate limit is live | a write answered `ratelimit-limit: 120`, `ratelimit-remaining: 119`; the assistant turn answered `ratelimit-limit: 20` |
+| The request id is live | `[smoke-200-assistant-2]` appears in `docker logs sentryone-api-1` as one line with the method, the path, the status and the duration, and with no query string on it |
+
+Two things that are true and are not claims about today. The `cache-control: no-store` rules added to
+`vercel.json` reach production with the next release PR to `main`, because the Vercel production build
+comes from `main`; the rewrites themselves have been live since #44. And `GET /api/v1/events` was not
+re-verified in this pass: `flush_interval -1` in the Caddyfile and the SSE trace from #44 are what
+stand behind it, and the assistant stream above is a second long-lived response through the same proxy
+arriving unbuffered.
 
 ## Deliberately not in this tree
 

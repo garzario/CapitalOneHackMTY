@@ -13,6 +13,7 @@ import { createApp } from "./app";
 import { UNAVAILABLE_MODEL } from "./assistant/model";
 import { acceptOnlyCepSource, staticCepInbox } from "./cep";
 import { offConsortiumSource } from "./consortium";
+import { staticDependencySource } from "./dependencies";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
 import { UNAVAILABLE_EXTRACTOR } from "./extraction";
 import { ACTOR_HEADER } from "./middleware/actor";
@@ -127,6 +128,14 @@ export function createTestApp(
       sleep: async () => {},
     },
     consortium: offConsortiumSource(),
+    /* Nothing configured and nothing probed, which is the fourth case of the same
+       rule: a laptop holding a live `DATABASE_URL` must not turn a `/health` test
+       into a query against Tiger Data. A test about a dependency passes its own
+       source, and `dependencies.test.ts` does. */
+    dependencies: staticDependencySource(),
+    /* Silent, because 1341 tests must not print 1341 request lines. A test about
+       the log passes its own sink, and `middleware/log.test.ts` does. */
+    log: () => {},
     ...overrides,
   });
 

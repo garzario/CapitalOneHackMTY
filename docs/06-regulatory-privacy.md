@@ -441,11 +441,12 @@ authentication and this page says so rather than letting a reader assume it.** T
 the caller, nothing verifies it, there is no password, no session and no account, and a `curl` can
 claim to be the owner as easily as the browser can.
 
-Two facts about what is on screen today, so that nobody reads more into it than is there. The control
-that lets a person switch between the clerk and the owner **is not built** (issue #215), so the
-browser acts as the clerk and the owner path is exercised by a request that carries the header
-directly. And when it is built it will still not be a login: it will be a selector, which is the
-reason this section is titled the way it is rather than renamed once the screen exists.
+Since issue #215 that choice is on a screen: **Entrada y ajustes** at `#/entrada` lists the two people
+of the synthetic company, switching one changes the header every subsequent write carries, and the
+capability list under it is run through the same `decideRequirement` the API enforces, so the screen
+cannot offer something the API would answer `403` to. **It is still a selector and not a login**, and
+the screen says that on the screen rather than leaving it to this file, because a judge who assumes a
+login exists has been misled by the absence of the sentence.
 
 What the header is for is the thing ADR-0002 does demand: that every action on somebody's money has
 a person's name against it in a record nobody can rewrite. That is an accountability requirement and
