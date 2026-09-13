@@ -18,6 +18,72 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
+  cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
+  clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
+  plaza where the only fact is that we have never paid it; a CEP that arrives while the run is open
+  and moves the line from precaucion to confiable; and the hard negative that pairs with the plaza
+  case. `Metrics` gains `perLevel`, so `GET /api/v1/metrics` and `bun run eval` report precision and
+  recall per confidence level as well as per control, and each case carries an `expectedLevel`
+  labelled from what the case is rather than derived through the rule table the engine applies. On
+  thirty-five cases: precision 87.0, recall 83.3, false positive rate 1.6, action agreement 33 of 35,
+  and `confiable` right on 12 of 12. The numbers in docs/11 and docs/12 are that run's.
+
+- The assistant drawer in `apps/web`, which is the front door of the product for the person who uses
+  it (issue #211). Lupita drops the screenshot that arrived on WhatsApp, asks why a line is red, and
+  presses the button on what the app proposes, without leaving the screen she is on: `AssistantDock`
+  mounts beside the shell rather than on a route, so the panel can read the line underneath it and a
+  question with no folio in it still has a subject.
+
+  The part worth reviewing is where ADR-0007 stops being a paragraph. `decodeToolCall` in
+  `apps/web/src/lib/assistant.ts` refuses any frame whose `tool` is outside the seven reads and any
+  frame whose `readOnly` is not the literal `true`, so a tool call that writes cannot be rendered even
+  when the bytes come off a socket, and `forbiddenVerdict` drops a token, a proposal summary or a
+  stored turn that says "seguro" in either language or states a probability, a percentage or a score,
+  which ADR-0009 forbids on any screen of this product. Dropped frames are counted and the panel says
+  how many, because an assistant that quietly loses a read is answering from its own memory. The same
+  function is run over the panel's own sources by `apps/web/src/lib/assistant.test.ts`: the vocabulary
+  rule is about what a component renders and not only about what a model sends.
+
+  Nothing in the drawer executes itself. `ProposalCard` prints the method, the path and the body of
+  the ordinary endpoint that would run, and the write happens in a click handler and nowhere else:
+  `confirmProposal` calls the endpoint that already existed for that action, sends `X-Actor`, and puts
+  the name of whoever pressed the button into `decidedBy` or `recordedBy`, because docs/09-api.md
+  refuses a body and a header that disagree about who acted. A release over a finding asks for the
+  owner's name and a written reason before the button enables, which is the role rule of
+  `docs/02-persona.md` visible on screen rather than only in the API. `execute_run` is the one
+  proposal the panel does not run: the payment run leaves from its own screen, which follows its own
+  stream line by line, and a second client for the one endpoint that moves money that is not a cent is
+  one too many. The level and the state on every card come from `assessConfidence` and
+  `transactionStateOf` in `packages/core`, so a line in the drawer reads the same as that line in the
+  table.
+
+  `apps/web/src/lib/sse.ts` is the decoder the panel needed and `EventSource` cannot provide, because
+  `EventSource` only ever issues a GET and this endpoint streams a reply to a POST. It is a state
+  machine over lines rather than a `split` over the body, which is the whole reason it exists: a chunk
+  boundary lands wherever the network put it, and a regex over one chunk drops every frame that
+  straddles one, which in practice is the long ones, which here are the tool results. `sse.test.ts`
+  feeds the same stream one character at a time and asserts the same frames.
+
+  Under `?data=mock` the drawer opens on the three-turn conversation `bun run web:mock` generated out
+  of this run's own finding and answers every turn out of the synthetic run with no request and no
+  model, which is what makes it demonstrable on a phone in a corridor. What it will not do is pretend:
+  a dropped screenshot is answered by saying the extraction runs on the server, and the fields it
+  shows are the dataset's own intake example rather than a reading of a file nothing read. Under
+  `?data=api` a failure is reported as a failure, and under `auto` it falls back to the synthetic
+  answer with the reason printed, exactly like `useResource`. Voice input is the browser's own
+  dictation in `es-MX` and this app uploads no audio: the assistant endpoint takes `text` and `images`,
+  so a recording would mean inventing a part the contract does not have, and the transcription path in
+  `packages/extract` stays where docs/06 section 6.2.1 documents it, on the intake.
+
+- `bun run offline`, the rehearsal for the Wi-Fi dying (issue #71). It runs `doctor` and then the
+  whole demo with `fetch` replaced by one that throws on anything that is not loopback, so a call
+  that leaves the machine fails with its URL in the message instead of hanging out a socket timeout
+  in front of the room. The keys stay in `.env`, because a dead uplink is not a missing key. The
+  local Postgres is untouched: it is a socket, not a fetch, and it is the reason the demo works
+  offline at all. `docs/10` carries the measured cold-clone path, twenty seconds of machine time
+  from `git clone` to seven green beats on a laptop that already has bun and Postgres.
+
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
   moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;
@@ -174,8 +240,8 @@ then the screens, then the narrative, then the plumbing.
   It also measured `position: fixed` boxes against the layout viewport, while under device emulation
   they are laid out against `window.innerWidth`, which reported the toast region as a 719 px overflow
   at a 390 px width that does not exist on a phone. With both fixed, the seven routes are clean at 390,
-  768, 1440 and 1920, every control is named and shows a ring under a real Tab press, and all 36 colour
-  pairings clear WCAG AA in both themes. One token moved to get there: `--c-state-cancelado` measured
+  768, 1440 and 1920, every control is named and shows a ring under a real Tab press, and all 52 colour
+  pairings clear their floor in both themes. One token moved to get there: `--c-state-cancelado` measured
   2.99 against the sunken fill its chip has, under the floor of 3 for the boundary of a non-text
   element, so it is `--c-ink-subtle` rather than `--c-border-strong`, which is tuned against a panel.
   `brand/shoot.ts` and the audit now take `CDP_PORT` and `CHROME_PROFILE` from the environment,
@@ -629,7 +695,119 @@ then the screens, then the narrative, then the plumbing.
   the statute provides for has not been filed, so the caps and the word guarantee stay out of any
   contract, price list and screen until both have happened.
 
+- The rest of the guarantee menu, eight options with a precedent and a weakness each, and the three we
+  would defend on stage (issue #194, second pass). The team asked for more alternatives than the four
+  layers above, stronger and better defended, so `docs/05-business-model.md` gains "The options, and the
+  one we would defend" inside the same section, written as a menu a judge can push on: every option
+  carries what it costs us, what it needs legally, the precedent with somebody else's document behind it,
+  and the honest weakness, in that order. (a) Guarantee by evidence depth rather than by price, so cover
+  attaches to payments that carried the full chain and the gate is the incentive to use the controls;
+  the precedent is Eftsure, which indemnifies only where its own engine matched the account to the
+  vendor's name and gave the payment a "green thumb" of approval, and the contrast is Ramp, which uses
+  the same audit log to place the loss on the customer. (b) A parametric trigger, with the finding that
+  kills the naive version: the FSI and IAIS paper defines the index as an objective measure "reported by
+  an independent third party (neither the insured nor insurer)", so our own append-only ledger cannot be
+  the index and the Banxico-signed CEP can, which makes the defensible design a two-part trigger, a CEP
+  holder mismatch as the index and the ledger as the audit record, with basis risk named out loud as the
+  known limitation. (c) The reserve, sized, and this is the arithmetic the earlier pass asserted instead
+  of showing: the per-event cap is exactly ten times what one company accrues to the reserve in a year,
+  because one is twelve months of fees and the other is a tenth of twelve months of fees, so the
+  break-even claim rate is 10.0 events per 100 companies a year at every tier and therefore at every
+  mix, against the 5.22 fraud events per 100 economic units INEGI publishes, 1.92 times of headroom,
+  with the whole table at 300, 1,000 and 3,000 companies pricing every ENVE event as if it qualified.
+  The same option names where it breaks, which is severity and not frequency: the direct cap is 4.61
+  times the channel cap, so in an adverse mix the break-even falls to 3.74 per 100, below the published
+  incidence, an overrun of MXN 48,052 at 300 companies and MXN 480,521 at 3,000, and three unexpected
+  direct events empty a 300-company reserve against twenty-nine at 3,000, which is why the tail matters
+  in year one and not in year three. It also refuses the word reinsurance, because reinsurance is cover
+  an insurer buys and we are not one. (d) The insurance layer done right, with the product class named,
+  funds transfer fraud and social engineering, and the pitch that writes itself: in Abraham Linc Corp.
+  v. Spinnaker Ins. Co. a claim went to discovery over whether the insured had followed an "established
+  and documented verification procedure" and it had "no documented procedure or protocol", only an
+  "unwritten protocol" of email, so we do not compete with the endorsement, we are the condition
+  precedent that makes it payable, and we hand the client the sublimit problem in writing, USD 100,000
+  against a USD 2,000,000 endorsement on a real policy and a published market range of USD 25,000 to
+  USD 250,000. Travelers' own coverage highlights admit the control the market demands is spoofable,
+  that a fraudster can amend the phone number in the email panel so the callback reaches them, which is
+  the setup for the one-centavo CEP probe, since the attacker does not hold Banxico's signing key. The
+  same option corrects how this route had been described internally: under article 102 LISF we are
+  **not** a licensed promoter, because that article is precisely the route that needs no agente de
+  seguros licence, and it comes with a services contract registered with the CNSF beforehand, CNSF
+  inspection of those operations, and article 104 making the insurer liable for our conduct in the
+  channel, which is a reason an insurer may refuse it. (e) The bank-embedded route, where the precedent
+  is a mandate rather than a product: the United Kingdom has required capped reimbursement for
+  authorised push payment fraud since 7 October 2024, split 50/50 between sending and receiving firm,
+  two exceptions only, five business days, GBP 100 maximum excess, no minimum claim, a 13-month window
+  and a GBP 85,000 cap, covering microenterprises and charities as well as individuals, and the
+  published returns are 88 percent of in-scope money lost reimbursed over eighteen months with 3 percent
+  of claims rejected for the customer not taking enough care. The moral hazard objection is answered with
+  a regulator's independent evaluation rather than intuition: APP fraud losses fell by about GBP 73
+  million a year with nearly 35,000 fewer scams, a short-term net benefit of GBP 17 million to GBP 29
+  million the evaluators call conservative, and "no evidence of market exits or reckless consumer
+  behaviour". The honest caveat rides in the same breath, that the regime's microenterprise is fewer than
+  ten employees and EUR 2 million so our 11 to 250 person persona sits outside its scope, and that Mexico
+  has no equivalent duty at all. (f) Claim assistance, which promises effort and evidence and never
+  recovery, and it rests on a finding that makes it urgent: Condusef's electronic channel is closed to
+  exactly this loss by its own published rules, because it cannot take a complaint involving more than
+  one financial institution or one where no contractual relationship with the institution is shown, so a
+  company discovers on the worst day that it needs an in-person appointment and, as a persona moral, a
+  notarial instrument, with the LPDUSF's procedural deadlines behind it and no deadline to pay anything.
+  The packet is the `carta`, the two constancias and the CEP, the window is short because the first 48
+  hours often decide whether stolen funds come back, and the baseline is stated rather than improved on
+  paper: one peso in four comes back today and we have no measurement of what a better file changes
+  about that. (g) Priority verification for the opposite error, the cent and the call attempted first
+  inside a published window for a line the owner marks urgent, with the month credited when we miss,
+  on top of the bound and the named release that already exist, and the weakness volunteered, that no
+  urgent field exists in the domain today, the queue behind it is a founder and not a rota, and no SLA
+  makes a supplier answer the telephone. (h) The legal floor, liability capped at the fees paid in the
+  preceding twelve months with the person's decision as the last act, which is above the Mexican
+  market's own floor rather than a retreat from it, and where the one thing nobody read is routed rather
+  than guessed: what a Mexican court would look at when asked to enforce or set aside such a cap in a
+  business-to-business contract of adhesion is not answered anywhere in this repository. The closing
+  ranking is explicit: (a), (b), (c) and (g) today with (f) shipping alongside and (h) underneath, (d)
+  as the partnership within twelve months of paying customers, (e) as the bank route we ask for and have
+  not got, and (d) named as the strongest option while (c) is the one we can do this week. Seventeen
+  sources, 75 to 91, all opened 2026-09-12 in the evening, and two of them correct earlier entries in
+  the same list rather than arguing with them: Eftsure's guarantee page opened after the afternoon's
+  redirect loop turned out to be a region cookie, so [60]'s sentence that nothing could be attributed to
+  Eftsure is superseded by [79] and the comparables table now reads that one vendor does publish a capped
+  indemnity; and Howden México is the first Mexican page found that offers cover for this loss, a broker
+  and not an insurer, saying in its own words that many policies will not cover it "porque el pago se ha
+  realizado legítimamente: a ojos del banco, es real". `docs/12-judge-qa.md` subsection 8 is rewritten
+  around it: a thirty-second spoken answer naming the three things that pay today and the precedent, two
+  follow-on blocks for the opposite error and for the reserve arithmetic, thirteen rows of what may be
+  said with the source against each, and a "do not say" list whose first two entries are the two things
+  the team had been saying loosely, that we would be a licensed promoter of insurance and that we would
+  reinsure the tail. Neither is true and both are corrected here rather than on stage. Nothing in the
+  menu has been reviewed by counsel, the article 20 consultation is still unfiled, and two of the eight
+  options end in a routed question instead of an answer. One consequence of merging #201 into this branch
+  is restated rather than left stale, because it lands inside this same section: the blind evaluation grew
+  from thirty labelled cases to thirty-five, so the false-finding share is 3 of the 23 findings it raised
+  and not 3 of 20, 13.0 percent and not 15, which moves the layer 4 projection to about 41 wrongly
+  stopped payments a year, about 68 days of wrong delay, MXN 24,000 at the median supplier price and MXN
+  46,900 at the mean, 2.2 to 4.3 times the annual subscription rather than two and a half to five, and
+  MXN 44 per event rather than MXN 38 for a company wrongly stopped every time. The credibility bullet
+  now carries the run's own figures, 87.0 percent precision, 83.3 percent recall, 1.6 percent false
+  positives and 33 of 35 on action agreement, and points at the level matrix that arrived with it,
+  because `confiable` right on twelve of twelve is the row a guarantee actually rides on.
+
 ### Changed
+
+- `docs/10-demo-script.md` is true against the app again (issue #79). Beat 2 says seven months of
+  replay because that is what the seeded ledger holds and what the screen shows; beat 5 carries the
+  thirty-five case numbers and stops claiming the labels were written by someone who had not read
+  the controls. The four-minute question is answered by counting rather than by asserting: 405
+  spoken words, 2:42 of talking at 150 words a minute, and a per-beat table showing that beats 3 and
+  4 have under five seconds of slack each and are the two that need a human to physically do
+  something. The checklist gains the boot line to read, because `bun run dev` from the repository
+  root does not hand `SEED` to the API and the fixture it serves instead makes every figure in the
+  file wrong. The same counts were stale in `docs/01`, `07`, `08`, `13`, `14` and the README.
+
+- `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
+  read the controls. The controls were merged first, `packages/seed/src/holdout/README.md` has said
+  so since #122, and a judge who reads the repository and then hears the stronger claim out loud has
+  found the one thing that costs more than the point it was worth. The sentence to say is that no
+  case was edited to make a control pass and the ones that disagree are still counted against us.
 
 - A second Capital One panel came to the table on the evening of 2026-09-12, said the project was
   interesting and then asked the one thing the afternoon's answers had given in categories instead of
@@ -1602,6 +1780,45 @@ then the screens, then the narrative, then the plumbing.
   migration section no longer describes a `supplier_weekly_outflow` aggregate that does not exist,
   and the threshold TODO is answered rather than left open, by stating that no refusal threshold was
   pre-registered before the first run and why claiming one would be false.
+- The web app is redesigned around Capital One's own design language, on top of the rename in
+  #152 (epic #82). The palette, the neutrals, the radii and the three decision colours are read
+  from Gravity, Capital One's design system, rather than invented: the page is white like theirs,
+  the neutrals are warm rather than blue-black, the accent is their brand navy `#013D5B` and the
+  release colour is their olive `#5C7F0B`. The interface is set in Hanken Grotesk, self-hosted as
+  one variable file per subset so the demo survives a room with no Wi-Fi, and it uses Capital One's
+  own weight hierarchy, which is the thing that makes their pages look like two typefaces when they
+  are one: display at 300, navigation and table data at 400, emphasis at 600. The rail's type is
+  matched to their navigation exactly, at 14px and weight 400. Their lockup appears once, in the
+  rail's foot, as attribution.
+- The rail is a brand panel. Its ground is Capital One's brand navy, the same value as the accent,
+  so the one piece of furniture on every screen is theirs and it is the first thing in the reading
+  order. It carries its own palette, because every one of the page's ink tokens is dark on dark in
+  there, and that palette does not change with the theme: a brand colour that shifts with the
+  operating system is not a brand colour. Two things the audit caught rather than the eye: the app's
+  focus ring is that same navy, so it has to invert inside the rail or keyboard focus vanishes where
+  a keyboard user starts, and the muted ink measured 4.2 against the active row, under AA.
+- The metrics page dropped the six-bullet essay on what the evaluation does and does not claim. The
+  argument belongs in `packages/seed/src/holdout/README.md` and in the judge Q&A, not on the screen;
+  what stays is the one line that is evidence rather than argument, that the figures on screen are
+  the ones `bun run eval` and `GET /api/v1/metrics` print.
+- The six sections moved from a row of tabs into a collapsible left rail, whose collapsed state is
+  remembered, and the shell's top bar now carries the page's single `h1`. Five screens stopped
+  repeating that title under it and keep only the sentence that says what they are for.
+- The payment run lost most of what was on it, and reads better for it. The three decision buttons
+  are gone from every row -- fifty-two coloured objects on one screen, inviting the decision to be
+  made from the one place that shows no evidence for it -- and deciding happens on the instruction,
+  next to the finding that explains it. The decision chip is gone too: a row's state is a 3px mark
+  on its left edge and a word in its own column. The alert rail, which listed the findings the table
+  was already sorted by, became a panel that names all six controls and what each one found,
+  including the ones that found nothing. Two of the three totals cards became a line of text beside
+  the one figure that decides whether the clerk can go home.
+- The run opens on its exceptions. A week of 92 instructions is 7 rows of work and 85 that say "this
+  one is fine", and the page was twelve screens tall as a result; a segmented filter above the table
+  (`No salen` / `Liberadas` / `Todas`) opens on the first and takes the page to under two screens.
+  Nothing is hidden: the headline card states the full count and the released total on every view,
+  and each segment carries its own size. Changing the filter animates the incoming rows; the first
+  paint does not animate, so the table is never blank in the frame a judge sees.
+
 - `detectBankReconciliation` buckets the expected payments by the day they are expected on and
   scans only the days inside the match window, instead of the whole company's documents once per
   outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from

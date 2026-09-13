@@ -1,0 +1,84 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "legitimate-plaza-change-backed-by-complement",
+  "title": "The supplier really did move its account to another plaza, and its own complement says so",
+  "kind": "negative",
+  "notes": "The pair of the plaza case, and the reason the plaza signal has to be a question rather than a rule. A company that opens its account in Guadalajara because that is where its new treasury sits is doing something ordinary, and the supplier's own complemento de recepcion de pagos names the account it collected on. Same geography change, opposite conclusion, and the difference is one document.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-132",
+      "supplierRfc": "SYN343636S36",
+      "cfdiUuids": ["000000cf-0000-4d00-8a00-0000000000cf"],
+      "clabe": "012002100091764610",
+      "amount": 66120.0,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN343636S36",
+      "legalName": "Empaques y Etiquetas del Occidente SA de CV",
+      "firstInvoiceAt": "2021-04-12T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "012002100091764610",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2026-08-14T15:30:00.000Z",
+          "timesPaid": 2
+        },
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2021-05-03T15:30:00.000Z",
+          "timesPaid": 55
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "000000cf-0000-4d00-8a00-0000000000cf",
+        "serie": "A",
+        "folio": "2044",
+        "issuedAt": "2026-08-30T15:30:00.000Z",
+        "issuerRfc": "SYN343636S36",
+        "issuerName": "Empaques y Etiquetas del Occidente SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 57000.0,
+        "iva": 9120.0,
+        "total": 66120.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      },
+      {
+        "uuid": "000000d0-0000-4d00-8a00-0000000000d0",
+        "serie": "A",
+        "folio": "2012",
+        "issuedAt": "2026-08-03T15:30:00.000Z",
+        "issuerRfc": "SYN343636S36",
+        "issuerName": "Empaques y Etiquetas del Occidente SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 41000.0,
+        "iva": 6560.0,
+        "total": 47560.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ],
+    "complements": [
+      {
+        "uuid": "000000d1-0000-4d00-8a00-0000000000d1",
+        "relatedCfdiUuid": "000000d0-0000-4d00-8a00-0000000000d0",
+        "paidAt": "2026-08-14T15:30:00.000Z",
+        "paidAmount": 47560.0,
+        "beneficiaryAccount": "012002100091764610",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [],
+  "expectedAction": "release",
+  "expectedLevel": "confiable"
+}

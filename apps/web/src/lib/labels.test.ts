@@ -107,6 +107,13 @@ describe("the words the clerk reads", () => {
   });
 
   test("the word seguro is absent from the rest of the interface too", () => {
+    /* One file may name the words, and it is the one that bans them:
+       `lib/assistant.ts` scrubs a streamed sentence against its own
+       `FORBIDDEN_WORDS`, so the list has to be written down somewhere. An
+       exemption with no reason is how the next one gets added, so this is the
+       reason and there is exactly one entry. */
+    const ALLOWED = new Set(["assistant.ts"]);
+
     /* The dictionary is the rule, and this is the backstop for copy written
        straight into a component. It reads the sources rather than the rendered
        DOM, which is the limitation worth stating: it proves no source says it. */
@@ -114,6 +121,8 @@ describe("the words the clerk reads", () => {
     const offenders: string[] = [];
 
     for (const file of sourceFiles(SRC_DIR)) {
+      if (ALLOWED.has(file.split("/").at(-1) ?? "")) continue;
+
       const code = readFileSync(file, "utf8");
 
       for (const line of code.split("\n")) {
@@ -178,13 +187,11 @@ describe("ADR-0009 vocabulary", () => {
   });
 
   test("every state has a word and a sentence", () => {
-    expect(labels.TRANSACTION_STATE_ORDER.toSorted()).toEqual(
-      states.toSorted(),
-    );
+    expect(labels.STATE_ORDER.toSorted()).toEqual(states.toSorted());
 
     for (const state of states) {
-      expect(labels.TRANSACTION_STATE_LABEL[state].length).toBeGreaterThan(0);
-      expect(labels.TRANSACTION_STATE_HELP[state].length).toBeGreaterThan(20);
+      expect(labels.STATE_LABEL[state].length).toBeGreaterThan(0);
+      expect(labels.STATE_HELP[state].length).toBeGreaterThan(20);
     }
   });
 });

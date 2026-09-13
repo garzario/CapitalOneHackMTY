@@ -70,5 +70,6 @@
       "because": "Same issuer and the same total inside one payment run is the shape of a payable about to leave twice, and nothing in the documents settles it either way."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

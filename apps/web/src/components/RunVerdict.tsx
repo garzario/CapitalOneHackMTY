@@ -1,24 +1,33 @@
 /**
  * The first thing on the payment run, and for ten seconds the only thing.
  *
- * The scaffold showed four totals of equal weight, and the largest of them was
- * the total of the run, which is the number that matters least: it is the same
- * whether the product works or not. What the clerk needs on a Thursday, and
- * what a judge needs at the table, is the money that is NOT leaving and the
- * single payment that costs the most to get wrong.
+ * There is one figure, and it is the money that is not leaving. The scaffold
+ * had three cards of equal weight and the largest of them was the total of the
+ * run, which is the number that matters least: it is the same whether the
+ * product works or not. The other two are still here and still secondary.
  *
- * So the hierarchy is deliberate. One hero figure, two supporting ones, and a
- * named worst case with a link straight to its row. Everything else on the
- * screen is subordinate to that.
+ * What carries the hierarchy now is the ground each one stands on. The figure
+ * sits on the single dark card in the app, the other two on pale wells, so the
+ * eye lands on the stopped amount before it has read a word -- one inversion on
+ * a light page is the strongest signal available, and it only stays strong
+ * while there is exactly one of them. Size then says the same thing a second
+ * time: 38px against 30px.
+ *
+ * The figure is set in the card's own ink, not in red. The state is carried by
+ * the words beside it, so the decision colours stay available for the rows that
+ * need them. A page where the biggest thing is also the reddest thing has spent
+ * its loudest signal on the summary instead of on the exception.
  */
 
-import { formatCount } from "../lib/format";
-import { ACTION_EDGE, ACTION_INK, DETECTOR_LABEL } from "../lib/labels";
+import { formatCount, formatPlural } from "../lib/format";
+import { DETECTOR_LABEL } from "../lib/labels";
 import { instructionPath, Link } from "../lib/router";
 import type { RunVerdict as Verdict } from "../lib/run-view";
+import { IconReceipt, IconShield } from "./Icons";
 import { Amount } from "./Primitives";
+import { RunBar } from "./RunBar";
 
-/** The breakdown under the hero figure, only for the states that are present. */
+/** The breakdown under the figure, only for the states that are present. */
 function stoppedBreakdown(verdict: Verdict): string {
   const parts: string[] = [];
 
@@ -35,83 +44,94 @@ function stoppedBreakdown(verdict: Verdict): string {
 export function RunVerdict({ verdict }: { verdict: Verdict }) {
   const stopped = verdict.stoppedCount > 0;
 
-  /* Tone follows the verdict, not the screen. A run where nothing was stopped
-     is a good outcome and must not be painted as an alert, or the colour stops
-     meaning anything on the run where something was.
-     
-     Classes and not tokens in an inline style: the design system owns the edge
-     and the ink, and `ACTION_EDGE` keys them off the same `Action` union the
-     decision buttons read. */
-  const tone = stopped
-    ? {
-        edge: ACTION_EDGE.hold,
-        ink: ACTION_INK.hold,
-        eyebrow: "No sale todavia",
-      }
-    : {
-        edge: ACTION_EDGE.release,
-        ink: ACTION_INK.release,
-        eyebrow: "Nada detenido",
-      };
-
   return (
     <section
       aria-label="Resumen de la corrida"
-      className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]"
+      className="grid gap-4 md:grid-cols-3"
     >
-      <div className={`panel flex flex-col gap-2 p-5 ${tone.edge}`}>
-        <span className="eyebrow">{tone.eyebrow}</span>
+      {/* The focal card. Its label does not change when nothing was stopped:
+          it names the question the clerk opens the screen with, and a run that
+          answers it with zero is still answering that question. The sentence
+          under the bar is where a clean run is celebrated. */}
+      <div className="card-dark flex flex-col gap-4">
+        <span className="muted t-sm">No sale todavia</span>
 
-        <span className={tone.ink}>
-          <Amount value={verdict.stoppedAmount} size="xl" />
-        </span>
+        <Amount value={verdict.stoppedAmount} size="xl" />
 
-        <p className="muted m-0 t-sm">
-          {stopped ? (
-            <>
-              {formatCount(verdict.stoppedCount)} de{" "}
-              {formatCount(verdict.totalCount)} instrucciones.{" "}
-              {stoppedBreakdown(verdict)}.
-            </>
-          ) : (
-            <>
-              Las {formatCount(verdict.totalCount)} instrucciones de la semana
-              pasaron los seis controles.
-            </>
-          )}
-        </p>
+        {/* The split the sentence below states in words, in the channel the
+            eye reads first. Monochrome up here: see RunBar. */}
+        <RunBar verdict={verdict} tone="dark" />
 
-        {verdict.worst ? (
-          <p className="m-0 t-sm">
-            <span className="subtle">Mayor riesgo: </span>
-            <Link
-              to={instructionPath(verdict.worst.instructionId)}
-              className="underline"
-            >
-              {DETECTOR_LABEL[verdict.worst.finding.detector]}
-            </Link>
-            <span className="subtle">, </span>
-            <Amount value={verdict.worst.finding.amountAtRisk} size="sm" />
+        <div className="flex flex-col gap-1">
+          <p className="muted m-0 t-sm">
+            {stopped ? (
+              <>
+                {formatCount(verdict.stoppedCount)} de{" "}
+                {formatCount(verdict.totalCount)} instrucciones.{" "}
+                {stoppedBreakdown(verdict)}.
+              </>
+            ) : (
+              <>
+                Las {formatCount(verdict.totalCount)} instrucciones pasaron los
+                seis controles.
+              </>
+            )}
           </p>
-        ) : null}
+
+          {/* The only part of this card that is somewhere to go rather than
+              something to know, so it is the only part that is a link. */}
+          {verdict.worst ? (
+            <p className="muted m-0 t-sm">
+              Mayor riesgo{" "}
+              <Link
+                to={instructionPath(verdict.worst.instructionId)}
+                className="underline"
+              >
+                {DETECTOR_LABEL[verdict.worst.finding.detector]}
+              </Link>
+              {", "}
+              <Amount value={verdict.worst.finding.amountAtRisk} size="sm" />
+            </p>
+          ) : null}
+        </div>
       </div>
 
-      <div className="panel flex flex-col gap-1 p-5">
-        <span className="eyebrow">Liberado</span>
-        <span className="ink-release">
-          <Amount value={verdict.releasedAmount} size="lg" />
-        </span>
-        <span className="subtle t-xs">
-          {formatCount(verdict.releasedCount)} instrucciones
-        </span>
+      {/* The two supporting figures. A well each, no panel: three lines of
+          text on a pale ground do not need a white rectangle drawn behind
+          them. The glyph is the only shape in the cell that is not type, which
+          is what keeps two of them from reading as decoration. */}
+      <div className="well">
+        <div className="well-body flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-3">
+            <span className="muted t-sm">Liberado</span>
+            <span className="subtle">
+              <IconShield size={18} />
+            </span>
+          </div>
+          <span className="t-2xl">
+            <Amount value={verdict.releasedAmount} size="inherit" />
+          </span>
+          <span className="subtle t-sm">
+            {formatPlural(verdict.releasedCount, "instruccion")}
+          </span>
+        </div>
       </div>
 
-      <div className="panel flex flex-col gap-1 p-5">
-        <span className="eyebrow">Total de la corrida</span>
-        <Amount value={verdict.totalAmount} size="lg" />
-        <span className="subtle t-xs">
-          {formatCount(verdict.totalCount)} instrucciones
-        </span>
+      <div className="well">
+        <div className="well-body flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-3">
+            <span className="muted t-sm">Total de la corrida</span>
+            <span className="subtle">
+              <IconReceipt size={18} />
+            </span>
+          </div>
+          <span className="t-2xl">
+            <Amount value={verdict.totalAmount} size="inherit" />
+          </span>
+          <span className="subtle t-sm">
+            {formatPlural(verdict.totalCount, "instruccion")}
+          </span>
+        </div>
       </div>
     </section>
   );

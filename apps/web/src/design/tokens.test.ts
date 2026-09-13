@@ -13,10 +13,10 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
-  CONFIDENCE_CHIP,
+  CONFIDENCE_BADGE,
   CONFIDENCE_ORDER,
-  TRANSACTION_STATE_CHIP,
-  TRANSACTION_STATE_ORDER,
+  STATE_BADGE,
+  STATE_ORDER,
 } from "../lib/labels";
 
 const DESIGN_DIR = import.meta.dir;
@@ -193,18 +193,18 @@ describe("levels and states have a palette", () => {
         expect(defined.has(`--c-level-${level}${suffix}`)).toBe(true);
       }
 
-      expect(CONFIDENCE_CHIP[level]).toBe(`level level-${level}`);
+      expect(CONFIDENCE_BADGE[level]).toBe(`level level-${level}`);
       expect(primitivesCss).toContain(`.level-${level} {`);
     });
   }
 
-  for (const state of TRANSACTION_STATE_ORDER) {
+  for (const state of STATE_ORDER) {
     test(`${state} has its tokens and its class`, () => {
       for (const suffix of ["", "-soft", "-ink"]) {
         expect(defined.has(`--c-state-${state}${suffix}`)).toBe(true);
       }
 
-      expect(TRANSACTION_STATE_CHIP[state]).toBe(`state state-${state}`);
+      expect(STATE_BADGE[state]).toBe(`state state-${state}`);
       expect(primitivesCss).toContain(`.state-${state} {`);
     });
   }

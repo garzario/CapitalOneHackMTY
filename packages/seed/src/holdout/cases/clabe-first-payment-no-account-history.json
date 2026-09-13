@@ -41,5 +41,6 @@
       "because": "The RFC has no payment history at all, so no account can be corroborated and the first payment is the one that establishes the account."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

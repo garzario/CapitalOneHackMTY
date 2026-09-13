@@ -50,9 +50,28 @@ export function verifyCallPath(instructionId: string): string {
 }
 
 /**
+ * The 69-B screen with the lookup box prefilled. Never runs the lookup itself:
+ * ADR-0002 puts the official list behind a button a person presses, so a link
+ * may carry the RFC but may not ask the SAT anything on arrival.
+ */
+export function satPath(rfc: string): string {
+  return `${PATHS.sat}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/** The CEP screen with the supplier prefilled in the verification form. */
+export function cepPath(rfc: string): string {
+  return `${PATHS.cep}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/**
  * The CEP page with one instruction already selected, so the one-cent
  * verification is one click from the instruction detail and nobody retypes a
  * folio in front of a judge.
+ *
+ * A second query key on the same screen rather than a second screen: `rfc` fills
+ * the form a person verifies a beneficiary in, `instruction` picks the payment
+ * the cent is about, and the CEP page answers both because they are the same
+ * page a judge lands on from two different findings.
  */
 export function verifyAccountPath(instructionId: string): string {
   return `${PATHS.cep}?instruction=${encodeURIComponent(instructionId)}`;

@@ -19,19 +19,23 @@
 import type { TransactionState } from "@hackmty/core";
 import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "../components/Button";
-import { LevelChip, StateChip } from "../components/Chips";
 import { type Column, DataTable } from "../components/DataTable";
 import { Drawer } from "../components/Drawer";
-import { DecisionBadge, SectionHeader } from "../components/Primitives";
+import {
+  ConfidenceBadge,
+  DecisionBadge,
+  SectionHeader,
+  TransactionStateBadge,
+} from "../components/Primitives";
 import { EmptyBlock, ErrorBlock, LoadingBlock } from "../components/States";
 import { useToasts } from "../components/Toast";
 import {
   ACTION_LABEL,
   CONFIDENCE_HELP,
   CONFIDENCE_ORDER,
+  STATE_HELP,
+  STATE_ORDER,
   SYNTHETIC_LABEL,
-  TRANSACTION_STATE_HELP,
-  TRANSACTION_STATE_ORDER,
 } from "../lib/labels";
 
 type Group = { title: string; note: string; tokens: string[] };
@@ -293,7 +297,7 @@ const DEMO_COLUMNS: ReadonlyArray<Column<DemoRow>> = [
   {
     key: "state",
     header: "Estado",
-    cell: (row) => <StateChip state={row.state} />,
+    cell: (row) => <TransactionStateBadge state={row.state} />,
   },
 ];
 
@@ -446,7 +450,7 @@ export function TokenSheet() {
             <h3 className="eyebrow">Nivel, con la evidencia debajo</h3>
             {CONFIDENCE_ORDER.map((level) => (
               <div key={level} className="flex flex-wrap items-center gap-3">
-                <LevelChip level={level} />
+                <ConfidenceBadge level={level} />
                 <span className="muted max-w-prose t-sm">
                   {CONFIDENCE_HELP[level]}
                 </span>
@@ -456,11 +460,11 @@ export function TokenSheet() {
 
           <div className="flex flex-col gap-2">
             <h3 className="eyebrow">Estado</h3>
-            {TRANSACTION_STATE_ORDER.map((state) => (
+            {STATE_ORDER.map((state) => (
               <div key={state} className="flex flex-wrap items-center gap-3">
-                <StateChip state={state} />
+                <TransactionStateBadge state={state} />
                 <span className="muted max-w-prose t-sm">
-                  {TRANSACTION_STATE_HELP[state]}
+                  {STATE_HELP[state]}
                 </span>
               </div>
             ))}

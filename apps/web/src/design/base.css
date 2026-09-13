@@ -30,12 +30,19 @@
     border-radius: var(--radius-xs);
   }
 
+  /* Light, because that is what Capital One does with a heading and it is the
+     single change that most makes this app look like theirs. A heading earns
+     its hierarchy from size and space, not from weight; reaching for bold as
+     well is belt and braces, and at 24px and up it reads as shouting. The two
+     headings that are furniture rather than editorial -- the top bar's title
+     and `.eyebrow` -- take their weight back in primitives.css. */
   h1,
   h2,
   h3 {
     margin: 0;
     line-height: var(--leading-tight);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   p {

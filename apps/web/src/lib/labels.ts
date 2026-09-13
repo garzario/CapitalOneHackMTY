@@ -14,10 +14,13 @@
 
 import type {
   Action,
+  AssistantTool,
   Confidence,
+  ConfidenceRule,
   Detector,
   FindingState,
   InstructionSource,
+  ProposalKind,
   SatListStatus,
   Severity,
   TransactionState,
@@ -54,111 +57,6 @@ export const ACTION_BUTTON: Record<Action, string> = {
   release: "btn btn-release",
 };
 
-/** The 4 px rule down a panel that carries a verdict. */
-export const ACTION_EDGE: Record<Action, string> = {
-  hold: "edge-hold",
-  verify: "edge-verify",
-  release: "edge-release",
-};
-
-/** The 3 px rule down the first cell of a row, which is thinner on purpose. */
-export const ACTION_ROW_EDGE: Record<Action, string> = {
-  hold: "row-edge-hold",
-  verify: "row-edge-verify",
-  release: "row-edge-release",
-};
-
-/** The decision ink as a text colour, for a figure that carries the tone. */
-export const ACTION_INK: Record<Action, string> = {
-  hold: "ink-hold",
-  verify: "ink-verify",
-  release: "ink-release",
-};
-
-/**
- * The level one payment is read at, and the words are the whole vocabulary.
- *
- * Three of them, in the order a clerk scans a column: worst first. `confiable`
- * is a statement about the evidence we hold and it is the closest this product
- * ever gets to a reassurance. It is not "seguro", here or anywhere else: a SPEI
- * does not come back, so nobody can promise one is safe. ADR-0009 forbids the
- * word outright, along with any probability, percentage or score on screen.
- */
-export const CONFIDENCE_ORDER: Confidence[] = [
-  "alerta",
-  "precaucion",
-  "confiable",
-];
-
-export const CONFIDENCE_LABEL: Record<Confidence, string> = {
-  alerta: "Alerta",
-  precaucion: "Precaucion",
-  confiable: "Confiable",
-};
-
-export const CONFIDENCE_HELP: Record<Confidence, string> = {
-  alerta:
-    "Los documentos ya prueban un problema, o el proveedor esta en la lista como definitivo.",
-  precaucion:
-    "Falta algo por confirmar: una cuenta sin historial, una verificacion pendiente o un hallazgo de atencion.",
-  confiable:
-    "Los documentos que tenemos coinciden y no hay nada abierto. No quiere decir que no exista riesgo.",
-};
-
-export const CONFIDENCE_CHIP: Record<Confidence, string> = {
-  alerta: "level level-alerta",
-  precaucion: "level level-precaucion",
-  confiable: "level level-confiable",
-};
-
-/**
- * How many of the three bars the meter fills. An ordinal over the same three
- * values the word already carries, so that colour is never the only channel,
- * and never a number: see the note on `.level` in `design/primitives.css`.
- */
-export const CONFIDENCE_BARS: Record<Confidence, number> = {
-  alerta: 3,
-  precaucion: 2,
-  confiable: 1,
-};
-
-/**
- * Where one payment of the run stands. The three the team settled on plus the
- * two the run has always counted internally, in the order money moves through
- * them: nothing decided, nothing stopping it, stopped, closed, gone.
- */
-export const TRANSACTION_STATE_ORDER: TransactionState[] = [
-  "pendiente",
-  "liberado",
-  "rojo",
-  "cancelado",
-  "enviado",
-];
-
-export const TRANSACTION_STATE_LABEL: Record<TransactionState, string> = {
-  pendiente: "Pendiente",
-  liberado: "Liberado",
-  rojo: "En rojo",
-  cancelado: "Cancelado",
-  enviado: "Enviado",
-};
-
-export const TRANSACTION_STATE_HELP: Record<TransactionState, string> = {
-  pendiente: "Nadie ha decidido esta linea todavia.",
-  liberado: "Nada la detiene. El dinero no ha salido.",
-  rojo: "Esta detenida y frente a una persona.",
-  cancelado: "No sale con esta evidencia.",
-  enviado: "El dinero ya salio. Un SPEI no regresa.",
-};
-
-export const TRANSACTION_STATE_CHIP: Record<TransactionState, string> = {
-  pendiente: "state state-pendiente",
-  liberado: "state state-liberado",
-  rojo: "state state-rojo",
-  cancelado: "state state-cancelado",
-  enviado: "state state-enviado",
-};
-
 export const DETECTOR_LABEL: Record<Detector, string> = {
   sat_69b: "Lista 69-B del SAT",
   clabe_forensics: "Forense de CLABE",
@@ -166,6 +64,24 @@ export const DETECTOR_LABEL: Record<Detector, string> = {
   supplier_behaviour: "Cambio de comportamiento",
   beneficiary_cep: "Beneficiario verificado con CEP",
   bank_reconciliation: "Conciliacion bancaria",
+};
+
+/**
+ * The screen that proves a finding, per detector, and the words on the link.
+ *
+ * Two detectors are missing on purpose rather than by omission. A duplicate
+ * invoice already carries its own origin inside the panel, and a bank
+ * reconciliation already carries the bank row it failed against: the proof is
+ * the block the reader is looking at, and there is no screen in the app that
+ * shows more of it than that. A link to nowhere new is furniture.
+ */
+export const EVIDENCE_ACTION: Partial<
+  Record<Detector, { label: string; kind: "sat" | "cep" | "call" }>
+> = {
+  sat_69b: { label: "Consultar en la lista 69-B", kind: "sat" },
+  beneficiary_cep: { label: "Verificar con el CEP", kind: "cep" },
+  clabe_forensics: { label: "Llamar al proveedor", kind: "call" },
+  supplier_behaviour: { label: "Llamar al proveedor", kind: "call" },
 };
 
 export const DETECTOR_ORDER: Detector[] = [
@@ -214,6 +130,26 @@ export const SOURCE_LABEL: Record<InstructionSource, string> = {
   pdf: "PDF",
   portal: "Portal",
   manual: "Captura manual",
+};
+
+/** Which Rune glyph draws a channel. The drawings are in `Icons.tsx`. */
+export type SourceGlyph = "mail" | "message" | "file-text" | "globe" | "pencil";
+
+/**
+ * The channel an instruction arrived by, as a shape.
+ *
+ * It sits next to `SOURCE_LABEL` because it is the same fact in the other
+ * channel, and a run row shows both: the tile says where it came from at a
+ * glance and the word under it says the same thing for anyone who cannot use
+ * the shape. A key rather than a component, so this file stays a dictionary of
+ * words with no view in it.
+ */
+export const SOURCE_ICON: Record<InstructionSource, SourceGlyph> = {
+  email: "mail",
+  whatsapp: "message",
+  pdf: "file-text",
+  portal: "globe",
+  manual: "pencil",
 };
 
 export const SAT_STATUS_LABEL: Record<SatListStatus, string> = {
@@ -316,6 +252,166 @@ export const SEAL_STATE_BADGE: Record<CepSealState, string> = {
   invalid: "badge badge-hold",
 };
 
+/**
+ * The three levels, in the only three words this product uses for them.
+ *
+ * `confiable` is a statement about the evidence we hold and nothing more. It is
+ * not "seguro": a SPEI cannot be recalled, so nobody can promise one is safe, and
+ * ADR-0009 forbids the word as a verdict in any language along with every
+ * probability, percentage and score. The level always arrives on screen with the
+ * findings that produced it, which is why `CONFIDENCE_RULE_LABEL` exists: the rule
+ * that fired is shown next to the level rather than left in a function.
+ */
+export const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confiable: "Confiable",
+  precaucion: "Precaucion",
+  alerta: "Alerta",
+};
+
+/**
+ * Worst first, which is the order a clerk scans a column in and the order the
+ * token sheet lists them in.
+ */
+export const CONFIDENCE_ORDER: Confidence[] = [
+  "alerta",
+  "precaucion",
+  "confiable",
+];
+
+/**
+ * The chip reads the level palette in `design/tokens.css`, which aliases the
+ * three decision triplets: the level and the action are two readings of one body
+ * of evidence, so one colour still means one thing.
+ */
+export const CONFIDENCE_BADGE: Record<Confidence, string> = {
+  confiable: "level level-confiable",
+  precaucion: "level level-precaucion",
+  alerta: "level level-alerta",
+};
+
+/**
+ * How many of the three bars the meter fills beside the word.
+ *
+ * An ordinal over the same three values the word already carries, which is why
+ * it is allowed: it adds a channel and not a digit, and red against amber is the
+ * pair roughly one man in twelve cannot separate. It is not a score and must
+ * never become one. See the note on `.level` in `design/primitives.css`.
+ */
+export const CONFIDENCE_BARS: Record<Confidence, number> = {
+  alerta: 3,
+  precaucion: 2,
+  confiable: 1,
+};
+
+export const CONFIDENCE_HELP: Record<Confidence, string> = {
+  confiable:
+    "Los documentos que tenemos coinciden y no hay nada abierto en esta linea.",
+  precaucion: "Falta una comprobacion humana o la cuenta no tiene historial.",
+  alerta: "Los documentos ya prueban un problema en esta linea.",
+};
+
+/** Which rule gave the level, in the words of the table in ADR-0009. */
+export const CONFIDENCE_RULE_LABEL: Record<ConfidenceRule, string> = {
+  sat_definitive: "el proveedor esta listado en definitiva por el SAT",
+  critical_finding: "hay un hallazgo critico",
+  new_account_without_history: "la cuenta no tiene historial de pago detras",
+  pending_verification: "falta una verificacion",
+  warning_finding: "hay un hallazgo de atencion",
+  no_open_signal: "no hay ninguna senal abierta",
+};
+
+/**
+ * The state of one line, and the three public ones are not the whole set.
+ *
+ * `pendiente` and `liberado` are the two the run has always counted internally,
+ * and they are labelled here rather than folded into the other three because a
+ * line nobody has looked at is not green and a release on Wednesday is not
+ * `enviado` until the money leaves on Thursday. ADR-0009 argues both.
+ */
+export const STATE_LABEL: Record<TransactionState, string> = {
+  rojo: "En rojo",
+  cancelado: "Cancelado",
+  enviado: "Enviado",
+  pendiente: "Pendiente",
+  liberado: "Liberado",
+};
+
+/** In the order money moves through them, for the sheet and for a legend. */
+export const STATE_ORDER: TransactionState[] = [
+  "pendiente",
+  "liberado",
+  "rojo",
+  "cancelado",
+  "enviado",
+];
+
+/**
+ * The chip reads the state palette, which is deliberately not the decision one
+ * repeated, because a state is a fact about money and not a verdict about risk.
+ *
+ * `cancelado` is neutral on purpose: a line that did not go out is the product
+ * working, not an alarm. `rojo` is the one that carries the hold palette.
+ * `enviado` is the informational tone and not green, because money that left is
+ * a fact and a green chip would say the payment was fine, which nobody can say
+ * about a transfer that cannot be recalled and that a list published on Friday
+ * can still poison. `pendiente` is dashed and fills with the surface it sits on,
+ * because nothing has decided that line yet. ADR-0009 and `docs/design.md`.
+ */
+export const STATE_BADGE: Record<TransactionState, string> = {
+  rojo: "state state-rojo",
+  cancelado: "state state-cancelado",
+  enviado: "state state-enviado",
+  pendiente: "state state-pendiente",
+  liberado: "state state-liberado",
+};
+
+/**
+ * One sentence per state, for the token sheet and for anywhere a chip needs to
+ * explain itself. A state with no explanation is a colour.
+ */
+export const STATE_HELP: Record<TransactionState, string> = {
+  pendiente: "Nadie ha decidido esta linea todavia.",
+  liberado: "Nada la detiene. El dinero todavia no sale.",
+  rojo: "Esta detenida y frente a una persona.",
+  cancelado: "No sale con esta evidencia.",
+  enviado: "El dinero ya salio. Un SPEI no regresa.",
+};
+
+/**
+ * The seven reads the assistant may perform, named for the clerk.
+ *
+ * Every one of them is a read of something this product already computed, and the
+ * list is closed: `AssistantTool` in the domain has no member that writes, which
+ * is ADR-0007 enforced in the type rather than in a sentence.
+ */
+export const ASSISTANT_TOOL_LABEL: Record<AssistantTool, string> = {
+  get_run: "Leer la corrida",
+  get_instruction: "Leer la instruccion y sus hallazgos",
+  get_verification: "Leer la verificacion de la cuenta",
+  get_execution: "Leer lo que hizo la corrida en el riel",
+  get_receipt: "Leer el comprobante del pago",
+  sat_lookup: "Consultar las listas del SAT",
+  consortium_signal: "Consultar la red SentryOne",
+};
+
+/** The five things the panel can offer, and there is no sixth. */
+export const PROPOSAL_KIND_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Verificar la cuenta con un centavo",
+  verify_call: "Llamar al proveedor para verificar",
+  decide: "Registrar una decision",
+  execute_run: "Enviar la corrida de pagos",
+  intake: "Dar de alta la instruccion",
+};
+
+/** The button each proposal puts in front of a person, in their words. */
+export const PROPOSAL_CONFIRM_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Enviar el centavo",
+  verify_call: "Hacer la llamada",
+  decide: "Firmar la decision",
+  execute_run: "Abrir la corrida para enviarla",
+  intake: "Dar de alta el pago",
+};
+
 export const ESTABLISHED_BY_LABEL: Record<string, string> = {
   payment_complement: "Complemento de pago",
   instruction: "Instruccion previa",
@@ -323,4 +419,4 @@ export const ESTABLISHED_BY_LABEL: Record<string, string> = {
 };
 
 /** The watermark text ADR-0002 requires on anything generated. */
-export const SYNTHETIC_LABEL = "datos sinteticos";
+export const SYNTHETIC_LABEL = "Datos sinteticos";

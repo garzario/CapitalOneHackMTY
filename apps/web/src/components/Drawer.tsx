@@ -25,7 +25,12 @@
  *   handler, so closing by pointer and closing by keyboard are one control.
  * - The entrance reads the motion preference. Under `prefers-reduced-motion` the
  *   panel simply appears, which is what the tokens do for every CSS transition
- *   in the app and what `useReducedMotion` does for the ones in JavaScript.
+ *   in the app and what `useReducedMotion` does for the ones in JavaScript. The
+ *   exit is faster than the entrance and rides the exit curve: arriving is an
+ *   introduction and is worth 240 ms, while leaving is a decision already made,
+ *   and a panel that takes as long to go as it took to come reads as hesitation.
+ *   The exit only runs when the caller mounts this inside an `AnimatePresence`,
+ *   which both screens that open a drawer do.
  */
 
 import { motion, useReducedMotion } from "motion/react";
@@ -146,11 +151,18 @@ export function Drawer({
 
   return (
     <>
-      <button
+      <motion.button
         type="button"
         className="scrim"
         aria-label={scrimLabel}
         onClick={onClose}
+        initial={reduceMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{
+          duration: reduceMotion ? 0 : 0.16,
+          ease: [0.4, 0, 1, 1],
+        }}
       />
       <motion.div
         ref={panelRef}
@@ -161,6 +173,14 @@ export function Drawer({
         className="drawer"
         initial={reduceMotion ? false : { x: 32, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
+        exit={{
+          x: 16,
+          opacity: 0,
+          transition: {
+            duration: reduceMotion ? 0 : 0.16,
+            ease: [0.4, 0, 1, 1],
+          },
+        }}
         transition={{
           duration: reduceMotion ? 0 : 0.24,
           ease: [0.2, 0.8, 0.2, 1],

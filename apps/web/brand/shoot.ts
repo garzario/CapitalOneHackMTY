@@ -97,7 +97,7 @@ const SHOTS: Shot[] = [
   /* The token sheet, in both themes, because the sheet's whole claim is that the
      system holds up in whichever one the browser is in. It is the tall capture
      of the set: every token and every base component is on that page. */
-  { path: "#/design", name: "tokens", width: 1440, height: 5040, both: true },
+  { path: "#/design", name: "tokens", width: 1440, height: 5020, both: true },
 ];
 
 /**

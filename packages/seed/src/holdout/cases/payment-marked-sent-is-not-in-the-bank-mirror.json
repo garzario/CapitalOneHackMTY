@@ -55,7 +55,9 @@
         "amount": 41800.0,
         "direction": "debit",
         "source": "seed",
-        "raw": { "synthetic": true }
+        "raw": {
+          "synthetic": true
+        }
       },
       {
         "id": "11111111-0000-4d00-8a00-000000000002",
@@ -64,7 +66,9 @@
         "amount": 17250.0,
         "direction": "debit",
         "source": "seed",
-        "raw": { "synthetic": true }
+        "raw": {
+          "synthetic": true
+        }
       },
       {
         "id": "11111111-0000-4d00-8a00-000000000003",
@@ -73,7 +77,9 @@
         "amount": 233900.0,
         "direction": "credit",
         "source": "seed",
-        "raw": { "synthetic": true }
+        "raw": {
+          "synthetic": true
+        }
       }
     ]
   },
@@ -84,5 +90,6 @@
       "because": "The payment is marked sent and no outflow inside the matching window carries its amount, so either the transfer never left or the mirror is stale, and only a person can say which."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }
