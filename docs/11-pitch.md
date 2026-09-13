@@ -3,9 +3,11 @@
 Worth 6 points. Three timed variants in the actual words, the six controls as they are said out
 loud, the real data behind each claim, and the eight hardest questions with the answer given in one
 breath. The 90-second version is the one to memorise, because continuous evaluation means many
-walk-ups and one stage slot.
+walk-ups; [the stand pitch](#the-stand-pitch-three-to-five-minutes) is the three-to-five-minute
+version said on the real app when a panel stays, and it is the one the four of us rehearse together.
+There is no stage slot.
 
-Owner: Patricio (`garzario`), drafted for the team to validate. Issue #56. Due M3.
+Owner: Patricio (`garzario`), drafted for the team to validate. Issues #56 and #75. Due M3.
 
 **Language.** The spoken text is Spanish, because the judges and the persona are Mexican. It is
 written in ASCII with no accents and no inverted question marks, which is the convention every
@@ -49,7 +51,9 @@ Refresh this table at every milestone.
 | "The verification call rings the supplier through ElevenLabs and Twilio" | `packages/voice`, `POST /api/v1/instructions/:id/verify-call`, and two real outbound calls placed on 2026-09-12, `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` | Ticked, code path and live call, with the ids in `docs/14-process.md#live-integrations-verified`. Say who was dialled: a teammate's own phone, never a supplier |
 | "This CEP is real, re-verify the clave de rastreo on your phone" | `packages/cep` reads, checks and compares a CEP; the committed fixture is synthetic | **Not ticked.** Issue #57 supplies the real one-cent CEP. Until it lands, say what the parser does and that the CEP on screen is the synthetic fixture |
 | "Precision, recall and false-positive rate, per control and per level" | Thirty-five labelled cases in `packages/seed/src/holdout/cases`, scored through `runControls` by `bun run eval` and served by `GET /api/v1/metrics` as `perDetector` and `perLevel` | Ticked. Re-run `bun run eval` before every rehearsal and read the numbers off that output, because they move with every merge |
-| "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
+| "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment. The live pair and what each URL proves are in `docs/10-demo-script.md#where-it-is-deployed` | Ticked. Issue #44 is closed. The remaining gate is operational rather than a build: open it on a phone once before the judging window, and then say "abrelo en tu telefono" instead of pre-announcing a local demo, which reads as a gap the judges had not found |
+| "The run leaves from our screen, over a rail" | `packages/rail`, ADR-0008, `POST /api/v1/run/:id/execute` | **Not ticked.** Issues #198 and #212. Beat 6 of the stand pitch has no screen until they land, and the fallback is the bank layout export or `bun run demo`. `StpRail` is written and refuses to run, so it has never run live and that is said in those words |
+| "A screenshot becomes an instruction and the assistant proposes" | The drawer is merged (#228) and runs under `?data=mock`; the API side is not | **Half ticked.** Issue #197 is the server. Until it lands, beat 3 runs on the mock session or falls back to the QR intake page, which works today |
 | "A held payment carries a deadline and a way out" | `holdWindow` in `packages/core/src/hold.ts`, on `GET /api/v1/instructions/:id` and on a recorded `verify-call`; the reason and the name on `POST /api/v1/instructions/:id/decide` | Ticked in the engine and the API. **Not on screen yet**, issue #174, so say "la API lo contesta y la pantalla lo muestra para el demo" and show it with `curl` if pushed |
 | "The run answers in pesos, not in minutes" | `runMoney` in `packages/core/src/exposure.ts`, on the `totals` of `GET /api/v1/run/current` | Ticked for the money that is stopped, released and at risk, and since #175 for the retroactive 69-B pair too: the publication re-scores the pending lines it affects, so the pair climbs in the same request instead of reading zero |
 | "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, `Supplier.delayCostPerDay` priced per supplier in `packages/seed/src/sentryone/delay-cost.ts`, and the `Costo de retrasar un dia` field on the instruction screen | Ticked, and the number is on screen since #182: all 92 decisions carry a price between MXN 101.98 and MXN 4,611.27 a day, and on this run it changes one outcome. Point at `INS-2026-09-07-032`, released with its warning still showing because a day of delay costs MXN 4,611.27 against MXN 2,088.00 of expected loss |
@@ -96,7 +100,13 @@ than being corrected.
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
 | The blind evaluation | 35 labelled cases and 24 labelled expectations over six controls, scored as 213 counts. Precision 87.0 percent, recall 83.3 percent, false-positive rate 1.6 percent, and the engine chose the labelled action on 33 of the 35 | `bun run eval`, re-read on 2026-09-13. **Re-run it before quoting it.** Say 35 cases, never a pair count: six controls on thirty-five cases looks like 210 slots, and the matrix sums to 213 because a control that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
 | The evaluation per level | Of 35 lines, `confiable` 12 expected and 12 right, `precaucion` 12 and 11, `alerta` 11 and 10. Two lines read one level away from the label and both are the severity arguments already on the table | `bun run eval`, the second table. The row to defend is `confiable` at 100 percent: a line called trustworthy that was not is the mistake this product cannot make twice |
-| Tests | 1,881 tests across 100 files on 2026-09-12: 1,769 passing, 112 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge |
+| Tests | 1,983 tests across 104 files on 2026-09-13: 1,870 passing, 113 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge. **Not said in the stand pitch at all**, because at least seven pull requests land the night before it and the terminal says it better than a presenter can |
+| The buyer's own clock, and it is new | Article 49 Bis, in force since 1 January 2026, orders the SAT to publish the taxpayer whose CFDI it determined false, and every third party who gave those CFDI fiscal effect has **thirty natural days from the DOF publication** to reverse it or the authority restricts **their own** certificado de sello digital under article 17-H Bis, fraccion XIV. So the second retroactive clock points at the buyer | CFF articles 49 Bis and 17-H Bis, `docs/04-market.md` source [4] and `#what-we-cover-on-49-bis-and-what-nobody-can`. Say the clock. **Never say we sweep that list**: the SAT publishes it as 14 DOF notes naming 14 taxpayers between 10 July and 28 August 2026, with no file at all |
+| What the rail itself requires, and what it refuses to check | Regla 12a makes the 18-digit CLABE and the amount the only mandatory data and leaves the beneficiary name optional; Regla 25a obliges the bank to show that name back exactly as the payer typed it, followed by "(Dato no verificado por esta institucion)"; Regla 18a makes the order firme e irrevocable at settlement | Reglas del SPEI, `docs/04-market.md` source [29] and `#how-much-money-goes-through-the-door-we-are-standing-in`. This is the gap proved out of the rail operator's own rulebook instead of asserted |
+| How big the door is | **More than 7,300 million SPEI transfers in 2025, up 36.8 percent**, and 94 percent of them were for 1,500 UDIS or less, about MXN 13,200, which leaves a residual on the order of **440 million** transfers a year where a supplier invoice lives | Banco de Mexico's Governor before the Senate, `docs/04-market.md` source [19]. The 440 million is our arithmetic on those two published figures and is said as ours |
+| That there is nobody above her | **11 treasury vacancies of any kind in Nuevo Leon on 2026-09-12 against 101 for `auxiliar contable`** | `docs/04-market.md` source [44]. Say "es un tablero de empleo, no una estadistica" in the same breath, every time |
+| What the make-whole cap is not | MXN 10,788 does not make a misdirected SPEI of MXN 100,000 whole. It is **10.8 percent** of it, and 23.5 percent of the MXN 46,000 of ISR and IVA that reverse on the same subtotal | `docs/05-business-model.md`, layer 2. Say the limit in the same sentence as the cap, before a judge computes it |
+| The guarantee precedent, which is somebody else's document | Eftsure publishes an indemnity of **up to USD 1 million** against payment fraud losses caused by social engineering, included in the subscription for customers who signed after 10 March 2025, and it attaches only to payments its own engine approved | `docs/05-business-model.md` source [79]. The precedent is the shape and never the size: no dated exchange rate lives in this repository, so the dollars are never converted and never compared to MXN 10,788 |
 | The rate of fraud on supplier transfers | Nobody publishes it. The published evidence brackets it between about **2 per million and 7 per 10,000 transfers**. Say the bracket, never a point inside it | `docs/04-market.md#the-rate-on-supplier-transfers-and-how-it-is-derived`, derivations 1 and 2, formulas and inputs on the page |
 | What comes back once the money is gone | **24.3 percent**, MXN 1,265 million refunded of MXN 5,201 million claimed for fraud in the first quarter of 2026, so 75.7 percent does not | `docs/04-market.md` source [18]. This is a refund share on disputed pesos and never a loss rate. It is the number 25.4 was confused with |
 | How often a Mexican company lives a fraud | **About 5 in every 100 economic units a year**, 522 fraud events per 10,000 units in 2023, on a category INEGI's own footnote says includes bank fraud | `docs/04-market.md` sources [15] and [14]. 93.9 percent of those frauds produced no complaint and no file, so it is a floor |
@@ -294,93 +304,195 @@ The invitation sets up `docs/12-judge-qa.md`, and beat 3 of `docs/10-demo-script
 invites. **On a market number:** this version deliberately carries none. A number a judge can
 falsify costs more than the fifteen seconds it buys.
 
-## 240 seconds, the stage version
+## The stand pitch, three to five minutes
 
-Budget: 60 seconds of setup, 100 seconds of live demo, 60 seconds of how and why, 20 seconds of ask.
-About 350 spoken words plus the demo lines, which are in `docs/10-demo-script.md`.
+This replaces the 240-second stage version. There is no stage: Capital One said judging is continuous
+and the pitch happens standing at the table, two or three judges deep, on the real app with a video
+only as backup. Issue #75, storyline chosen by three rubric judges against `docs/00-challenge.md`. The
+operating sheet, with the exact click, the dependency and the fallback for each beat, is
+`docs/10-demo-script.md#the-stand-pitch-three-to-five-minutes`, and that file wins on anything about
+the screen.
 
-| Block | Clock | What is said |
+**The angle, in one paragraph.** The laptop stays shut for forty-four seconds. Two losses that do not
+undo themselves and the money in pesos, with the hands visible and off the trackpad, and then the
+screen tells the story while the narration only explains what the screen just did. The order of the
+screen is the order of Lupita's Thursday: the run in pesos, the WhatsApp screenshot dragged into the
+chat, the proposal a person confirms, the SAT publishing and a line re-deciding itself, the cent and
+the CEP in one click, the run leaving with receipts. The numbers, the competition, the model and the
+guarantee come afterwards, one breath each, because a number said before the screen is a number a
+judge can falsify and a screen that already worked is an argument that cannot be.
+
+**The clock, measured rather than wished.** 770 spoken words, counted off this file. At 150 words a
+minute, the rate to rehearse against, that is 5:08 of speech; 4:40 at 165 and 5:30 at 140. The cut
+ladder that brings it to 3:18 is pre-declared in `docs/10-demo-script.md#the-cut-ladder-pre-declared`
+and the two timed rehearsals that decide which rung is used are
+`docs/14-process.md#the-75-rehearsal-protocol`. **A per-beat second count in this file is arithmetic on
+a word count and not a measurement.** The stopwatch is.
+
+| # | Beat | Clock | Who | What the beat has to leave behind |
+|---|---|---|---|---|
+| 1 | Las dos perdidas, no screen | 0:00 to 0:44 | Patricio | Two irreversibilities, the 46 percent, the thirty days, and that the publication creates the exposure |
+| 2 | La corrida en pesos | 0:44 to 1:12 | Fabricio | Who Lupita is, that the data is synthetic, and that the hero figure is the money that is not leaving |
+| 3 | La foto de WhatsApp, y la propuesta | 1:12 to 1:49 | Fabian | The product works, the model only transcribes, and a person executes |
+| 4 | El SAT publica | 1:49 to 2:14 | Adan | The loss that needs no fraud, priced, and the list is real |
+| 5 | El centavo y el CEP | 2:14 to 2:46 | Adan | Nobody can fake this beat, and the sandbox and the unverified seal are said by us |
+| 6 | La corrida sale | 2:46 to 3:02 | Fabian | Money leaves with a CFDI, a decision and a name, and we hold no funds |
+| 7 | Como decide | 3:02 to 3:30 | Patricio | Six controls, one expected-loss decision, pure functions, no model in that path |
+| 8 | La competencia | 3:30 to 3:53 | Fabricio | Four names from us before they ask, and the union claim at its honest width |
+| 9 | Mercado y modelo | 3:53 to 4:23 | Fabricio | The segment small first, the price, the break-even and the channel |
+| 10 | Cuando nos equivocamos | 4:23 to 4:39 | Fabricio | Three actions and no fourth, four layers, and that no lawyer has read three of them |
+| 11 | La peticion | 4:39 to 5:08 | Patricio | Ten real runs, nobody has signed anything, the stop condition, and the loss instead of the minutes |
+
+### The words, in order
+
+Say these and nothing else. Every number in them is in the table above this section or on the screen
+while it is said.
+
+> **1, 0:00, no screen, hands visible.** Dos perdidas, y ninguna se deshace. Si el SAT publica a tu
+> proveedor en la lista del articulo 69-B, las deducciones que ya tomaste se anulan hacia atras, y
+> tienes treinta dias para responder. Desde enero el articulo 49 Bis arranca ese mismo reloj contra el
+> comprador, y el sello digital que se restringe es el tuyo. Y una vez que sale el SPEI, es firme e
+> irrevocable. De un subtotal rechazado se revierte el cuarenta y seis por ciento entre ISR e IVA. La
+> exposicion la crea la publicacion, no el pago: revisar al proveedor cuando lo diste de alta no
+> protege nada. Esto no necesita que nadie te defraude.
+>
+> **2, 0:44, `#/run`.** Jueves. Lupita Elizondo es la unica persona de administracion de un taller de
+> veintiocho empleados en Apodaca, y arriba de ella no hay tesoreria. Noventa y dos transferencias
+> antes del corte, y todo esto es sintetico. La cifra grande no es el total: son setecientos ochenta y
+> cinco mil pesos que no van a salir, ordenados por pesos en riesgo, con su nivel y sus hallazgos
+> debajo. Nunca un porcentaje.
+>
+> **3, 1:12, the assistant panel.** Asi llega un pago: una foto en WhatsApp, y la arrastro al chat. El
+> unico modelo aqui transcribe, y sus siete herramientas son de lectura: una que escriba no existe en
+> el tipo. Ya hay instruccion, con nivel y evidencia: difiere en dos digitos de la cuenta en la que le
+> hemos pagado cincuenta y dos veces, y no tiene un pago atras. Pregunto por que esta en rojo y termina
+> en una propuesta, el cuerpo exacto de la peticion, con un boton. Lee y propone; ejecuta una persona,
+> con su nombre.
+>
+> **4, 1:49, `#/sat`.** Reproducimos ocho meses de bitacora en pesos: ochocientos setenta y ocho mil de
+> base ya deducida y cuatrocientos cuatro mil de exposicion. Y mira la corrida: esa linea se volvio a
+> decidir sola mientras estabamos en la otra pestana. Teclea tu un RFC real, la lista es la oficial:
+> catorce mil doscientos treinta y cuatro renglones, aparte de nuestras facturas sinteticas.
+>
+> **5, 2:14, `#/cep`.** Mexico no tiene API de confirmacion de beneficiario: el unico documento que
+> dice quien tiene una cuenta es el que firma el banco central. Un centavo viaja dentro de la corrida y
+> la clave de rastreo regresa del riel, no de un teclado. El motor libero este pago y bloqueo aquel,
+> porque el titular es otra empresa. El centavo queda en Nessie, un sandbox y no un banco, y el sello
+> dice no verificado porque no tenemos el certificado de Banxico.
+>
+> **6, 2:46, `#/payments`.** Ahora si sale la corrida, con el nombre de quien la manda: ochenta y seis
+> pagos con su clave y su recibo, y las retenidas fuera con su razon. No custodiamos fondos,
+> instruimos al participante de la propia empresa.
+>
+> **7, 3:02, the detector beside its test file.** Seis controles sobre tres fuentes: las facturas de la
+> empresa, las dos listas del SAT contra un proveedor y el comprobante de Banxico. Los seis quedan en
+> corrio o en no corrio con su razon. Encima, una decision de perdida esperada que pesa los pesos en
+> riesgo contra lo que cuesta retrasar ese pago un dia. Son funciones puras, y una prueba lee nuestro
+> codigo y falla si aparece la palabra decide.
+>
+> **8, 3:30, the two-camps sheet.** La competencia la nombramos nosotros: ValidX y Portal de
+> Proveedores retienen sobre las listas del SAT y nunca ven la cuenta; Clara dispersa cientos de SPEI
+> sin verificar a quien recibe; CONTPAQi tiene las dos mitades y su changelog muestra que no se cruzan
+> al pagar. No encontramos a nadie que las venda juntas en una decision.
+>
+> **9, 3:53, the segment and price sheets.** Seis mil cuatrocientas setenta y seis empresas de once a
+> doscientos cincuenta en Nuevo Leon, contadas una por una en el directorio del INEGI; doscientos
+> cuarenta y seis mil es el total nacional. Ochocientos noventa y nueve pesos al mes la empresa y tres
+> mil novecientos el despacho que trae veinte; se paga con una factura detenida de veintitres mil
+> cuatrocientos cincuenta y dos al ano. Vendemos a compras y a finanzas, por despacho contable.
+>
+> **10, 4:23, the four-layer sheet.** Tiene tres acciones: retener, verificar o liberar, y no hay una
+> cuarta. Cuando nos equivocamos hay cuatro capas, y la que existe hoy es el expediente con un nombre.
+> Nada de las otras tres lo ha visto un abogado.
+>
+> **11, 4:39, back on `#/run`.** Una peticion: diez corridas de pago reales en modo sombra, porque la
+> tasa de falsos positivos con datos que no generamos nosotros es lo unico que no sabemos. Nadie ha
+> firmado nada con nosotros, y si doscientos barridos gratuitos destapan menos del cinco por ciento,
+> paramos. El jueves Lupita va a apretar enviar noventa y dos veces. No la hacemos mas rapida: le
+> quitamos de encima los seis pagos que no se deshacen.
+
+The closing is the replacement for the banned eight-minutes sentence and it is the line this whole
+file's "The value is the loss, not the minutes" section asks for. Do not improvise it and do not soften
+it into a claim about speed.
+
+**If a judge interrupts in the first ten seconds**, there is one sentence and it is not improvised,
+because an improvised version of it is what the first Capital One table heard: *"SentryOne lee las
+facturas que la empresa ya tiene y, en el momento de pagar, dice cuales pagos retener, cuales verificar
+y cuales liberar."* Then go back to the **second** loss rather than abandoning the hook.
+
+### The clauses that go back in when the judge stays
+
+Ten single breaths, in order of value, each one also a Q&A card in `docs/12-judge-qa.md#qa-cards`, so
+nothing is lost by leaving them out. The text of each one is in
+`docs/10-demo-script.md#the-clauses-that-go-back-in-when-the-judge-stays` with its beat and its word
+count. The full version is 1,029 words, 6:52 at 150 words a minute, and at that length it is a
+conversation and not a pitch.
+
+The first three, because they are the ones worth the most: the one-page letter for the accountant at
+the end of beat 6; the labelled evaluation inside beat 7, read off a fresh `bun run eval` and never
+from memory; and the four layers in full inside beat 10.
+
+### The stand pitch, per person
+
+Four people, eleven beats, and the rule that costs nothing and buys the room: **two at the laptop, the
+owner of the beat speaks, the other two stand one step back, and whoever answers a question is the
+owner of that area rather than whoever heard it first.**
+
+| Person | Beats | What they own on the table | What they answer when pushed | What they never say |
+|---|---|---|---|---|
+| **Patricio** (`garzario`) | 1, 7, 11 | Opens and closes, and owns how it decides. `packages/core`, `packages/sat`, `packages/cep`, the ADRs, CI. Opens the detector beside its test file and runs `bun test` at the table if asked | Why rules and not a model, four reasons all graded, plus the test that reads the package's own source and fails on `decide`, `score` or `recommend`. Why a critical finding cannot be released by arithmetic: rules 1 and 2 of `decide` return above the branch that weighs anything. What today's honest gap is | "IA decide", any probability or percentage of risk on a payment, and any evaluation number from memory |
+| **Adan** (`Apanawa`) | 4, 5 | Owns what is real and what is not. The deterministic generator, the 35 labelled cases, the SAT loader and the sweep, the real-CEP evidence (#57) | Three sentences he says unprompted: these data are synthetic from a fixed seed; the seal says not verified because this server holds no Banxico certificate, and not verified is not invalid; the consortium is a network of other companies we generated, the warehouse is real, and what leaves a company is a salted hash, a bank code and one of four outcomes | That a seal was validated, that pesos moved in Nessie, or that real companies are on the network. Asked how many companies are on it, the answer is one, ours, in that order and without softening |
+| **Fabricio** (`FabriBanda`) | 2, 8, 9, 10 | Owns the narrative, the market and the persona. `docs/00` to `06`, `docs/13`, `docs/14`, the README, the Devpost | The father's-PyME objection. Who the user is not: the micro firm with no weekly run, the company above 250 that already has an ERP and a treasury, and anyone informal. The number that does not exist, said as "no lo traigo y no lo voy a inventar en esta mesa" | "Nadie hace esto". He says "no encontramos a nadie que venda las dos mitades juntas" |
+| **Fabian** (`fabbyyyy`) | 3, 6 | Drives the laptop on the two beats where the screen does something new. `apps/api`, `packages/nessie`, the schema, the migrations, the deploy | What leaves the perimeter towards the model: the clerk's own sentence, the image she dropped and the evidence of that turn's findings, never the CFDI ledger, never a full CLABE, never the bank mirror, never another company's data. The Nessie quirks, unprompted. That `enviado` and `liquidado` are two claims and this API never joins them | That the run moved pesos. And during the judging window he does not touch the server: if the instance is down, Patricio drives the local one and Fabian fixes it away from the demo laptop |
+
+### The guarantee beat, the four layers that exist, and the slot
+
+Beat 10 is sixteen seconds and it has to make the question from the second Capital One panel
+unnecessary. The four layers below are what `docs/05-business-model.md#when-a-released-payment-is-fraud-what-the-client-gets`
+holds today. Layer 1 exists in the code. Layers 2, 3 and 4 are a proposal no lawyer has read, and that
+sentence is said out loud rather than printed small.
+
+| Layer | What it is | Status, said out loud |
 |---|---|---|
-| Hook and persona | 0:00 to 0:40 | The first two paragraphs of the 60-second version, word for word. Do not improvise the hook |
-| The product in one line | 0:40 to 1:00 | See below |
-| Live demo | 1:00 to 2:40 | Beats 1, 2 and 3 of `docs/10-demo-script.md`. If the room is slow, cut beat 2 and keep beat 3 |
-| How it works | 2:40 to 3:05 | The six controls, the expected-loss decision, and why there is no model in that path |
-| Why different, and the evidence | 3:05 to 3:25 | The competitor line, then the blind evaluation |
-| Market, model and regulation | 3:25 to 3:45 | Three sentences, one each |
-| The ask | 3:45 to 4:00 | See below |
+| 1 | The file: the six controls with their evidence, the name of whoever decided and their written reason, on a ledger that only grows. That is what a client takes to its bank, to an insurer or to the SAT inside the thirty days | **Exists today**, `runControls` and `LedgerEvent` |
+| 2 | What we can fund ourselves: four weeks in shadow mode with no charge, a service credit, and a capped make-whole of twelve months of the tier, MXN 10,788 direct and MXN 2,340 through the channel, never more than the client paid | Proposal. Funded by a 10 percent reserve. **Say the limit in the same breath: MXN 10,788 does not make a MXN 100,000 SPEI whole, it is 10.8 percent of it** |
+| 3 | The policy, which only an authorised insurer can write, because article 20 of the Ley de Instituciones de Seguros y de Fianzas reserves it and article 495 attaches prison. What we bring is the underwriting input no insurer receives today from a 28-person firm | Proposal. Article 102 is the lawful channel and the consultation article 20 provides for has not been filed |
+| 4 | The opposite error: a hold is bounded at three days and a verification at one, the owner releases whenever they like with their name and a written reason, and the day already has a price per supplier | **Exists today**, `holdWindow` and `Supplier.delayCostPerDay` |
 
-**0:40, the product in one line.**
+**[SLOT: the letter or letters the team chooses from the A to H guarantee menu. One sentence, said
+between layer 2 and layer 3, worded as a proposal.]**
 
-> SentryOne lee las facturas que ella ya tiene y, en el momento de pagar, le dice cuales pagos
-> retener, cuales verificar y cuales liberar.
+The slot is a slot and not a blank. If nobody has chosen before the first walk-up, **beat 10 is said
+without the sentence and no new cap is promised**, because the four layers stand on their own and they
+already carry the disclosure that no lawyer has read three of them. Nothing is improvised into this
+slot at 09:00. The screen for the eight letters, so that the one that gets chosen cannot contradict the
+regulatory beat:
 
-**2:40, how it works.**
+| Letter | What it is | Verdict |
+|---|---|---|
+| F, money back if the sweep finds nothing | A price remedy on our own fees | **Sayable today.** It sits inside layer 2 and needs no counsel |
+| G, dual approval | Already in the product as the owner override on a release over a finding | **Sayable today.** It sits inside layer 1 and ADR-0007 |
+| H, insurer certification | This **is** layer 3. Say it as a channel and as the floor under the others, never as our policy | Sayable as layer 3, in those words |
+| A, a protected-payment fund per transaction | Holding client money | **Banned.** It destroys "no custodiamos fondos", which is half the regulatory answer |
+| B, escrow on the rail | Holding client money, plus a rail we do not operate | **Banned**, same reason, and ADR-0008 says the payer stays the company |
+| C, supplier self-registration | The buyer-imposed portal model a 28-person firm cannot impose on anybody, and it is a competitor's shape rather than ours | Out of scope, not a guarantee |
+| D, recovery in fifteen minutes | Contradicts article 11 of the Ley de Sistemas de Pagos, which this pitch quotes in its own first forty-four seconds | **Banned outright.** It would break the hook |
+| E, zero liability with the bank | Route three, and nobody at any bank has agreed to anything | Only as an ask, never as a term |
 
-> Seis controles independientes sobre tres fuentes: su catalogo de CFDI, la lista del 69-B con sus
-> versiones y el CEP firmado por Banxico. La lista con barrido retroactivo, forense de CLABE,
-> facturas duplicadas, cambio de comportamiento del proveedor, verificacion del beneficiario contra
-> el comprobante firmado, y conciliacion contra el espejo bancario. Los seis siempre quedan
-> registrados: o corrieron, o dicen exactamente que les falto. Encima va una sola decision de
-> perdida esperada, que pesa los pesos en riesgo contra lo que cuesta retrasar ese pago un dia. No
-> hay modelo de lenguaje en ninguna parte de esa ruta: el unico modelo que usamos transcribe una
-> foto o una nota de voz, y lo que devuelve vuelve a pasar por el digito verificador y por la
-> historia del proveedor antes de tocar nada.
+And one sentence that earns more than any of the eight, because it moves the first question back from
+"has anybody ever done this" to "what is the cap": **"Eftsure publica un millon de dolares con la misma
+condicion, que su propio motor haya aprobado el pago."** Source [79] through
+`docs/05-business-model.md`. The precedent is the shape and never the size: no dated exchange rate
+lives in this repository, so the dollars are never converted and MXN 10,788 is never described as
+comparable to them.
 
-**3:05, why different and how we know.**
+### Rehearsed, or it is a read-through
 
-> El mercado ya partio esta tesis en dos. ValidX y Portal de Proveedores retienen el pago sobre las
-> listas del SAT y nunca ven la cuenta. Clara y Xepelin dispersan cientos de SPEI sin verificar a
-> quien recibe. CONTPAQi tiene las dos mitades y no se cruzan en el pago. Lo nuestro es la union, en
-> una decision con evidencia. Y los casos etiquetados no salieron de leer los detectores: ninguno se
-> edito para que un control pasara, y los que no coinciden siguen contados en contra.
-
-If a judge names the one-cent probe here, the answer is one sentence and it is not defensive:
-Verificamex sells it metered at MXN 8.93 to 17.85 a call and Banco de Mexico writes it into Regla 51a
-Bis of the SPEI rules, so it is a commodity primitive and ours is the decision hung on its answer. The
-roster with one line per company is section 1 of `docs/12-judge-qa.md#table-feedback-of-12-september-and-the-answers`.
-
-Optional clause, only if `bun run eval` was run within the hour and the screen is open on it:
-"treinta y cinco casos etiquetados, uno punto seis por ciento de falsos positivos, y ni una sola
-linea marcada como confiable que no lo fuera." Cut it if the number on the screen is not the number
-in your mouth.
-
-**3:25, market, model and regulation.** One sentence each, from the numbers table above. The market
-sentence is the narrowed one, and the order inside it is binding: the segment first, the national
-figure second and labelled as the total. Opening with 246,000 is what a second Capital One panel asked
-us to stop doing on the evening of 2026-09-12, because a number that size answers how many could buy
-and not who we are selling to on Monday.
-
-> Seis mil cuatrocientas setenta y seis empresas de once a doscientos cincuenta personas en Nuevo
-> Leon, en manufactura, mayoreo y construccion, contadas una por una en el directorio de unidades
-> economicas del INEGI, seis mil ciento catorce de ellas en el area metropolitana, y alrededor de dos
-> mil trescientas doce si les aplicamos la tasa de formalidad del INEGI, que se queda corta y lo
-> decimos; doscientos cuarenta y seis mil a nivel nacional es el mercado total, no el que atacamos
-> primero. Cobramos ochocientos noventa y nueve pesos al mes por empresa y tres mil novecientos al
-> despacho contable que trae veinte, contra mil novecientos noventa y nueve pesos al mes del plan para
-> despachos que ya se publica en este mercado: cobramos casi el doble y la diferencia es que ese plan
-> vigila una lista y el nuestro decide un pago. Y no somos entidad regulada: no custodiamos fondos, no
-> ejecutamos transferencias y nada se rechaza sin que una persona lo decida.
-
-**3:45, the ask, and it is now the channel ask.** The same panel asked who sells this and through which
-channel, so the ask names the channel instead of asking for a generic pilot. The ten real payment runs
-did not disappear, they are what the introductions are for, which is the only form in which a pilot is
-worth asking for.
-
-> Dos cosas. Tres presentaciones a despachos contables de once personas o mas en Monterrey, que son
-> ciento cuarenta y tres en todo el estado y los tenemos contados, para correr el barrido gratuito
-> sobre corridas de pago reales y medir la tasa de falsos positivos con datos que no generamos
-> nosotros. Y una conversacion con el area de banca empresarial de un banco, porque la version de esto
-> que escala vive dentro del portal donde el pago ya se ejecuta: el banco de nuestra demo es Nessie, y
-> Capital One es justo el tipo de banco que lo haria. Eso es una ruta que estamos pidiendo, no un
-> acuerdo: nadie ha firmado nada con nosotros.
-
-If a judge pushes on that second half, the answer is the intermediation dilemma and it is one sentence:
-we are not asking to stand between a company and its bank, we are asking to sit where the payment
-already executes, which is the bank's own screen, and the argument with its three published facts is in
-`docs/05-business-model.md#the-third-route-a-bank-embeds-the-control-where-the-payment-executes`.
-
-Rehearsed twice, out loud, timed, with all four people present. A rehearsal with one person is a
-read-through. The log goes in `docs/14-process.md`, issue #75.
+Two full timed runs on the real app with all four present, one of them with a teammate playing a
+hostile judge off the Q&A cards. The protocol, what gets logged and the cut list if the room is slow
+are `docs/14-process.md#the-75-rehearsal-protocol`, issue #75. A rehearsal with one person is a
+read-through, and a per-beat second count in this file is arithmetic until a stopwatch has disagreed
+with it.
 
 ## The real data, and where it stops being real
 
@@ -421,10 +533,16 @@ they are looking for prototypes that only pretend to work.
   throws on any RFC without the `SYN` prefix, so the only publication that can ever meet one of our
   invoices is an invented one. That is a rule in ADR-0002 and a test, not a promise.
 
-## The blind evaluation
+## The labelled evaluation, and how blind it is not
 
 The sentence: **"ningun caso se edito para que un control pasara, y los que no coinciden siguen
 contados en contra."**
+
+**The words "evaluacion ciega" are not said at the table and do not go on a slide.** The protocol did
+not deliver what that phrase claims, the repository says so in
+`packages/seed/src/holdout/README.md`, and a judge who reads that file after hearing the stronger claim
+has found the one thing that costs more than the point it was worth. The sanctioned sentence above says
+everything that is true and nothing that is not.
 
 Say it that way and not the older version about who wrote what. The controls were merged before this
 set was written, and the labels come from ADR-0002 and the domain types rather than from reading the
@@ -702,11 +820,40 @@ positives, why Nessie at all, and how do you know it works. All four are in `doc
 
 ## Delivery rules
 
-- One presenter, one backup, both named in `docs/10-demo-script.md`.
-- Open with the fiscal hook. Every time. It is the line ADR-0002 made binding.
+- Four presenters, one beat each, named in
+  [The stand pitch, per person](#the-stand-pitch-per-person) and in `docs/10-demo-script.md`. Two at
+  the laptop and never four, and whoever answers a question is the owner of that area rather than
+  whoever heard it first.
+- Open with the fiscal hook. Every time. It is the line ADR-0002 made binding, and the laptop does not
+  open until the hook ends.
 - Plain words. Say "el comprobante que firma el banco central" once before saying "CEP", and "la
   lista del SAT" before saying "69-B".
-- Say the synthetic-data sentence unprompted, in beat 1.
+- Say the synthetic-data sentence unprompted, in beat 2.
+- **Never say a per-beat second count is a timing.** It is arithmetic on a word count at 150 words a
+  minute until a stopwatch has disagreed with it, and the two timed rehearsals of
+  `docs/14-process.md#the-75-rehearsal-protocol` are what decide which rung of the cut ladder is used.
+- **Never say "evaluacion ciega", and never a number from the old holdout.** The set is 35 labelled
+  cases, precision 87.0, recall 83.3, false positives 1.6, the labelled action on 33 of 35, and 12 of
+  the 35 are hard negatives. "Treinta casos", "ochenta y cinco de precision", "uno punto nueve" and
+  "veintiocho de treinta" are all superseded and therefore banned. Re-run `bun run eval` inside the
+  hour and read them off that output.
+- **Never say "lo que nadie instrumenta", or any sentence in that family.** It is "nadie hace esto"
+  with one word changed and it breaks on the same search. The replacement is "no encontramos a nadie
+  que le ponga precio a lo que ya dedujiste cuando el SAT publica".
+- **Never say "cancelado" about `INS-2026-09-07-070` until #204 is merged and the screen says it.**
+  On the code that exists today the re-score moves that line from `Verificar` to `Retener`, signed
+  `system`, which is what `docs/10-demo-script.md` carries. It is the one claim a judge checks with one
+  `curl`.
+- **Never narrate the plaza on the hero line.** Both hero accounts are `012180100091764613` and
+  `012180101391764613`: same bank 012, same plaza 180, differing at positions 9 and 10 inside the
+  account number, so the plaza finding cannot fire there whatever #203 lands. Say the two digits and
+  the 52 payments, and show the plaza on a line that carries it.
+- **Never say "IA decide", in any form.** The assistant reads and proposes, a person executes, and
+  `confidenceOf`, `transactionStateOf`, `decide` and the six controls are deterministic and unit
+  tested. ADR-0007.
+- **Never improvise a letter into the guarantee slot.** If the team has not chosen, beat 10 is said
+  without the sentence and no new cap is promised. The screen for the eight letters is in
+  [The guarantee beat](#the-guarantee-beat-the-four-layers-that-exist-and-the-slot).
 - Never say a number that is not in the numbers table above or on the screen.
 - **Never claim the product is faster than doing it by hand.** The value is the loss prevented, in
   pesos. The eight-minutes sentence was said at the table on 2026-09-12 and it cost us the room. See

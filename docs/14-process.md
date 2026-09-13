@@ -199,6 +199,102 @@ because the table there prices two models this product does not configure. Issue
 The key is in each local `.env` and in no file here: `.env` and `.env.*` are ignored and
 `.env.example` carries the names with empty values.
 
+## The #75 rehearsal protocol
+
+Issue #75. Two full timed run-throughs of the stand pitch on the real app, with all four present, one
+of them against a teammate playing a hostile judge off the cards in
+`docs/12-judge-qa.md#qa-cards`. A rehearsal with one person is a read-through, and a rehearsal with no
+stopwatch is a reading.
+
+The script is `docs/11-pitch.md#the-stand-pitch-three-to-five-minutes` and the operating sheet is
+`docs/10-demo-script.md#the-stand-pitch-three-to-five-minutes`. **Neither file's per-beat seconds are a
+measurement.** They are arithmetic on a word count at 150 words a minute, 770 words and 5:08, and the
+whole point of this protocol is to replace that arithmetic with two stopwatch readings before anybody
+decides what to cut.
+
+### What happens before either run
+
+| # | Step | Owner | Why it is before and not during |
+|---|---|---|---|
+| 1 | Say out loud which issues are in `dev`, by number, and rewrite the beat sheet to what is merged rather than to what is expected to merge | Fabian | Nine of the eleven beats name a dependency. A beat rehearsed against a branch is a beat that breaks in front of a judge |
+| 2 | `bun run demo` green on the demo laptop, right now, and the pre-demo checklist of `docs/10-demo-script.md#pre-demo-checklist` ticked | Fabian | It is ninety seconds and it is the difference between looking real and looking like a prototype |
+| 3 | `bun run eval`, and card 9 plus the `+2` clause of beat 7 re-read off that output | Adan | The five evaluation figures move with every merge. A number in a mouth that the screen contradicts costs more than the clause was worth |
+| 4 | Open the deployed web on a phone, once | Adan | So that "abrelo en tu telefono" is said as a fact. If it is down, the run uses the local instance and the sentence is not said |
+| 5 | `GET /api/v1/instructions/INS-2026-09-07-047/verification` reads `not_started`, or re-seed | Fabian | The cent is sent once per instruction and a second press answers 409. Beat 5 is unrepeatable if a rehearsal spent it |
+| 6 | Decide the letter or letters for the guarantee slot, or decide out loud that there is none | Fabricio | `docs/11-pitch.md#the-guarantee-beat-the-four-layers-that-exist-and-the-slot` carries the screen for all eight. If nobody decides, beat 10 is said without the sentence. Nothing is improvised into that slot at 09:00 |
+
+### Run 1, clean
+
+Nobody interrupts. One person holds the stopwatch and says nothing until the end.
+
+- Start the clock on the first word of beat 1 and stop it on the last word of beat 11.
+- The stopwatch holder writes one number per beat, not one number for the run, because the cut ladder
+  works on beats and a single total hides which one ran long.
+- Laptop shut for beat 1, hands visible and off the trackpad. If the laptop opens early, the run is
+  restarted: that is the one habit this rehearsal exists to build.
+- Two people at the laptop and two a step back, and the handoffs between the four are part of what is
+  being timed.
+
+### Run 2, hostile
+
+The fourth person plays the judge with the cards in front of them, on a phone.
+
+- They interrupt **twice**, once inside the first ten seconds and once in the middle of a demo beat,
+  because those are the two interruptions that actually happen.
+- The second-five interruption is answered with the one product sentence and then the presenter goes
+  back to the **second** loss. An improvised version of that sentence is what the first Capital One
+  table heard.
+- They then pick four cards at random and two on purpose: **2, 6, 10 and 14**, which are the four that
+  were answered badly the first time.
+- The rule being rehearsed is that **the owner answers**. If the owner is mid-beat, whoever is a step
+  back says "te contesta <nombre> en veinte segundos". Two people answering the same question
+  differently is the failure the card sheet exists to prevent.
+- Anybody may call "eso no lo decimos" mid-answer. A banned sentence caught in rehearsal is free; the
+  same sentence in front of a panel costs the room.
+
+### What gets logged, in this file, under "Judge visits"
+
+One row per run, and the log is the deliverable rather than the feeling afterwards.
+
+| Field | Why it is logged |
+|---|---|
+| Date, time and which run, 1 or 2 | Two runs or it did not happen |
+| Seconds per beat, and the total | This is the measurement the beat sheet does not have |
+| Which rung of the cut ladder the total implies | Read straight off `docs/10-demo-script.md#the-cut-ladder-pre-declared`. The rung is a consequence of a number, not a preference |
+| Which beats fell back, and to what | A fallback used in rehearsal is a dependency that is not ready, which is information for the 07:00 declaration |
+| Which cards were asked | **A card asked after the pitch is a defect in the pitch.** The fix goes into `docs/11-pitch.md`, not into a longer answer in `docs/12` |
+| Any banned sentence that was said, verbatim | Including who said it. The list in `docs/11-pitch.md#delivery-rules` grows from this column and nowhere else |
+| Any number that was said and was not on the screen | The same rule as the sheet: the clause gets cut rather than defended |
+| One thing to change before the next run, and only one | A list of eight changes between two rehearsals is a rewrite, and a rewritten pitch has been rehearsed zero times |
+
+### The cut list if the room is slow
+
+The ladder with its measured savings is `docs/10-demo-script.md#the-cut-ladder-pre-declared`, and it is
+pre-declared so that nobody chooses in front of a judge. The rule for reading it:
+
+1. Take the total of run 1 in seconds.
+2. Subtract 300. If the answer is negative, no rung comes off and the `+` clauses of
+   `docs/11-pitch.md#the-clauses-that-go-back-in-when-the-judge-stays` go in from the top of that list
+   until the total reaches 290.
+3. If it is positive, come down the ladder until the remainder is negative. Rung 1 is beat 10, rung 2 is
+   beat 6, and the order does not get reshuffled at the table.
+4. Say the chosen rung out loud to all four before the window opens, and whoever is presenting says the
+   rung number rather than "nos vamos cortito".
+
+**Three things never come off**, at any rung and at any clock reading. The hook, because it is the one
+beat that makes a judge care. The synthetic-data sentence. And beat 3, because a judge who watched their
+own screenshot become a payment instruction does not need to be convinced that the product runs.
+
+### The exit criteria for #75
+
+- [ ] Run 1 logged with seconds per beat and a total.
+- [ ] Run 2 logged, with the two interruptions, the cards asked and the owner who answered each.
+- [ ] The rung chosen, written down, and said out loud to all four.
+- [ ] Zero banned sentences in run 2. If one appears, there is a run 3, and that is cheaper than the
+      alternative.
+- [ ] The guarantee slot decided or explicitly empty.
+- [ ] Every number said in run 2 was on the screen or on a card.
+
 ## Judge visits, and what each one changed
 
 Judging here is continuous rather than a slot: engineers and a product person walk up to the table

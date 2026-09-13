@@ -8,10 +8,14 @@ current browser without a build step.
 - `judge-card.html`: two A5 landscape pages, front and back. Print duplex and flip on the short
   edge.
 - `one-pager.html`: one A4 portrait page. Print 10 copies for the table.
-- `team-card.html`: one A4 portrait page, in Spanish, for the four of us and not for a judge. The
-  problem, the user, the model, the nine competitor entries `docs/04-market.md` documents with one
-  line each, the union claim with the 49 Bis scope, the two sentences never to say, and the six
-  objections of 2026-09-12 with the answer to each. Print four copies and carry one each. Issue #171.
+- `team-card.html`: one A4 portrait page, in Spanish, for the four of us and not for a judge. Since
+  #75 it carries the order of the stand pitch rather than the six objections: the hook word for word
+  with the laptop shut, the three families of sentence never to say, the eleven beats with their clock
+  and the person who says each one, the ten numbers allowed out loud, the competition as four names
+  first and seven on request, and the four guarantee layers with the empty menu slot and the rule that
+  nothing is improvised into it. The six objections moved to
+  `docs/12-judge-qa.md#qa-cards`, which is read on a phone rather than off paper, and the card points
+  at them. Print four copies and carry one each. Issues #171 and #75.
 - `repo-qr.png`: QR code for `https://github.com/garzario/CapitalOneHackMTY`, generated and decoded
   locally before commit.
 - `print.css`: shared print styles with exact physical page dimensions.
@@ -33,10 +37,15 @@ catch that. Two checks, both headless, and both required after any edit to that 
 1. Render it and confirm one page of exactly A4: the PDF carries `/Count 1` and a `/MediaBox` of
    `0 0 594.96 841.92`, which is 210 by 297 millimetres.
 2. In the same browser, with the page loaded, read `page.scrollHeight - page.clientHeight` on the
-   `.page` element. It has to be **0**, and the bottom of `.answer-list` has to sit above
-   `clientHeight` minus the 16mm bottom padding the absolutely positioned `.footer-line` sits in.
-   At the time of writing that leaves 1041 against a limit of 1062 at 96 dpi, about one line of
-   slack, so a block added to that card costs another block somewhere.
+   `.page` element. It has to be **0**, and the bottom of the last content block, which is
+   `.bottom-up` since #75, has to sit above `clientHeight` minus the 16mm bottom padding the
+   absolutely positioned `.footer-line` sits in.
+
+Measured after the #75 rewrite, at 96 dpi, on Chrome for Testing 131: `scrollHeight` 1123 and
+`clientHeight` 1123, so the overflow is 0; the bottom of `.bottom-up` is at 1000 against a limit of
+1063, and `.footer-line` starts at 1078. That is 63 pixels of slack, about four lines of the 6.7pt
+body, which is more headroom than the previous layout had and still not enough for a new block without
+taking one out. The PDF carries `/Count 1` and `/MediaBox [0 0 594.95996 841.91998]`.
 
 ## Print settings
 
