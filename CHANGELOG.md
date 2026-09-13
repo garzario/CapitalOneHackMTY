@@ -441,6 +441,20 @@ then the screens, then the narrative, then the plumbing.
   constancia of anything, and an absent 49 Bis row says the article publishes one resolution and
   provides for no published clearing, so no row is not a desvirtuamiento. The official list stays
   behind a press, so the panel links to `#/sat?rfc=` and asks the SAT nothing on arrival.
+- The SAT screen answers the official lookup one article at a time and shows the payment lines a
+  simulated publication cancels as it happens (issue #214). Article 69-B names the snapshot and
+  keeps the complete status history. Article 49 Bis shows the API's `answered: false`, the reason,
+  the counted DOF publications and their source, so an empty local index is never presented as a
+  negative lookup.
+
+  The simulation reads the affected lines from the current run, listens for the publication,
+  decision and cancellation events, and refreshes those lines in place. Their state still comes
+  from `transactionStateOf`; the browser adds no second cancellation rule. In `?data=mock` the
+  definitive synthetic publication follows the same projection without opening the event stream
+  or making any request. The official lookup stays unavailable there instead of falling back to
+  fabricated evidence. A `429` now reads `Retry-After` and tells the clerk how long to wait, and the
+  constancia remains available only when the API engine produced the sweep.
+
 - The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
   `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
   level and their state, "Enviar corrida" behind a second press and a name, the progress line by line

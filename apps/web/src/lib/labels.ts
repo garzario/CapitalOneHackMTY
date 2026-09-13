@@ -188,6 +188,70 @@ export const SAT_STATUS_BADGE: Record<SatListStatus, string> = {
   sentencia_favorable: "badge badge-release",
 };
 
+export const SAT_ARTICLE_LABEL = {
+  "69-B": "Articulo 69-B",
+  "49 Bis": "Articulo 49 Bis",
+} as const;
+
+export const SAT_COPY = {
+  answered: "Consulta completada",
+  unavailable: "Cobertura no disponible",
+  notListed69B: "No aparece en la lista 69-B",
+  notListed49Bis: "No aparece en la lista 49 Bis",
+  source: "Fuente oficial",
+  viewPublication: "Ver publicacion",
+  reviewDof: "Revisar en el DOF",
+  history: "Historial de publicaciones",
+  publicationReview: "Oficios revisados",
+  taxpayersNamed: "Contribuyentes publicados",
+  surveyedAt: "Revision al",
+  publishedResolution: "Resolucion publicada",
+  runLines: "Lineas de la corrida afectadas",
+  runLoading: "Cargando las lineas de la corrida",
+  runBefore:
+    "El estado se deriva de la decision y los hallazgos que ya tiene cada linea.",
+  runAfter: "La publicacion ya se incorporo a los hallazgos de estas lineas.",
+  noRunLines: "Esta publicacion no alcanza una linea de la corrida actual.",
+  noAffectedLines: "Sin lineas afectadas",
+  refreshFailed:
+    "La publicacion llego, pero no se pudo actualizar la corrida desde la API.",
+  lookupOffline:
+    "La consulta oficial esta desactivada en modo sintetico. Cambia a datos de API para consultar un RFC real.",
+  lookupNeedsApi:
+    "Esta consulta necesita la API: la lista oficial no viaja en el navegador y no se inventa.",
+} as const;
+
+export const SAT_SENTENCE = {
+  source(
+    version: string,
+    retrievedAt: string,
+    taxpayers: string,
+    rows: string,
+  ): string {
+    return `${SAT_COPY.source}: version ${version}, recuperada el ${retrievedAt}, ${taxpayers} contribuyentes y ${rows} registros.`;
+  },
+  notListed69B(rfc: string): string {
+    return `${rfc} no tiene publicaciones en las versiones 69-B cargadas. La respuesta solo cubre esta lista y esta fuente.`;
+  },
+  notListed49Bis(rfc: string): string {
+    return `${rfc} no tiene una resolucion en la fuente cargada para 49 Bis.`;
+  },
+  publishedOn(date: string): string {
+    return `Publicado el ${date}`;
+  },
+  publicationRange(first: string, last: string): string {
+    return `Publicaciones del ${first} al ${last}.`;
+  },
+  lookupEcho(rfc: string): string {
+    return `RFC consultado: ${rfc}`;
+  },
+  rateLimited(wait?: number): string {
+    return wait === undefined
+      ? "Se alcanzo el limite de consultas. Espera antes de intentar de nuevo."
+      : `Se alcanzo el limite de consultas. Espera ${String(wait)} segundos antes de intentar de nuevo.`;
+  },
+} as const;
+
 export const NAME_MATCH_LABEL: Record<NameMatch, string> = {
   match: "Coincide",
   partial: "Coincide parcialmente",
