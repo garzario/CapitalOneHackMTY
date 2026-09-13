@@ -193,7 +193,15 @@ const SHOTS: Shot[] = [
      moment of the capture, so `?data=mock` is the state the file can be taken of
      twice and come back the same. The phone width is there because this is the
      screen somebody opens first, on whatever they are holding. */
-  { path: "?data=mock#/entrada", name: "entry", width: 1440, height: 2620 },
+  {
+    /* 2620 was the page before its two columns. Shooting a 2175px screen into a
+       2620px frame prints four hundred pixels of empty canvas under the last
+       panel, which reads as a screen that ran out of content. */
+    path: "?data=mock#/entrada",
+    name: "entry",
+    width: 1440,
+    height: 2220,
+  },
   {
     path: "?data=mock#/entrada",
     name: "entry-phone",
