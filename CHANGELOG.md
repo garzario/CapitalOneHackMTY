@@ -1150,6 +1150,18 @@ then the screens, then the narrative, then the plumbing.
   carries the final topology and how the box was moved onto this code, and `--smoke-only` on the deploy
   script now prints the live dependency rows next to the run totals.
 
+  **And the redeploy found something worse than anything the new endpoint reports.** `apps/api/Dockerfile`
+  copies the workspace manifests one by one before `bun install --frozen-lockfile`, and `packages/rail`
+  and `packages/consortium` arrived with issues #164 and #198 without being added to that list. So the
+  image could not be built from this tree at all: `bun install` inside it answered
+  "Workspace dependency @hackmty/rail not found" and the build stopped there. The instance went on
+  serving the container from before either package existed, which means the deployed API had no payment
+  run and no consortium endpoint while the repository had both, and nothing in `bun test`,
+  `bun run typecheck` or `bun run build` could have said so because none of them reads a Dockerfile. The
+  two lines are added and `scripts/docker-image.test.ts` is the guard, reading the workspace directories
+  off disk rather than trusting the list, so a package added next week fails on a pull request instead of
+  on the one deploy that matters.
+
 ### Changed
 
 - **The pitch is a stand pitch now, and the clock is counted rather than claimed** (issue #75). The
