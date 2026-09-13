@@ -134,7 +134,12 @@ function PersonPicker({
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="segmented" role="radiogroup" aria-label="Quien esta usando">
+    <div
+      className="segmented"
+      role="radiogroup"
+      aria-label="Quien esta usando"
+      data-tour="entry-person"
+    >
       {DEMO_ACTORS.map((person) => {
         const current = person.name === actor.name;
 
@@ -208,6 +213,14 @@ export function EntryScreen() {
 
   return (
     <>
+      {/* The first visit used to be greeted here, by a banner on this screen and
+          on no other. It is gone because the invitation moved to where a visitor
+          actually lands: `App.tsx` opens the recorrido itself on the first load
+          of a browser, whichever screen the link pointed at, and the `Recorrido`
+          button in the top bar is on every screen at every width after that. A
+          banner a person only sees if they happen to open `#/entrada` is an
+          invitation that most of the people it was written for never read. */}
+
       {/* No synthetic mark of its own. The shell's top bar carries that word
           once for the whole app, and a second copy beside this heading would be
           the same standing claim printed twice on one screen. */}
@@ -216,96 +229,106 @@ export function EntryScreen() {
         description="La persona que elijas aqui viaja en el encabezado de cada escritura y queda en el ledger. Los ajustes de abajo son los de esta instancia y se leen, no se editan."
       />
 
-      <section
-        aria-labelledby="entry-person-heading"
-        className="panel flex flex-col gap-4 p-5"
-      >
-        <h2 id="entry-person-heading" className="eyebrow">
-          La persona que firma
-        </h2>
+      {/* Two columns from the laptop width up. The page was one stacked
+          column and 2620px tall, so the thresholds a judge came to read were
+          four scrolls below the selector, and at 1440 half the width was
+          empty. Nothing is dropped: who signs and what they may do are the
+          same question and sit side by side, and the instance settings pair
+          the two short blocks against the one tall one. */}
+      <div className="grid items-start gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+        <section
+          aria-labelledby="entry-person-heading"
+          className="panel flex flex-col gap-4 p-5"
+        >
+          <h2 id="entry-person-heading" className="eyebrow">
+            La persona que firma
+          </h2>
 
-        <PersonPicker
-          actor={actor}
-          onSelect={(next) => {
-            setCurrentActor(next);
-          }}
-        />
+          <PersonPicker
+            actor={actor}
+            onSelect={(next) => {
+              setCurrentActor(next);
+            }}
+          />
 
-        <p className="muted m-0 max-w-prose t-sm">{ROLE_DETAIL[actor.role]}</p>
-
-        <div className="panel-sunken flex flex-col gap-2 p-4">
-          <span className="eyebrow">Lo que viaja en cada escritura</span>
-          <p className="code m-0 t-xs">
-            {ACTOR_HEADER}: {actorHeaderValue(actor)}
+          <p className="muted m-0 max-w-prose t-sm">
+            {ROLE_DETAIL[actor.role]}
           </p>
+
+          <div className="panel-sunken flex flex-col gap-2 p-4">
+            <span className="eyebrow">Lo que viaja en cada escritura</span>
+            <p className="code m-0 t-xs">
+              {ACTOR_HEADER}: {actorHeaderValue(actor)}
+            </p>
+            <p className="subtle m-0 max-w-prose t-xs">
+              No es autenticacion. Este producto no guarda contrasenas ni
+              sesiones: el encabezado es un nombre y un papel que el cliente
+              elige, y la API lo registra en lugar de verificarlo. Una
+              instalacion que necesite identidad real pone la autenticacion
+              enfrente de la API. Esta en docs/06-regulatory-privacy.md, seccion
+              4.4.
+            </p>
+          </div>
+        </section>
+        <section
+          aria-labelledby="entry-can-heading"
+          className="panel flex flex-col gap-4 p-5"
+        >
+          <h2 id="entry-can-heading" className="eyebrow">
+            Lo que esta persona puede hacer
+          </h2>
+
+          <ul className="m-0 flex list-none flex-col gap-4 p-0">
+            {CAPABILITIES.map((capability, index) => {
+              const verdict = capabilityVerdict(capability, actor);
+
+              return (
+                <li key={capability.id} className="flex flex-col gap-1">
+                  {/* The rule inside the item and not between two of them: an
+                      `hr` is not allowed as a child of a list. */}
+                  {index > 0 ? <hr className="divider mb-3" /> : null}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={
+                        verdict.allowed
+                          ? "badge badge-release"
+                          : "badge badge-hold"
+                      }
+                    >
+                      {verdict.allowed ? "puede" : "no puede"}
+                    </span>
+                    <span className="t-base font-semibold">
+                      {capability.title}
+                    </span>
+                  </div>
+
+                  <p className="muted m-0 max-w-prose t-sm">
+                    {capability.detail}
+                  </p>
+
+                  <p className="subtle m-0 t-xs">
+                    {verdict.requiresRole === "owner"
+                      ? `La autoriza el ${ROLE_LABEL.owner}`
+                      : `La confirma la ${ROLE_LABEL.clerk}`}
+                    {verdict.requiresReason
+                      ? ", y la API la rechaza sin un motivo escrito."
+                      : "."}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+
           <p className="subtle m-0 max-w-prose t-xs">
-            No es autenticacion. Este producto no guarda contrasenas ni
-            sesiones: el encabezado es un nombre y un papel que el cliente
-            elige, y la API lo registra en lugar de verificarlo. Una instalacion
-            que necesite identidad real pone la autenticacion enfrente de la
-            API. Esta en docs/06-regulatory-privacy.md, seccion 4.4.
+            La regla la contesta decideRequirement en
+            packages/core/src/actor.ts, la misma que aplica la API, asi que esta
+            pantalla no ofrece un boton que el servidor contestaria con un 403.
+            Esta empresa no tiene una cadena de firmas y las dos excepciones son
+            las unicas que piden al dueno.
           </p>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="entry-can-heading"
-        className="panel flex flex-col gap-4 p-5"
-      >
-        <h2 id="entry-can-heading" className="eyebrow">
-          Lo que esta persona puede hacer
-        </h2>
-
-        <ul className="m-0 flex list-none flex-col gap-4 p-0">
-          {CAPABILITIES.map((capability, index) => {
-            const verdict = capabilityVerdict(capability, actor);
-
-            return (
-              <li key={capability.id} className="flex flex-col gap-1">
-                {/* The rule inside the item and not between two of them: an
-                    `hr` is not allowed as a child of a list. */}
-                {index > 0 ? <hr className="divider mb-3" /> : null}
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={
-                      verdict.allowed
-                        ? "badge badge-release"
-                        : "badge badge-hold"
-                    }
-                  >
-                    {verdict.allowed ? "puede" : "no puede"}
-                  </span>
-                  <span className="t-base font-semibold">
-                    {capability.title}
-                  </span>
-                </div>
-
-                <p className="muted m-0 max-w-prose t-sm">
-                  {capability.detail}
-                </p>
-
-                <p className="subtle m-0 t-xs">
-                  {verdict.requiresRole === "owner"
-                    ? `La autoriza el ${ROLE_LABEL.owner}`
-                    : `La confirma la ${ROLE_LABEL.clerk}`}
-                  {verdict.requiresReason
-                    ? ", y la API la rechaza sin un motivo escrito."
-                    : "."}
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-
-        <p className="subtle m-0 max-w-prose t-xs">
-          La regla la contesta decideRequirement en packages/core/src/actor.ts,
-          la misma que aplica la API, asi que esta pantalla no ofrece un boton
-          que el servidor contestaria con un 403. Esta empresa no tiene una
-          cadena de firmas y las dos excepciones son las unicas que piden al
-          dueno.
-        </p>
-      </section>
+        </section>
+      </div>
 
       <section
         aria-labelledby="entry-settings-heading"
@@ -321,8 +344,44 @@ export function EntryScreen() {
           request. Cada renglon dice en que archivo vive el numero.
         </p>
 
-        <StatusCard />
+        <div className="grid items-start gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+          <StatusCard />
 
+          <div className="panel flex flex-col gap-3 p-5">
+            <h3 className="t-md">Los tres niveles</h3>
+            <p className="muted m-0 max-w-prose t-sm">
+              Cada linea de la corrida lleva uno de estos tres, siempre con los
+              hallazgos que lo sostienen. Nunca un porcentaje, nunca un puntaje
+              y nunca la palabra segura: un SPEI no se puede regresar y ningun
+              nivel es una garantia.
+            </p>
+            {/* The three across rather than stacked. They are one word and one
+                sentence each, so a column apiece reads as the set of three it
+                is, and the panel stops being a list to scroll. */}
+            <dl className="m-0 grid gap-4 sm:grid-cols-3">
+              {CONFIDENCE_ORDER.map((level) => (
+                <div key={level} className="flex flex-col gap-1">
+                  <dt>
+                    <ConfidenceBadge level={level} />
+                  </dt>
+                  <dd className="muted m-0 max-w-prose t-sm">
+                    {CONFIDENCE_HELP[level]}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="subtle m-0 max-w-prose t-xs">
+              Los deriva confidenceOf en packages/core/src/levels.ts, la misma
+              funcion que usan el motor, la API, las pantallas y la corrida
+              sintetica, asi que las cuatro no pueden discrepar sobre una linea.
+              La tabla de reglas esta en docs/adr/0009-states-and-levels.md.
+            </p>
+          </div>
+        </div>
+
+        {/* Full width because it carries a table. In half a column the
+            four rail rows wrapped into 962px on their own, which was more
+            than a third of the whole page. */}
         <div className="panel flex flex-col gap-3 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <h3 className="t-md">El riel por el que sale el dinero</h3>
@@ -384,9 +443,12 @@ export function EntryScreen() {
           ) : null}
         </div>
 
+        {/* Full width: it is already two columns of its own inside, and
+            six thresholds in one narrow column is the shape this change
+            exists to remove. */}
         <div className="panel flex flex-col gap-3 p-5">
           <h3 className="t-md">Umbrales de los seis controles</h3>
-          <dl className="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <dl className="m-0 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {THRESHOLDS.map((threshold) => (
               <Field key={threshold.question} label={threshold.question}>
                 <span className="t-sm">{threshold.value}</span>
@@ -396,34 +458,6 @@ export function EntryScreen() {
               </Field>
             ))}
           </dl>
-        </div>
-
-        <div className="panel flex flex-col gap-3 p-5">
-          <h3 className="t-md">Los tres niveles</h3>
-          <p className="muted m-0 max-w-prose t-sm">
-            Cada linea de la corrida lleva uno de estos tres, siempre con los
-            hallazgos que lo sostienen. Nunca un porcentaje, nunca un puntaje y
-            nunca la palabra segura: un SPEI no se puede regresar y ningun nivel
-            es una garantia.
-          </p>
-          <dl className="m-0 flex flex-col gap-3">
-            {CONFIDENCE_ORDER.map((level) => (
-              <div key={level} className="flex flex-col gap-1">
-                <dt>
-                  <ConfidenceBadge level={level} />
-                </dt>
-                <dd className="muted m-0 max-w-prose t-sm">
-                  {CONFIDENCE_HELP[level]}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="subtle m-0 max-w-prose t-xs">
-            Los deriva confidenceOf en packages/core/src/levels.ts, la misma
-            funcion que usan el motor, la API, las pantallas y la corrida
-            sintetica, asi que las cuatro no pueden discrepar sobre una linea.
-            La tabla de reglas esta en docs/adr/0009-states-and-levels.md.
-          </p>
         </div>
       </section>
 

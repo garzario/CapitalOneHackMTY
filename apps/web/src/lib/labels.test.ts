@@ -197,29 +197,16 @@ describe("ADR-0009 vocabulary", () => {
     "liberado",
   ];
 
-  test("every level has a word, a sentence and a bar count", () => {
+  test("every level has a word and a sentence", () => {
     expect(labels.CONFIDENCE_ORDER.toSorted()).toEqual(levels.toSorted());
 
     for (const level of levels) {
       expect(labels.CONFIDENCE_LABEL[level].length).toBeGreaterThan(0);
       /* A level with no explanation is a colour. The sentence is what a clerk
-         reads when they ask why a line is where it is. */
+         reads when they ask why a line is where it is, and it is the whole of
+         the second channel now that the meter beside the word is gone. */
       expect(labels.CONFIDENCE_HELP[level].length).toBeGreaterThan(20);
-      expect(labels.CONFIDENCE_BARS[level]).toBeGreaterThanOrEqual(1);
-      expect(labels.CONFIDENCE_BARS[level]).toBeLessThanOrEqual(3);
     }
-  });
-
-  test("the meter rises with the level, so it reads as a ramp", () => {
-    /* `alerta` fills three bars and `confiable` one. Inverting this would make
-       the chip say the opposite of the word beside it to anyone who reads the
-       shape before the text, which is everybody at two metres. */
-    expect(labels.CONFIDENCE_BARS.alerta).toBeGreaterThan(
-      labels.CONFIDENCE_BARS.precaucion,
-    );
-    expect(labels.CONFIDENCE_BARS.precaucion).toBeGreaterThan(
-      labels.CONFIDENCE_BARS.confiable,
-    );
   });
 
   test("every state has a word and a sentence", () => {

@@ -481,6 +481,45 @@ the ledger it belongs to, and it is never sent to a language model. `TODO(garzar
 authentication sits in front of the API, state in this section which provider terminates it and what
 the token carries.
 
+### 4.5 El numero del visitante
+
+The guided tour is the one place in this product where a member of the public types their own
+personal data into it. A visitor at the stand enters their mobile number, ticks a box, and the
+payments line telephones them as the owner of the synthetic company. A telephone number identifies
+the person who answers it, so it is personal data under art. 2 of the law in 4.0 above, and it is
+treated as such rather than as a demo input.
+
+| Question | The answer this build gives |
+|---|---|
+| What is collected | One telephone number and one consent, typed by the person whose number it is |
+| Why | To place exactly one call, to that number, right now. That is the whole purpose and there is no second one |
+| Who it is sent to | ElevenLabs, which runs the agent, and Twilio, which carries the call. Both are encargados under art. 2, fr. XII: they act on our instruction and for no purpose of their own, so this is not a transfer under art. 35. `TODO(FabriBanda)`: read both providers' processing terms and record the verdict here, the same TODO 4.2 already carries for the model provider |
+| What is stored | `phoneHash`, a SHA-256 of a salt and the number, hex. Nothing else. The number is not written to the database, not written to a log line, and not echoed in any response |
+| Why a hash at all | So the ledger event of a call can be tied back to the person who asked for it, if they ask, without this product holding a telephone number. That is the whole of what it is for. It used to key a limiter too; the limiter is gone and the hash is not, because the event has to be able to say which call it was |
+| Who can see it | The hash is on the `verification_call` ledger event, which is as visible as the rest of the ledger. It is not the number and it is not reversible without the number |
+| How long | The call registry lives in memory and dies with the process. The hash lives as long as the ledger event it is on |
+
+Consent is express and not tacit, which is what art. 7 requires for the treatment this is nearest to:
+the box is unticked, the API refuses a body whose `consent` is not the literal `true`, and refusing is
+the behaviour rather than a default that could be read as agreement. A request with `consent: false` is
+answered `400` and no telephone rings.
+
+Three limits are stated because they are limits and not features. The number is handed to two
+providers outside Mexico, which is a cross-border communication to encargados and needs the aviso de
+privacidad to name them before any of this is done with a number that is not a demo visitor's. The
+salt is `CONSORTIUM_SALT` or `TOUR_SALT` and it is one salt for the instance, so rotating it makes
+every stored hash unjoinable, on purpose and with the same consequence 8.2 describes for the
+consortium. And the whole feature is off unless somebody sets `ALLOW_TOUR_CALLS=1`: a deployed
+endpoint that telephones a real number on request is opt-in, never a default, and
+`GET /api/v1/tour` says `callsEnabled: false` so the screen never offers a form that would place a
+call this instance was not configured to place.
+
+What the visitor gets in exchange is written on the ledger under their own name: the decision they
+gave on the telephone is applied to the payment on the screen in front of them, with the sentence
+they said quoted against it, and ten minutes later the tour puts the line back. The revert is itself
+a recorded decision signed `Recorrido`, because a product whose whole argument is an append-only
+record may not make one of its own entries disappear.
+
 ## 5. Ethics: nothing here accuses anyone
 
 - **No automated adverse action.** Nothing is declined, blocked, reported or scored by the system

@@ -19,6 +19,11 @@ import { UNAVAILABLE_EXTRACTOR } from "./extraction";
 import { ACTOR_HEADER } from "./middleware/actor";
 import type { PipelineClock } from "./pipeline";
 import { MemoryRepository } from "./repo";
+import {
+  DEFAULT_TOUR_SALT,
+  type TourDeps,
+  type TourOptions,
+} from "./routes/tour";
 import type { VoiceDeps } from "./routes/verify-call";
 
 export const TEST_NOW = "2026-09-12T03:00:00.000Z";
@@ -100,9 +105,30 @@ export interface TestHarness {
  * suite, and a test that sent a real centavo to a sandbox would be a test nobody
  * could run twice. A test that wants to send one passes a `FakeRail`.
  */
+/**
+ * The tour, pinned off and with no background work at all.
+ *
+ * The same rule as the voice configuration two lines below it, and with the same
+ * teeth: `ALLOW_TOUR_CALLS=1` and four ElevenLabs variables in somebody's `.env`
+ * would otherwise turn a contract assertion into a telephone ringing. Zero on
+ * all three timings means the route starts no poll and schedules no revert, so
+ * no test leaves a timer behind. A test that drives a call passes its own.
+ */
+export function testTourOptions(over: Partial<TourOptions> = {}): TourOptions {
+  return {
+    pollIntervalMs: 0,
+    pollDeadlineMs: 0,
+    revertAfterMs: 0,
+    salt: DEFAULT_TOUR_SALT,
+    sleep: async () => {},
+    ...over,
+  };
+}
+
 export function createTestApp(
   overrides: DepsOverrides = {},
   voice: VoiceDeps = { readConfig: () => undefined },
+  tour: TourDeps = {},
 ): TestHarness {
   const deps = createDeps({
     clock: createTestClock(),
@@ -139,7 +165,15 @@ export function createTestApp(
     ...overrides,
   });
 
-  return { app: createApp(deps, voice), deps };
+  return {
+    app: createApp(deps, voice, {
+      readConfig: () => undefined,
+      allowCalls: () => false,
+      options: testTourOptions(),
+      ...tour,
+    }),
+    deps,
+  };
 }
 
 /** Lets queued microtasks and timers with a zero delay run before asserting. */

@@ -114,7 +114,7 @@ export function RunVerdict({
             it names the question the clerk opens the screen with, and a run that
             answers it with zero is still answering that question. The sentence
             under the bar is where a clean run is celebrated. */}
-        <div className="card-dark flex flex-col gap-4">
+        <div className="card-dark flex flex-col gap-4" data-tour="run-hero">
           <span className="muted t-sm">No sale todavia</span>
 
           <Amount value={stoppedAmount} size="xl" />

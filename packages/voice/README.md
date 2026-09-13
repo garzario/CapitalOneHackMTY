@@ -26,6 +26,11 @@ Server only. `apps/web` never imports this package: the browser fallback at
 `/verify-call` talks to the same agent through the public widget, which needs no
 key at all.
 
+There are two lines, not one. Everything above and below is the supplier line.
+The second one calls the OWNER of the company and is under "The second line" near
+the foot of this file: same provider, same client, a second agent, a different
+script, a different question and a different parser.
+
 ## The call, word for word
 
 Three lines, in this order. The first is stored at the provider with its slots
@@ -53,6 +58,13 @@ Eso sería todo por hoy. Le agradezco mucho su tiempo y que tenga excelente día
 When the supplier has no other account on file the purpose line drops the
 comparison and the question asks only whether this account is theirs. There is no
 third wording.
+
+`{amount}` arrives already in words, from `amountInWords` in `numbers.ts`, and
+`{4 digits}` arrives spaced. Nothing this package speaks carries a digit,
+because on live calls the text to speech model read `$537,960.97 pesos` out as a
+tenth of itself and "4611" as "cuatro mil seiscientos once": the grouping comma
+and the four characters of an account tail are conventions it does not have to
+honour. Digits are for the screen, where `formatMoney` in `apps/web` puts them.
 
 ## The rules the script may not break
 
@@ -184,6 +196,62 @@ Three behaviours worth knowing, each covered by a named test:
 
 `no_answer` covers both nobody speaking and a voicemail greeting answering.
 
+## The second line: the owner, and the guided tour
+
+`buildOwnerScript` and `parseOwnerOutcome` are the second call. It exists for the
+guided tour of `apps/web`: a visitor at the stand types their own mobile number
+and the payments line telephones them as the owner of the seeded company, reads
+them one payment a control stopped, and asks what to do with it.
+`apps/api/src/routes/tour.ts` is the caller and `docs/09-api.md` specifies the
+three endpoints it sits behind.
+
+It is a separate file with a separate agent at the provider, deliberately. The two
+calls say different things to different people, and one prompt that tried to do
+both would end up asking a supplier to authorise a payment.
+
+| Function | Does |
+|---|---|
+| `buildOwnerScript(input)` | Writes what is said, from the held instruction |
+| `parseOwnerOutcome(transcript)` | `hold`, `release`, `no_answer` or `unclear`, with the sentence it was read from |
+
+**This is the one call that can end in a release, and that is not a hole in the
+rule above.** A release over a line that is not `confiable` is the owner's to sign
+and always was, which is `decideRequirement` in `packages/core/src/actor.ts`. What
+the call produces is still a `decision_made` carrying the name of the person who
+said it and the sentence it was read from, written through the same
+`recordDecision` that `POST /api/v1/instructions/:id/decide` calls. The supplier
+line still releases nothing at all. `no_answer` and `unclear` apply nothing
+either: the payment stays exactly where the control left it.
+
+**The question, word for word**, and it is the whole call:
+
+> ¿La retenemos hasta verificarla, o la libera bajo su nombre?
+
+It offers the two actions rather than asking for a yes, for the reason the parser
+enforces at the other end: a bare monosyllable is refused as `unclear`, because
+"sí" to a two-way question names neither action. That is the same rule
+`BANNED_PHRASES` already carried for the supplier line, applied to a question that
+had more room to get it wrong.
+
+**The five rules of the supplier script hold here**, and three matter most. The
+line says it is an automated payments line in its first sentence, which is also
+what keeps the provider from refusing the prompt with `call_initialization_error
+3000`. Only four digits of one account are ever spoken, spaced so they are read
+one at a time, and never a digit of the account the supplier has always been paid
+on. And nothing is promised and nobody is accused: a control that stopped a
+payment has found a document that does not add up, not a criminal.
+
+Two rules are this script's own. One question is the whole call, and it confirms
+what it understood in the words of the decision about to be recorded before it
+hangs up, because the owner has to hear what they authorised before the line
+closes.
+
+`bun run voice-setup --owner` creates the agent and prints its id, which goes in
+`ELEVENLABS_OWNER_AGENT_ID`; `--dry-run` prints the prompt and touches nothing.
+The agent was created for real on 2026-09-13 and the disclosure did not need
+tightening. `packages/voice/src/owner-fixtures.ts` holds the transcripts the
+parser is tested against, in the shape the provider returns them.
+
 ## The endpoints, and where each was verified
 
 All read from the ElevenLabs API reference on 2026-09-12.
@@ -299,6 +367,14 @@ each call settled.
   outcomes stop the payment and neither releases it, so the two readings differ in
   the word on the ledger and not in what happens to the money. `denied` itself is
   covered by the fixtures and by eleven cases in `outcome.test.ts`.
+- **The owner line has never rung a telephone.** The agent exists at the provider,
+  created on 2026-09-13 by `bun run voice-setup --owner`, and `GET /api/v1/tour`
+  reports `callsEnabled` against it. No outbound owner call has been placed from
+  any instance, because `ALLOW_TOUR_CALLS` is deliberately in no `.env` here. The
+  script, the parser and the four outcomes are covered by `owner-fixtures.ts` and
+  by the 46 cases of `owner-script.test.ts` and `owner-outcome.test.ts`, and what
+  six real calls taught the supplier line is inherited rather than re-proved. The
+  first live one will be a visitor at the stand.
 - **Anything the supplier says that no phrase list has.** Two phrases were added
   to `CONFIRMATIONS` from the calls above rather than from imagination, "es mía"
   and "la cambiamos", which is the whole method here: the list grows from

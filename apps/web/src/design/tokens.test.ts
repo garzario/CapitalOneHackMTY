@@ -47,9 +47,9 @@ function sourceFiles(dir: string): string[] {
 
 /**
  * The body of the first brace-balanced block after `marker`. Written by hand
- * rather than with a regex because the dark theme nests `:root` inside a media
- * query, and a regex that stops at the first closing brace reads the wrong
- * block without saying so.
+ * rather than with a regex because two of this file's blocks nest `:root`
+ * inside a media query, and a regex that stops at the first closing brace reads
+ * the wrong block without saying so.
  */
 function blockAfter(css: string, marker: string): string {
   const markerAt = css.indexOf(marker);
@@ -136,8 +136,13 @@ describe("token definitions", () => {
 
   test("every colour token has a dark counterpart, or is an alias", () => {
     const light = declarationsIn(blockAfter(tokensCss, ":root {"));
+    /* The dark palette hangs off the attribute the theme store writes and not
+       off `prefers-color-scheme`, because the app opens light whatever the
+       laptop is set to. The rule this test enforces is unchanged: the block is
+       still the only place a dark value may live, so it is still the block that
+       has to answer for every colour the light one defines. */
     const dark = definitionsIn(
-      blockAfter(tokensCss, "@media (prefers-color-scheme: dark)"),
+      blockAfter(tokensCss, ':root[data-theme="dark"]'),
     );
 
     const colourTokens = [...light.keys()].filter((token) =>

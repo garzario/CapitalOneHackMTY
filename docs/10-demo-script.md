@@ -327,6 +327,45 @@ no and it is volunteered: every call this product has placed went to a teammate'
 supplier on the recording is a teammate reading the part, and the company, the supplier and the
 account are the seeded synthetic ones.
 
+### El recorrido, and the telephone that rings the judge
+
+**The pitch still dials nobody, and the recorrido is not in the four minutes.** It is what is offered
+after the pitch, to a judge who stayed, or to somebody who wants the product on their own phone while
+the next team sets up. It also opens itself on their first load, which is the case the stand cannot
+staff: a judge who walks up while nobody is presenting gets the welcome card, with `Saltar` and
+`Ver despues` on it, instead of ninety-two rows of pesos. **Recorrido** in the top bar opens the same
+nine stops at any time, the visitor drives them, and the ninth one asks for their mobile number and
+telephones them as Gerardo
+Villarreal, the owner of the synthetic company. They hear the held line of `INS-2026-09-07-029`, the
+account that ends in four digits and is not the one this supplier has always been paid on, and one
+question, word for word `¿La retenemos hasta verificarla, o la libera bajo su nombre?`. What they
+answer is on the ledger with their words against it before they hang up, and the run on the screen
+moves while they are still holding the telephone.
+
+Four things to have straight before offering it.
+
+- **It is a second agent and a second flag.** The box needs `ELEVENLABS_OWNER_AGENT_ID` and
+  `ALLOW_TOUR_CALLS=1`, and neither is on the deployed instance by default. With the flag unset the
+  stop prints the script on the screen and says so, which is a fine thing to show and is not a call.
+- **It moves the figures for ten minutes.** A judge who releases that line takes 537,960.97 MXN out
+  of the 785,289.86 that is not leaving, on the screen, which is the point of the beat and is also
+  the number the next person would be told. The tour puts the line back on its own after ten minutes,
+  as a second decision signed `Recorrido`, so the only rule is operational: do not run the call in
+  the ten minutes before a pitch, and reload the run before beat 1. `TOUR_REVERT_MS` is the knob and
+  `0` disables the revert, which is what a rehearsal wants and never what the stand does.
+- **Any number, as many times as they ask.** There is no limit on the route and no country rule: the
+  field takes the number the way the person writes it, with or without a country code, and says
+  underneath which telephone it is about to ring. A judge who did not hear it can ask again.
+- **The number is not kept.** Say it while they type: the field takes their number, one call goes
+  out, and what is stored is a salted hash of it and never the number.
+  `docs/06-regulatory-privacy.md` section 4.5 is the written version, and the consent box is
+  unticked until they tick it.
+
+**Never say** that the call decided anything. It asked, a person answered, and what the ledger holds
+is a `decision_made` with that person's name and the sentence it was read from. The supplier line of
+beat 5 releases nothing at all; this one is the exception the product already had, because releasing
+a payment a control stopped is the owner's to do and always was.
+
 ### Numbers the screen shows
 
 Say these only while they are on the screen. `bun run demo` prints every one of them from the API

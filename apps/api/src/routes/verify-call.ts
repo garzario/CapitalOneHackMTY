@@ -78,7 +78,14 @@ export interface VoiceConfig {
   phoneNumberId: string;
 }
 
-function readEnv(name: string): string | undefined {
+/**
+ * One environment variable, trimmed, with empty read as absent.
+ *
+ * Exported because `routes/tour.ts` reads four of them the same way and a second
+ * copy of these five lines would be the place where one of the two files decided
+ * that a variable set to a space was configured.
+ */
+export function readEnv(name: string): string | undefined {
   const holder = globalThis as {
     process?: { env?: Record<string, string | undefined> };
   };

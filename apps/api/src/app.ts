@@ -26,6 +26,7 @@ import { runRoutes } from "./routes/run";
 import { satRoutes } from "./routes/sat";
 import { seedRoutes } from "./routes/seed";
 import { supplierRoutes } from "./routes/suppliers";
+import { type TourDeps, tourRoutes } from "./routes/tour";
 import { verifyAccountRoutes } from "./routes/verify-account";
 import { type VoiceDeps, verifyCallRoutes } from "./routes/verify-call";
 
@@ -51,8 +52,18 @@ const pingQuery = z.object({
  * `voice` is the second argument because the verification call is the one route
  * that reaches a third party at request time. A test hands it a stub and stays
  * offline; everything else keeps calling `createApp(deps)` unchanged.
+ *
+ * `tour` is the third and it is the same argument made twice: the guided tour
+ * telephones a visitor through the same provider with a second agent, and it
+ * carries a poll, a revert timer and a limiter of its own that a test has to be
+ * able to pin. Both default to empty, so `createApp(deps)` still builds the
+ * whole product.
  */
-export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
+export function createApp(
+  deps: ApiDeps = createDeps(),
+  voice: VoiceDeps = {},
+  tour: TourDeps = {},
+) {
   const app = new Hono();
 
   app.use("*", requestId);
@@ -120,6 +131,11 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   v1.route("/ledger", ledgerRoutes(deps));
   v1.route("/events", eventRoutes(deps));
   v1.route("/seed", seedRoutes(deps));
+  /* The guided tour. It reads the run to find the line it is about and it writes
+     a decision through the same helper `/decide` uses, so it is transport over
+     the product rather than a second product: what it adds is one telephone call
+     to whoever is standing in front of the screen. */
+  v1.route("/tour", tourRoutes(deps, tour));
   /* The assistant reads this API through this API. `callApi` is bound to the app
      being built and is only ever invoked at request time, by which point the route
      tree is complete, so a tool answers out of the very handler the web app calls

@@ -47,6 +47,11 @@ import type {
   SatVersions,
   SeedBody,
   SupplierDetail,
+  TourCallBody,
+  TourCallScript,
+  TourCallStarted,
+  TourCallState,
+  TourConfig,
   VerificationScriptText,
   VerificationState,
   VerifyCallBody,
@@ -890,6 +895,126 @@ export function scriptFromFailure(
     firstMessage,
     question,
     clabeLast4,
+    spoken: spoken.filter((line): line is string => typeof line === "string"),
+  };
+}
+
+/* ------------------------------------------------------------- the recorrido */
+
+/**
+ * What the guided tour can show on this deployment, and which line it is about.
+ *
+ * A read, so it carries no actor, and it is the only place the tour learns the
+ * hero folio: the steps navigate to whatever this answers, so a seed that moves
+ * moves the tour with it instead of leaving it pointed at a 404.
+ */
+export async function getTour(
+  options?: RequestOptions,
+): Promise<ApiResult<TourConfig>> {
+  return andThen(await request(`${API_PREFIX}/tour`, {}, options), (value) =>
+    shaped<TourConfig>(
+      value,
+      (config) =>
+        typeof config.callsEnabled === "boolean" &&
+        isRecord(config.hero) &&
+        typeof config.hero.instructionId === "string" &&
+        typeof config.cepInstructionId === "string",
+      "tour",
+    ),
+  );
+}
+
+/**
+ * The call that rings the visitor as the owner of the company.
+ *
+ * The actor is passed in rather than read off the store, and that is the whole
+ * point of the step: the visitor answers as the owner for one call, while the
+ * browser keeps acting as whoever the entry screen selected. The telephone number
+ * is in the body and nowhere else -- no query string, no log -- and the API stores
+ * only a salted hash of it.
+ */
+export async function startTourCall(
+  body: TourCallBody,
+  actor: Actor,
+  options: RequestOptions = {},
+): Promise<ApiResult<TourCallStarted>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/tour/call`,
+      { method: "POST", body },
+      { ...options, actor },
+    ),
+    (value) =>
+      shaped<TourCallStarted>(
+        value,
+        (started) =>
+          typeof started.conversationId === "string" &&
+          typeof started.instructionId === "string" &&
+          isRecord(started.script),
+        "tour call",
+      ),
+  );
+}
+
+/**
+ * Where one tour call has got to.
+ *
+ * The fallback and never the mechanism: the page follows the ledger stream, and
+ * this is what it asks every few seconds while that stream is not open. A registry
+ * in the API process, so a call another process started answers 404 rather than a
+ * state nobody can prove.
+ */
+export async function getTourCall(
+  conversationId: string,
+  options?: RequestOptions,
+): Promise<ApiResult<TourCallState>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/tour/call/${encodeURIComponent(conversationId)}`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<TourCallState>(
+        value,
+        (state) =>
+          typeof state.conversationId === "string" &&
+          typeof state.status === "string",
+        "tour call state",
+      ),
+  );
+}
+
+/**
+ * The tour script out of a refusal.
+ *
+ * Same degradation as `scriptFromFailure` next door and a separate function for a
+ * separate shape: this script carries no `clabeLast4`, because the owner is told
+ * the four digits of his own account by the sentence the agent reads and not by a
+ * field of its own.
+ */
+export function tourScriptFromFailure(
+  failure: ApiFailure,
+): TourCallScript | null {
+  const body = failure.body;
+
+  if (!isRecord(body) || !isRecord(body.script)) {
+    return null;
+  }
+
+  const { firstMessage, question, spoken } = body.script;
+
+  if (
+    typeof firstMessage !== "string" ||
+    typeof question !== "string" ||
+    !Array.isArray(spoken)
+  ) {
+    return null;
+  }
+
+  return {
+    firstMessage,
+    question,
     spoken: spoken.filter((line): line is string => typeof line === "string"),
   };
 }

@@ -65,6 +65,7 @@
  */
 
 import type { KnownAccount, PaymentInstruction, Supplier } from "@hackmty/core";
+import { amountInWords } from "./numbers";
 
 /**
  * The company the call is placed for, as it is said out loud.
@@ -288,24 +289,8 @@ export const VERIFICATION_VARIABLE_DEFAULTS: VerificationVariables = {
   account_last4: "ninguno, no leas ningún dígito en esta llamada",
 };
 
-const MXN = new Intl.NumberFormat("es-MX", {
-  style: "currency",
-  currency: "MXN",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 /** `{{name}}`, with the name captured. Whitespace inside is not a placeholder. */
 const PLACEHOLDER = /\{\{(\w+)\}\}/g;
-
-/**
- * Money as the agent should say it. `Intl` gives "$184,300.00", and the model
- * reads that correctly in Spanish; the currency is named in the sentence so
- * "pesos" is never ambiguous with another currency.
- */
-export function spokenAmount(amount: number): string {
-  return `${MXN.format(amount)} pesos`;
-}
 
 /** Digits only, so an account typed with spaces or dashes still compares. */
 function digitsOf(clabe: string): string {
@@ -394,6 +379,12 @@ export function renderVerificationText(
  * payment, and issue #247 heard the earlier version read an amount with no
  * account attached to it. "Recibimos una instrucción" is a fact about a document
  * we hold, which is why it is not the promise rule 5 forbids.
+ *
+ * The amount arrives already in words, from `amountInWords`. A figure written
+ * "$537,960.97" was read out on a live call as a tenth of itself, for the reason
+ * that file carries: the grouping comma is a convention the text to speech model
+ * does not have to honour, and a supplier hearing the wrong amount is hearing a
+ * payment that is not theirs.
  */
 function purposeFor(amount: string, accountChanged: boolean): string {
   return accountChanged
@@ -438,7 +429,7 @@ export function buildVerificationScript(
     company: input.companyName ?? DEFAULT_COMPANY_NAME,
     supplier,
     supplier_sentence: endSentence(supplier),
-    purpose: purposeFor(spokenAmount(input.amount), accountChanged),
+    purpose: purposeFor(amountInWords(input.amount), accountChanged),
     question: questionFor(tail, accountChanged),
     /* Spaced, like the question: everything in this record is spoken, and the
        compact form is `clabeLast4` below, which is what the ledger carries. */
