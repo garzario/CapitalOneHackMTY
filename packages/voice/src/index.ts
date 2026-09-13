@@ -13,11 +13,23 @@
  * still a `decision_made` a person signs. See README.md next to this file for
  * the script, the endpoints and where each of them was verified.
  *
+ * There are two lines, not one, and the second one is the exception to the rule
+ * above rather than a hole in it. `buildOwnerScript` and `parseOwnerOutcome` are
+ * the guided tour's call to the OWNER of the company, who is the one person this
+ * product lets release a payment something stands against, and what their answer
+ * becomes is the same `decision_made` with their name and their words on it. The
+ * supplier line still releases nothing. `VoiceClient` is shared, because it is
+ * one provider and one account with two agents stored in it.
+ *
  * Server only. `apps/web` never imports this package; the browser fallback talks
  * to the same agent through the public widget, which needs no key.
  */
 
 export * from "./client";
 export * from "./fixtures";
+export * from "./numbers";
 export * from "./outcome";
+export * from "./owner-fixtures";
+export * from "./owner-outcome";
+export * from "./owner-script";
 export * from "./script";

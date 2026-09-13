@@ -97,8 +97,13 @@ describe("GET /api/v1/instructions/:id/verify-call", () => {
     expect(body.script.clabeLast4).toBe("6812");
     expect(body.script.question).toContain("6 8 1 2");
     /* The amount is in the purpose line, which is the second of the three the
-       clerk reads: this is your payment, and this is the one thing I need. */
-    expect(body.script.spoken[1]).toContain("184,300.00");
+       clerk reads: this is your payment, and this is the one thing I need. It is
+       in words, because a figure with grouping commas was read out as a tenth of
+       itself on a live call: `packages/voice/src/numbers.ts`. */
+    expect(body.script.spoken[1]).toContain(
+      "ciento ochenta y cuatro mil trescientos pesos",
+    );
+    expect(body.script.spoken[1]).not.toMatch(/\d/);
     expect(body.voiceConfigured).toBe(true);
     expect(body.releasesPayment).toBe(false);
     /* Side effect free: no request to the provider and nothing on the ledger. */

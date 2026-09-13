@@ -134,7 +134,12 @@ function PersonPicker({
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="segmented" role="radiogroup" aria-label="Quien esta usando">
+    <div
+      className="segmented"
+      role="radiogroup"
+      aria-label="Quien esta usando"
+      data-tour="entry-person"
+    >
       {DEMO_ACTORS.map((person) => {
         const current = person.name === actor.name;
 
@@ -208,6 +213,14 @@ export function EntryScreen() {
 
   return (
     <>
+      {/* The first visit used to be greeted here, by a banner on this screen and
+          on no other. It is gone because the invitation moved to where a visitor
+          actually lands: `App.tsx` opens the recorrido itself on the first load
+          of a browser, whichever screen the link pointed at, and the `Recorrido`
+          button in the top bar is on every screen at every width after that. A
+          banner a person only sees if they happen to open `#/entrada` is an
+          invitation that most of the people it was written for never read. */}
+
       {/* No synthetic mark of its own. The shell's top bar carries that word
           once for the whole app, and a second copy beside this heading would be
           the same standing claim printed twice on one screen. */}

@@ -103,7 +103,13 @@ src/
     sse.ts            the event-stream decoder, chunk boundaries included
     assistant.ts      the assistant contract: what a frame may say and what a click sends
     assistant-mock.ts the panel with no API, answered out of the synthetic run
+    assistant-dock.ts whether the drawer is open, as a store the tour can write
     dictation.ts      voice input through the browser's own recogniser
+    tour.ts           the nine stops of the recorrido, and the line it is about
+    tour-call.ts      the call of the last stop: the number, the outcome, the refusals
+    tour-store.ts     whether the recorrido is open, and that this browser has seen it
+    theme.ts          light or dark, as a choice a person makes and this browser
+                      remembers, never read off the operating system
   components/         AppShell (the rail and the top bar), Wordmark,
                       Icons (Rune Icons, Apache-2.0, vendored as paths; the active one draws
                       once per section change),
@@ -112,7 +118,8 @@ src/
                       States, Primitives, Evidence, Decision, Findings,
                       BehaviourChart (what a supplier invoiced, week by week),
                       StatusCard, OfflineBanner, IntakeQr, QrCode, Receipt,
-                      AssistantDock, AssistantPanel, AssistantCards
+                      AssistantDock, AssistantPanel, AssistantCards,
+                      Tour (the recorrido over the real app), TourCall
   screens/            EntryScreen, RunScreen, PaymentsScreen, InstructionScreen, SupplierScreen,
                       IntakeScreen, SatScreen, CepScreen, MetricsScreen, VerifyCallScreen
 ```
@@ -293,6 +300,146 @@ audio: the assistant endpoint takes `text` and `images`, so a recording would me
 the contract does not have. The transcription path in `packages/extract` stays where it is documented,
 on the intake, where a voice note arrives with a payment instruction.
 
+## The guided tour
+
+`Recorrido` is the answer to the judge who walks up while nobody is presenting. The app opens on a
+dense financial table, and ninety-two rows of pesos do not explain themselves: `docs/10-demo-script.md`
+is what a person says over this product, and the tour is what the product says when nobody is talking.
+
+**It opens itself, once.** The first load of a browser gets the tour without asking for it, because
+an invitation that has to be found is an invitation nobody takes, and a judge who walks up to an
+unattended stand is not going to go looking for a button. That one visit is remembered in
+`localStorage` under `sentryone:tour-seen`, written the moment it opens and read through a `try`, so
+a private window is greeted every time rather than left in front of an unexplained table. The card
+that appears carries `Saltar` and `Ver despues`, so the way out is on screen before anything else is.
+It replaced a banner on `#/entrada`, which a visitor landing on the run never saw.
+
+Two ways back in after that. The `Recorrido` button sits in the top bar beside the title, on every
+screen and at every width, because the one free corner was already spent twice over by the assistant
+dock and the toasts; closing the tour hands focus back to it. And `#/run?tour=1` opens it on arrival,
+which is what a printed card or a message can carry.
+
+The nine stops are `tourSteps` in `src/lib/tour.ts`. The first is a welcome card and not a stop: the
+lockup, the headline `El ultimo control antes de que un pago sea irrevocable`, the three lines of
+Lupita's Thursday, `Empezar el recorrido` and how long the whole thing takes. The other eight are the
+run, the capture arriving on WhatsApp, the account and its plaza, the cent and the Banxico receipt,
+the SAT publication, the run leaving, who signs, and the call. Each of those is `Paso N de 9`, a
+title, at most two short sentences under twenty-eight words, and **one line that says what to look
+at** -- `Mira la cifra grande`, `Presiona Simular publicacion 69-B` -- printed in its own style
+because a visitor who reads nothing else on the card reads that one. `lib/tour.test.ts` counts every
+one of those lengths and fails a stop that lights something up without naming it. The overlay that
+renders them is `components/Tour.tsx`.
+
+It drives the real app rather than drawing pictures of it. Every stop navigates with `navigate`, the
+screen underneath is the screen the copy is about, and the stop that is about the assistant opens the
+real drawer -- which is why `AssistantDock` keeps its open state in a store (`lib/assistant-dock.ts`)
+instead of in itself. The spotlight is four veils around a hole rather than one box with a hole cut in
+it: the veils take the pointer so a stray click cannot derail the tour, and the gap does not, so the
+control a stop is pointing at is still pressable. It polls for the element for two seconds after the
+navigation, scrolls it into view once, draws a three-pixel ring in the hold red and re-measures on
+resize and on scroll; a target that never appears leaves the card with no ring rather than a ring
+around nothing. The ring travels from one target to the next under `--motion-base`.
+
+The card takes the first of the four corners that does not touch that hole, `placeCard` in
+`lib/tour.ts`, and the rectangle it chooses is a unit test rather than a thing to check by eye. It
+used to choose between left and right only, so the stop about the button that sends the run put its
+card on top of that button whichever side it took. A top corner stands under the top bar rather than
+on it, which is why `--topbar-h` is a token: the stylesheet and `CARD_TOP_GAP` have to agree about
+that distance or the measurement is of a card that is not where it looks. Below `48rem` the card is a bottom sheet instead
+and the target is scrolled to the top of the screen rather than the middle. Progress is nine dots,
+arrows move, `Escape` leaves, focus goes to the card on every step, and `useReducedMotion` is read
+where the animation is in JavaScript, exactly like the drawer.
+
+What a stop points at is a `data-tour` attribute on the real element, and the names are
+`TOUR_TARGETS` in `lib/tour.ts`. `lib/tour.test.ts` walks `src/` and fails when a name in that map is
+not on any element, because an attribute removed in a refactor fails silently: the veil covers the
+whole viewport and the step still reads fine.
+
+**Two folios, one figure, and no constants.** The line the tour is about arrives from
+`GET /api/v1/tour`, which derives it the way `heroOf` does offline: the largest held amount carrying a
+CLABE forensics finding. A folio written into the tour is a tour that opens on a not-found page the
+day the seed moves, which is the rule `brand/shoot.ts` already follows, and the peso figure the
+welcome card says in prose is the same kind of constant, so it travels on `TourLinks` beside the two
+folios rather than being typed into the paragraph a judge reads first.
+
+`brand/shoot.ts` and `audit/audit.ts` both set `sentryone:tour-seen` on every document they open,
+because a headless profile is a first visit every time and the first frame of a session would
+otherwise come back with the welcome card over whichever screen it was meant to be of.
+
+`heroOf` answers the API's own shape for both plazas, which is load-bearing rather than cosmetic:
+`plazasOf` in `apps/api/src/routes/tour.ts` sends plain place names because the telephone call says
+them out loud, and the usual one is computed from the accounts the supplier has actually been paid on
+rather than read off `previousPlazaPlaces`, which only a `plaza_changed` finding carries. Reading that
+key was one field with two shapes: offline the stop said the account had no history to compare
+against while the API's script said it had moved city.
+
+### The call
+
+The last stop rings the visitor as the owner of the company, and it is the part of the product that
+does not fit on a screen: the person who decides a held payment in a twenty-eight-employee company is
+not at a desk, he answers his telephone between two other things.
+
+- **The field takes the number the way a person writes it.** With spaces, brackets, a leading `+` or
+  `00`, or none of that: `toE164` in `lib/tour-call.ts` normalises it and the line under the field
+  says which telephone is about to ring, before anything is pressed. Ten bare digits are Mexican,
+  eleven starting in `1` are the United States and Canada, twelve or thirteen starting in `52` are a
+  Mexican number that lost its plus, and anything else is sent as it was written. The only refusal is
+  fewer than eight digits. The version this replaced kept ten digits and deleted the rest, so a
+  number typed with its country code became a different number and the button stayed dead in front of
+  a full field.
+- **The number is never stored.** It goes in the body of one `POST /api/v1/tour/call` and nowhere
+  else, and the API keeps `sha256(salt + phone)` and not the number. The box has to be ticked before
+  the button enables, and the card says so next to the button rather than leaving a dead control to
+  be guessed at.
+- **The actor is the owner, and the stored identity is untouched.** The request carries
+  `X-Actor: role=owner; name=Visitante`, passed explicitly, while the browser keeps acting as whoever
+  `#/entrada` selected.
+- **It follows the ledger, not a poll.** The page reads the same `GET /api/v1/events` stream the run
+  screen reads and asks `GET /api/v1/tour/call/:id` every four seconds only while that stream is not
+  open. The run screen underneath re-reads itself on the same events, which is why the figure on the
+  dark card moves while the visitor is still on the telephone.
+- **It does not release a payment.** The answer lands as a `verification_call` event and then as an
+  ordinary decision with the owner's name on it, through the same path `POST /instructions/:id/decide`
+  uses. `hold` and `release` are the two a person can say; `no_answer` and `unclear` are the telephone
+  rather than the owner and leave the line exactly where it was.
+- **It reverts itself.** The decision stands for `revertAfterMs`, ten minutes by default, and the
+  sentence on the card is computed from the number the API sent rather than written out in words.
+- **It refuses politely, and it always says something.** `403` says the calls are off on this server,
+  `422` says the voice is not configured and shows the script anyway, and a `400` carries the API's
+  own sentence. Anything else is printed exactly as it arrived, because a press that produces no
+  request and no words is the one outcome a visitor cannot act on.
+
+The stop is three things in a column and only ever one of them at a time is a form: the compact block
+with the field, the consent line and the button; a strip of three underneath it, `Marcando`,
+`En llamada`, `Termino`, because `processing` is the provider reading its own transcript and not a
+thing that happens to the person holding the telephone; and then the result card with the badge and
+the sentence. The block goes as soon as the call is under way, because a form still on screen while
+the telephone is ringing is a form that gets pressed twice.
+
+Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off, nothing rings, and the same
+block appears with `Simular` and `Retener` and `Liberar` where the button would be, so the flow is
+demonstrable at any stand with or without a server: the strip and the result card then run exactly as
+they do for a real call. The result says `simulado` on it and says that nothing was written to the
+ledger, because a simulated answer that looks like a real one is the one thing this stop must not do.
+The script the agent would read, built from the same line by `localScript`, is under the result in a
+`details` a visitor can open.
+
+`localScript` is the stand-in and the card says so. The stored prompt lives in `packages/voice` and
+the rendered call comes back from the API, including inside its `422`, so what the browser builds is
+close to the words the owner hears without being them: it opens with the same `REQUIRED_DISCLOSURE`
+the real line opens with, because a printed opening that claimed to be a person would be the one the
+agent is forbidden to use, and `LOCAL_SCRIPT_NOTE` sits above it until the API sends its own script.
+The two plazas go through `plazaNote` on the subject line and through the same three cases in the
+script, the ones `plazasFor` in `packages/voice/src/owner-script.ts` reads: two places, one place, or
+no history to compare against. The hero of the seeded run is the middle one, and a screen that
+branched only on emptiness printed one city as though it were two.
+
+The copy of the whole tour goes through the same rule as everything else: `lib/tour.test.ts` runs
+`forbiddenVerdict` over every string a stop can render, so the word this product may not say, a
+percentage and a probability cannot reach it, and the two loss figures in the first stop are written
+as "de cada 100 pesos" for that reason. Both of them are this repository's own numbers, cited in
+`docs/04-market.md` and `docs/05-business-model.md`.
+
 ## Picking up UI work here
 
 Start the web on its own. It needs no Postgres, no API and no key: with the backend down it
@@ -372,8 +519,12 @@ invented. The long version is `docs/design.md`; the short version:
   informational tone and not green, because money that left is a fact and not a verdict.
   Never a probability and never the word "seguro" in either, which `src/lib/labels.test.ts`
   enforces over the whole dictionary and then over every source file.
-- Light is the default, dark follows the operating system, and only colour tokens change
-  between them. The rail palette is the exception and is identical in both.
+- **Light is the default, on every machine, and dark is a choice.** The app opens light
+  whatever the operating system is set to, and the switch is the sun-and-moon button in the
+  top bar, remembered in `localStorage` under `sentryone:theme` by `src/lib/theme.ts`. The
+  dark palette hangs off `:root[data-theme="dark"]` rather than `prefers-color-scheme`, and
+  `main.tsx` writes the attribute before the first render so there is no flash. Only colour
+  tokens change between the two. The rail palette is the exception and is identical in both.
 - **Icons come from Rune Icons** (Apache-2.0, copyright Nexvyn) and from nowhere else. No
   icon library is installed: the paths are vendored into `Icons.tsx`. The active rail icon
   draws itself once per section change, over `--motion-draw` and on `--ease-draw`.

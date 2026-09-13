@@ -17,6 +17,145 @@ section landed after that tag was cut.
 
 ### Added
 
+- **The app opens light, and the appearance is a switch in the top bar** (issue #216). The dark
+  palette used to be an `@media (prefers-color-scheme: dark)` block, so the first frame a judge saw
+  was decided by whatever the machine in front of them was set to, and a borrowed laptop in night
+  mode opened the payment run near-black. Light is now the default everywhere and dark hangs off
+  `:root[data-theme="dark"]` in `apps/web/src/design/tokens.css`, written by `apps/web/src/lib/theme.ts`
+  and remembered in `localStorage` under `sentryone:theme`. `main.tsx` applies the stored choice
+  before the first render, so a browser that chose dark never flashes white. The control is a
+  sun-and-moon button beside **Recorrido**, named `Cambiar apariencia`, showing the appearance the
+  press produces. `theme.test.ts` covers the default, the persistence and the attribute, and both
+  `brand/shoot.ts` and `audit/audit.ts` reach the two palettes through the attribute, so the
+  screenshots and the contrast report still cover light and dark.
+
+- **El recorrido: nine stops over the running product, and the telephone call that ends it** (issue
+  #216). The app opened on ninety-two rows of pesos and explained itself to nobody. A visitor who
+  presses **Recorrido** in the top bar, or the banner that greets a first visit to `#/entrada`, now
+  gets nine stops over the real screens rather than a video: why SentryOne exists, the Thursday run,
+  the WhatsApp screenshot arriving in the assistant panel, the account and its plaza, the cent and
+  the Banxico receipt, the SAT publishing, the run leaving, who signs, and the call. Each stop
+  navigates the app itself, dims everything except the one element it is about and docks its card on
+  whichever side of that element has room, so the product is what is on screen and the tour is the
+  narration over it. `tourSteps` in `apps/web/src/lib/tour.ts` holds the copy, `Tour.tsx` the
+  overlay, and `#/run?tour=1` opens it from a link.
+
+  Nothing in it is hard-coded to a folio. The three lines it points at come from `GET /api/v1/tour`,
+  which derives them from the run on every request: the hero is the largest payment the run stopped
+  that a CLABE forensics finding is standing against, and the other two are the supplier this run
+  pays that the 69-B list names and the largest line no control stops at all. With no API the same
+  rules run over the generated run in the browser and the tour says which one it read, like every
+  other screen here.
+
+- **The call that rings the visitor as the owner of the company** (issue #216). The ninth stop takes
+  a mobile number and a ticked consent box and telephones the person who typed it as Gerardo
+  Villarreal, the owner of the synthetic company: it reads them the held payment, says the account is
+  new and reads four of its digits one at a time, names the plaza it was opened in beside the plaza
+  the supplier has always been paid in, and asks the one question the owner is the only person who
+  can answer, `¿La retenemos hasta verificarla, o la libera bajo su nombre?`. What they say is applied
+  to that line in front of them, on the ledger, with the sentence it was read from quoted against it,
+  and the run re-scores itself over the event stream while they are still holding the telephone.
+
+  Three endpoints, all in `apps/api/src/routes/tour.ts` and specified in `docs/09-api.md`:
+  `GET /api/v1/tour` for what the tour needs to drive itself, `POST /api/v1/tour/call` which answers
+  `202` with the script and a conversation id because a call that started has proved nothing, and
+  `GET /api/v1/tour/call/:conversationId`, the fallback for a browser that could not hold the event
+  stream open. A finished call appends a `verification_call` carrying `line: "owner"` and, only when
+  the owner actually gave an instruction, a `decision_made` through the very `recordDecision` that
+  `POST /api/v1/instructions/:id/decide` calls. `no_answer` and `unclear` apply nothing, which is the
+  whole of what they mean.
+
+  It reverts, and the revert is a decision rather than a deletion. Ten minutes later the tour records
+  a `hold` on the same line signed `Recorrido` with the reason `Fin del recorrido: la linea vuelve a
+  su estado`, so the next visitor sees the run the first one saw and the ledger still says what
+  happened. An append-only record that quietly forgot one of its own entries would be worth less than
+  one that records the tour undoing itself.
+
+  The visitor's number is never stored, never logged and never shown. What is kept is `phoneHash`, a
+  SHA-256 of a salt and the number, so an event on the ledger can be tied back to whoever asked for
+  the call without this product holding a telephone number. `docs/06-regulatory-privacy.md` section
+  4.5 is the argument in full, including the two providers the number passes through and the
+  `TODO(FabriBanda)` against their processing terms. `consent` is a literal `true` and not a
+  boolean, so a body carrying `false` is refused rather than read as a flag somebody left off.
+
+- **The owner agent, its script and its parser** (issue #216). `packages/voice` has two lines now,
+  not one, and they are separate files with separate agents at the provider because they say
+  different things to different people: a single prompt that tried to do both would end up asking a
+  supplier to authorise a payment. `buildOwnerScript` writes what is said and `parseOwnerOutcome`
+  reads what came back as `hold`, `release`, `no_answer` or `unclear`, deterministic string work and
+  not a model, for the same ADR-0004 reason the supplier parser is. It refuses a bare monosyllable,
+  which is why the question offers the two actions in words instead of asking for a yes.
+
+  The rules of the supplier call carry over unchanged and the three that matter most are pinned by
+  tests: the line says it is an automated line in its first sentence, which is also what keeps the
+  provider from refusing the prompt outright; only four digits of one account are ever spoken; and
+  nothing is promised and nobody is accused, because a control that stopped a payment has found a
+  document that does not add up and not a criminal. Two rules are this script's own: one question is
+  the whole call, and it confirms what it understood in the words of the decision about to be
+  recorded before it hangs up. `bun run voice-setup --owner` creates the agent from that config and
+  prints its id, and `bun run voice-setup --owner --dry-run` prints the prompt without touching the
+  provider.
+
+### Changed
+
+- **The recorrido opens itself, says one thing per stop, and points at what to look at** (issue
+  #216). The tour existed and nobody found it: the invitation was a banner on `#/entrada`, which a
+  visitor landing on the payment run never opened. The first load of a browser now opens it without
+  being asked, once, remembered in `localStorage` under `sentryone:tour-seen` through a `try` so a
+  private window is greeted again rather than left in front of an unexplained table, and the card it
+  opens on carries `Saltar` and `Ver despues` before it carries anything else. `Recorrido` in the top
+  bar and `#/run?tour=1` still open the same thing, and closing it hands focus back to that button.
+
+  The first card is a welcome and not a stop: the lockup, the headline `El ultimo control antes de
+  que un pago sea irrevocable`, the three lines of Lupita's Thursday, `Empezar el recorrido`, and
+  `9 pasos, 2 minutos`, because a tour that does not say how long it is, is a tour a person declines
+  rather than risks. The eight after it are `Paso N de 9`, a title, at most two short sentences, and
+  one line in its own style that says where the eye goes: `Mira la cifra grande`, `Presiona Simular
+  publicacion 69-B`, `Mira el boton de enviar`. `apps/web/src/lib/tour.test.ts` counts every one of
+  those lengths and fails a stop that lights something up without naming it.
+
+  The spotlight is the part that had to be reliable rather than pretty. It polls for the element for
+  two seconds after the navigation, scrolls it into view once, draws a three-pixel ring in the hold
+  red and re-measures on resize and on scroll; a target that never appears leaves the card with no
+  ring rather than a ring around nothing. The card now takes the first of four corners that does not
+  touch that hole, `placeCard` in `apps/web/src/lib/tour.ts`, and the rectangle it chooses is a unit
+  test: it used to choose between left and right only, so the stop about the button that sends the
+  run put its card on top of that button whichever side it took. A top corner stands under the top
+  bar and not on it, which is what `--topbar-h` became a token for. Progress is nine dots instead of a
+  bar, the card is `aria-modal`, and below `48rem` it is a bottom sheet with the target scrolled to
+  the top of the screen rather than the middle.
+
+  The call of the last stop is one compact block -- field, consent line, button -- with a three-state
+  strip under it, `Marcando`, `En llamada`, `Termino`, and then the result. With no telephony the
+  same block offers `Simular` with `Retener` and `Liberar` where the button would be, so the flow is
+  demonstrable at any stand with or without a server, and the result still says `simulado` on it.
+  `brand/shoot.ts` and `audit/audit.ts` mark the tour seen on every document they open, because a
+  headless profile is a first visit every time.
+
+- **Six environment variables, and a box that rings a telephone only when it was told to** (issue
+  #216). `ELEVENLABS_OWNER_AGENT_ID` is the second agent, created by `bun run voice-setup --owner`;
+  an agent id names a configuration and authorises nothing, so it is not a secret. `ALLOW_TOUR_CALLS`
+  is the flag, off by default and deliberately opt-in, because an endpoint that telephones a real
+  number on request is not something a deployment should acquire by accident: with it unset the call
+  answers `403` and `GET /api/v1/tour` says `callsEnabled: false`, so the screen offers to read the
+  words out instead of offering a form that cannot work. `TOUR_REVERT_MS` is how long an applied
+  decision stands, default ten minutes and `0` to disable the revert, which is what a rehearsal wants
+  and never what a stand does. `TOUR_POLL_INTERVAL_MS` and `TOUR_POLL_DEADLINE_MS` are how often and
+  how long the server asks the provider whether the call has finished. `TOUR_SALT` salts the
+  telephone hash, with `CONSORTIUM_SALT` winning when both are set so that rotating one salt rotates
+  this one with it. All six are in `.env.example` with the sentence that says what each one buys, and
+  `deploy/docker-compose.yml` and `scripts/deploy-vultr.ts` pass them through to the instance.
+
+  Three smaller shapes moved with them, all backwards compatible. `verification_call` gained four
+  optional fields, `line`, `phoneHash`, `ownerOutcome` and `question`, so an event already on a
+  ledger is still a valid event and an absent `line` still means the supplier call; the owner call is
+  on that same event type rather than on a second one because what is recorded is the same thing, a
+  call that happened and what was said on it. `createApp` and `createTestApp` take a third argument
+  for the tour, defaulted so no existing call site changes, and pinned off with zero timings in tests
+  so nothing leaves a timer behind. And `readEnv` in `apps/api/src/routes/verify-call.ts` is exported
+  rather than private, so the tour reads its environment through the same function instead of keeping
+  a third copy of it.
+
 - **The brand is in the repository** (issue #216). `assets/brand/` carries the four SentryOne SVGs,
   the lockup rendered at 1600 px wide in a light and a dark variant on transparent background, and
   `social-preview.png` at 1280x640 for the GitHub social preview card, which is the image that
@@ -77,6 +216,87 @@ section landed after that tag was cut.
 
 ### Fixed
 
+- **The telephone field refused the visitor's own number, and the button said nothing about it**
+  (issue #216). A number typed into the last stop of the tour never reached the API: no
+  `POST /api/v1/tour/call` in the instance log, no error on the screen, nothing. The block was
+  entirely in the browser and it was the button's `disabled`, which fires no click and so explains
+  nothing. Two gates held it shut. `isPhoneComplete` wanted exactly ten digits after a normaliser
+  that deleted whatever did not fit: `keepDigits` capped the field at ten and stripped a leading
+  `52`, so a number pasted with its country code lost its last digits on screen, dropped back under
+  ten while it was being typed, or silently became a different telephone. And the consent box, which
+  is the other half of the condition, sits under the field with nothing tying it to the control it
+  was holding shut.
+
+  The field takes whatever a person writes now. `toE164` keeps a leading `+` whatever country
+  follows it, reads `00` as that `+`, assumes `+52` for ten bare digits, reads eleven starting in `1`
+  and twelve or thirteen starting in `52` as numbers that already carry their country code, and sends
+  anything else exactly as it was written. Nothing is capped or rewritten, the line under the field
+  says which telephone is about to ring before the button is pressed, the only refusal is fewer than
+  eight digits, and a button that is still disabled says why. Every failure from the API reaches the
+  screen in words, including the statuses this screen has never heard of. The table of what a person
+  types and what would be POSTed is a test.
+
+- **The tour call had three rules that only ever refused the people it was for** (issue #216). The
+  route took Mexican mobiles only unless `TOUR_ALLOW_ANY_COUNTRY=1`, refused a second call to one
+  number for ten minutes and a twenty-first call from the instance in an hour. All three are gone,
+  along with the limiter, its type, its tests, the slot bookkeeping an earlier round of this branch
+  taught it so that a provider hiccup did not cost a visitor their turn, and the `429` on this route:
+  `POST /api/v1/tour/call` now takes any E.164 number and rings it as often as somebody asks. The rules were written for a
+  stand this product never had. The people who type a number into that screen are judges and
+  teammates, their telephones are not all Mexican, and the same four of us rehearse the call all day:
+  what they bought was a visitor refused by their own country code, a rehearsal that could not be
+  repeated, and a `429` whose sentence was about a call the person had already had. `ALLOW_TOUR_CALLS`,
+  `X-Actor: role=owner` and a consent that has to be the literal `true` are what stand between this
+  endpoint and a telephone, and each of those is a person or an operator deciding rather than a
+  counter. `phoneHash` stays, because the ledger event still has to be able to say which call it was.
+
+- **The recorrido was a wall of text in front of the product it points at** (issue #216). Nine stops
+  of three dense paragraphs and two bullets each, which is more reading than the screens the tour is
+  supposed to be showing. Every stop is a title and at most two short sentences now, under
+  twenty-eight words of body, with no bullet list and no "que mirar" block under it, and
+  `lib/tour.test.ts` counts the words rather than trusting the next person to. The opening is three
+  lines, because the hour, the person and the two losses are the one thing not on the screen behind
+  it. The last stop is one sentence over the form: the card underneath used to repeat it and that is
+  what pushed the telephone field below the fold of its own corner.
+
+- **The tour showed a plaza discrepancy between two identical cities, and the telephone call did not**
+  (issue #216). `GET /api/v1/tour` answers `APODACA` for both plazas of the hero on the seeded run,
+  because the finding on that line is a check digit that does not add up and an account seen for the
+  first time, not an account that moved city. `plazasFor` in `packages/voice/src/owner-script.ts`
+  already collapsed that case to `esa misma plaza`, so the call said the city once; both renderings on
+  the screen branched only on emptiness, so the subject line read `plaza APODACA, la de siempre
+  APODACA` and the printed script read `se abrio en la plaza APODACA, y la de siempre esta en
+  APODACA`. One place, printed as two, on the stop whose whole point is that the account does not
+  match. The three cases are one function now, `plazaNote` in `apps/web/src/lib/tour-call.ts`, shared
+  by the subject line and the script, and a case with both plazas equal is a test.
+
+- **The offline hero and the API disagreed about the shape of one contract field** (issue #216).
+  `heroOf` built `plazaNew` as `580 APODACA`, a code the call would have read out as digits, where the
+  API sends the plain place name it documents, and it read `plazaUsual` off `previousPlazaPlaces`,
+  which only a `plaza_changed` finding carries, so offline it was always empty. Running both printed
+  two different stories about one payment: `?data=mock` said the account was simply not one this
+  company had paid before, and the API path said it had moved plaza. `heroOf` now computes the usual
+  plaza from the accounts the supplier has actually been paid on, exactly as `plazasOf` does on the
+  server, and the offline hero is byte for byte the payload the endpoint answers.
+
+  The fixture in `apps/web/src/lib/tour-call.test.ts` was the reason this shipped: it paired the
+  hero's folio, amount and account with the two plazas of a different line, a hero neither side can
+  answer. It is the derived hero itself now, asserted against `heroOf`.
+
+- **The printed script opened with words the real line may not use** (issue #216). The card labelled
+  `El guion que escucha el dueno` is open by default wherever calls are off, which is every deployment
+  that has not been given the flag, and `localScript` opened it with `Hola, le llamo de SentryOne, el
+  sistema de pagos de su empresa`. `REQUIRED_DISCLOSURE` in `packages/voice/src/script.ts` makes
+  `linea automatica` mandatory in the greeting of both stored agents, and the live agent opens with
+  `Le habla la linea automatica de pagos`. The stand-in carries the disclosure now, and a line above it
+  says the words are an approximation until the API sends its own script, because the browser builds
+  them and the server writes them.
+
+- **The peso figure of the first stop was typed into the copy** (issue #216). `537,960.97 pesos` sat in
+  the prose of a feature whose every other figure is derived from the run, one reseed from being stale
+  in the paragraph a judge reads first. It travels on `TourLinks` beside the two folios now, and a test
+  ties the sentence to the derived hero's own amount.
+
 - **A sentence this project shipped about its own configuration was wrong, and it pointed the next
   person at the wrong variable** (issue #216). The note in `vite.config.ts` and the changelog entry
   beside it said that an API with no `DATABASE_URL` serves the small in-memory run. It does not.
@@ -87,6 +307,28 @@ section landed after that tag was cut.
   database sent somebody looking for Postgres when what they needed was one line of environment.
   Measured rather than reasoned this time: two API processes on two ports, one with `SEED=sentryone`
   and one with nothing, answering ninety-two and twelve.
+
+- **The owner heard a tenth of the amount he was being asked to release** (issue #216). On a real
+  call the owner line was handed `$537,960.97 pesos` as its `amount` variable, which is exactly right
+  on a screen, and the text to speech model read it out as "cincuenta y tres mil setecientos noventa
+  y seis pesos con noventa y siete centavos". A digit gone, the figure off by an order of magnitude,
+  said to the one person this product lets release a payment. The model is reading glyphs and
+  guessing at a grouping, and a comma every three digits is a convention it does not have to honour,
+  so there was nothing to fix in the prompt. `spokenLast4` had already learned the same lesson from
+  the other end, where "4611" came back as "cuatro mil seiscientos once".
+
+  Nothing spoken carries digits any more. `amountInWords` in `packages/voice/src/numbers.ts` writes
+  the amount in Mexican Spanish words up to nine digits of pesos, with the apocope before a masculine
+  noun ("un peso", "veintiún pesos", "ciento un pesos"), "mil" with no one in front of it, "cien"
+  against "ciento", and the "de" that a round million takes and a million with anything after it does
+  not. Under a peso it says the centavos alone, which is what the one-cent probe of `packages/rail`
+  is, and a round figure gets no centavos clause. It refuses a negative amount, an infinity and
+  anything above 999,999,999 pesos rather than saying it wrong, because past that the words would
+  need "mil millones" and Mexican Spanish does not agree with the rest of the Spanish-speaking world
+  about what that is. Both lines use it, the owner call and the supplier call, so the amount the
+  owner hears and the amount the supplier hears are built the same way, and the twenty-five figures
+  of the table in `numbers.test.ts` include the one that was said wrong. What a screen shows is
+  unchanged: `formatMoney` in `apps/web` is read with the eyes, where a comma helps.
 
 ## [1.0.0] - 2026-09-13
 

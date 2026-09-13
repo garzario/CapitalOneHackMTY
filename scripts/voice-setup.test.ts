@@ -22,6 +22,8 @@ import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import {
   buildAgentBody,
+  OWNER_TEMPLATE,
+  OWNER_VARIABLE_DEFAULTS,
   VERIFICATION_TEMPLATE,
   VERIFICATION_VARIABLE_DEFAULTS,
 } from "../packages/voice/src/index.ts";
@@ -218,5 +220,101 @@ describe("the body voice-setup uploads", () => {
       "prompt",
       "temperature",
     ]);
+  });
+});
+
+/**
+ * The second line, uploaded by `bun run voice-setup --owner`.
+ *
+ * It is the same expression with one flag flipped, so the assertion that matters
+ * is that only the prompt, the first message and the name differ: a turn timeout
+ * or a voice that drifted between the two agents would be one line that sounds
+ * like a person and one that sounds like a recording, on the same stand, ten
+ * minutes apart.
+ */
+const ownerBody = buildAgentBody({
+  name: config.ownerAgentName,
+  systemPrompt: OWNER_TEMPLATE.systemPrompt,
+  firstMessage: OWNER_TEMPLATE.firstMessage,
+  dynamicVariableDefaults: {
+    ...OWNER_VARIABLE_DEFAULTS,
+    company: config.companyName,
+    owner: config.ownerName,
+  },
+  language: config.language,
+  ttsModelId: config.ttsModelId,
+  optimizeStreamingLatency: config.optimizeStreamingLatency,
+  stability: config.stability,
+  similarityBoost: config.similarityBoost,
+  speed: config.speed,
+  turnTimeoutSeconds: config.turnTimeoutSeconds,
+  turnEagerness: config.turnEagerness,
+  speculativeTurn: config.speculativeTurn,
+  disableFirstMessageInterruptions: config.disableFirstMessageInterruptions,
+  endCall: config.endCall,
+  llm: config.llm,
+  temperature: config.temperature,
+  maxDurationSeconds: config.maxDurationSeconds,
+});
+
+const ownerConversation = ownerBody.conversation_config as Record<
+  string,
+  unknown
+>;
+const ownerAgent = ownerConversation.agent as Record<string, unknown>;
+const ownerPrompt = ownerAgent.prompt as Record<string, unknown>;
+
+describe("the body voice-setup --owner uploads", () => {
+  test("is a second agent with its own name and its own words", () => {
+    expect(ownerBody.name).toBe("SentryOne dueño");
+    expect(ownerBody.name).not.toBe(body.name);
+    expect(ownerAgent.first_message).not.toBe(agent.first_message);
+  });
+
+  test("carries no account and no long run of digits either", () => {
+    const raw = JSON.stringify(ownerBody);
+
+    expect(raw).not.toMatch(/\d{18}/);
+    expect(raw).not.toMatch(LONG_DIGIT_RUN);
+  });
+
+  test("uploads the owner template with its slots still empty", () => {
+    expect(ownerPrompt.prompt).toContain("{{amount}}");
+    expect(ownerPrompt.prompt).toContain("{{account_last4}}");
+    expect(ownerPrompt.prompt).toContain("{{plaza_new}}");
+    expect(ownerAgent.first_message).toContain("{{owner}}");
+    expect(ownerAgent.first_message).toContain("{{company}}");
+  });
+
+  test("uploads a default for every slot the owner template carries", () => {
+    const dynamic = ownerAgent.dynamic_variables as Record<string, unknown>;
+    const defaults = dynamic.dynamic_variable_placeholders as Record<
+      string,
+      string
+    >;
+    const slots = [
+      ...`${OWNER_TEMPLATE.systemPrompt}\n${OWNER_TEMPLATE.firstMessage}`.matchAll(
+        /\{\{(\w+)\}\}/g,
+      ),
+    ].map((match) => match[1]);
+
+    expect(slots.length).toBeGreaterThan(0);
+    for (const slot of new Set(slots)) {
+      expect(defaults[slot as string]).toBeString();
+    }
+    expect(defaults.owner).toBe("Gerardo");
+    expect(defaults.company).toBe("Metálicos del Norte");
+  });
+
+  /** The whole point of one script instead of two: the lines sound the same. */
+  test("keeps the tts, the turn and the conversation settings of the first", () => {
+    expect(ownerConversation.tts).toEqual(conversation.tts);
+    expect(ownerConversation.turn).toEqual(conversation.turn);
+    expect(ownerConversation.conversation).toEqual(conversation.conversation);
+    expect(ownerAgent.language).toBe(agent.language);
+    expect(ownerAgent.disable_first_message_interruptions).toBe(
+      agent.disable_first_message_interruptions,
+    );
+    expect(ownerPrompt.built_in_tools).toEqual(prompt.built_in_tools);
   });
 });

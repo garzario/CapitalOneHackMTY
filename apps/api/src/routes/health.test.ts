@@ -122,6 +122,7 @@ describe("GET /health", () => {
           nessie: true,
           gemini: true,
           voice: true,
+          ownerAgent: true,
           consortium: true,
           snowflake: true,
           cepFetch: true,

@@ -566,6 +566,24 @@ export type VerificationOutcome =
   | "no_answer"
   | "unclear";
 
+/**
+ * What the owner told the payments line to do about one held payment.
+ *
+ * The second line of `packages/voice` asks a different question of a different
+ * person: not whether an account belongs to a supplier, but whether the owner of
+ * the company retains a payment the control stopped or releases it under their
+ * own name. So the four values are actions and not verdicts, and they map onto
+ * the four above when the call reaches the ledger as a `verification_call`.
+ *
+ * Two of them are the absence of an answer. `no_answer` is a machine or a
+ * silence, `unclear` is somebody who spoke and chose neither action, and neither
+ * applies anything: the payment stays exactly where the control left it. A
+ * `release` is not the payment leaving either. It is a `decision_made` signed by
+ * the person who said it, with their words against it, and the SPEI still leaves
+ * from the company's own banking portal.
+ */
+export type OwnerOutcome = "hold" | "release" | "no_answer" | "unclear";
+
 /** One turn of a verification call, in the order it was spoken. */
 export interface VerificationTurn {
   /** `supplier` is whoever answered the phone, `agent` is the voice agent. */
@@ -1249,6 +1267,31 @@ export type LedgerEvent =
       conversationId?: string;
       /** True when a person placed the call by hand and typed the outcome in. */
       manual: boolean;
+      /**
+       * Which line placed the call. Absent means the supplier line, which is
+       * every one of these events written before the owner line existed.
+       *
+       * `owner` is the guided tour of `apps/api/src/routes/tour.ts`: the same
+       * agent platform, a second agent, a different script and a different
+       * question. It is on the same event type rather than on a second one
+       * because what is recorded is the same thing, a call that happened and what
+       * was said on it, and a replay of this ledger has to read both.
+       */
+      line?: "supplier" | "owner";
+      /**
+       * Salted SHA-256 of the telephone number that was dialled, hex.
+       *
+       * Only on the owner line, and it is the ONLY trace of that number anywhere
+       * in this product: it is typed into a form by a visitor, used once to place
+       * one call, and never stored, logged or displayed. The hash is what lets the
+       * rate limiter refuse a second call to the same number without holding the
+       * number. `docs/06-regulatory-privacy.md`, "El numero del visitante".
+       */
+      phoneHash?: string;
+      /** What the owner said to do, before it is mapped onto `outcome`. */
+      ownerOutcome?: OwnerOutcome;
+      /** The question that was asked, word for word, so the answer has a subject. */
+      question?: string;
       /**
        * Who typed the outcome in, on a call a person placed by hand.
        *

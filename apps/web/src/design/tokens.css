@@ -24,13 +24,16 @@
  * with a collapsible rail on the left and quiet bordered cards on the right.
  * Hence small radii, hairline borders and almost no shadow.
  *
- * Light is the default and dark follows the operating system. Only the colour
- * tokens are redefined for dark; type, spacing, radius and motion never change
- * with the theme.
+ * Light is the default, on every machine, and dark is a choice a person makes
+ * in the top bar and this browser remembers. It is not read off the operating
+ * system: the store in `src/lib/theme.ts` writes `data-theme` on the document
+ * before the first render and the block near the foot of this file hangs off
+ * that attribute. Only the colour tokens are redefined for dark; type, spacing,
+ * radius and motion never change with the appearance.
  */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* Type families. Capital One sets its interface in Optimist, which is
      licensed to them. Hanken Grotesk is the closest open face: same humanist
@@ -134,17 +137,34 @@
   /* A toast is read at a glance and dismissed, so it is narrower than the
      drawer and never as wide as the content it covers. */
   --toast-width: 22rem;
+  /* The recorrido's card holds three paragraphs of prose, so it is wider than a
+     toast and narrower than the drawer: wide enough for a sixty-character
+     measure, narrow enough that the table it is explaining is still readable
+     beside it. */
+  --tour-card-width: 25rem;
+
+  /* How tall the top bar is, as a token because two files need the same answer:
+     the bar itself, and the recorrido's card when the spotlight sends it to a
+     top corner and it must not stand on the title and the two controls. */
+  --topbar-h: 3.25rem;
 
   /* The keyboard affordance, as tokens, so the ring is one value and not one
      per component. `base.css` is the only place that draws it. */
   --focus-width: 2px;
   --focus-offset: 2px;
 
-  /* Elevation */
+  /* Elevation.
+
+     The recorrido sits above the drawer and below the toasts, and both halves of
+     that are deliberate: one of its stops opens the assistant drawer and dims
+     everything except it, so the veil has to cover a panel at 50; and a toast is
+     the app answering for a write, which a tour must never hide. */
   --z-header: 20;
   --z-rail: 30;
   --z-scrim: 40;
   --z-drawer: 50;
+  --z-tour: 55;
+  --z-tour-card: 56;
   --z-toast: 60;
 
   /* Motion. Every transition in the app reads one of these three durations,
@@ -393,89 +413,100 @@
     0 1px 2px rgba(20, 17, 12, 0.06), 0 2px 8px rgba(20, 17, 12, 0.05);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --c-canvas: #14110c;
-    --c-surface: #1c1913;
-    --c-surface-raised: #24201a;
-    --c-surface-sunken: #23201a;
+/* Dark, and only when a person asked for it.
+ *
+ * The app opens light, on every machine and every operating system, and the
+ * appearance is a choice this browser remembers rather than one inherited from
+ * whatever the laptop was set to at the hotel. That is why this block hangs off
+ * an attribute instead of `prefers-color-scheme`: the store in
+ * `src/lib/theme.ts` writes `data-theme` on the document before the first
+ * render, so there is one switch, a person owns it, and a demo cannot open dark
+ * on a projector because somebody's Mac decided it was night.
+ *
+ * Only the colour tokens are redefined. Type, spacing, radius and motion never
+ * change with the appearance. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-    --c-well: #1a1712;
-    --c-well-line: #2a2620;
+  --c-canvas: #14110c;
+  --c-surface: #1c1913;
+  --c-surface-raised: #24201a;
+  --c-surface-sunken: #23201a;
 
-    /* The rail navy one step down, so the card still sits above the dark page
-       rather than merging with the furniture on its left. Its ink and its
-       grain do not move: the card carries its own palette in both themes, the
-       way the rail does. */
-    --c-card-dark: #0b2f45;
-    --c-card-dark-ink: #f2f7fa;
-    --c-card-dark-ink-muted: #b7cbd6;
-    --grain-dot: rgba(255, 255, 255, 0.1);
-    --grain-pitch: 4px;
+  --c-well: #1a1712;
+  --c-well-line: #2a2620;
 
-    --c-bar-dark-1: rgba(242, 247, 250, 0.95);
-    --c-bar-dark-2: rgba(242, 247, 250, 0.55);
-    --c-bar-dark-3: rgba(242, 247, 250, 0.25);
+  /* The rail navy one step down, so the card still sits above the dark page
+     rather than merging with the furniture on its left. Its ink and its
+     grain do not move: the card carries its own palette in both themes, the
+     way the rail does. */
+  --c-card-dark: #0b2f45;
+  --c-card-dark-ink: #f2f7fa;
+  --c-card-dark-ink-muted: #b7cbd6;
+  --grain-dot: rgba(255, 255, 255, 0.1);
+  --grain-pitch: 4px;
 
-    --c-ink: #f5f1e9;
-    --c-ink-muted: #b3ac9f;
-    --c-ink-subtle: #948c7e;
-    --c-ink-inverse: #14110c;
+  --c-bar-dark-1: rgba(242, 247, 250, 0.95);
+  --c-bar-dark-2: rgba(242, 247, 250, 0.55);
+  --c-bar-dark-3: rgba(242, 247, 250, 0.25);
 
-    --c-border: #312c24;
-    --c-border-strong: #6e675c;
-    --c-grid: #262219;
+  --c-ink: #f5f1e9;
+  --c-ink-muted: #b3ac9f;
+  --c-ink-subtle: #948c7e;
+  --c-ink-inverse: #14110c;
 
-    /* The brand navy is unreadable on a near-black page, so dark mode takes
-       the light end of the same Gravity blue ramp instead of inventing one. */
-    --c-accent: #7fd4ff;
-    --c-accent-ink: #14110c;
-    --c-accent-soft: #102c3b;
+  --c-border: #312c24;
+  --c-border-strong: #6e675c;
+  --c-grid: #262219;
 
-    --c-brand-red: #f07577;
+  /* The brand navy is unreadable on a near-black page, so dark mode takes
+     the light end of the same Gravity blue ramp instead of inventing one. */
+  --c-accent: #7fd4ff;
+  --c-accent-ink: #14110c;
+  --c-accent-soft: #102c3b;
 
-    /* Not inverted, on purpose. See the notes in the light block: the rail is a
-       brand panel and the QR has to stay scannable. */
-    --c-rail: #013d5b;
-    --c-rail-ink: #e8f1f5;
-    --c-rail-ink-muted: #aac4d2;
-    --c-rail-active: #0a5375;
-    --c-rail-active-ink: #ffffff;
-    --c-rail-line: #0a5375;
-    --c-rail-rule: rgba(170, 196, 210, 0.35);
+  --c-brand-red: #f07577;
 
-    --c-qr-module: #000000;
-    --c-qr-quiet: #ffffff;
+  /* Not inverted, on purpose. See the notes in the light block: the rail is a
+     brand panel and the QR has to stay scannable. */
+  --c-rail: #013d5b;
+  --c-rail-ink: #e8f1f5;
+  --c-rail-ink-muted: #aac4d2;
+  --c-rail-active: #0a5375;
+  --c-rail-active-ink: #ffffff;
+  --c-rail-line: #0a5375;
+  --c-rail-rule: rgba(170, 196, 210, 0.35);
 
-    --c-hold: #f07577;
-    --c-hold-soft: #2e1614;
-    --c-hold-ink: #ffa2a1;
+  --c-qr-module: #000000;
+  --c-qr-quiet: #ffffff;
 
-    --c-verify: #f9c606;
-    --c-verify-soft: #2c2409;
-    --c-verify-ink: #efd27a;
+  --c-hold: #f07577;
+  --c-hold-soft: #2e1614;
+  --c-hold-ink: #ffa2a1;
 
-    --c-release: #94c62f;
-    --c-release-soft: #1e2810;
-    --c-release-ink: #bcdd72;
+  --c-verify: #f9c606;
+  --c-verify-soft: #2c2409;
+  --c-verify-ink: #efd27a;
 
-    --c-info: #8fb8d8;
-    --c-info-soft: #15242c;
-    --c-info-ink: #bcd6e9;
+  --c-release: #94c62f;
+  --c-release-soft: #1e2810;
+  --c-release-ink: #bcdd72;
 
-    --c-watermark: rgba(245, 241, 233, 0.06);
-    --c-watermark-ink: #948c7e;
+  --c-info: #8fb8d8;
+  --c-info-soft: #15242c;
+  --c-info-ink: #bcd6e9;
 
-    --c-scrim: rgba(0, 0, 0, 0.62);
+  --c-watermark: rgba(245, 241, 233, 0.06);
+  --c-watermark-ink: #948c7e;
 
-    --shadow-1: none;
-    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.45);
-    --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
-    /* Deeper than the light pair, because a shadow on a near-black ground has
-       almost no room to darken and a whisper there is nothing at all. */
-    --shadow-raised:
-      0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
-  }
+  --c-scrim: rgba(0, 0, 0, 0.62);
+
+  --shadow-1: none;
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+  /* Deeper than the light pair, because a shadow on a near-black ground has
+     almost no room to darken and a whisper there is nothing at all. */
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 /* Someone who asked the operating system for less movement gets no movement.
@@ -491,7 +522,6 @@
   }
 }
 
-
 /* Paper.
  *
  * The palette on a sheet, and it lives here for the same reason every other
@@ -504,11 +534,15 @@
  * for `--c-border`, and the only thing that changed is what those are worth once
  * the medium is paper.
  *
- * Dark mode is a screen preference. Carrying it onto paper prints a solid black
- * page and empties a toner cartridge, so this block overrides both schemes
- * rather than sitting beside them. */
+ * Dark is a screen choice. Carrying it onto paper prints a solid black page and
+ * empties a toner cartridge, so this block overrides both appearances rather
+ * than sitting beside them. It names the attribute as well as the bare root
+ * because the dark block above is a `[data-theme]` selector: a rule that only
+ * said `:root` would be the weaker of the two and a sheet printed in dark mode
+ * would come out black. */
 @media print {
-  :root {
+  :root,
+  :root[data-theme] {
     color-scheme: light;
 
     --c-canvas: #ffffff;

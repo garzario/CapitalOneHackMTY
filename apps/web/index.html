@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
+    <!-- Light, and only light, because that is what the app opens in whatever
+         the operating system is set to. Dark is a choice a person makes in the
+         top bar and `src/lib/theme.ts` remembers; see design/tokens.css. -->
+    <meta name="color-scheme" content="light" />
     <meta
       name="description"
       content="SentryOne revisa la corrida de pagos a proveedores antes de que salga el SPEI: lista 69-B del SAT, forense de CLABE, facturas duplicadas y verificacion del beneficiario con el CEP."
@@ -12,16 +15,9 @@
 
     <link rel="icon" href="/sentryone-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta
-      name="theme-color"
-      content="#ffffff"
-      media="(prefers-color-scheme: light)"
-    />
-    <meta
-      name="theme-color"
-      content="#14110c"
-      media="(prefers-color-scheme: dark)"
-    />
+    <!-- One value, for the same reason: the browser chrome follows the page the
+         app actually opens in, not the machine it opens on. -->
+    <meta name="theme-color" content="#ffffff" />
 
     <!-- The domain is fixed in docs/adr/0002-track-and-thesis.md. Absolute
          because several crawlers refuse a relative og:image. -->

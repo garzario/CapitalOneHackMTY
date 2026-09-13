@@ -26,12 +26,14 @@ const AGENT_OPENING: VerificationTurn = {
  *
  * It asks about the change and the four digits together, because that is the
  * case the control exists for, and it reads no digit of the account paid before.
+ * The amount is in words, like the script it comes from: a figure written with
+ * grouping commas was read out as a tenth of itself on a live call.
  * It ends on a question the supplier answers in their own words: the two word
  * either-or it used to end on is banned, per `BANNED_PHRASES` in script.ts.
  */
 const AGENT_QUESTION: VerificationTurn = {
   role: "agent",
-  text: "Perfecto, gracias. Recibimos una instrucción para depositarle $184,300.00 pesos a una cuenta distinta de la que le hemos pagado antes, y antes de que salga el pago necesito confirmarla con ustedes. ¿Me confirma que ustedes cambiaron su cuenta y que la que termina en 7 8 9 9 es de ustedes?",
+  text: "Perfecto, gracias. Recibimos una instrucción para depositarle ciento ochenta y cuatro mil trescientos pesos a una cuenta distinta de la que le hemos pagado antes, y antes de que salga el pago necesito confirmarla con ustedes. ¿Me confirma que ustedes cambiaron su cuenta y que la que termina en 7 8 9 9 es de ustedes?",
   atSecond: 9,
 };
 

@@ -751,6 +751,13 @@ export function RunScreen() {
                                where every other duration in the app is switched
                                off. */
                             className={moved ? "row-moved" : undefined}
+                            /* The worst line of the run, named for the
+                               recorrido: the copy of one stop points at it, and
+                               a hook on the row beats teaching the tour what a
+                               table row of this app looks like. */
+                            data-tour={
+                              index === 0 ? "run-first-row" : undefined
+                            }
                             initial={
                               filterTouched ? { opacity: 0, y: -4 } : false
                             }
