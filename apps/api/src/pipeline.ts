@@ -25,7 +25,7 @@ import type {
 } from "@hackmty/core";
 import { decide, supplierModelOf } from "@hackmty/core";
 import { runControls } from "@hackmty/engine";
-import { priceSweep, type SatIndex } from "@hackmty/sat";
+import { official49BisListing, priceSweep, type SatIndex } from "@hackmty/sat";
 import type { ConsortiumSource } from "./consortium";
 import { type IntakeExtractor, UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
@@ -283,6 +283,19 @@ async function composeInputFor(
   }
   if (beneficiary !== undefined) {
     input.cep = beneficiary.cep;
+  }
+  /* The other SAT list. `official49BisListing()` reports the coverage of this
+     build, and today it is `not_published_machine_readable`: the SAT publishes the
+     49 Bis listing one oficio at a time in the DOF and ships no file, so this adds
+     no rows and the control stays silent rather than answering "no listado" for a
+     list nobody loaded. The day a machine-readable listing exists, the listing
+     function loads it and this arm arms the control with no other change. */
+  const art49Bis = official49BisListing();
+  if (art49Bis.coverage === "loaded") {
+    const rows = art49Bis.index.lookup(instruction.supplierRfc);
+    if (rows.length > 0) {
+      input.sat49BisEntries = rows;
+    }
   }
   /* The local snapshot, never Snowflake. A server with `ALLOW_CONSORTIUM` unset,
      or with nothing pulled, leaves `network` absent, and every control then reads

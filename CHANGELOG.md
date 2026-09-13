@@ -55,6 +55,40 @@ then the screens, then the narrative, then the plumbing.
   and `docs/print/README.md` states the rule that governs it: no number reaches that card that is not
   already in `docs/04`, `docs/05` or `docs/11`.
 
+- The other SAT list, article 49 Bis, covered next to 69-B and reported honestly (issue #180).
+  Article 49 Bis of the CFF was added by the decree of DOF 07-11-2025 and is in force since 1 January
+  2026: after an express home visit capped at twenty-four business days, the SAT publishes the taxpayer
+  whose CFDI it determined false, and the third parties who received those CFDI have **thirty natural
+  days from the DOF publication** to reverse the fiscal effect or the authority restricts THEIR OWN
+  certificado de sello digital under article 17-H Bis fraccion XIV, with article 113 Bis now covering
+  whoever gives `efectos fiscales` to a false CFDI. `packages/sat/src/art49bis.ts` is the second list:
+  a loader over the published `Anexo 1` layout resolved by column name, the thirty day window
+  (`correctionDeadline` counts the publication day as day one, stated as the reading that errs early
+  because being a day late costs the seal), an index, and `sweep49Bis`, which prices the already paid
+  and already deducted CFDIs through the same `priceCfdis` and the same ledger fold as the 69-B sweep
+  so the two can never answer different numbers, plus the correction deadline the pesos alone do not
+  carry. `Sat49BisEntry` is its own domain type and not a fifth `SatListStatus`, because fraccion X
+  publishes one outcome and provides for no published clearing, so nothing may report a 49 Bis taxpayer
+  as cleared. `packages/engine/src/sat49bis.ts` gives control 1 a second finding, in Spanish, naming
+  the article, the DOF date, the days left and the seal restriction, always `comprobable` because the
+  published resolution is already final; the detector id stays `sat_69b`, which is control 1 and is
+  persisted, CHECK-constrained and counted per detector, so ADR-0002 still has six controls.
+  `GET /api/v1/sat/lookup` now answers `lists`, one block per article with an `answered` flag on each.
+  **And the honest half.** There is no machine-readable 49 Bis listing, so none is committed: the SAT
+  open-data catalogue carries articles 69, 69-B and 69-B Bis and nothing for 49 Bis, and the DOF
+  publishes it one oficio at a time as an HTML note, fourteen of them naming fourteen taxpayers between
+  10 July and 28 August 2026, counted at the source on 2026-09-12. So the lookup answers that list with
+  `answered: false` and `coverage: "not_published_machine_readable"` plus the counts and the URL to
+  check them, the fixture that exercises the loader is six invented rows whose first line says in
+  Spanish that it is not the SAT's file, and `packages/sat/src/snapshot/README.md` carries the statute
+  with its retrieval time, all fourteen note ids, the seven published columns, the two date formats
+  those fourteen oficios use, and the manual steps to load a new publication. Article 69-B Bis is
+  decided the other way and closed rather than deferred: its listing does exist as open data, three
+  taxpayers at a 5 June 2026 cut-off, and it is deliberately not wired into supplier screening because
+  it is about the improper transfer of tax losses and says nothing about a supplier's invoice. The
+  TODOs this replaces are gone from `docs/04-market.md`, `docs/06-regulatory-privacy.md` and
+  `docs/14-process.md`, and `docs/01`, `docs/08` and `docs/09` carry the coverage statement.
+
 - The one-cent verification travels inside the payment run, with nobody typing (issue #166).
   `packages/rail` is the new workspace and the only place in the product that sends money: one
   amount, 0.01 MXN, behind a `PaymentRail` interface with three adapters. `NessieRail` records the

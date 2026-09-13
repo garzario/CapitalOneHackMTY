@@ -66,6 +66,7 @@ for them.
 | LFPDPPP (nueva ley DOF 20-03-2025, last reform DOF 14-11-2025) | Personal data held by private parties: aviso de privacidad, consent, purpose limitation, retention, ARCO, transfers | Yes, in production. Not in the prototype, which holds no real personal data | The whole of section 4. Note the regulator changed: art. 2, fr. XV defines Secretaría as the Secretaría Anticorrupción y Buen Gobierno, not INAI |
 | Ley para Regular las Sociedades de Información Crediticia | Consultation and reporting of credit behaviour, and the consent a consultation needs | No. We are not a SIC, we consult none and we report to none | If a lending partner ever consults a bureau, the consent and the decision are theirs, and that boundary is written into the referral flow rather than assumed |
 | Código Fiscal de la Federación, arts. 69, 69-B and 69-B Bis (last reform DOF 09-04-2026) | Fiscal confidentiality and its exceptions, presumption of non-existent operations, and improper transfer of tax losses | Yes, as the data source and as the risk we quantify | Sections 2.1 and 3. The list is published by order of the statute, which is what makes reading it lawful and what makes the exposure real |
+| Código Fiscal de la Federación, arts. 49 Bis, 17-H Bis fr. XIV, 29-A fr. IX and 113 Bis, all added or reformed by the decree DOF 07-11-2025 and in force from 1 January 2026 | The express visit that determines a taxpayer's CFDI are false, the publication of that taxpayer, the buyer's thirty natural days to correct, the restriction of the buyer's own digital seal when they do not, and the two-to-nine-year penalty for giving fiscal effect to a false CFDI | Yes, as a second data source and a second clock | Section 3.3. It is the newest half of the fiscal hook and the one that points at our own user rather than at the supplier |
 | PCI DSS | Card data handling | Not applicable as built, and we behave as if it were | Never store a PAN. Nessie's `account_number` is synthetic and is still treated as sensitive: never logged, never in a screenshot, never in an issue |
 
 **What we have not mapped.** Anti-money-laundering obligations under the Ley Federal para la
@@ -96,7 +97,7 @@ So checking a supplier RFC against the 69-B list needs no consent from the suppl
 does not authorise is anything else: it is a licence to read a published fact, not a licence to
 publish a conclusion about the person named in it. Section 7 is the operational consequence.
 
-## 3. What Articles 69-B and 69-B Bis actually say
+## 3. What Articles 69-B, 69-B Bis and 49 Bis actually say
 
 Read in the Código Fiscal de la Federación, texto vigente, last reform published DOF 09-04-2026.
 Paragraph numbers are the article's own.
@@ -165,8 +166,79 @@ and the transfer counts as a simulated act for the crimes in the Code.
 **It is a different list about a different risk and we do not wire it into supplier screening.**
 Appearing in the 69-B Bis list says nothing about whether a supplier's invoice to us is real. Using
 it as a supplier red flag would be exactly the kind of plausible, wrong inference this document
-exists to prevent. `TODO(FabriBanda)`: if a future version ever surfaces it, it is a separate
-control with its own copy, never a row inside the 69-B detector.
+exists to prevent.
+
+That was an open question until 2026-09-12 and it is now closed, in the negative, and with the file
+in hand rather than on principle alone. The 69-B Bis listing is published as open data, three CSV
+files next to the 69-B ones, and the complete one holds **three taxpayers** at a cut-off of 5 June
+2026: two `Definitivo` and one `Sentencia Favorable`. So the question was never whether we could load
+it. We do not, because a supplier's name on a list about loss transfers is not evidence about the
+invoice in front of the clerk, and because three taxpayers nationally would not be a screening signal
+even if it were. If a future version ever surfaces it, it is a separate control with its own copy,
+never a row inside the SAT lists control. `packages/sat/src/snapshot/README.md` records the file, its
+size and its cut-off so the decision can be re-examined against data rather than memory.
+
+### 3.3 Article 49 Bis, the newest list, and the clock that points at our own user
+
+Article 49 Bis did not exist when this product's thesis was written. It was added by the decree
+published in the DOF on 7 November 2025 and is in force from 1 January 2026 by that decree's
+Transitorio Primero, and it changes who carries the risk.
+
+- **A different procedure and a much faster one.** It governs the express home visit of art. 42, fr.
+  V, inciso g). The order itself states why the authority presumes the taxpayer's CFDI are false and
+  **suspends that taxpayer's invoicing from the moment it is delivered**, with art. 17-H Bis
+  expressly not applying (fr. I). The taxpayer has **five business days** to offer evidence (fr. V),
+  the authority **fifteen business days** to resolve (fr. VIII), and the whole procedure closes
+  within **twenty-four business days** (fr. IX). Article 69-B runs on fifteen days plus fifty; this
+  one runs in under a month.
+- **A different finding.** Inciso b) of fr. VIII: the taxpayer did not rebut, so the CFDI "se
+  consideran falsos con efectos generales" for failing art. 29-A, fr. IX, which the same decree added
+  to require that a CFDI "ampare operaciones existentes, verdaderas o actos jurídicos reales", and
+  the operations "no producen ni produjeron efecto fiscal alguno". Same retroactivity as 69-B, in the
+  same past tense, for a different reason: not that the operation never happened, but that the
+  document is false.
+- **The publication, and the gap before it.** Fr. X: the name and the RFC are published in the DOF
+  and on the SAT portal **within forty-five business days** of the notification of the resolution
+  taking effect. Between the resolution and the publication the supplier is already condemned and on
+  no list anybody can read, which is precisely the window where controls 2 and 4, the CLABE forensics
+  and the change in supplier behaviour, have to carry the decision alone.
+- **Thirty natural days, and then our own user's seal.** Still fr. X: the third parties who received
+  those CFDI must reverse the fiscal effect through a complementary return within **thirty natural
+  days of the DOF publication**, and if they do not, the authority **temporarily restricts their own
+  certificado de sello digital** under art. 17-H Bis, fr. XIV, which the same decree added. Natural
+  days, so weekends count. This is the single most important sentence in this section: the sanction
+  for missing the window is not a tax bill, it is that the clerk's own company cannot invoice.
+- **And the criminal exposure moved to the buyer.** Fr. XI refers the matter to the Ministerio
+  Público under art. 113 Bis, whose second paragraph, added by the same decree, now covers whoever
+  "expida, enajene, compre, adquiera o **dé efectos fiscales** a comprobantes fiscales falsos", two
+  to nine years. A third paragraph, also new, says the offence is investigated independently of the
+  state of the administrative procedure.
+
+**What we do with it, stated exactly.** `packages/sat/src/art49bis.ts` holds the loader for the
+published layout, the thirty day window and a retroactive sweep that prices already deducted invoices
+with the same arithmetic as the 69-B one; `packages/engine/src/sat49bis.ts` produces its own finding,
+in Spanish, naming the article, the publication date, the days left and the seal restriction that
+follows. The finding is always `comprobable` and never `requiere_verificacion`, because unlike
+`presunto` there is no rebuttal period left to wait out: fr. X publishes a resolution that is already
+final.
+
+**What we deliberately do not claim.** The SAT publishes this list **one oficio at a time as a DOF
+note** and ships no machine-readable file: its open-data catalogue carries arts. 69, 69-B and 69-B Bis
+and nothing for 49 Bis, and on 2026-09-12 the DOF held fourteen such oficios naming fourteen
+taxpayers, from 10 July to 28 August 2026. So `GET /api/v1/sat/lookup` answers for that list with
+`answered: false` and `coverage: "not_published_machine_readable"`, carrying those counts and the URL
+to check them, and no screen in this product says a supplier is clear of the 49 Bis list. The
+provenance, the column layout of the `Anexo 1` table, all fourteen note ids and the manual steps to
+load a new publication are in `packages/sat/src/snapshot/README.md`, and `docs/04-market.md` carries
+the same statement where it is a competitive claim rather than a legal one.
+
+One consequence for this document's own subject matter. A 49 Bis publication is public data of the
+supplier, exactly like a 69-B one, so section 2.1 covers reading it unchanged. What is NEW is that
+the thirty day clock makes a date on our screen operative: a wrong deadline would push a client past
+fr. X. That is why `correctionDeadline` counts the publication day as day one, which is the reading
+that errs early rather than late, and why the code says in as many words that it is a reading and not
+a holding. Article 12 of the CFF settles how days are counted, not when a plazo "a partir de la
+publicación" begins, and we did not find a rule that settles the latter today.
 
 ## 4. Personal data, under the LFPDPPP in force
 
@@ -621,6 +693,9 @@ All read on 2026-09-12. Statutes are the texto vigente published by the Cámara 
 | Source | Used for |
 |---|---|
 | Código Fiscal de la Federación, texto vigente, last reform DOF 09-04-2026, arts. 69, 69-B, 69-B Bis | Sections 2.1 and 3 |
+| The same text, arts. 42 fr. V inciso g), 49 Bis, 17-H fr. XIII, 17-H Bis fr. XIV, 29-A fr. IX, 29-A Bis and 113 Bis, each marked as added or reformed by the decree DOF 07-11-2025, whose Transitorio Primero sets 1 January 2026. `https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf`, retrieved 2026-09-12 at 17:25 local, 3,134,465 bytes | Section 3.3 |
+| SAT, Datos Abiertos, contribuyentes publicados, `https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html`, whose only article sections are 69, 69-B and 69-B Bis, and the 69-B Bis complete listing CSV, three taxpayers at a 5 June 2026 cut-off | Sections 3.2 and 3.3 |
+| Diario Oficial de la Federación, search for `fraccion X del articulo 49 Bis`, run 2026-09-12: fourteen oficios of the Administración Central de Fiscalización Estratégica, 10 July to 28 August 2026, one taxpayer each | Section 3.3 |
 | Ley Federal de Protección de Datos Personales en Posesión de los Particulares, nueva ley DOF 20-03-2025, last reform DOF 14-11-2025, arts. 2, 5 to 12, 15, 21 to 33, 35, 36 | Sections 2, 2.1 and 4 |
 | Ley para Regular las Instituciones de Tecnología Financiera, DOF 09-03-2018, last reform DOF 14-11-2025, arts. 1, 3, 15, 22, 76, 77 | Sections 1 and 2 |
 | Ley de Protección y Defensa al Usuario de Servicios Financieros, DOF 18-01-1999, last reform DOF 14-11-2025, art. 2 | Sections 1 and 2 |

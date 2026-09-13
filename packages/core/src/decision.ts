@@ -47,6 +47,8 @@ import type {
   NetworkSignal,
   PaymentComplement,
   PaymentInstruction,
+  Sat49BisEntry,
+  Sat49BisSweepResult,
   SatListEntry,
   Severity,
   Supplier,
@@ -426,6 +428,19 @@ export interface ComposeInput {
    * and it is answered by the list endpoint, never by a detector.
    */
   satEntries: readonly SatListEntry[];
+  /**
+   * The Article 49 Bis rows for `instruction.supplierRfc`, across every
+   * publication we hold. Separate from `satEntries` because it is a separate
+   * statute with one published outcome and no published clearing, so the two
+   * cannot share a status: see `Sat49BisEntry`.
+   *
+   * Absent and empty mean the same thing to a control, an RFC on no publication
+   * we hold, and neither means the 49 Bis list is loaded. Whether it is loaded at
+   * all is a question for the list endpoint, and today the honest answer is that
+   * the SAT publishes this list one oficio at a time in the DOF and ships no
+   * machine-readable file: `packages/sat/src/snapshot/README.md`.
+   */
+  sat49BisEntries?: readonly Sat49BisEntry[];
   /** The CEP already verified for the account this instruction pays, if any. */
   cep?: Cep;
   /**
@@ -443,6 +458,12 @@ export interface ComposeInput {
    * not describe.
    */
   sweep?: SweepResult;
+  /**
+   * The retroactive sweep of the newest 49 Bis publication, when one has been
+   * run. Same money, different statute and a deadline of its own, which is why it
+   * is a second field and not a union with `sweep`.
+   */
+  sweep49Bis?: Sat49BisSweepResult;
   /**
    * What the consortium holds for the account this instruction pays, read from
    * the LOCAL snapshot by the caller. Absent is `NOT_CONSULTED`, which is what

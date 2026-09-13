@@ -197,12 +197,47 @@ refreshing it is four steps at the end of that file, one of which is that the co
 `official.test.ts` must be updated by hand so a change in the list cannot pass as a change in the
 parser.
 
-One scope correction that came out of the competitor research and belongs here: 69-B is no longer the
-only list the SAT publishes against suppliers. Article 49 Bis, in force since 1 January 2026, creates
-its own publication [4], and two incumbents already monitor it by name, one of them shipping support
-in July 2026 [31] [33]. TODO(garzario): decide before M4 whether `packages/sat` adds 49 Bis and 69-B
-Bis, or whether the docs state plainly that the sweep covers 69-B only. Sweeping one list while a
-competitor sweeps four is a question we would rather answer than be asked.
+### What we cover on 49 Bis, and what nobody can
+
+One scope correction came out of the competitor research: 69-B is no longer the only list the SAT
+publishes against suppliers. Article 49 Bis, in force since 1 January 2026, creates its own
+publication [4], and two incumbents already monitor it by name, one of them shipping support in July
+2026 [31] [33]. That was left open and is now closed, in both directions, and the answer is checkable
+[45] [46] [47].
+
+**The statute.** Article 49 Bis, fraccion X orders the SAT to publish the name and the RFC of a
+taxpayer whose CFDI it determined false, in the DOF and on its portal, within 45 business days of the
+notification of that resolution taking effect. Every third party who received those CFDI then has
+**thirty natural days from the DOF publication** to reverse the fiscal effect through a complementary
+return, and if they do not, the authority restricts THEIR OWN certificado de sello digital under
+article 17-H Bis, fraccion XIV [4]. That is a second retroactive clock with a second consequence, and
+it points at the buyer rather than at the issuer.
+
+**What the SAT actually publishes is not a list.** Verified on 2026-09-12 at the source. The SAT open
+data catalogue carries article 69, article 69-B and article 69-B Bis, and has no 49 Bis dataset at all
+[45]. The DOF publishes 49 Bis one oficio at a time as an HTML note: a search for the exact phrase
+`fraccion X del articulo 49 Bis` answered **14 notes, naming 14 taxpayers, one each, between 10 July
+and 28 August 2026**, the first of them six months after the article came into force [46]. There is no
+CSV, no minisite page and no blob endpoint for it. The columns of the `Anexo 1` table of each oficio
+are transcribed in `packages/sat/src/snapshot/README.md` together with all fourteen note ids.
+
+**So this is our coverage statement, and it is the same sentence in the product and in this
+document.** `packages/sat` ships the 49 Bis loader against that published layout, the thirty day
+window, the index and a retroactive sweep that prices already deducted invoices through the same
+arithmetic as the 69-B one; `packages/engine` produces its own Spanish finding naming the article, the
+publication date and the days left; and `GET /api/v1/sat/lookup` answers for both lists with an
+`answered` flag on each, where 49 Bis reports `coverage: "not_published_machine_readable"` with those
+counts and the URL to check them. **We do not claim to screen against the 49 Bis list, because nobody
+can screen against a list that is published as fourteen separate HTML notes.** A competitor that
+advertises daily re-screening of it [31] is either transcribing those notes by hand or scraping the
+DOF, and neither is a claim we make without the file.
+
+**69-B Bis is decided the other way, and deliberately.** Its listing does exist as open data, three
+CSV files, the complete one holding **three taxpayers** at a 5 June 2026 cut-off [47]. It is not
+wired into supplier screening and it will not be: article 69-B Bis is about the improper transfer of
+tax losses in a restructuring, so appearing on it says nothing about whether a supplier's invoice to
+us is real. The reasoning is in `docs/06-regulatory-privacy.md` section 3.2, and three taxpayers
+nationally is not a screening signal either way.
 
 ## Competitor map
 
@@ -573,3 +608,25 @@ So is 26. Sources 27, 28 and 44 are not cited in this file: they carry the segme
     wrong, the page returns 2,145, and the corrected ratio is about 204 to 1:
     <https://www.occ.com.mx/empleos/de-auxiliar-contable/en-nuevo-leon>,
     <https://www.occ.com.mx/empleos/de-auxiliar-administrativo/en-nuevo-leon>
+45. SAT, *Datos Abiertos, contribuyentes publicados y acciones contra la delincuencia*, retrieved
+    2026-09-12 at 17:24 local (UTC-6), 26,334 bytes. Under `Contribuyentes incumplidos` it carries
+    three article sections, `Articulo 69 del Codigo Fiscal de la Federacion`, `Articulo 69-B` (five
+    CSV files) and `Articulo 69-B Bis` (three CSV files), and no section for article 49 Bis. The
+    navigation of the minisite index lists the same three:
+    <https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html>,
+    <https://www.sat.gob.mx/minisitio/DatosAbiertos/index.html>
+46. Diario Oficial de la Federacion, full-text search for the exact phrase `fraccion X del articulo
+    49 Bis`, run 2026-09-12 at 17:30 local (UTC-6): 14 results, all of them oficios of the
+    Administracion Central de Fiscalizacion Estrategica of the SAT, published 10 July 2026 (oficios
+    500-05-00-00-00-2026-21468, 21469 and 21471), 7 August 2026 (21590, 21600, 21601, 24291, 24292),
+    14 August 2026 (24370, 24371, 24417) and 28 August 2026 (24472, 24524, 24525). Each names one
+    taxpayer in an `Anexo 1` table of seven columns; the columns, the note ids and the two date
+    formats the fourteen use are transcribed in `packages/sat/src/snapshot/README.md`. The same
+    search for `comprobantes fiscales falsos` returns nothing, so the phrase above is the one that
+    finds them: <https://dof.gob.mx/busqueda_detalle.php>, example note
+    <https://dof.gob.mx/nota_detalle.php?codigo=5797380&fecha=28/08/2026>
+47. SAT, *Listado completo de contribuyentes (Articulo 69-B Bis del CFF)*, open data, retrieved
+    2026-09-12. 1,256 bytes, `Last-Modified` 2026-08-19, header states `Informacion actualizada al
+    05 de junio de 2026`, three taxpayers: two `Definitivo` and one `Sentencia Favorable`. Linked
+    from [45] together with a definitivos file and a sentencias favorables file:
+    <https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Completo.csv>

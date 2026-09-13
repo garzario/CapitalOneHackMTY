@@ -1,8 +1,17 @@
 # @hackmty/sat
 
-The Article 69-B half of SentryOne. Load a published version of the SAT list, match a
-supplier RFC against it, and replay the event ledger to price what a new publication
-just did to invoices we already deducted.
+The SAT half of SentryOne. Load a published version of a SAT list, match a supplier RFC
+against it, and replay the event ledger to price what a new publication just did to
+invoices we already deducted.
+
+Two lists, because the SAT publishes two against a supplier. **Article 69-B**, the
+presumption that the operations never happened, which the SAT ships as a downloadable
+CSV and which is committed here. **Article 49 Bis**, in force since 1 January 2026, the
+determination that the CFDI themselves are false, which the SAT publishes one oficio at
+a time in the DOF with no machine-readable file at all. So this package loads one list,
+and for the other it holds the loader, the thirty day window and the sweep and reports
+its coverage honestly rather than implying it. Issue #180, and `src/snapshot/README.md`
+carries the evidence for every sentence of that paragraph.
 
 ```
 src/
@@ -13,12 +22,14 @@ src/
   match.ts              matchRfc, matchRfcAsOf, statusHistory, createSatIndex
   sweep.ts              sweep, priceSweep, paidCfdisOf, simulatePublication, the rates
   official.ts           the committed real download and its provenance
+  art49bis.ts           article 49 Bis: the loader, the 30 day window, index and sweep
   rfc.ts                normalizeRfc, isRfcShaped, the SYN prefix rule
   status.ts             the four situations and how the published file spells them
   snapshot/
-    README.md              provenance of the committed download, and how to refresh it
-    official-2026-09-12.csv the real SAT list, 14234 rows, committed as downloaded
-    synthetic.ts            20 invented rows for tests. Never for a screen
+    README.md              provenance of both lists, and how to refresh each
+    official-2026-09-12.csv the real SAT 69-B list, 14234 rows, committed as downloaded
+    synthetic.ts            20 invented 69-B rows for tests. Never for a screen
+    art49bis-fixture.csv    6 invented 49 Bis rows. NOT the SAT file: there is none
     official/               scratch downloads. Git-ignored
 ```
 
@@ -43,6 +54,42 @@ sweep(ledger, {
 `apps/api` wires exactly two endpoints to this: `GET /api/v1/sat/lookup` reads the
 official list, and `POST /api/v1/sat/publish` builds a simulated publication and
 prices it. They are separate on purpose, and the separation is ADR-0002.
+
+## The other list, Article 49 Bis
+
+```ts
+// What this build covers, which is not the same as what the statute creates.
+official49BisListing().coverage; // "not_published_machine_readable"
+
+// The loader, over a transcription of the published Anexo 1 of one oficio. The DOF
+// date is an argument because the Anexo does not state it, and the buyer's thirty
+// natural days run from it.
+const publication = parse49BisPublication(csv, { publishedAt: "2026-08-28" });
+correctionWindow("2026-08-28", now); // { correctBy: "2026-09-26", daysLeft, open }
+
+// The same arithmetic as the 69-B sweep, over the same ledger fold, plus a deadline.
+sweep49Bis(ledger, { entries: publication.entries, publishedAt: "2026-08-28" });
+```
+
+Three things are deliberately different from the 69-B half, and each of them is the
+statute rather than a preference.
+
+- **There is no status.** Fraccion X publishes one outcome, the resolution of fraccion
+  VIII inciso b), and provides for no published clearing: the other outcome lifts the
+  suspension of the taxpayer's own invoicing and is never published. Presence on the
+  list IS the state, and nothing here may report a 49 Bis taxpayer as cleared. That is
+  also why `Sat49BisEntry` is its own type and not a fifth `SatListStatus`.
+- **The publication date is a required argument.** It is nowhere inside the Anexo, and it
+  is the day the buyer's thirty natural days start, so it is the one value in this
+  package that may never be inferred.
+- **There is no `sat_49bis_published` ledger event.** While the SAT publishes no file,
+  nothing in this repository can hold a 49 Bis version it did not transcribe by hand, so
+  the publication is an argument to the sweep rather than something replayed out of the
+  event log.
+
+`src/snapshot/README.md` carries the statute with its source, the fourteen DOF oficios
+published by 2026-09-12 with their note ids, the published column layout, and the manual
+steps to turn a new one into a file this loader accepts.
 
 ## The committed snapshot
 

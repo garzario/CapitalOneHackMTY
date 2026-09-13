@@ -16,6 +16,13 @@
  *   no visible date in it, and the loader has a documented fallback column for
  *   exactly this row rather than a conversion nobody on the team can check
  *   against the DOF.
+ * - The Spanish long form, `06 de agosto de 2026`. This one is not in the 69-B
+ *   file at all: it is how the Anexo of an Article 49 Bis oficio writes the
+ *   notification dates, and it is not even consistent within that list. The
+ *   fourteen oficios the DOF had published under 49 Bis, fraccion X by
+ *   2026-09-12 use `DD/MM/YYYY` in the first seven and the long form in the last
+ *   seven, the change falling between oficio 500-05-00-00-00-2026-24291 and
+ *   500-05-00-00-00-2026-24292. One parser reads both.
  *
  * An unreadable cell returns undefined. Nothing here guesses, and nothing here
  * throws: a rejected date becomes a rejected row the loader reports by line
@@ -78,6 +85,11 @@ function parseOneDay(raw: string): string | undefined {
     return validDay(Number(iso[1]), Number(iso[2]), Number(iso[3]));
   }
 
+  const written = parseSpanishDay(trimmed);
+  if (written !== undefined) {
+    return written;
+  }
+
   const slashed = SLASHED.exec(trimmed);
   if (slashed === null) {
     return undefined;
@@ -90,6 +102,30 @@ function parseOneDay(raw: string): string | undefined {
       : Number(rawYear);
 
   return validDay(year, Number(slashed[2]), Number(slashed[1]));
+}
+
+/** `06 de agosto de 2026`, accents and case folded, as the 49 Bis Anexo writes it. */
+const WRITTEN = /^(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})$/;
+
+function parseSpanishDay(raw: string): string | undefined {
+  const match = WRITTEN.exec(fold(raw));
+  if (match === null) {
+    return undefined;
+  }
+
+  const month = SPANISH_MONTHS[match[2] ?? ""];
+  return month === undefined
+    ? undefined
+    : validDay(Number(match[3]), month, Number(match[1]));
+}
+
+function fold(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 /**
@@ -119,6 +155,53 @@ function validDay(
 
 function pad(value: number, width: number): string {
   return String(value).padStart(width, "0");
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Calendar days added to a `YYYY-MM-DD` day, in UTC.
+ *
+ * UTC and not local time on purpose: a deadline computed in a timezone would move
+ * when the process moves, and a fiscal deadline that depends on where the server
+ * runs is a bug nobody notices until it is one day wrong. Returns undefined for a
+ * day it cannot read, because a deadline is not something to guess at.
+ */
+export function addNaturalDays(day: string, days: number): string | undefined {
+  const iso = ISO.exec(day.trim());
+  if (iso === null) {
+    return undefined;
+  }
+
+  const from = Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const moved = new Date(from + days * MS_PER_DAY);
+
+  return validDay(
+    moved.getUTCFullYear(),
+    moved.getUTCMonth() + 1,
+    moved.getUTCDate(),
+  );
+}
+
+/** Whole calendar days from `from` to `to`, negative when `to` is earlier. */
+export function naturalDaysBetween(
+  from: string,
+  to: string,
+): number | undefined {
+  const left = ISO.exec(from.trim());
+  const right = ISO.exec(to.trim());
+  if (left === null || right === null) {
+    return undefined;
+  }
+
+  const start = Date.UTC(Number(left[1]), Number(left[2]) - 1, Number(left[3]));
+  const end = Date.UTC(
+    Number(right[1]),
+    Number(right[2]) - 1,
+    Number(right[3]),
+  );
+
+  return Math.round((end - start) / MS_PER_DAY);
 }
 
 /**
