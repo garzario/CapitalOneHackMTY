@@ -24,6 +24,7 @@ import {
 } from "bun:test";
 import { createSql, type Sql } from "./index";
 import {
+  ASSISTANT_PAYMENT_EVENTS_MIGRATION,
   COMPANY_MIGRATION,
   CONSORTIUM_SNAPSHOT_MIGRATION,
   DECISION_REASON_MIGRATION,
@@ -179,7 +180,52 @@ describe.skipIf(!enabled)("migrate follows a renamed file", () => {
     expect(resultFor(results, DECISION_REASON_MIGRATION).status).toBe(
       "applied",
     );
+    expect(resultFor(results, ASSISTANT_PAYMENT_EVENTS_MIGRATION).status).toBe(
+      "applied",
+    );
     await appendOnlyStillGuards();
+  });
+
+  it("accepts the five event kinds 0012 widened the ledger to", async () => {
+    /* The constraint is the only thing standing between an assistant turn and a
+       rejection at the door, and a CHECK is the one kind of migration whose effect
+       cannot be read off the file: it either accepts the row or it does not. So the
+       five kinds are inserted here, and a sixth kind the domain does not have is
+       inserted after them, because a constraint that accepts everything would pass
+       the first half of this case and mean nothing. */
+    await migrate(sql);
+
+    for (const type of [
+      "payment_settled",
+      "payment_failed",
+      "payment_cancelled",
+      "assistant_message",
+      "intake_image",
+    ]) {
+      await sql`
+        insert into ledger_events (at, type, payload)
+        values (now(), ${type}, ${sql.json({ instructionId: "INS-0012" })})
+      `;
+    }
+
+    const rows = await sql<{ count: string }[]>`
+      select count(*)::text as count from ledger_events
+      where payload->>'instructionId' = 'INS-0012'
+    `;
+    expect(rows[0]?.count).toBe("5");
+
+    let refused = false;
+    try {
+      await sql`
+        insert into ledger_events (at, type, payload)
+        values (now(), 'payment_teleported', '{}'::jsonb)
+      `;
+    } catch (cause) {
+      refused = true;
+      expect(String(cause)).toContain("ledger_events_type_check");
+    }
+    // A widening and not an opening: a kind the domain does not have is still refused.
+    expect(refused).toBe(true);
   });
 
   it("renames the recorded rows instead of running the files again", async () => {

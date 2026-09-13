@@ -18,6 +18,67 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The contract the assistant, the payment run and the three screens of 12 September are built on
+  (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
+  moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;
+  `Confidence` and `TransactionState`, the vocabulary of the whole product; `AssistantMessage`,
+  `AssistantToolCall`, `AssistantSession` and `ActionProposal`, where the assistant reads and
+  proposes and a person executes; `PaymentExecution`, `PaymentExecutionLine`,
+  `PaymentExecutionTotals` and `PaymentReceipt`, what the run did on the rail and the document it
+  produced; and `Plaza`, the three digits of a CLABE resolved to a place, whose city stays unnamed
+  until a dated Banxico snapshot lands because a city invented next to a real account number is the
+  claim ADR-0002 forbids outright. The event ledger learns `payment_settled`, `payment_failed`,
+  `payment_cancelled`, `assistant_message` and `intake_image`, `payment_sent` grows three optional
+  fields (`runId`, `rail`, `actor`) so every writer that predates the execution keeps working, and
+  `packages/db/migrations/0012_assistant_and_payment_events.sql` widens the `ledger_events` CHECK to
+  the five new kinds the way 0005 and 0010 already did it, dropped by name and recreated, with the
+  runner test asserting on a real Postgres that the five are accepted and that a sixth kind the
+  domain does not have is still refused.
+
+  The two derivations are the part worth reading. `confidenceOf` and `transactionStateOf` in
+  `packages/core/src/levels.ts` are pure, answer with the rule that fired and the findings behind it,
+  and are shared by the engine, the API, the screens and the generated mock, because the alternative
+  was the four implementations that made issue #125 possible: a level computed in four places is that
+  bug with a slower fuse. A definitive SAT listing or any critical finding is `alerta`; an account
+  with no payment history, a pending verification or any warning is `precaucion`; nothing open is
+  `confiable`, which is not the word "seguro" and never will be, because a SPEI cannot be recalled.
+  The state is `enviado` once the rail sent or settled the line and a list published afterwards does
+  not un-send it, `cancelado` when the execution dropped it, the beneficiary came back blocked or the
+  supplier is definitively listed and nobody signed a release, `rojo` when a decision stopped it or
+  the rail refused it, and the two states the run has always counted internally, `liberado` and
+  `pendiente`, so a line nobody has looked at is not green and a release on Wednesday is not
+  `enviado` until money leaves on Thursday. A release a named person signed with a written reason
+  outranks the listing and the engine's own `system` signature does not, which is ADR-0002 refusing
+  to overrule a person in either direction. Neither value is stored, for the reason `holdWindow`
+  already gave about the deadline it never stores, and every row of both tables has a test.
+
+  `docs/09-api.md` carries the endpoints: `POST /api/v1/assistant/messages` with its five SSE events
+  (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `GET /api/v1/assistant/sessions/:id`,
+  `POST /api/v1/run/:id/execute` answering `202` with one `line` event per payment,
+  `GET /api/v1/run/:id/execution`, `GET /api/v1/payments/:id/receipt` as JSON and as a PDF,
+  `GET /api/v1/instructions/:id/carta` for the one-page evidence letter, `GET /api/v1/rails` so a
+  screen can say which rail is live without reading an environment file, and `GET /health` with a
+  dependency block that still touches no network. Plus the two rules that run across all of them: the
+  `X-Actor` header on every write, with `owner` guarding exactly the exception `docs/02-persona.md`
+  gives the owner because a maker-checker chain is in the anti-persona column of that page, and the
+  level and the state on every instruction and on the run. Three ADRs argue it:
+  `docs/adr/0007-assistant-boundary.md`, where `AssistantToolCall.readOnly` is the literal `true` so
+  a writing tool cannot be expressed at all, `docs/adr/0008-payment-rails.md`, where the rail may send
+  only one line of one instruction for that instruction's own amount, which is what makes the upload
+  the payment rather than a policy, and `docs/adr/0009-states-and-levels.md` with the rule table.
+
+  `bun run web:mock` now writes the level and the state per line, the execution of the run, the
+  receipts and one assistant session of three turns, all derived and none of it typed: the blocked
+  beneficiary is the `cancelled` line and the reason quotes the two names the CEP comparison read, the
+  line whose CEP agrees only in part is `queued`, the last line handed to the rail is `sent` because a
+  rail acknowledges in its own time, and the other 83 are `settled`. No line is `failed`, because
+  nothing in the seeded company produces a rail refusal and inventing a bank error to fill a state
+  would be inventing evidence. Every receipt says `sealState: "not_checked"`, which is the honest
+  answer on a mirror that is not a SPEI participant, and carries four digits of the account rather
+  than eighteen. The assistant session quotes the engine's own `explanation` and its tool result IS
+  that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
+  not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
+
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now
   carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same

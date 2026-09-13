@@ -10,6 +10,62 @@ export type Rfc = string;
 /** 18-digit CLABE interbank account number. */
 export type Clabe = string;
 
+/**
+ * The plaza of a CLABE resolved to a place: digits 4 to 6 of the account number,
+ * which is the Banxico plaza the branch that opened it belongs to.
+ *
+ * The plaza is a signal because it moves with the account and not with the
+ * supplier: a foundry in Monterrey that has always been paid in plaza 580 and
+ * sends a new account in another plaza has changed something a clerk can ask
+ * about in one sentence. `detectClabe` in `./clabe.ts` already compares the three
+ * digits inside one institution and raises `plaza_changed`, and this type is the
+ * row that turns a code into words.
+ *
+ * `city` and `state` are filled only from a dated snapshot of the Banxico plaza
+ * table, and this repository holds no such snapshot yet: the detector compares
+ * codes and no screen names a city. Until one lands with its retrieval date,
+ * nothing may render a plaza name, because a city invented next to a real account
+ * number is the kind of claim ADR-0002 forbids outright.
+ */
+export interface Plaza {
+  /** The three digits as they appear in the CLABE, zero padded, e.g. "180". */
+  code: string;
+  city: string;
+  /** Two-letter state code, "NL" and never "Nuevo Leon". */
+  state: string;
+}
+
+/**
+ * What a person may be, and it is the only two things this product knows how to
+ * be: the clerk who runs the payment run and the owner who answers for the money.
+ *
+ * The distinction is deliberately narrow. `docs/02-persona.md` puts a formal
+ * maker-checker in the ANTI-persona column: the company this product is for has
+ * one clerk who assembles the run and an owner who is working elsewhere in the
+ * business, and inventing an approval chain it does not have would be a product
+ * nobody can use on a Thursday. So `owner` guards exactly one thing, the one thing
+ * that page says the owner does, which is approving an exception: a release over a
+ * finding. Everything else, the run included, is the clerk's own work.
+ */
+export type ActorRole = "clerk" | "owner";
+
+/**
+ * Who is acting, carried on the `X-Actor` header of every write and stamped on
+ * the ledger event that write appends.
+ *
+ * It is a name and a role and deliberately not a user account: SentryOne holds no
+ * credentials, no password and no session, because a payments product that asks a
+ * clerk to create an account before it can stop a bad payment does not get used
+ * on the Thursday of the payment run. What the header buys is the thing ADR-0002
+ * demands, that every execution has a person's name against it in an append-only
+ * ledger, and a deployment that needs authentication puts it in front of this API
+ * rather than inside the contract.
+ */
+export interface Actor {
+  name: string;
+  role: ActorRole;
+}
+
 export interface Supplier {
   rfc: Rfc;
   legalName: string;
@@ -488,6 +544,50 @@ export interface VerificationTurn {
 export type Action = "hold" | "verify" | "release";
 
 /**
+ * The level one payment is read at, and the only vocabulary the product uses for
+ * how much it trusts a line.
+ *
+ * Three words and never a number. A probability on screen invites the one
+ * question this engine cannot answer honestly, which is what 0.73 means for this
+ * supplier, and `estimateLoss` in `./decision.ts` says in its own comment that
+ * its figure is an upper bound on the evidence rather than a calibrated
+ * probability. So the arithmetic stays inside the engine and the screen gets a
+ * level with the findings that produced it.
+ *
+ * No copy of this product ever says "seguro", in any language, and that is binding
+ * under ADR-0002 and written out in ADR-0009: `confiable` is a statement about the
+ * evidence we hold, and "safe" would be a guarantee nobody can give about a
+ * transfer that cannot be recalled. `confidenceOf` in `./levels.ts` is the only
+ * place a level is derived.
+ */
+export type Confidence = "confiable" | "precaucion" | "alerta";
+
+/**
+ * Where one payment of the run stands, as the clerk reads it.
+ *
+ * Three of these are the states the team meeting of 2026-09-12 settled on and the
+ * three a screen shows: `rojo` is stopped and in front of a person, `cancelado` is
+ * not going out on this evidence, `enviado` is gone. Two more are the run's own
+ * bookkeeping, which existed before the meeting named the other three and is what
+ * `totals` has always counted: `pendiente` is a line nothing has decided yet, and
+ * `liberado` is a line nothing stops and that has not been executed.
+ *
+ * Keeping the internal pair separate is what stops the honest answer from being
+ * rounded to a colour. A line nobody has looked at is not green, and a line
+ * released on Wednesday is not `enviado` until money leaves on Thursday, which is
+ * exactly the distinction a judge tests by asking what the screen said before the
+ * run was sent. `transactionStateOf` in `./levels.ts` is the only place a state is
+ * derived, and `Action` stays what it was: the engine proposes `hold`, `verify` or
+ * `release`, and this is how that reads next to what the rail did.
+ */
+export type TransactionState =
+  | "rojo"
+  | "cancelado"
+  | "enviado"
+  | "pendiente"
+  | "liberado";
+
+/**
  * `Decision.decidedBy` of a decision the engine signed itself.
  *
  * There is exactly one of those: the beneficiary verification, where the CEP
@@ -525,6 +625,299 @@ export interface Decision {
   reason?: string;
 }
 
+/**
+ * Who spoke: the person at the keyboard, or the assistant answering them.
+ *
+ * `clerk` is the author of anything typed or dropped into the panel whatever the
+ * person's role is, because the field answers "which side of the conversation" and
+ * `AssistantMessage.actor` answers "who". An owner and a clerk are both `clerk`
+ * here and their names and roles are on the actor.
+ */
+export type AssistantAuthor = "clerk" | "assistant";
+
+/**
+ * The reads the assistant is allowed to perform, and the whole list of them.
+ *
+ * Every one is a read of something this product already computed: the run, one
+ * instruction, where its verification stands, what the execution did, the SAT
+ * lists, the consortium signal for a pair somebody already holds, a receipt. There
+ * is no tool that decides, sends, holds or releases, and that is the boundary
+ * ADR-0007 draws: the assistant reads deterministic output and proposes, and a
+ * person executes.
+ */
+export type AssistantTool =
+  | "get_run"
+  | "get_instruction"
+  | "get_verification"
+  | "get_execution"
+  | "get_receipt"
+  | "sat_lookup"
+  | "consortium_signal";
+
+/**
+ * One read the assistant performed while answering, kept so the answer can be
+ * audited against what it actually looked at.
+ *
+ * `readOnly` is the literal `true` rather than a boolean on purpose: a tool call
+ * that writes cannot be expressed in this type at all, so the boundary is
+ * structural and not a line in a comment somebody has to remember. The same rule
+ * is why `result` is `EvidenceValue` and not free text. What comes back from a
+ * tool is the engine's own evidence, rendered as the same chips the finding panel
+ * renders, so nothing a model wrote can arrive dressed as a fact.
+ */
+export interface AssistantToolCall {
+  id: string;
+  tool: AssistantTool;
+  /** What it was asked for: an instruction id, an RFC, a CLABE, a run id. */
+  arguments: Record<string, string | number | boolean>;
+  /** What came back, machine readable. Absent while the call is in flight. */
+  result?: Record<string, EvidenceValue>;
+  at: string;
+  /** Always true. Every tool in `AssistantTool` is a read. */
+  readOnly: true;
+  /**
+   * Why the read answered nothing, in one sentence. A tool that could not answer
+   * is reported rather than dropped: an assistant that quietly lost a read would
+   * be answering from its own memory, which is the failure ADR-0007 exists to
+   * prevent.
+   */
+  error?: string;
+}
+
+/**
+ * One turn of the assistant panel, stored and replayable.
+ *
+ * Messages are the conversation and never the decision. A turn may carry the reads
+ * behind it and one proposal, and the proposal is an offer: it becomes an action
+ * when a person presses the button, which appends the ordinary `decision_made`,
+ * `cent_sent` or `payment_sent` event with their name on it. Nothing in this type
+ * moves money and nothing in it scores a payment.
+ *
+ * `imageRefs` are references and never bytes. The screenshots a clerk drops in are
+ * the reason the panel exists, the extraction that reads a CLABE off one is
+ * transcription only (`packages/extract`, ADR-0004 and docs/06 section 6.2.1), and
+ * what the ledger keeps is the reference plus who dropped it.
+ */
+export interface AssistantMessage {
+  id: string;
+  sessionId: string;
+  author: AssistantAuthor;
+  /** What was said, in Spanish, as it is shown. */
+  text: string;
+  at: string;
+  /** Who typed it. Absent on an assistant turn, which nobody signs. */
+  actor?: Actor;
+  /** The instruction the turn is about, when it is about one. */
+  instructionId?: string;
+  /** Uploaded images of this turn, by reference. Never the image itself. */
+  imageRefs?: string[];
+  /** The reads behind the answer, in the order they happened. */
+  toolCalls?: AssistantToolCall[];
+  /** What the turn offers to do next. A person executes it, or does not. */
+  proposal?: ActionProposal;
+}
+
+/**
+ * One conversation, which is what `GET /api/v1/assistant/sessions/:id` answers.
+ *
+ * A session belongs to one person: `actor` is who opened it, and every message in
+ * it was read by them. It is projected from the `assistant_message` ledger events
+ * of that session id rather than stored as a second copy, for the same reason
+ * `VerificationState` is a projection: two homes for one history is two histories.
+ */
+export interface AssistantSession {
+  id: string;
+  actor: Actor;
+  startedAt: string;
+  /** The payment run the conversation is about, when it is about one. */
+  runId?: string;
+  messages: AssistantMessage[];
+}
+
+/** What an `ActionProposal` payload may carry. Primitives, so it can be shown. */
+export type ProposalValue = string | number | boolean;
+
+/**
+ * The five things the assistant can offer, and no sixth.
+ *
+ * `verify_account` is the one-cent probe, `verify_call` the call to the supplier,
+ * `decide` a hold, a verification or a release a person signs, `execute_run` the
+ * payment run leaving on the rail, and `intake` turning a dropped screenshot into
+ * an instruction. Anything outside this list is not an offer the panel can make.
+ */
+export type ProposalKind =
+  | "verify_account"
+  | "verify_call"
+  | "decide"
+  | "execute_run"
+  | "intake";
+
+/**
+ * An action the assistant proposes and a person executes.
+ *
+ * This type is where ADR-0007 is enforced rather than described. The assistant
+ * produces this object and nothing else: the payload is exactly the body of the
+ * endpoint that would run it, so the panel can show what is about to happen in the
+ * words of the request itself, and the only thing that turns it into a write is a
+ * click that carries an `X-Actor` header.
+ *
+ * `requiresRole` is the role that click has to carry. It is `owner` on exactly one
+ * shape, a `decide` that releases a payment a finding stopped, because that is the
+ * exception `docs/02-persona.md` says the owner approves; everything else,
+ * `execute_run` included, is `clerk`, because the same page has the clerk sending
+ * the run and a maker-checker chain in the anti-persona column. An API that took
+ * the proposal's word for the role would be pointless, so the role on the header is
+ * what the route checks and this field is what the panel shows before anybody
+ * presses anything.
+ *
+ * `summary` is one sentence of Spanish a person can hold responsibility for, and
+ * it never carries a probability or the word "seguro": ADR-0009 owns that
+ * vocabulary and a proposal obeys it like every other piece of copy.
+ */
+export interface ActionProposal {
+  kind: ProposalKind;
+  /** The instruction it is about. Absent on `execute_run` and on an `intake`. */
+  instructionId?: string;
+  /** The body of the endpoint that would execute it, field for field. */
+  payload: Record<string, ProposalValue>;
+  requiresRole: ActorRole;
+  summary: string;
+}
+
+/**
+ * Where one line of an executed run stands on the rail.
+ *
+ * Five states and the order is the order money moves in: `queued` is accepted and
+ * not yet sent, `sent` is gone, `settled` is acknowledged by the rail, `failed` is
+ * refused, `cancelled` is a line the run dropped before sending it. `sent` and
+ * `settled` are two different claims and collapsing them would be the demo lying
+ * about the one fact the CEP exists to prove: a transfer is acknowledged when the
+ * rail says so, not when we asked.
+ */
+export type PaymentLineState =
+  | "queued"
+  | "sent"
+  | "settled"
+  | "failed"
+  | "cancelled";
+
+/** One payment of an executed run, as the rail left it. */
+export interface PaymentExecutionLine {
+  instructionId: string;
+  state: PaymentLineState;
+  /** Pesos of this line, so the execution adds up without a join back. */
+  amount: number;
+  /** The clave de rastreo the rail filed it under. Absent while `queued`. */
+  claveRastreo?: string;
+  /** Which rail carried it. Absent on a line nothing was sent on. */
+  rail?: RailId;
+  sentAt?: string;
+  /** The receipt this line produced, by id. Absent until it was sent. */
+  receiptId?: string;
+  /**
+   * Why a `failed` or a `cancelled` line did not go out, in one sentence a clerk
+   * can act on. A failure with no sentence against it is a line nobody can answer
+   * for, and this is the one the screen shows next to the state.
+   */
+  reason?: string;
+}
+
+/**
+ * Line counts and pesos of one execution. Counts and money, never one of them:
+ * the value of this product is the pesos it moved or stopped, and a screen that
+ * reports only rows is a screen a clerk has to add up herself.
+ *
+ * The five pesos buckets are one per `PaymentLineState`, they are disjoint because
+ * a line has exactly one state, and they add up to `amount` exactly. That identity
+ * is worth keeping: a total that does not decompose is a total nobody can check
+ * against the rows under it.
+ */
+export interface PaymentExecutionTotals {
+  lines: number;
+  queued: number;
+  sent: number;
+  settled: number;
+  failed: number;
+  cancelled: number;
+  /** Pesos of the whole execution, exact to the centavo. */
+  amount: number;
+  queuedAmount: number;
+  sentAmount: number;
+  settledAmount: number;
+  failedAmount: number;
+  cancelledAmount: number;
+}
+
+/**
+ * What one payment run did on the rail, folded out of the event ledger.
+ *
+ * A projection and never a stored row, like `VerificationState`: every line comes
+ * from a `payment_sent`, `payment_settled`, `payment_failed` or
+ * `payment_cancelled` event, so the execution screen, the receipt and the run
+ * constancia read one history. `GET /api/v1/run/:id/execution` answers exactly
+ * this.
+ *
+ * It is also the answer to what SentryOne does and does not do. Until this type
+ * existed the product stopped payments and the SPEI left from the company's own
+ * banking portal; an execution means the run leaves through `packages/rail`,
+ * every line carries the clave de rastreo the rail filed it under, and a person
+ * with the `owner` role pressed the button. Nothing here is automatic and nothing
+ * here is undoable, which is why `ActionProposal.requiresRole` for `execute_run`
+ * is `owner` and why every one of these events carries an actor.
+ */
+export interface PaymentExecution {
+  runId: string;
+  lines: PaymentExecutionLine[];
+  totals: PaymentExecutionTotals;
+  /** Who pressed the button. The ledger holds the same name per line. */
+  startedBy?: Actor;
+  startedAt?: string;
+  /** Instant of the newest event behind this projection, or when it was asked. */
+  updatedAt: string;
+}
+
+/**
+ * The receipt of one payment: what left, to whom, under which clave de rastreo,
+ * and what can be proven about the seal.
+ *
+ * `GET /api/v1/payments/:id/receipt` answers it as JSON and as a PDF the
+ * accountant files. The two are the same object and the PDF adds only the ledger
+ * digest every constancia carries.
+ *
+ * Two honesty rules are in the type. `sealState` is a `SealState` and not a
+ * boolean, so a receipt printed on a server with no Banxico certificate reads
+ * "firma no verificada" and can never read as valid: a `valid` here means the
+ * sello actually validated. And the beneficiary account is four digits, because a
+ * document that leaves the building does not need the other fourteen.
+ */
+export interface PaymentReceipt {
+  id: string;
+  runId: string;
+  instructionId: string;
+  claveRastreo: string;
+  rail: RailId;
+  /** Pesos that left, exact to the centavo. */
+  amount: number;
+  sentAt: string;
+  /** When the rail acknowledged it. Absent while the line is only `sent`. */
+  settledAt?: string;
+  supplierRfc: Rfc;
+  /** Legal name on the supplier's CFDI, which is the name we paid. */
+  beneficiaryName: string;
+  /** Last four digits of the account that was paid. Never the whole CLABE. */
+  beneficiaryAccountLast4: string;
+  beneficiaryBank: string;
+  /** The CFDI this payment settles, so the receipt joins to the invoice. */
+  cfdiUuids: string[];
+  /** What can be proven about the Banxico seal of the CEP for this clave. */
+  sealState: SealState;
+  /** When the CEP for this clave was read. Absent while none has been. */
+  cepAt?: string;
+  /** Who executed the run this line belongs to. */
+  executedBy: Actor;
+  synthetic: boolean;
+}
+
 /** Append-only ledger event. The retroactive sweep is a replay over these. */
 export type LedgerEvent =
   | { type: "cfdi_received"; at: string; cfdi: Cfdi }
@@ -535,10 +928,97 @@ export type LedgerEvent =
       instruction: PaymentInstruction;
     }
   | {
+      /**
+       * The payment left. Three fields were added when the run started leaving
+       * through `packages/rail` instead of through the company's own banking
+       * portal, and all three are optional so every writer that predates the
+       * execution keeps working: `runId` is what lets `PaymentExecution` be folded
+       * out of the ledger without a join, `rail` says which rail carried it, and
+       * `actor` is the person who pressed the button. A payment with no name
+       * against it is the one row this ledger must not hold once an execution can
+       * produce one, so the route requires the header even though the type cannot.
+       */
       type: "payment_sent";
       at: string;
       instructionId: string;
       claveRastreo?: string;
+      runId?: string;
+      rail?: RailId;
+      actor?: Actor;
+    }
+  | {
+      /**
+       * The rail acknowledged the transfer. Separate from `payment_sent` because
+       * "we asked" and "the rail says it happened" are two different claims, and
+       * the receipt is only complete on the second one.
+       */
+      type: "payment_settled";
+      at: string;
+      instructionId: string;
+      claveRastreo: string;
+      receiptId: string;
+      runId?: string;
+    }
+  | {
+      /**
+       * The rail refused the line. `reason` is one sentence a clerk can act on,
+       * and it is required: a failure nobody can read is a line that quietly
+       * disappears from a run somebody is answering for.
+       */
+      type: "payment_failed";
+      at: string;
+      instructionId: string;
+      reason: string;
+      claveRastreo?: string;
+      runId?: string;
+    }
+  | {
+      /**
+       * The line was dropped before anything was sent. `actor` is absent exactly
+       * when nobody dropped it by hand: a definitive SAT listing that landed while
+       * the run was queued cancels the line on the evidence, and the reason says
+       * so. Nothing about this event releases or sends anything.
+       */
+      type: "payment_cancelled";
+      at: string;
+      instructionId: string;
+      reason: string;
+      runId?: string;
+      actor?: Actor;
+    }
+  | {
+      /**
+       * One turn of the assistant panel. The conversation is on the same
+       * append-only ledger as the payments because a proposal a person acted on is
+       * part of the history of that payment, and `AssistantSession` is projected
+       * from these rows rather than stored twice.
+       */
+      type: "assistant_message";
+      at: string;
+      sessionId: string;
+      message: AssistantMessage;
+    }
+  | {
+      /**
+       * A screenshot reached the product. This is the event that makes the intake
+       * auditable: the image is held by reference, `actor` is who dropped it, and
+       * the instruction it became is named as soon as one exists.
+       *
+       * What is never on this event is the image itself or anything read out of it
+       * beyond the reference. The extraction is transcription only and the CLABE it
+       * read lands on the instruction, where a typed CLABE always wins over one a
+       * model read.
+       */
+      type: "intake_image";
+      at: string;
+      imageRef: string;
+      actor: Actor;
+      /** Media type as it was uploaded, for example `image/jpeg`. */
+      mediaType?: string;
+      /** The assistant session it arrived through, when it arrived through one. */
+      sessionId?: string;
+      /** The instruction it became. Absent until one exists. */
+      instructionId?: string;
     }
   | {
       type: "sat_list_published";
