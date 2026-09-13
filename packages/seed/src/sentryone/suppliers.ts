@@ -20,6 +20,11 @@
  *   invoice a month has no baseline worth computing, and the detector has to say so
  *   rather than reporting a 300 per cent jump off a sample of three.
  * - `termsDays` decides when the invoice turns into a line on a payment run.
+ * - `invoicesPerMonth`, `ticket` and `termsDays` together also price what a day of
+ *   delay costs us with this supplier, in ./delay-cost.ts, because the balance we owe
+ *   them and the payment about to leave are both read off the cadence. Editing a row
+ *   moves that figure, and on one line of the reference run that figure is what
+ *   decides whether the payment is released.
  * - `tenureMonths` is how long they have been a supplier before the generated window
  *   starts. It is deliberately longer than the window for most of them, so
  *   `firstInvoiceAt` is not the same date for everybody, which is the tell of a
@@ -44,6 +49,7 @@
  */
 
 import type { Clabe, Rfc } from "@hackmty/core";
+import { AMOUNT_MEDIAN_POSITION } from "../rng";
 
 /** What the supplier sells us. Drives cadence, ticket size and seasonality. */
 export type SupplierSegment =
@@ -575,6 +581,23 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     clabe: "012180103762349018",
   },
 ];
+
+/**
+ * The median ticket of a supplier, in pesos of subtotal.
+ *
+ * The middle of the lognormal `rng.amount` draws inside the range, which is why the
+ * position comes from ../rng.ts rather than from a half here. Three callers need it
+ * and none of them may draw: the ramp sizes its cadence off it before a single
+ * invoice exists, the delay cost prices the relationship off it, and the catalogue
+ * arithmetic in the header is quoted at it. Two copies of this half would be two
+ * different medians.
+ */
+export function medianTicket(spec: SentryOneSupplierSpec): number {
+  return (
+    spec.ticket.min +
+    (spec.ticket.max - spec.ticket.min) * AMOUNT_MEDIAN_POSITION
+  );
+}
 
 /** Every synthetic RFC in the catalogue, for the invariants test and for the seeder. */
 export const SENTRYONE_SUPPLIER_RFCS: readonly string[] =

@@ -15,7 +15,7 @@ language the judge opens with. The Spanish rendering of each line goes on the pr
 
 | Time | Beat | Exact click or command | Expected on screen | The one sentence said over it | Fallback if it breaks |
 |---|---|---|---|---|---|
-| 0:00 to 0:55 | **1. The payment run** | Tab 1, already loaded: the payment-run screen | This week's run, its totals, rows sorted with the alert rail on the right by pesos at risk, seven findings on 92 instructions, 885,658.73 MXN that is not leaving, the `datos sinteticos` watermark | "This is Thursday for the person who pays the suppliers of a 28-person metalworking shop in Apodaca. Ninety two transfers in one sitting, and all of this data is synthetic. SentryOne has already read every invoice, so the run arrives sorted by how much money is at risk instead of alphabetically." | Local instance on the second port, same screen, same data |
+| 0:00 to 0:55 | **1. The payment run** | Tab 1, already loaded: the payment-run screen | This week's run, its totals, rows sorted with the alert rail on the right by pesos at risk, seven findings on 92 instructions, six lines and 785,289.86 MXN that are not leaving, the `datos sinteticos` watermark | "This is Thursday for the person who pays the suppliers of a 28-person metalworking shop in Apodaca. Ninety two transfers in one sitting, and all of this data is synthetic. SentryOne has already read every invoice, so the run arrives sorted by how much money is at risk instead of alphabetically." | Local instance on the second port, same screen, same data |
 | 0:55 to 1:50 | **2. The SAT publication replay, and a real RFC** | Click `Simular publicacion 69-B`. Then hand the judge the lookup box and let them type a real RFC | Eight months of ledger replay in under three seconds, newly listed suppliers lighting up, the exposure counters climbing (deducted base, ISR, IVA), a constancia PDF to download. The lookup box answers from the official list | "Here is the part nobody instruments. When the SAT publishes a new Article 69-B list, everything you already paid and already deducted to a supplier on it is exposed retroactively. We replay the ledger and quantify it. The list is the real one, and this box is separate from the simulation on purpose: real RFCs never touch our synthetic invoices." | The lookup box alone, offline from the committed list snapshot. If the replay stalls, the recorded video cued to this beat |
 | 1:50 to 2:35 | **3. An instruction arriving by QR** | Judge scans the QR on the printed card, photographs the CLABE printed on it, submits | The intake page accepts it, the big screen gains a row within two seconds over SSE, with the finding and the two digits that differ from the account we have paid 52 times, and the network chip next to it: the SentryOne network holds two fraud reports from other companies on this exact account, and months of payments to the account this supplier has always been paid on | "Send it yourself. That instruction went from your phone to the engine and back to this screen without a reload, and the reason it is flagged is on the chip: this account differs in two digits from the one we have paid this supplier on 52 times. The second chip is the part no Mexican tool has. Two other companies in the network have already reported this exact account as fraud, and the account this supplier has always been paid on is paid by many of them, for months. The network is synthetic, generated for this demo, and the warehouse behind it is real Snowflake." | Type the CLABE instead of photographing it. If the judge's phone fails, do it from our second phone. If SSE drops, reload once and say the stream dropped |
 | 2:35 to 3:20 | **4. The CEP and its signature** | Open the CEP viewer | The CEP fields, the clave de rastreo, the holder name next to the CFDI legal name, and the signature status as the parser reports it | "Before we release a payment to a new account, a person sends one cent. Banxico signs a receipt for every SPEI. We fetch it, compare the account holder name with the legal name on the invoice, and keep it as evidence. Say out loud that this one is the synthetic fixture and that the signature is reported as not checked: confirming the Banxico scheme needs the real certificate, which is issue #57." | The stored CEP fixture rendered from disk. Never fabricate a CEP on stage, and never say a signature was validated when it was not |
@@ -120,6 +120,30 @@ feet. Pull before the rehearsal, demo off the snapshot. On a laptop with no acco
 uplink, `bun run consortium:pull --offline` fills the same table from the deterministic generator and
 records `source = 'synthetic'`, which is the path beat 7 of `bun run demo` exercises.
 
+### The line that carries a finding and is released anyway
+
+On the run the screen opens with, seven lines carry a finding and only six of them are stopped.
+`INS-2026-09-07-032` shows a duplicate-invoice warning worth 2,088.00 MXN of expected loss and the
+engine released it, because one day of delay with that supplier costs 4,611.27 MXN. It is the only
+line on the run where the second half of the decision changes the answer, so it is the line a judge
+who reads the screen carefully will point at.
+
+**Say this.** "A finding is not an order to stop the payment. The engine weighs what is at risk
+against what waiting costs, and on that line waiting costs more than the risk, so it releases and
+leaves the finding on screen for the clerk. That is deliberate: an engine that holds everything is
+an engine the clerk switches off in week two."
+
+**Then, if they push.** The cost of a day is `Supplier.delayCostPerDay`, priced per supplier from two
+things a contract actually carries: moratory interest on the balance we owe them, and the pronto pago
+discount that expires the day the payment is late. It is higher for the raw material and the tooling
+that stop production than for consumables and services. It is on the instruction screen as "Costo de
+retrasar un dia" and the arithmetic is in `packages/seed/src/sentryone/delay-cost.ts`.
+
+**Never say** that the engine released it because the finding was weak, or that a warning is ignored.
+The finding stands, the pesos at risk are on screen, and the clerk can hold the payment anyway with
+their own name on it. And never say a critical finding could be released this way: rules 1 and 2 of
+`decide` return above the branch that weighs anything, so it cannot happen.
+
 ### Numbers the screen shows
 
 Say these only while they are on the screen. `bun run demo` prints every one of them from the API
@@ -128,7 +152,8 @@ it just drove, so the way to check this table before a rehearsal is to run it an
 | Number | Value | Where it comes from |
 |---|---|---|
 | Run total | 2,174,210.76 MXN over 92 instructions | `GET /api/v1/run/current` |
-| Not leaving yet | 885,658.73 MXN, 7 lines, 2 held and 5 to verify | The six controls over the seeded run |
+| Not leaving yet | 785,289.86 MXN, 6 lines of the 7 that carry a finding, 2 held and 4 to verify | The six controls over the seeded run |
+| What a day of delay costs | 101.98 to 4,611.27 MXN across the 44 suppliers, 1,120.05 MXN on the hero line | `Supplier.delayCostPerDay`, priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` and shown on the instruction screen |
 | Retroactive exposure | 404,152.59 MXN: 263,577.78 ISR and 140,574.81 IVA over a deducted base of 878,592.59 | `POST /api/v1/sat/publish` with `simulate` |
 | Blind evaluation | 30 labelled cases, 0.85 precision, 0.81 recall, 0.02 false positive rate | `GET /api/v1/metrics` over the holdout nobody on the detector side wrote |
 | The network, offline | 46 hashed pairs, 45 corroborated, 1 with a fraud report | Beat 7 of `bun run demo`, from the generator at seed 69, `source = 'synthetic'` |

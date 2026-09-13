@@ -52,7 +52,7 @@ Refresh this table at every milestone.
 | "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
 | "A held payment carries a deadline and a way out" | `holdWindow` in `packages/core/src/hold.ts`, on `GET /api/v1/instructions/:id` and on a recorded `verify-call`; the reason and the name on `POST /api/v1/instructions/:id/decide` | Ticked in the engine and the API. **Not on screen yet**, issue #174, so say "la API lo contesta y la pantalla lo muestra para el demo" and show it with `curl` if pushed |
 | "The run answers in pesos, not in minutes" | `runMoney` in `packages/core/src/exposure.ts`, on the `totals` of `GET /api/v1/run/current` | Ticked for the money that is stopped, released and at risk. The retroactive 69-B pair reads zero until a sweep prices a supplier in the run, issue #175 |
-| "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, and the `Costo de retrasar un dia` field on the instruction screen | **Ticked in the engine, flat in the demo data.** The generator prices no `Supplier.delayCostPerDay`, so all 92 decisions carry zero and the field reads MXN 0.00, issue #182. Say the mechanism, never point at the number |
+| "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, `Supplier.delayCostPerDay` priced per supplier in `packages/seed/src/sentryone/delay-cost.ts`, and the `Costo de retrasar un dia` field on the instruction screen | Ticked, and the number is on screen since #182: all 92 decisions carry a price between MXN 101.98 and MXN 4,611.27 a day, and on this run it changes one outcome. Point at `INS-2026-09-07-032`, released with its warning still showing because a day of delay costs MXN 4,611.27 against MXN 2,088.00 of expected loss |
 
 **The live call happened, so the row above is ticked.** Two outbound calls went out on 2026-09-12
 through the imported Twilio number to a teammate's own mobile, the first of them 18 seconds and
@@ -84,10 +84,11 @@ than being corrected.
 | Avoided loss | One held invoice of MXN 100,000 of subtotal pays 51 months of subscription; one misdirected SPEI of the same amount pays 111 months | `docs/05-business-model.md` |
 | The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`. `bun run seed` prints the suppliers, the CFDIs, the complements and the run; the headcount and the city are in `company.ts` and the event count is the ledger row of `docs/08-data-model.md` |
 | This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeSentryOne` |
-| This week's run in pesos | MXN 885,658.73 stopped (MXN 592,592.38 held plus MXN 293,066.35 to verify), MXN 1,288,552.03 released, MXN 799,209.86 at risk | `totals` of `GET /api/v1/run/current`, from `runMoney`. The two `retroactive69b` fields on the same object read zero on this run, and #175 is why |
+| This week's run in pesos | MXN 785,289.86 stopped (MXN 592,592.38 held plus MXN 192,697.48 to verify), MXN 1,388,920.90 released, MXN 799,209.86 at risk | `totals` of `GET /api/v1/run/current`, from `runMoney`. The two `retroactive69b` fields on the same object read zero on this run, and #175 is why |
+| What a day of delay costs | MXN 101.98 to MXN 4,611.27 across the 44 suppliers, MXN 1,120.05 on the hero line. Six of the seven lines that carry a finding are stopped; the seventh is released because waiting costs more than the risk | `Supplier.delayCostPerDay` on every decision of `GET /api/v1/run/current`, priced in `packages/seed/src/sentryone/delay-cost.ts` from moratory interest on the balance owed plus the pronto pago discount that expires |
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
 | The blind evaluation | 30 labelled cases and 21 labelled expectations over six detectors, scored as 183 counts. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval`, re-read on 2026-09-12. **Re-run it before quoting it.** Say 30 cases, never a pair count: six detectors on thirty cases looks like 180 slots, and the matrix sums to 183 because a detector that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
-| Tests | 1,777 tests across 97 files on 2026-09-12: 1,666 passing, 111 skipped, 0 failing | `bun test`. Say passing and skipped, because a judge who runs it sees both |
+| Tests | 1,783 tests across 97 files on 2026-09-12: 1,672 passing, 111 skipped, 0 failing | `bun test`. Say passing and skipped, because a judge who runs it sees both |
 
 The reference run amount in `docs/02-persona.md` is MXN 2,174,210.76, the same figure this table
 carries, so the pitch and the persona doc agree in front of a judge who reads both. That cell used to
@@ -174,12 +175,17 @@ Then the decision, which is the part engineers ask about: **"seis detectores ind
 hallazgo trae pesos en riesgo, y una sola decision de perdida esperada pesa esos pesos contra lo que
 cuesta retrasar ese pago un dia. Retener, verificar o liberar, y firma una persona."**
 
-**Do not open the delay figure to prove it.** The trade-off is in `decide` and in `EXPECTED_DELAY_DAYS`,
-but the seeded company prices no supplier relationship, so `Costo de retrasar un dia` renders MXN 0.00
-on every instruction and rule 3 never reaches its release branch. If an engineer asks what the delay is
-worth here, the answer is "cero en esta empresa, porque el generador no le pone precio a la relacion;
-el mecanismo esta en la decision y lo puedes leer", and #182 is what fills it in. Volunteering that is
-cheap. Being caught pointing at a zero is not.
+**Open the delay figure, it holds up now.** `Costo de retrasar un dia` carries a number on every one
+of the 92 instructions, between MXN 101.98 and MXN 4,611.27, priced per supplier from moratory interest
+on the balance we owe them plus the pronto pago discount that expires the day the payment is late, and
+higher for the raw material and the tooling that stop production than for consumables and services. On
+the hero line it reads MXN 1,120.05 against MXN 23,050.49 of expected loss, and that payment is stopped
+by its critical finding anyway, which is what rules 1 and 2 are for. The two lines where the arithmetic
+decides on its own are the pair to show an engineer: `INS-2026-09-07-077`, **"cuatrocientos veintisiete
+pesos al dia contra dos mil seiscientos diez de perdida esperada, y por eso se verifica"**, and
+`INS-2026-09-07-032`, which carries a duplicate-invoice warning of MXN 2,088.00 and is released because
+a day of delay with that supplier costs MXN 4,611.27. What must never be said is that a critical finding
+could be released that way: rules 1 and 2 of `decide` return above the branch that weighs anything.
 
 And the property that is easy to miss and worth volunteering: **every one of the six lands in `ran`
 or in `skipped` with a named reason.** A run that says "sin hallazgos" because the engine could not

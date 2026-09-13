@@ -489,6 +489,34 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- The demo company priced no supplier relationship, so the expected-loss trade-off weighed the pesos
+  at risk against zero and the field the instruction screen calls "Costo de retrasar un dia" read
+  MXN 0.00 on all 92 payments (issue #182). `packages/seed/src/sentryone/delay-cost.ts` now prices
+  `Supplier.delayCostPerDay` on all 44 suppliers from two things a Mexican supplier contract actually
+  carries: moratory interest at three per cent a month on the balance this company owes that supplier,
+  which is the monthly spend scaled by the payment terms, plus the pronto pago discount of one and a
+  half per cent on the payment that was about to leave, lost in full the day it is late because the
+  window closes. Raw material, tooling and the outside processes a shipment waits on carry
+  `LINE_STOP_FACTOR`; consumables and services carry 1, and the split is the complement of
+  `CONSUMABLE_SEGMENTS` plus the services rather than a third list, because the segments a plant buys
+  more of during a shutdown are exactly the ones whose delay does not stop a line. The result is MXN
+  101.98 to MXN 4,611.27 a day, the scale the hand-written fixture in `apps/api/src/synthetic.ts`
+  already used, and it is arithmetic over the catalogue row with no draw from the RNG, so not one
+  invoice, amount or instruction id moved: `INS-2026-09-07-047` is still the hero and
+  `INS-2026-09-07-029` is still the largest hold. What did move is the counters, and that is the point.
+  Rule 3 of `decide` now reaches its release branch on a line that carries a finding:
+  `INS-2026-09-07-032` shows a duplicate-invoice warning worth MXN 2,088.00 of expected loss and the
+  engine releases it, because a day of delay with that supplier costs MXN 4,611.27. The run is 785,289.86
+  MXN not leaving over 2 held and 4 to verify, against 885,658.73 over 2 and 5 before, and
+  `docs/10-demo-script.md`, `docs/11-pitch.md`, `docs/12-judge-qa.md` sections 5b and 5c,
+  `docs/08-data-model.md`, `docs/print/team-card.html` and beat 1 of `bun run demo` were re-read off a
+  fresh run rather than adjusted by hand. The demo now asserts the price exists on every decision, so a
+  regression to zero is a red gate instead of a flat field on stage, and the one test that assumed a
+  finding always stops a payment says what it meant instead: the four lines the demo names are stopped
+  structurally by rules 1 and 2, and a released line with a finding has to satisfy the arithmetic that
+  released it. The blind holdout is deliberately left unpriced, because nothing in a labelled case
+  document prices a relationship.
+
 - Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
   things the running product does not do, found by taking each claim to the code and to `curl`
   (issue #171). The verification-call deadline is one day and not three: `HOLD_WINDOW_DAYS` is
