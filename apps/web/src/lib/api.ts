@@ -56,6 +56,30 @@ import type {
 import { createSseDecoder, type SseFrame } from "./sse";
 
 export const API_TIMEOUT_MS = 6000;
+
+/**
+ * How long to wait for the headers of `POST /api/v1/run/:id/execute`, and the
+ * one route where the six second ceiling is the wrong measurement.
+ *
+ * `streamSse` times the wait for the headers, on the argument that a server
+ * which is answering is never cut off mid-sentence. That argument holds for the
+ * assistant, whose route opens its stream before it does any work, and it does
+ * not hold here: `apps/api/src/routes/execute.ts` executes the whole run,
+ * appends it and folds it BEFORE it writes a byte, deliberately and with its
+ * reason written next to the code, because `409` for a run with nothing to send
+ * and `503` for a server with no rail have to stay status codes. So the headers
+ * of this call cannot arrive until every line has left, on any proxy and on
+ * none.
+ *
+ * There is no measured duration to point at: `packages/rail/README.md` records
+ * the live run of 2026-09-13 as 86 lines and 1,388,920.90 MXN and does not time
+ * it. The arithmetic is enough to say six seconds is wrong, though, because 86
+ * sequential calls to a third party clear it unless every one of them answers in
+ * under 70 ms. So this is a ceiling on a server that never answered at all, not
+ * an estimate of the run: two minutes, after which the screen says so and the
+ * clerk re-reads `GET /api/v1/run/:id/execution`, which is the record either way.
+ */
+export const EXECUTE_RUN_TIMEOUT_MS = 120_000;
 export const API_PREFIX = "/api/v1";
 export const EVENTS_PATH = `${API_PREFIX}/events`;
 export const ASSISTANT_MESSAGES_PATH = `${API_PREFIX}/assistant/messages`;
@@ -1214,7 +1238,7 @@ export async function executeRun(
         execution = parsed as unknown as PaymentExecution;
       }
     },
-    { ...options, actor },
+    { timeoutMs: EXECUTE_RUN_TIMEOUT_MS, ...options, actor },
   );
 
   if (!result.ok) {

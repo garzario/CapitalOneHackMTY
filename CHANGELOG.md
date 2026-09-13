@@ -1695,6 +1695,67 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- Both Server-Sent Events streams reached the browser empty, and the reason was the same in both
+  (issue #195, the wave-2 verification pass). Nothing in the code was wrong, which is why no test
+  caught it: the socket was closed under two routes that are correct.
+
+  The runtime closes a connection that says nothing for ten seconds, and this API has two responses
+  that are legitimately quiet for longer. `GET /api/v1/events` writes its first heartbeat at fifteen
+  seconds, so the ledger stream died five seconds before its own keep-alive, on every instance, every
+  time the run was quiet: held open for forty seconds it delivered `event: ready` and then nothing.
+  That is the stream the payment-run screen and the sweep read, and it is why two beats of
+  `docs/10-demo-script.md` carry a fallback that says to reload the tab and blame the stream. And an
+  assistant turn carrying a screenshot says nothing until the extractor has answered, which is bounded
+  at twenty seconds, so the turn that is the whole reason the panel exists answered
+  `200 text/event-stream` with a body of zero bytes. `idleTimeout` on the server the entry point
+  exports is now sixty seconds, which is the two documented bounds plus margin, and
+  `apps/api/src/index.test.ts` fails if the heartbeat or the model timeout ever grows past it. It is a
+  plain property of the exported object, so `apps/api` still imports no `bun:*` module and ADR-0005 is
+  untouched. Measured after: the ledger stream heartbeats at fifteen and thirty seconds, and a turn
+  with an image returns thirty-two `token` events, two read pairs, a proposal and a `done`.
+
+  The second half was in front of it. A proxy decides for itself when to pass the response headers on,
+  and the ones we do not control hold them until the first body byte: through the Vite dev proxy the
+  headers of that same turn arrived at twenty-eight seconds, and `streamSse` in `apps/web` had already
+  given up at its six second header ceiling and printed "The API did not answer within 6000 ms" over a
+  turn the server went on to finish. The two streaming routes now write an SSE comment before the work
+  rather than after it, `STREAM_OPEN_COMMENT`, which is the mechanism the heartbeat already used and
+  adds no name to the five events of `docs/09-api.md`. Measured after: the same turn's headers arrive
+  in 111 ms instead of 28 s, and the panel renders the extraction, the level, the state, the plaza
+  sentence and the proposal card in the browser.
+
+  `POST /api/v1/run/:id/execute` could not be fixed that way and was not: it executes the whole run
+  before it writes a byte, deliberately, so that `409` and `503` stay status codes, which means its
+  headers cannot arrive until every line has left. Six seconds is simply the wrong measurement there,
+  since 86 sequential calls to a third party clear it unless every one answers in under 70 ms, so
+  `executeRun` alone waits two minutes for its headers. That is a ceiling on a server that never
+  answered, not an estimate of the run, and there is no measured duration to quote:
+  `packages/rail/README.md` records the live run of 2026-09-13 as 86 lines and 1,388,920.90 MXN and
+  does not time it.
+
+- The demo script and the architecture doc read against the screens as they are, not as they were
+  (issue #195). `docs/10-demo-script.md` had the run's findings in "the alert rail on the right" in
+  three places, an artifact the redesign of #207 replaced: the pesos at risk per control are in
+  `Controles` and the rows are the `Instrucciones` table, so beat 2 of the four-minute sheet now says
+  that the `Lista 69-B del SAT` bar climbs from 83.5 to 571.2 thousand pesos, which is the 487,672.59
+  the publication priced, instead of naming a row on a rail that is not there. The stand sheet claimed
+  a level per line on the run screen; #208 is open and that level is not rendered, so the "on screen"
+  column now says what is on screen and the fallback that was already written for this case says when
+  it was checked. The deployed pair check asked for the string `Datos: solo API`, and the screen says
+  `Solo API`. `docs/07-architecture.md` listed "the three details that make it survive a proxy" and
+  there are four; the fourth is the one that was wrong. `docs/09-api.md` now states how long a stream
+  may say nothing, because a client that does not know the number cannot tell a slow answer from a
+  dead server.
+
+  The checklist also gains the failure this pass actually found, which none of its lines would have
+  caught: a deployed instance can carry new code over a database seeded by an older build, and nothing
+  says so. On 2026-09-13 the instance had the code of #203 and #204 and a company seeded before them,
+  so `/health` was green, every endpoint answered, and the figures were quietly wrong: no supplier
+  carried a `delayCostPerDay`, `INS-2026-09-07-032` was stopped instead of released, the split read 2
+  held and 5 to verify against this file's 2 and 4, and the hero supplier's history named
+  `012180100091764613` rather than the `012580100091764611` the plaza sentence of beat 3 rests on. One
+  curl on `/api/v1/run/current` catches all of it.
+
 - The docs read again against the merged tree, 00 to 14 plus the ADRs, `README.md` and `AGENTS.md`
   (issue #202). The night of the 12th merged the assistant, the payment execution, the actor on every
   write, the plaza, the three levels and the three states, and the four documents, and a narrative
