@@ -31,6 +31,49 @@ const ACTION_RANK: Record<Action, number> = {
 const NOT_LEAVING: readonly Action[] = ["hold", "verify"];
 
 /**
+ * Which slice of the run the table is showing.
+ *
+ * The run is ninety-two instructions and eighty-five of them are releases.
+ * Ordered exceptions-first the table was correct and still unusable: the work
+ * was the top seven rows and the rest said "this one is fine", eighty-five
+ * times, over twelve screens. Eighty-five rows that all say the same thing are
+ * not a list, they are a number, and that number is already on the card above
+ * the table.
+ */
+export type RunFilter = "stopped" | "released" | "all";
+
+export function matchesFilter(
+  item: PaymentRunItem,
+  filter: RunFilter,
+): boolean {
+  switch (filter) {
+    case "stopped":
+      return NOT_LEAVING.includes(item.decision.action);
+    case "released":
+      return !NOT_LEAVING.includes(item.decision.action);
+    case "all":
+      return true;
+  }
+}
+
+export interface RunCounts {
+  stopped: number;
+  released: number;
+  all: number;
+}
+
+/** The size of each bucket, so the filter can say what it is hiding. */
+export function countsFor(items: readonly PaymentRunItem[]): RunCounts {
+  let stopped = 0;
+
+  for (const item of items) {
+    if (NOT_LEAVING.includes(item.decision.action)) stopped += 1;
+  }
+
+  return { stopped, released: items.length - stopped, all: items.length };
+}
+
+/**
  * Exceptions first, and inside a state the largest amount first. Returns a new
  * array: the run object belongs to the resource cache and sorting it in place
  * would reorder somebody else's copy.
@@ -60,7 +103,12 @@ export interface RunVerdict {
   stoppedCount: number;
   stoppedAmount: number;
   heldCount: number;
+  /* The stopped figure split by reason. The bar under the figure needs the
+     two halves separately, and a bar that recomputed them from the items
+     would be a second definition of "held" living next to this one. */
+  heldAmount: number;
   toVerifyCount: number;
+  toVerifyAmount: number;
   releasedCount: number;
   releasedAmount: number;
   totalCount: number;
@@ -77,7 +125,9 @@ export function runVerdict(run: PaymentRun): RunVerdict {
     stoppedCount: 0,
     stoppedAmount: 0,
     heldCount: 0,
+    heldAmount: 0,
     toVerifyCount: 0,
+    toVerifyAmount: 0,
     releasedCount: 0,
     releasedAmount: 0,
     totalCount: run.items.length,
@@ -96,8 +146,15 @@ export function runVerdict(run: PaymentRun): RunVerdict {
       verdict.stoppedAmount += amount;
     }
 
-    if (action === "hold") verdict.heldCount += 1;
-    if (action === "verify") verdict.toVerifyCount += 1;
+    if (action === "hold") {
+      verdict.heldCount += 1;
+      verdict.heldAmount += amount;
+    }
+
+    if (action === "verify") {
+      verdict.toVerifyCount += 1;
+      verdict.toVerifyAmount += amount;
+    }
 
     if (action === "release") {
       verdict.releasedCount += 1;

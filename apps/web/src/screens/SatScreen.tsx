@@ -15,7 +15,7 @@
 import type { SweepResult } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Amount, SectionHeader, SyntheticMark } from "../components/Primitives";
+import { Amount, SyntheticMark } from "../components/Primitives";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -41,6 +41,7 @@ import {
   stepDurationMs,
 } from "../lib/replay";
 import { useResource } from "../lib/resource";
+import { useRouteQuery } from "../lib/router";
 
 /** Short month names, so eight ticks fit across a panel on a laptop. */
 const MONTH_LABEL = [
@@ -102,6 +103,13 @@ async function rfcsToSimulate(): Promise<string[]> {
 
 export function SatScreen() {
   const reduceMotion = useReducedMotion();
+  const query = useRouteQuery();
+
+  /* A finding can hand this screen the RFC it is about. It fills the box and
+     stops there: ADR-0002 keeps the official list behind a press, so a link
+     that queried the SAT on arrival would put a real lookup one stray click
+     away from whoever opened it. */
+  const prefilledRfc = query.get("rfc") ?? "";
   const loadVersions = useCallback(
     (signal: AbortSignal) => getSatVersions({ signal }),
     [],
@@ -160,7 +168,7 @@ export function SatScreen() {
     };
   }, [replay, frameIndex, reduceMotion]);
 
-  const [rfc, setRfc] = useState("");
+  const [rfc, setRfc] = useState(prefilledRfc);
   const [lookup, setLookup] = useState<SatLookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isLooking, setIsLooking] = useState(false);
@@ -257,10 +265,10 @@ export function SatScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Lista del articulo 69-B"
-        description="Un proveedor que pasa a definitivo vuelve no deducible todo lo que ya le pagamos. El barrido retroactivo cuantifica esa exposicion; la consulta oficial es otra cosa y esta separada a proposito."
-      />
+      <p className="muted max-w-prose t-sm">
+        Un proveedor que pasa a definitivo vuelve no deducible todo lo que ya le
+        pagamos. El barrido retroactivo cuantifica esa exposicion.
+      </p>
 
       <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         <section
@@ -472,11 +480,17 @@ export function SatScreen() {
                   const lit =
                     frame === null ||
                     frame.litSoFar.includes(entry.supplier.rfc);
+                  /* The row the finding came from, marked so whoever followed
+                     the link lands on it instead of reading the list for it. */
+                  const isSubject =
+                    prefilledRfc !== "" && entry.supplier.rfc === prefilledRfc;
 
                   return (
                     <motion.li
                       key={entry.supplier.rfc}
                       className="panel-sunken flex flex-col gap-1 p-3"
+                      aria-current={isSubject ? "true" : undefined}
+                      data-highlight={isSubject ? "true" : undefined}
                       initial={false}
                       animate={{ opacity: lit ? 1 : 0.35 }}
                       transition={{ duration: reduceMotion ? 0 : 0.25 }}
