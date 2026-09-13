@@ -331,10 +331,19 @@ What a stop points at is a `data-tour` attribute on the real element, and the na
 not on any element, because an attribute removed in a refactor fails silently: the veil covers the
 whole viewport and the step still reads fine.
 
-**Two folios and no constants.** The line the tour is about arrives from `GET /api/v1/tour`, which
-derives it the way `heroOf` does offline: the largest held amount carrying a CLABE forensics finding.
-A folio written into the tour is a tour that opens on a not-found page the day the seed moves, which
-is the rule `brand/shoot.ts` already follows.
+**Two folios, one figure, and no constants.** The line the tour is about arrives from
+`GET /api/v1/tour`, which derives it the way `heroOf` does offline: the largest held amount carrying a
+CLABE forensics finding. A folio written into the tour is a tour that opens on a not-found page the
+day the seed moves, which is the rule `brand/shoot.ts` already follows, and the peso figure the first
+stop says in prose is the same kind of constant, so it travels on `TourLinks` beside the two folios
+rather than being typed into the paragraph a judge reads first.
+
+`heroOf` answers the API's own shape for both plazas, which is load-bearing rather than cosmetic:
+`plazasOf` in `apps/api/src/routes/tour.ts` sends plain place names because the telephone call says
+them out loud, and the usual one is computed from the accounts the supplier has actually been paid on
+rather than read off `previousPlazaPlaces`, which only a `plaza_changed` finding carries. Reading that
+key was one field with two shapes: offline the stop said the account had no history to compare
+against while the API's script said it had moved city.
 
 ### The call
 
@@ -368,6 +377,16 @@ the script the agent would read, built from the same line by `localScript`, and 
 `Liberar` as a simulation. The result card then says `simulado` on it and says that nothing was
 written to the ledger, because a simulated answer that looks like a real one is the one thing this
 stop must not do.
+
+`localScript` is the stand-in and the card says so. The stored prompt lives in `packages/voice` and
+the rendered call comes back from the API, including inside its `422`, so what the browser builds is
+close to the words the owner hears without being them: it opens with the same `REQUIRED_DISCLOSURE`
+the real line opens with, because a printed opening that claimed to be a person would be the one the
+agent is forbidden to use, and `LOCAL_SCRIPT_NOTE` sits above it until the API sends its own script.
+The two plazas go through `plazaNote` on the subject line and through the same three cases in the
+script, the ones `plazasFor` in `packages/voice/src/owner-script.ts` reads: two places, one place, or
+no history to compare against. The hero of the seeded run is the middle one, and a screen that
+branched only on emptiness printed one city as though it were two.
 
 The copy of the whole tour goes through the same rule as everything else: `lib/tour.test.ts` runs
 `forbiddenVerdict` over every string a stop can render, so the word this product may not say, a

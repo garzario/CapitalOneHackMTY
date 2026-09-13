@@ -58,11 +58,13 @@ import {
   formatPhone,
   isPhoneComplete,
   keepDigits,
+  LOCAL_SCRIPT_NOTE,
   localScript,
   OUTCOME_SENTENCE,
   outcomeState,
   PHONE_PREFIX,
   phoneProblem,
+  plazaNote,
   revertSentence,
   SIMULATED_EVIDENCE,
   stateFromEvent,
@@ -98,10 +100,14 @@ export function TourCall({ config }: { config: TourConfig }) {
   const [result, setResult] = useState<Result | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /* The words the agent reads. The API's own script when it answered with one,
-     including in its 422, and the offline stand-in otherwise. */
+     including in its 422, and the offline stand-in otherwise. Which of the two
+     is on screen is state as well, because the card says the words are the
+     owner's and only one of them is: the stand-in is qualified and the API's
+     script is not. */
   const [script, setScript] = useState<TourCallScript>(() =>
     localScript(config.hero),
   );
+  const [scriptFromApi, setScriptFromApi] = useState(false);
   const [revertMs, setRevertMs] = useState(config.revertAfterMs);
 
   const settled = result !== null || status === "failed";
@@ -179,6 +185,9 @@ export function TourCall({ config }: { config: TourConfig }) {
 
   const complete = isPhoneComplete(digits);
   const phoneFault = touched ? phoneProblem(digits) : null;
+  /* One city named twice is not a discrepancy, so the clause says so or is not
+     there at all. The rule is `plazaNote`, shared with the script underneath. */
+  const note = plazaNote(config.hero);
 
   const call = useCallback(async () => {
     setProblem(null);
@@ -192,6 +201,7 @@ export function TourCall({ config }: { config: TourConfig }) {
       setConversationId(answer.data.conversationId);
       setStatus("initiated");
       setScript(answer.data.script);
+      setScriptFromApi(true);
       setRevertMs(answer.data.revertAfterMs);
 
       return;
@@ -204,6 +214,7 @@ export function TourCall({ config }: { config: TourConfig }) {
 
     if (fallback !== null) {
       setScript(fallback);
+      setScriptFromApi(true);
     }
 
     setProblem(callProblem(failure));
@@ -229,9 +240,7 @@ export function TourCall({ config }: { config: TourConfig }) {
         <Amount value={config.hero.amount} size="lg" />
         <span className="subtle t-xs">
           {`Cuenta que termina en ${config.hero.accountLast4}`}
-          {config.hero.plazaNew !== "" && config.hero.plazaUsual !== ""
-            ? ` · plaza ${config.hero.plazaNew}, la de siempre ${config.hero.plazaUsual}`
-            : ""}
+          {note === "" ? "" : ` · ${note}`}
         </span>
       </div>
 
@@ -363,6 +372,13 @@ export function TourCall({ config }: { config: TourConfig }) {
           the script is the stop rather than a footnote to it. */}
       <details className="tour-script" open={!canCall}>
         <summary className="t-xs">El guion que escucha el dueno</summary>
+
+        {/* The stand-in is close to the call and is not the call, and a card
+            that promised otherwise would be claiming what it cannot check. The
+            line goes once the API sends its own script. */}
+        {scriptFromApi ? null : (
+          <p className="subtle m-0 t-xs">{LOCAL_SCRIPT_NOTE}</p>
+        )}
 
         <p className="muted m-0 t-xs">{script.firstMessage}</p>
 

@@ -358,7 +358,59 @@ export function callBody(digits: string): { phone: string; consent: true } {
   return { phone: toE164(digits), consent: true };
 }
 
+/* --------------------------------------------------------------- the plazas */
+
+/**
+ * The two plazas, in the three cases there are and not in two.
+ *
+ * `plazasFor` in `packages/voice/src/owner-script.ts` is the authority and this
+ * is the same reading of the same two fields: both known and different, both
+ * known and the same, and no history to compare against. The middle one is the
+ * case the seeded run actually produces, because the hero's finding is a check
+ * digit that does not add up and not an account that moved city, and a screen
+ * that branched only on emptiness printed "plaza APODACA, la de siempre
+ * APODACA": one city read out twice as though it were two places, next to a
+ * telephone call that says it once.
+ *
+ * Empty is an answer rather than a gap: `GET /api/v1/tour` sends a plain place
+ * name when the catalogue carries the code and nothing when it does not, and a
+ * supplier with no previous account has moved nothing at all.
+ */
+export function plazaNote(hero: TourHero): string {
+  if (hero.plazaNew === "" || hero.plazaUsual === "") {
+    return "";
+  }
+
+  return hero.plazaNew === hero.plazaUsual
+    ? `plaza ${hero.plazaNew}, la misma de siempre`
+    : `plaza ${hero.plazaNew}, la de siempre ${hero.plazaUsual}`;
+}
+
+/** The same three cases as one sentence, for the words the agent reads. */
+function plazaSentence(hero: TourHero): string {
+  if (hero.plazaNew === "" || hero.plazaUsual === "") {
+    return "La cuenta no es la que esta empresa le ha pagado antes.";
+  }
+
+  return hero.plazaNew === hero.plazaUsual
+    ? `La cuenta nueva se abrio en ${hero.plazaNew}, y las que ya le pagamos estan en esa misma plaza.`
+    : `La cuenta nueva se abrio en la plaza ${hero.plazaNew}, y la de siempre esta en ${hero.plazaUsual}.`;
+}
+
 /* --------------------------------------------------------------- the words */
+
+/**
+ * What the card says above the stand-in script, and only above that one.
+ *
+ * The words underneath are built in the browser out of the same line, and they
+ * are close to what the agent says without being it: the stored prompt lives in
+ * `packages/voice` and the rendered call comes back from the API. Printing an
+ * approximation under a label that says these are the owner's words would be
+ * this screen claiming something it cannot check, so the label is qualified
+ * here and the qualification disappears the moment the API sends its script.
+ */
+export const LOCAL_SCRIPT_NOTE =
+  "Aproximacion armada en el navegador con esta misma linea. El guion exacto lo escribe el servidor y llega al marcar, o cuando contesta que no tiene la voz configurada.";
 
 /**
  * The script, built in the browser, for a page that cannot ask a server for it.
@@ -368,23 +420,21 @@ export function callBody(digits: string): { phone: string; consent: true } {
  * offline mode promises that no request leaves the browser, and the stop whose
  * whole point is what the owner hears cannot be empty there.
  *
- * Two rules it obeys, and both are the verification call's: the account is four
- * digits and never the eighteen, and nothing in it promises a payment. It says
- * which line it is about and asks one question.
+ * Three rules it obeys. Two are the verification call's: the account is four
+ * digits and never the eighteen, and nothing in it promises a payment. The third
+ * is rule 1 of `packages/voice`, `REQUIRED_DISCLOSURE`: the line says it is an
+ * automated line in its first sentence, before anything is asked. A stand-in that
+ * dropped the disclosure would be printing, under the words the owner hears, the
+ * one opening the real agent is forbidden to use.
  */
 export function localScript(hero: TourHero): TourCallScript {
-  const plaza =
-    hero.plazaNew !== "" && hero.plazaUsual !== ""
-      ? `La cuenta nueva se abrio en la plaza ${hero.plazaNew}, y la de siempre esta en ${hero.plazaUsual}.`
-      : "La cuenta no es la que esta empresa le ha pagado antes.";
-
   return {
     firstMessage:
-      "Hola, le llamo de SentryOne, el sistema de pagos de su empresa. Hay un pago detenido de la corrida de esta semana y necesito su decision. Le tomo un minuto.",
+      "Buen dia. Le habla la linea automatica de pagos de su empresa. El control de pagos retuvo una instruccion de la corrida de esta semana y necesito su indicacion. Le tomo un minuto.",
     question: "Digame si la retenemos, o si usted la libera.",
     spoken: [
       `El pago es para ${hero.supplierName}, por ${formatMoney(hero.amount)}.`,
-      `La cuenta que llego termina en ${hero.accountLast4}. ${plaza}`,
+      `La cuenta que llego termina en ${hero.accountLast4}. ${plazaSentence(hero)}`,
       "No le voy a leer la cuenta completa, ni un digito de la cuenta de siempre.",
       "Si prefiere revisarlo, la dejamos retenida y no sale nada.",
     ],

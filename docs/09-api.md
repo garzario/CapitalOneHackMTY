@@ -780,6 +780,8 @@ Three endpoints under `/api/v1/tour`, and together they are one thing: a visitor
 
 **Its own limiter, separate from the write bucket.** One call per number per ten minutes, and twenty calls an hour from the instance, answered `429 rate_limited` with `Retry-After`. It counts a different thing from the bucket on `/api/v1`: that one protects the ledger from a loop in our own web app, and this one protects a person from their telephone ringing twice. In memory and per process, like every other limit here.
 
+It counts telephones that rang and not requests that were made. The slot is taken before the provider is asked, so two presses of the button a second apart cannot both reach the same telephone, and it is handed back on the path where the provider refused or could not be reached: that `422` rang nothing, and refusing the next attempt for ten minutes would be the instance telling a visitor at the stand about a call that never happened. A provider that accepted the call and then named no conversation keeps its slot, because there a telephone is ringing and the ten minute rule is exactly what protects the person holding it.
+
 **What reaches the ledger**, through `deps.emit`, so it is stored before it is published:
 
 1. A `verification_call` carrying `line: "owner"`, the `conversationId`, the `phoneHash`, the `question` word for word and `ownerOutcome`, which is what the owner said to do. `outcome` is that instruction in the ledger's one verification vocabulary: `hold` is `denied`, `release` is `confirmed`, and the two absences keep their names. The event is written whatever was said, because the call happened.

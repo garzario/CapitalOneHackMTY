@@ -23,6 +23,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { forbiddenVerdict } from "./assistant";
+import { formatDecimal } from "./format";
 import { mockRun } from "./mock";
 import { parsePath, queryOf } from "./router";
 import {
@@ -39,6 +40,7 @@ const SRC_DIR = join(import.meta.dir, "..");
 
 const LINKS = {
   heroInstructionId: "INS-2026-09-07-029",
+  heroAmount: 537960.97,
   cepInstructionId: "INS-2026-09-07-047",
 };
 
@@ -249,6 +251,27 @@ describe("what the steps may say", () => {
     expect(why).toContain("24");
     expect(why).toContain("46 regresan como ISR e IVA");
   });
+
+  test("the peso figure of the first stop is the line the tour is about", () => {
+    /* It was typed into the copy, which is the same class of bug as a folio
+       written down: one reseed and the paragraph a judge reads first is about a
+       payment that is not on the screen behind it. It travels now, and this is
+       the test that says it is the derived hero's own amount and not a figure
+       that happens to match today. */
+    const hero = heroOf(mockRun());
+    const config = mockTourConfig();
+    const links = linksOf(config as NonNullable<typeof config>);
+
+    expect(links.heroAmount).toBe(hero?.amount ?? -1);
+    expect(tourSteps(links)[0]?.body.join(" ")).toContain(
+      `${formatDecimal(hero?.amount ?? 0)} pesos`,
+    );
+    /* And it is read off the links rather than fixed: a different run puts a
+       different figure in the same sentence. */
+    expect(
+      tourSteps({ ...links, heroAmount: 1234.5 })[0]?.body.join(" "),
+    ).toContain("1,234.5 pesos");
+  });
 });
 
 describe("the line the tour is about", () => {
@@ -278,6 +301,29 @@ describe("the line the tour is about", () => {
     for (const line of heldWithClabe) {
       expect(line.instruction.amount).toBeLessThanOrEqual(hero?.amount ?? 0);
     }
+  });
+
+  test("the two plazas are the shape the API answers with", () => {
+    /* One field, one shape. `plazasOf` in `apps/api/src/routes/tour.ts` answers
+       plain place names because the telephone call reads them out loud, and this
+       used to answer "580 APODACA" for the same line: a code the agent would
+       have spoken as digits. The usual one used to be read off
+       `previousPlazaPlaces`, which only a `plaza_changed` finding carries, so
+       offline it was always empty and the two sides told two stories about one
+       payment. */
+    const hero = heroOf(mockRun());
+
+    expect(hero?.plazaNew).toMatch(/^[A-Z ]+$/);
+    expect(hero?.plazaUsual).toMatch(/^[A-Z ]+$/);
+
+    const item = mockRun().items.find(
+      (line) => line.instruction.id === hero?.instructionId,
+    );
+
+    /* The hero of this run was opened where the supplier has always been paid,
+       because its finding is a check digit and not a plaza that moved. */
+    expect(hero?.plazaNew).toBe(hero?.plazaUsual ?? "");
+    expect(item?.findings[0]?.evidence.previousPlazaPlaces).toBeUndefined();
   });
 
   test("the hero carries four digits of the account and never the whole one", () => {

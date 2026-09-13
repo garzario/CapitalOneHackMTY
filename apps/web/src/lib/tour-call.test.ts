@@ -29,6 +29,8 @@ import type { LedgerEvent } from "@hackmty/core";
 import type { ApiFailure } from "./api";
 import { forbiddenVerdict } from "./assistant";
 import type { TourHero, TourOwnerOutcome } from "./contract";
+import { mockRun } from "./mock";
+import { heroOf } from "./tour";
 import {
   CALL_BUTTON,
   CONSENT_TEXT,
@@ -39,11 +41,13 @@ import {
   isPhoneComplete,
   isSettled,
   keepDigits,
+  LOCAL_SCRIPT_NOTE,
   localScript,
   OUTCOME_SENTENCE,
   outcomeState,
   PHONE_DIGITS,
   phoneProblem,
+  plazaNote,
   retryAfter,
   revertSentence,
   SIMULATED_EVIDENCE,
@@ -54,14 +58,31 @@ import {
   tourCallFields,
 } from "./tour-call";
 
+/**
+ * The hero exactly as a payload carries it, and not a hand-written blend.
+ *
+ * The fixture used to pair this line's folio, amount and account with the two
+ * plazas of another one, which is a hero neither `GET /api/v1/tour` nor `heroOf`
+ * can answer: the finding on this line is a check digit that does not add up and
+ * an account seen for the first time, so both plazas are the same place and
+ * neither carries a code. That blend is why a plaza discrepancy between two
+ * identical cities shipped, so the fixture is the derived hero itself.
+ */
 const HERO: TourHero = {
   instructionId: "INS-2026-09-07-029",
   supplierRfc: "SYN980101S01",
   supplierName: "Aceros y Laminas del Norte SA de CV",
   amount: 537960.97,
   accountLast4: "9808",
-  plazaNew: "180 DISTRITO FEDERAL",
-  plazaUsual: "580 (APODACA, NL)",
+  plazaNew: "APODACA",
+  plazaUsual: "APODACA",
+};
+
+/** The other case of the same control: an account that did move city. */
+const MOVED: TourHero = {
+  ...HERO,
+  plazaNew: "DISTRITO FEDERAL",
+  plazaUsual: "APODACA",
 };
 
 /** A tour call event, with whatever the case under test changes about it. */
@@ -370,6 +391,67 @@ describe("the words the owner hears", () => {
     expect(plain.spoken.join(" ")).toContain(
       "no es la que esta empresa le ha pagado antes",
     );
+    /* Either half missing is the same case: a comparison needs both sides. */
+    expect(localScript({ ...HERO, plazaUsual: "" }).spoken.join(" ")).toContain(
+      "no es la que esta empresa le ha pagado antes",
+    );
+  });
+
+  test("it says it is an automated line before it asks anything", () => {
+    /* `REQUIRED_DISCLOSURE` in `packages/voice/src/script.ts`, which
+       `owner-script.test.ts` makes mandatory for the stored templates. The card
+       says these are the words the owner hears, so the stand-in cannot open with
+       words the real agent is forbidden to use. */
+    expect(script.firstMessage).toContain("linea automatica");
+  });
+
+  test("it says it is an approximation, and the card says so too", () => {
+    expect(LOCAL_SCRIPT_NOTE).toContain("Aproximacion");
+    expect(LOCAL_SCRIPT_NOTE).toContain("servidor");
+    expect(forbiddenVerdict(LOCAL_SCRIPT_NOTE)).toBeNull();
+  });
+});
+
+describe("the two plazas", () => {
+  test("two different cities are both named, which is the whole signal", () => {
+    expect(plazaNote(MOVED)).toBe(
+      "plaza DISTRITO FEDERAL, la de siempre APODACA",
+    );
+    expect(localScript(MOVED).spoken.join(" ")).toContain(
+      "se abrio en la plaza DISTRITO FEDERAL, y la de siempre esta en APODACA",
+    );
+  });
+
+  test("one city is not a discrepancy, and is never read out twice", () => {
+    /* The case the seeded run actually produces, and the one both renderings got
+       wrong: "plaza APODACA, la de siempre APODACA" is one place printed as two.
+       `plazasFor` in `packages/voice/src/owner-script.ts` already collapses it,
+       so the screen says the same thing the telephone does. */
+    expect(plazaNote(HERO)).toBe("plaza APODACA, la misma de siempre");
+
+    const spoken = localScript(HERO).spoken.join(" ");
+
+    expect(spoken).toContain("esa misma plaza");
+    expect(spoken.match(/APODACA/g)).toHaveLength(1);
+  });
+
+  test("nothing to compare says nothing rather than half a comparison", () => {
+    expect(plazaNote({ ...HERO, plazaUsual: "" })).toBe("");
+    expect(plazaNote({ ...HERO, plazaNew: "", plazaUsual: "" })).toBe("");
+  });
+
+  test("the fixture is a hero a real payload can carry", () => {
+    /* The offline hero is derived by the same rule the API applies and in the
+       same shape, so pinning the fixture to it is what keeps this file from
+       testing a payload no endpoint answers. */
+    expect(HERO).toEqual(heroOf(mockRun()) as TourHero);
+
+    /* Plain place names on both, per `plazasOf` in `apps/api/src/routes/tour.ts`:
+       the call says them out loud, and "580 APODACA" would be read as a code. */
+    for (const hero of [HERO, MOVED]) {
+      expect(hero.plazaNew).toMatch(/^[A-Z ]+$/);
+      expect(hero.plazaUsual).toMatch(/^[A-Z ]+$/);
+    }
   });
 });
 

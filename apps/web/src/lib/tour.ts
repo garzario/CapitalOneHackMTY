@@ -34,13 +34,14 @@
  * The call of the last stop is `components/TourCall.tsx` and `lib/tour-call.ts`.
  */
 
-import type { Detector } from "@hackmty/core";
+import { type Detector, lookupPlaza } from "@hackmty/core";
 import type {
   PaymentRun,
   PaymentRunItem,
   TourConfig,
   TourHero,
 } from "./contract";
+import { formatDecimal } from "./format";
 import { LISTED_SUPPLIER_RFC, mockRun, VERIFICATIONS } from "./mock";
 import { instructionPath, PATHS, verifyAccountPath } from "./router";
 
@@ -108,16 +109,26 @@ export type TourStep = {
 /** What the steps need from the data to point anywhere. */
 export type TourLinks = {
   heroInstructionId: string;
+  /**
+   * What that line is worth, because the first stop says it in prose.
+   *
+   * Data for the same reason the folio is: a figure typed into the copy is a
+   * figure that goes stale on the next reseed, silently and in the paragraph a
+   * judge reads first. It arrives from `GET /api/v1/tour` or, offline, from the
+   * same hero `heroOf` derives.
+   */
+  heroAmount: number;
   cepInstructionId: string;
 };
 
 /**
  * The nine stops, in order.
  *
- * A function and not a constant because two of them carry a folio, and the folio
- * belongs to whichever run this page is reading. Everything else about a step is
- * fixed: the copy does not change with the data, so a figure on screen and a
- * sentence in this file can never contradict each other by accident.
+ * A function and not a constant because three things in it belong to whichever
+ * run this page is reading: two folios and the amount of the line the first stop
+ * is about. Everything else about a step is fixed: the copy does not change with
+ * the data, so a figure on screen and a sentence in this file can never
+ * contradict each other by accident.
  */
 export function tourSteps(links: TourLinks): TourStep[] {
   return [
@@ -127,7 +138,7 @@ export function tourSteps(links: TourLinks): TourStep[] {
       title: "Por que existe SentryOne",
       body: [
         "Es jueves. Lupita Elizondo es la unica persona de administracion de un taller de veintiocho empleados en Apodaca, y arriba de ella no hay tesoreria. Tiene 92 transferencias que mandar antes del corte.",
-        "Entre ellas llega una foto de WhatsApp con una cuenta nueva, y con ella 537,960.97 pesos que se irian a un numero que nadie comparo con el de siempre.",
+        `Entre ellas llega una foto de WhatsApp con una cuenta nueva, y con ella ${formatDecimal(links.heroAmount)} pesos que se irian a un numero que nadie comparo con el de siempre.`,
         "Hay dos perdidas y ninguna se deshace. La transferencia que ya salio no regresa: de cada 100 pesos reclamados por fraude, los bancos devolvieron 24 en el primer trimestre de 2026. Y si el SAT publica al proveedor como facturador de operaciones inexistentes, las facturas que ya pagaste dejan de ser deducibles y ese impuesto se cobra de vuelta: de cada 100 pesos de subtotal que el SAT desconoce, 46 regresan como ISR e IVA.",
         "SentryOne vive en el minuto entre aprobar un pago y enviarlo. Lee las facturas que la empresa ya tiene, mira la cuenta destino y las dos listas del SAT, y dice cual retener, cual verificar y cual liberar. La decision la firma una persona, siempre.",
       ],
@@ -277,6 +288,7 @@ export function tourSteps(links: TourLinks): TourStep[] {
 /** Nine, and the card says so. Read off the list rather than typed twice. */
 export const TOUR_STEP_COUNT: number = tourSteps({
   heroInstructionId: "x",
+  heroAmount: 0,
   cepInstructionId: "x",
 }).length;
 
@@ -309,6 +321,36 @@ function evidenceText(item: PaymentRunItem, key: string): string {
   return "";
 }
 
+/**
+ * The three digits a CLABE encodes the plaza in, as the place a person says.
+ *
+ * The same slice and the same table as `plazaCityOf` in
+ * `apps/api/src/routes/tour.ts`, because the two have to answer one shape for
+ * one field. A code the committed snapshot does not carry yields nothing, which
+ * is the rule `packages/core/src/snapshot/README.md` states in its first
+ * paragraph: that catalogue may put a name on three digits and nothing else.
+ */
+function plazaCityOf(clabe: string): string {
+  const digits = clabe.replace(/\D/g, "");
+
+  return digits.length < 6 ? "" : (lookupPlaza(digits.slice(3, 6))?.city ?? "");
+}
+
+/** Where this supplier has actually been paid, as places and never as codes. */
+function usualPlazaOf(item: PaymentRunItem): string {
+  const places = new Set<string>();
+
+  for (const account of item.supplier.knownAccounts) {
+    const city = plazaCityOf(account.clabe);
+
+    if (city !== "") {
+      places.add(city);
+    }
+  }
+
+  return [...places].sort().join(" y ");
+}
+
 function largest(items: readonly PaymentRunItem[]): PaymentRunItem | null {
   return items.reduce<PaymentRunItem | null>(
     (worst, item) =>
@@ -327,6 +369,17 @@ function largest(items: readonly PaymentRunItem[]): PaymentRunItem | null {
  * fallbacks underneath are for a run where nothing is held on that control, which
  * is a run the tour still has to be able to open: a line waiting on a verification
  * first, then the largest line carrying any finding at all.
+ *
+ * The two plazas are the API's shape too, and the shape is load-bearing rather
+ * than cosmetic: `plazasOf` answers plain place names because the telephone call
+ * says them out loud, so "580 APODACA" would be read to the owner as a code. The
+ * new one comes off the finding's own evidence when the engine named it and off
+ * the account's own digits when it did not; the usual one is computed from the
+ * accounts this supplier has actually been paid on, and not off
+ * `previousPlazaPlaces`, which only a `plaza_changed` finding carries. Reading
+ * that key was one field with two shapes and two different stories: the hero of
+ * the seeded run moved no plaza, so offline the sentence said there was no
+ * history at all while the API's script said the account had moved.
  */
 export function heroOf(run: PaymentRun): TourHero | null {
   const withClabe = run.items.filter(hasClabeFinding);
@@ -339,8 +392,7 @@ export function heroOf(run: PaymentRun): TourHero | null {
     return null;
   }
 
-  const plazaCity = evidenceText(item, "plazaCity");
-  const plazaCode = evidenceText(item, "plazaCode");
+  const named = evidenceText(item, "plazaCity");
 
   return {
     instructionId: item.instruction.id,
@@ -348,13 +400,8 @@ export function heroOf(run: PaymentRun): TourHero | null {
     supplierName: item.supplier.legalName,
     amount: item.instruction.amount,
     accountLast4: item.instruction.clabe.slice(-4),
-    plazaNew:
-      plazaCity === ""
-        ? ""
-        : plazaCode === ""
-          ? plazaCity
-          : `${plazaCode} ${plazaCity}`,
-    plazaUsual: evidenceText(item, "previousPlazaPlaces"),
+    plazaNew: named === "" ? plazaCityOf(item.instruction.clabe) : named,
+    plazaUsual: usualPlazaOf(item),
   };
 }
 
@@ -405,6 +452,7 @@ export const DEFAULT_REVERT_MS = 600_000;
 export function linksOf(config: TourConfig): TourLinks {
   return {
     heroInstructionId: config.hero.instructionId,
+    heroAmount: config.hero.amount,
     cepInstructionId: config.cepInstructionId,
   };
 }

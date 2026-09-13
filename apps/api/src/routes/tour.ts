@@ -461,7 +461,27 @@ export interface TourLimiter {
   take(
     phoneHash: string,
     at: number,
-  ): { ok: true } | { ok: false; retryAfterSeconds: number; message: string };
+  ): TourSlot | { ok: false; retryAfterSeconds: number; message: string };
+}
+
+/**
+ * A slot somebody is holding, and the way to hand it back.
+ *
+ * The slot is taken BEFORE the provider is asked, on purpose: two presses of the
+ * button a second apart are two requests, and a limiter consulted after the call
+ * was placed would let both of them ring the same telephone. What that ordering
+ * costs is a slot spent on a call that never happened, and `release` is how it is
+ * paid back. A visitor at the stand whose first attempt met a provider hiccup
+ * would otherwise be told for the next ten minutes that their number had already
+ * been called, which is a sentence about something that did not happen.
+ *
+ * It is given back only where nothing rang. A provider that accepted the call and
+ * then named no conversation keeps the slot, because a telephone is ringing and
+ * the ten minute rule is exactly what protects the person holding it.
+ */
+export interface TourSlot {
+  ok: true;
+  release(): void;
 }
 
 export function createTourLimiter(): TourLimiter {
@@ -507,7 +527,23 @@ export function createTourLimiter(): TourLimiter {
       lastCallByPhone.set(phoneHash, at);
       startedAt.push(at);
 
-      return { ok: true };
+      return {
+        ok: true,
+        release() {
+          /* This take's own two entries and nothing else. Both guards matter on
+             a second take of the same hash after this one was handed back: the
+             map holds that later moment, and the hour holds both. */
+          if (lastCallByPhone.get(phoneHash) === at) {
+            lastCallByPhone.delete(phoneHash);
+          }
+
+          const index = startedAt.lastIndexOf(at);
+
+          if (index !== -1) {
+            startedAt.splice(index, 1);
+          }
+        },
+      };
     },
   };
 }
@@ -836,6 +872,11 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
           );
 
         if (call instanceof VoiceError || !call.success) {
+          /* No telephone rang, so the slot goes back. Keeping it would refuse
+             this visitor for ten minutes over a call the provider never placed,
+             and the sentence the limiter answers with would be false. */
+          slot.release();
+
           const detail =
             call instanceof VoiceError ? call.code : "the call was refused";
 
@@ -854,6 +895,10 @@ export function tourRoutes(deps: ApiDeps, tour: TourDeps = {}) {
 
         const conversationId = call.conversationId ?? "";
         if (conversationId === "") {
+          /* The slot stays here, and that is the difference from the branch
+             above: the provider accepted this one, so a telephone is ringing and
+             what the ten minute rule protects is the person holding it. What was
+             lost is the way to follow the call, not the call. */
           return c.json(
             {
               ...errorBody(

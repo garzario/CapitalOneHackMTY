@@ -504,6 +504,70 @@ describe("the tour limiter", () => {
     expect(limiter.take(hash, 599_000).ok).toBe(false);
     expect(limiter.take(hash, 600_000).ok).toBe(true);
   });
+
+  it("a slot handed back is a slot neither window spent", () => {
+    const limiter = createTourLimiter();
+    const hash = hashPhone("salt", PHONE);
+
+    /* One more than the hour allows, because a take that is given back has to
+       leave both structures exactly where it found them: the number is free
+       again and the hour never counted the call. */
+    for (let index = 0; index <= TOUR_HOURLY_LIMIT; index += 1) {
+      const slot = limiter.take(hash, index);
+
+      expect([index, slot.ok]).toEqual([index, true]);
+
+      if (slot.ok) {
+        slot.release();
+      }
+    }
+  });
+
+  it("a call the provider refused does not spend the number's ten minutes", async () => {
+    /* The booth case, and the reason the slot is handed back at all: one
+       provider hiccup must not lock a visitor's number out for ten minutes and
+       tell them their telephone already rang. */
+    let placed = 0;
+    const http: HttpLike = async (url) => {
+      if (url.includes("/outbound-call")) {
+        placed += 1;
+
+        return placed === 1
+          ? new Response(JSON.stringify({ detail: "no" }), { status: 500 })
+          : new Response(
+              JSON.stringify({
+                success: true,
+                message: "call started",
+                conversation_id: CONVERSATION,
+                callSid: "CA-test",
+              }),
+              { status: 200 },
+            );
+      }
+
+      return new Response(JSON.stringify(DONE_SILENT), { status: 200 });
+    };
+    const { deps: tour, settled } = tourDeps(http);
+    const { app } = createTestApp({}, undefined, tour);
+
+    const refused = await app.request(
+      "/api/v1/tour/call",
+      call({ phone: PHONE, consent: true }),
+    );
+    expect(refused.status).toBe(422);
+
+    /* The same number, immediately. Nothing rang the first time, so there is
+       nothing for the ten minute rule to protect yet. */
+    const again = await app.request(
+      "/api/v1/tour/call",
+      call({ phone: PHONE, consent: true }),
+    );
+
+    expect(again.status).toBe(202);
+    expect(placed).toBe(2);
+
+    await settled();
+  });
 });
 
 /* -------------------------------------------------------------------------- */

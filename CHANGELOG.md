@@ -154,6 +154,53 @@ section landed after that tag was cut.
 
 ### Fixed
 
+- **The tour showed a plaza discrepancy between two identical cities, and the telephone call did not**
+  (issue #216). `GET /api/v1/tour` answers `APODACA` for both plazas of the hero on the seeded run,
+  because the finding on that line is a check digit that does not add up and an account seen for the
+  first time, not an account that moved city. `plazasFor` in `packages/voice/src/owner-script.ts`
+  already collapsed that case to `esa misma plaza`, so the call said the city once; both renderings on
+  the screen branched only on emptiness, so the subject line read `plaza APODACA, la de siempre
+  APODACA` and the printed script read `se abrio en la plaza APODACA, y la de siempre esta en
+  APODACA`. One place, printed as two, on the stop whose whole point is that the account does not
+  match. The three cases are one function now, `plazaNote` in `apps/web/src/lib/tour-call.ts`, shared
+  by the subject line and the script, and a case with both plazas equal is a test.
+
+- **The offline hero and the API disagreed about the shape of one contract field** (issue #216).
+  `heroOf` built `plazaNew` as `580 APODACA`, a code the call would have read out as digits, where the
+  API sends the plain place name it documents, and it read `plazaUsual` off `previousPlazaPlaces`,
+  which only a `plaza_changed` finding carries, so offline it was always empty. Running both printed
+  two different stories about one payment: `?data=mock` said the account was simply not one this
+  company had paid before, and the API path said it had moved plaza. `heroOf` now computes the usual
+  plaza from the accounts the supplier has actually been paid on, exactly as `plazasOf` does on the
+  server, and the offline hero is byte for byte the payload the endpoint answers.
+
+  The fixture in `apps/web/src/lib/tour-call.test.ts` was the reason this shipped: it paired the
+  hero's folio, amount and account with the two plazas of a different line, a hero neither side can
+  answer. It is the derived hero itself now, asserted against `heroOf`.
+
+- **A provider hiccup locked a visitor's number out of the tour for ten minutes** (issue #216).
+  `POST /api/v1/tour/call` took the limiter slot before asking the provider and gave it back on
+  neither `422`, so a first attempt that rang nothing was answered `422`, and the second attempt with
+  the same number was answered `429 Retry-After: 600` and the sentence `This number was already called
+  by the tour in the last ten minutes`, about a call that never happened. The slot is still taken
+  first, because two presses of the button a second apart must not both ring the same telephone, and
+  it is handed back on the path where the provider refused or could not be reached. A provider that
+  accepted the call and named no conversation keeps its slot: there a telephone is ringing.
+
+- **The printed script opened with words the real line may not use** (issue #216). The card labelled
+  `El guion que escucha el dueno` is open by default wherever calls are off, which is every deployment
+  that has not been given the flag, and `localScript` opened it with `Hola, le llamo de SentryOne, el
+  sistema de pagos de su empresa`. `REQUIRED_DISCLOSURE` in `packages/voice/src/script.ts` makes
+  `linea automatica` mandatory in the greeting of both stored agents, and the live agent opens with
+  `Le habla la linea automatica de pagos`. The stand-in carries the disclosure now, and a line above it
+  says the words are an approximation until the API sends its own script, because the browser builds
+  them and the server writes them.
+
+- **The peso figure of the first stop was typed into the copy** (issue #216). `537,960.97 pesos` sat in
+  the prose of a feature whose every other figure is derived from the run, one reseed from being stale
+  in the paragraph a judge reads first. It travels on `TourLinks` beside the two folios now, and a test
+  ties the sentence to the derived hero's own amount.
+
 - **A sentence this project shipped about its own configuration was wrong, and it pointed the next
   person at the wrong variable** (issue #216). The note in `vite.config.ts` and the changelog entry
   beside it said that an API with no `DATABASE_URL` serves the small in-memory run. It does not.
