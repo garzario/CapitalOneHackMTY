@@ -12,7 +12,11 @@ commands, and `bun run release-check` is the gate that runs before them.
 
 ## [Unreleased]
 
-Everything below is on `dev` and is the content of the coming `[1.0.0]`. The order inside each
+Nothing yet. v1.0.0 is the HackMTY 2026 submission; anything after it is a P0 demo fix and lands here.
+
+## [1.0.0] - 2026-09-13
+
+Everything below is the content of `[1.0.0]`, the HackMTY 2026 submission. The order inside each
 group is the order of `AGENTS.md` "Where things live": the intelligence first, then the transport,
 then the screens, then the narrative, then the plumbing.
 
