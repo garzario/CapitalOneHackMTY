@@ -316,7 +316,7 @@ describe("runConstancia", () => {
     // The money that left, and not the whole run.
     expect(pdf).toContain("(31,320.00) Tj");
     // Who pressed the button, because nothing here happens without a person.
-    expect(pdf).toContain("(Lupita Elizondo \\(responsable de pagos\\)) Tj");
+    expect(pdf).toContain("(Lupita Elizondo \\(capturista\\)) Tj");
     // And the line that did not leave carries the reason it did not.
     expect(pdf).toContain("(Lineas que no salieron) Tj");
     expect(pdf).toContain("definitiva");

@@ -20,7 +20,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { syntheticCepFor, syntheticCepXml } from "@hackmty/cep";
-import type { Cep, LedgerEvent } from "@hackmty/core";
+import type { Actor, Cep, LedgerEvent } from "@hackmty/core";
 import { SYSTEM_DECIDER } from "@hackmty/core";
 import { createSql, type Sql } from "@hackmty/db";
 import { FakeRail } from "@hackmty/rail";
@@ -49,7 +49,15 @@ import {
   verificationStateSchema,
 } from "./schemas";
 import { sentryoneDataset } from "./sentryone";
-import { createTestApp, flush, TEST_NOW } from "./test-app";
+import {
+  actorHeader,
+  createTestApp,
+  flush,
+  TEST_CLERK,
+  TEST_NOW,
+  TEST_OWNER,
+  writeHeaders,
+} from "./test-app";
 
 const url = process.env.TEST_DATABASE_URL;
 const enabled =
@@ -71,10 +79,17 @@ const REMOTE_TIMEOUT_MS = 180_000;
 
 type ErrorBody = { error: { code: string; message: string } };
 
-function json(body: unknown): RequestInit {
+/**
+ * A JSON write, with the actor every write endpoint requires.
+ *
+ * The header is the default clerk unless a test names somebody else, so a test
+ * about a role says which role it is about and every other test reads as it did
+ * before the header existed.
+ */
+function json(body: unknown, actor: Actor = TEST_CLERK): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: writeHeaders(actor),
     body: JSON.stringify(body),
   };
 }
@@ -321,13 +336,26 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
 
       const res = await app.request(
         `/api/v1/instructions/${id}/decide`,
-        json({ action: "release", decidedBy: "ana.tesoreria" }),
+        json(
+          {
+            action: "release",
+            decidedBy: TEST_OWNER.name,
+            reason: "El proveedor confirmo la cuenta y la nomina sale hoy.",
+          },
+          TEST_OWNER,
+        ),
       );
 
       expect(res.status).toBe(200);
       const body = decideResponseSchema.parse(await res.json());
       expect(body.decision.action).toBe("release");
-      expect(body.decision.decidedBy).toBe("ana.tesoreria");
+      expect(body.decision.decidedBy).toBe(TEST_OWNER.name);
+      /* The name, the capacity and the argument, all three through the normalised
+         projection: `decided_by`, `decided_by_role` from 0013 and `reason` from
+         0011. A store that answered two of the three would print a constancia the
+         memory store cannot. */
+      expect(body.decision.decidedByRole).toBe("owner");
+      expect(body.decision.reason).toContain("la nomina sale hoy");
       // The engine's own decision is still there: a clerk who holds on Thursday
       // and releases on Friday leaves two rows, and the constancia needs both.
       const rows = await sql<{ count: number }[]>`
@@ -363,7 +391,14 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
       const { app } = harness(clerkAt);
       const res = await app.request(
         `/api/v1/instructions/${id}/decide`,
-        json({ action, decidedBy: "ana.tesoreria" }),
+        json(
+          {
+            action,
+            decidedBy: TEST_OWNER.name,
+            reason: "Revisado con el proveedor antes de la corrida.",
+          },
+          TEST_OWNER,
+        ),
       );
 
       expect(res.status).toBe(200);
@@ -374,7 +409,119 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
         await (await app.request(`/api/v1/instructions/${id}`)).json(),
       );
       expect(detail.decision?.action).toBe(action);
-      expect(detail.decision?.decidedBy).toBe("ana.tesoreria");
+      expect(detail.decision?.decidedBy).toBe(TEST_OWNER.name);
+      expect(detail.decision?.decidedByRole).toBe("owner");
+    });
+
+    it("refuses the clerk the exception on Postgres too, and stores nothing", async () => {
+      /* The role rule is the route's and the store is not supposed to matter, so
+         it is asserted on both: a 403 that appended a decision row here and not
+         there would be two products again. */
+      const { app } = harness();
+      const created = intakeResponseSchema.parse(
+        await (
+          await app.request(
+            "/api/v1/instructions",
+            json({
+              supplierRfc: LISTED_RFC,
+              amount: 9900.25,
+              clabe: "012180101391764613",
+              source: "email",
+            }),
+          )
+        ).json(),
+      );
+      const id = created.instruction.id;
+      const before = await sql<{ count: number }[]>`
+        select count(*)::int as count from decisions where instruction_id = ${id}
+      `;
+
+      const res = await app.request(
+        `/api/v1/instructions/${id}/decide`,
+        json({
+          action: "release",
+          decidedBy: TEST_CLERK.name,
+          reason: "urge",
+        }),
+      );
+      expect(res.status).toBe(403);
+      expect(((await res.json()) as ErrorBody).error.code).toBe("forbidden");
+
+      const after = await sql<{ count: number }[]>`
+        select count(*)::int as count from decisions where instruction_id = ${id}
+      `;
+      expect(after[0]?.count).toBe(before[0]?.count ?? 0);
+    });
+
+    it("reads the cancellation of a line off the ledger, like the memory store", async () => {
+      const { app, deps } = harness();
+      const created = intakeResponseSchema.parse(
+        await (
+          await app.request(
+            "/api/v1/instructions",
+            json({
+              supplierRfc: LISTED_RFC,
+              amount: 7310.1,
+              clabe: "012180101391764613",
+              source: "email",
+            }),
+          )
+        ).json(),
+      );
+      const id = created.instruction.id;
+
+      expect(await pg.cancellation(id)).toBeUndefined();
+
+      await deps.repo.appendEvent({
+        type: "payment_cancelled",
+        at: TEST_NOW,
+        instructionId: id,
+        reason: "La corrida se cerro sin este pago.",
+        actor: TEST_CLERK,
+      });
+
+      /* Both halves of the projection survive the jsonb round trip, which is the
+         part that could quietly differ: the reason and the actor live in the
+         payload and no column was added for either. */
+      expect(await pg.cancellation(id)).toEqual({
+        at: TEST_NOW,
+        reason: "La corrida se cerro sin este pago.",
+        actor: TEST_CLERK,
+      });
+
+      /* And the route refuses the clerk a decision on it, on this store too. */
+      const res = await app.request(
+        `/api/v1/instructions/${id}/decide`,
+        json({
+          action: "hold",
+          decidedBy: TEST_CLERK.name,
+          reason: "otra vez",
+        }),
+      );
+      expect(res.status).toBe(403);
+      expect(((await res.json()) as ErrorBody).error.message).toContain(
+        "cancelled",
+      );
+    });
+
+    it("reads who published a list version off the ledger, like the memory store", async () => {
+      const { app } = harness();
+      const published = satPublishResponseSchema.parse(
+        await (
+          await app.request(
+            "/api/v1/sat/publish",
+            json(
+              { simulate: true, rfcs: [LISTED_RFC], status: "presunto" },
+              TEST_OWNER,
+            ),
+          )
+        ).json(),
+      );
+
+      expect(await pg.publisher(published.listVersion)).toEqual(TEST_OWNER);
+      /* A version nobody posted here answers undefined rather than a name, which
+         is what makes the sweep constancia able to say so. */
+      expect(await pg.publisher("1999-01-01")).toBeUndefined();
     });
 
     it("GET /api/v1/ledger honours the limit and treats since as exclusive", async () => {
@@ -633,7 +780,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
         json({
           outcome: "denied",
           evidence: "Esa cuenta no es nuestra.",
-          recordedBy: "tesoreria@example.mx",
+          recordedBy: TEST_CLERK.name,
         }),
       );
 
@@ -805,7 +952,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
 
         const response = await app.request(
           `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verify-account`,
-          { method: "POST" },
+          { method: "POST", headers: { "x-actor": actorHeader() } },
         );
         expect(response.status).toBe(202);
         const state = verificationStateSchema.parse(await response.json());
@@ -865,7 +1012,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
 
         await app.request(
           `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verify-account`,
-          { method: "POST" },
+          { method: "POST", headers: { "x-actor": actorHeader() } },
         );
 
         const events = await pg.verificationEvents(
@@ -958,7 +1105,7 @@ describe.skipIf(!enabled)("PostgresRepository", () => {
 
         const response = await app.request(
           `/api/v1/instructions/${encodeURIComponent(line.instruction.id)}/verify-account`,
-          { method: "POST" },
+          { method: "POST", headers: { "x-actor": actorHeader() } },
         );
 
         expect(response.status).toBe(503);

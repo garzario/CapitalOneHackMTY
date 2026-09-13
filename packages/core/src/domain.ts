@@ -613,6 +613,21 @@ export interface Decision {
    */
   decidedBy?: string;
   /**
+   * The role that name was acting in, from the `X-Actor` header of the request.
+   *
+   * `decidedBy` answers who and this answers in what capacity, which is the half
+   * an auditor reads first: a release over a finding is the owner's exception to
+   * approve (`decideRequirement` in `./actor.ts`), and a document that printed
+   * the name without the role would leave whoever reads it a year later unable to
+   * tell an approved exception from a clerk exceeding theirs.
+   *
+   * Absent on a decision the engine signed itself, because `SYSTEM_DECIDER` is
+   * not a person and has no role, and absent on a decision taken before the
+   * header existed. The evidence letter of issue #204 reads it next to
+   * `decidedBy`, and the constancia prints both.
+   */
+  decidedByRole?: ActorRole;
+  /**
    * Why that person chose this action, in their own words.
    *
    * Absent on the engine's own proposal, because the engine's reasoning is the
@@ -620,7 +635,9 @@ export interface Decision {
    * the urgent payment: a clerk releases something the engine held, and the
    * responsibility has a name in `decidedBy` and an argument here. Both land on
    * the `decision_made` ledger event, so a release nobody can explain later is
-   * not a thing this product allows.
+   * not a thing this product allows. Required on the two shapes
+   * `decideRequirement` calls the owner's: an exception approved with no argument
+   * is the record ADR-0002 refuses to hold.
    */
   reason?: string;
 }
@@ -918,14 +935,45 @@ export interface PaymentReceipt {
   synthetic: boolean;
 }
 
-/** Append-only ledger event. The retroactive sweep is a replay over these. */
+/**
+ * Append-only ledger event. The retroactive sweep is a replay over these.
+ *
+ * Every row a person caused carries them: `actor` on the eight variants that have
+ * it (`instruction_received`, `payment_sent`, `payment_cancelled`,
+ * `intake_image`, `sat_list_published`, `cent_sent`, `cep_verified` and
+ * `verification_call`), `Decision.decidedBy` plus `decidedByRole` on
+ * `decision_made`, and `AssistantMessage.actor` on a turn somebody typed. The API
+ * requires the `X-Actor` header on every write precisely so that this type can
+ * answer "who" without a join.
+ *
+ * Three variants deliberately carry nobody, and the absence is the statement.
+ * `payment_settled` and `payment_failed` are the rail answering, not a person
+ * acting, and `cep_awaited` is a wait. Naming the clerk on them would read as a
+ * second action she never took, and the event above each of them already carries
+ * the name and the clave de rastreo these follow. `cfdi_received` and
+ * `complement_received` are documents arriving from the SAT side of the world,
+ * which nobody in this company signs either.
+ *
+ * The fields are optional because the generator writes most of these variants
+ * for the seeded company, where no person typed anything, and because the ledger
+ * predates the header. An event a request created always has one.
+ */
 export type LedgerEvent =
   | { type: "cfdi_received"; at: string; cfdi: Cfdi }
   | { type: "complement_received"; at: string; complement: PaymentComplement }
   | {
+      /**
+       * A payment instruction reached the product.
+       *
+       * `actor` is whoever posted it, from the `X-Actor` header the intake route
+       * requires, and it is optional only because the generator writes this event
+       * for the seeded company, where no person typed anything. Every instruction
+       * a request created carries one.
+       */
       type: "instruction_received";
       at: string;
       instruction: PaymentInstruction;
+      actor?: Actor;
     }
   | {
       /**
@@ -1021,10 +1069,19 @@ export type LedgerEvent =
       instructionId?: string;
     }
   | {
+      /**
+       * A version of a SAT list was loaded into this instance.
+       *
+       * `actor` is who posted it, which the sweep constancia prints: a document
+       * that prices eight months of deductions against a list has to say who put
+       * that list in front of it. Optional for the same reason
+       * `instruction_received` is, the generator writes this event too.
+       */
       type: "sat_list_published";
       at: string;
       listVersion: string;
       entries: SatListEntry[];
+      actor?: Actor;
     }
   | {
       /**
@@ -1051,6 +1108,8 @@ export type LedgerEvent =
        * that settled, and this is the flag that makes that impossible.
        */
       simulated: boolean;
+      /** Who pressed the button. The probe costs a centavo of somebody's money. */
+      actor?: Actor;
     }
   | {
       /**
@@ -1072,7 +1131,22 @@ export type LedgerEvent =
       /** Why nothing was found, in one sentence a clerk can act on. */
       reason: string;
     }
-  | { type: "cep_verified"; at: string; cep: Cep; supplierRfc: Rfc }
+  | {
+      /**
+       * A CEP was accepted as evidence about who holds an account.
+       *
+       * `actor` is who handed it over, which matters more here than on most of
+       * these rows: the primary path is a person pasting a document they
+       * downloaded, so the ledger records whose download it was. Absent when the
+       * one-cent pipeline resolved the CEP itself, where the `cent_sent` above it
+       * already carries the name.
+       */
+      type: "cep_verified";
+      at: string;
+      cep: Cep;
+      supplierRfc: Rfc;
+      actor?: Actor;
+    }
   | {
       /**
        * A verification call was placed to the supplier and it ended. The event
@@ -1105,6 +1179,16 @@ export type LedgerEvent =
        * the demo leans on when there is no telephony on site.
        */
       recordedBy?: string;
+      /**
+       * Who made the request, from the `X-Actor` header.
+       *
+       * It carries the role `recordedBy` cannot, and it is present on an agent
+       * call too, where `recordedBy` is absent: somebody still chose to ring a
+       * supplier about a payment. The two agree by the time they are stored,
+       * because the route refuses a `recordedBy` that is not the name on the
+       * header.
+       */
+      actor?: Actor;
     }
   | { type: "decision_made"; at: string; decision: Decision };
 
@@ -1118,4 +1202,33 @@ export interface Metrics {
   recall: number;
   falsePositiveRate: number;
   perDetector: Record<Detector, { tp: number; fp: number; fn: number }>;
+  /**
+   * The same evaluation read the way a clerk reads the screen: not "did control
+   * 2 fire" but "did this payment come out `alerta` when it should have".
+   *
+   * A control can be right and the line still wrong. Two `warning` findings and
+   * one missed `critical` is a good per-control row and a payment that reads
+   * `precaucion` when it should read `alerta`, which is the failure the clerk
+   * actually experiences. Per level is the only view that catches it, and it is
+   * the number to defend on `confiable`: a line the product called trustworthy
+   * and that was not is the one mistake this product cannot make twice.
+   *
+   * One case contributes to exactly one expected level and one predicted level,
+   * so the three cells sum to `cases` down each axis. Precision on a level is
+   * "of the lines we called this, how many were", recall is "of the lines that
+   * were, how many we called".
+   */
+  perLevel: Record<
+    Confidence,
+    {
+      /** Cases whose expected level is this one. */
+      expected: number;
+      /** Cases the engine put at this level. */
+      predicted: number;
+      /** Cases where both agree. */
+      agreed: number;
+      precision: number;
+      recall: number;
+    }
+  >;
 }

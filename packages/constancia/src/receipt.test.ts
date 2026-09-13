@@ -127,7 +127,7 @@ describe("paymentReceipt", () => {
     const pdf = text(paymentReceipt(input()));
 
     expect(pdf).toContain("(Lupita Elizondo) Tj");
-    expect(pdf).toContain("Responsable de pagos");
+    expect(pdf).toContain("capturista");
   });
 
   it("says it is not a CFDI, which is the mistake it is most likely to invite", () => {

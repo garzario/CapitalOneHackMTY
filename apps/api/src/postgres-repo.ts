@@ -29,6 +29,7 @@
 
 import { nameMatch } from "@hackmty/cep";
 import type {
+  Actor,
   Cfdi,
   ConsortiumPull,
   ConsortiumSnapshotRow,
@@ -66,7 +67,9 @@ import {
   insertLedgerTx,
   insertPaymentComplements,
   insertSatListVersion,
+  latestCancellation,
   latestDecision,
+  latestListPublisher,
   latestRunWeek,
   listCfdis,
   listCfdisByIssuer,
@@ -104,6 +107,7 @@ import {
 } from "@hackmty/seed";
 import { assessRun } from "./assess";
 import type {
+  Cancellation,
   CompanyIdentity,
   ConsortiumLookup,
   IntakeRecord,
@@ -425,6 +429,14 @@ export class PostgresRepository implements Repository {
     return readVerificationEvents(this.sql, instructionId, beneficiaryAccount);
   }
 
+  async cancellation(instructionId: string): Promise<Cancellation | undefined> {
+    return latestCancellation(this.sql, instructionId);
+  }
+
+  async publisher(listVersion: string): Promise<Actor | undefined> {
+    return latestListPublisher(this.sql, listVersion);
+  }
+
   async paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]> {
     return readPaymentEvents(this.sql, query);
   }
@@ -489,7 +501,7 @@ export class PostgresRepository implements Repository {
   async recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
     reason?: string,
   ): Promise<Decision | undefined> {
@@ -505,7 +517,8 @@ export class PostgresRepository implements Repository {
       delayCostPerDay: current.delayCostPerDay,
       findings: current.findings,
       decidedAt,
-      decidedBy,
+      decidedBy: actor.name,
+      decidedByRole: actor.role,
     };
     if (reason !== undefined) {
       decision.reason = reason;

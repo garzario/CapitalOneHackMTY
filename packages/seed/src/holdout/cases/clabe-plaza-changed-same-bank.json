@@ -1,0 +1,60 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-plaza-changed-same-bank",
+  "title": "Same bank, different plaza: the account moved a thousand kilometres and nothing else changed",
+  "kind": "positive",
+  "notes": "Geography, which is the half of a CLABE nobody reads. Digits four to six are the plaza, and this supplier has invoiced from Monterrey for four years on an account opened in plaza 180. The new account is at the same bank, so a check that only compares the institution sees nothing, and the account number itself is close enough to the old one to look like a correction. What moved is where the account lives.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-129",
+      "supplierRfc": "SYN303232S32",
+      "cfdiUuids": ["000000cc-0000-4d00-8a00-0000000000cc"],
+      "clabe": "012002100091764610",
+      "amount": 74240.0,
+      "source": "email",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "text": "Buen dia, actualizamos los datos bancarios. Misma institucion, favor de usar la cuenta adjunta.",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN303232S32",
+      "legalName": "Aislantes Termicos de Monterrey SA de CV",
+      "firstInvoiceAt": "2022-06-09T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2022-07-01T15:30:00.000Z",
+          "timesPaid": 61
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "000000cc-0000-4d00-8a00-0000000000cc",
+        "serie": "A",
+        "folio": "455",
+        "issuedAt": "2026-08-31T15:30:00.000Z",
+        "issuerRfc": "SYN303232S32",
+        "issuerName": "Aislantes Termicos de Monterrey SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 64000.0,
+        "iva": 10240.0,
+        "total": 74240.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "because": "Every account this supplier has been paid on is in the same plaza as the address on its invoices, and this one is not. Nothing about that is proof, and a company can open an account anywhere, which is why it asks rather than concludes."
+    }
+  ],
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
+}

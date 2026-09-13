@@ -35,7 +35,7 @@ import type {
   SkippedDetector,
   SupplierModel,
 } from "@hackmty/core";
-import { composeFindingsReport, decide } from "@hackmty/core";
+import { composeFindingsReport, confidenceOf, decide } from "@hackmty/core";
 import { runControls, SENTRYONE_DETECTORS } from "@hackmty/engine";
 import type { CasePrediction, PredictedFinding } from "./metrics";
 import type { HoldoutCase } from "./types";
@@ -79,6 +79,10 @@ export function composeInputFor(holdout: HoldoutCase): ComposeInput {
     cfdis: cfdis ?? [],
     complements: complements ?? [],
     satEntries: satEntries ?? [],
+    // A separate statute with its own list, so a separate field. Empty and
+    // absent mean the same thing to a control: this RFC is on no publication we
+    // hold, which is not the same as the list not being loaded.
+    sat49BisEntries: holdout.input.sat49BisEntries ?? [],
     ...(cep === undefined ? {} : { cep }),
     bankMirror: holdout.input.bankMirror ?? [],
     now: instruction.receivedAt,
@@ -100,7 +104,16 @@ function predictionFor(
     now: holdout.input.instruction.receivedAt,
   });
 
-  return { caseId: holdout.id, findings: predicted, action: decision.action };
+  return {
+    caseId: holdout.id,
+    findings: predicted,
+    action: decision.action,
+    // The level the clerk would read, from the same `confidenceOf` the screens
+    // and the mocks call. Deriving it here rather than in the scorer keeps the
+    // scorer ignorant of how a prediction was made, which is the property that
+    // lets a test score a hand-written one.
+    level: confidenceOf(findings, decision),
+  };
 }
 
 /** Runs the six controls over every case and turns each report into a prediction. */

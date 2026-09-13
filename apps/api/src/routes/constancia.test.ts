@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { createTestApp } from "../test-app";
+import {
+  createTestApp,
+  TEST_CLERK,
+  TEST_OWNER,
+  writeHeaders,
+} from "../test-app";
 
 type ErrorBody = { error: { code: string; message: string } };
 
@@ -92,6 +97,47 @@ describe("GET /api/v1/sat/constancia", () => {
     expect(text).toContain("no una firma electronica");
   });
 
+  it("prints who loaded the version, and says so when nobody here did", async () => {
+    const { app } = createTestApp();
+    const fixture = await aLoadedVersion(app);
+    const before = asText(
+      await bytes(
+        await app.request(
+          `/api/v1/sat/constancia?listVersion=${encodeURIComponent(fixture)}`,
+        ),
+      ),
+    );
+
+    /* The fixture's own version arrived with the repository, so there is no name
+       to print and the page says that rather than leaving a blank line. */
+    expect(before).toContain("(Cargada por) Tj");
+    expect(before).toContain("No se cargo desde esta instancia");
+
+    /* A version this instance was posted carries the name and the capacity of
+       whoever posted it, off the `sat_list_published` event. */
+    const published = (await (
+      await app.request("/api/v1/sat/publish", {
+        method: "POST",
+        headers: writeHeaders(TEST_OWNER),
+        body: JSON.stringify({
+          simulate: true,
+          rfcs: ["SYN020202BBB"],
+          status: "definitivo",
+        }),
+      })
+    ).json()) as { listVersion: string };
+
+    const after = asText(
+      await bytes(
+        await app.request(
+          `/api/v1/sat/constancia?listVersion=${encodeURIComponent(published.listVersion)}`,
+        ),
+      ),
+    );
+
+    expect(after).toContain(`${TEST_OWNER.name} \\(dueño\\)`);
+  });
+
   it("refuses a version this instance never held, rather than printing an empty one", async () => {
     const { app } = createTestApp();
     const res = await app.request(
@@ -152,6 +198,26 @@ describe("GET /api/v1/run/:id/constancia", () => {
     expect(text).toContain("(Instrucciones revisadas) Tj");
     expect(text).toContain("detenidas");
     expect(text).toContain("(Hallazgos con detalle) Tj");
+  });
+
+  it("prints who signed each resolution, and calls the engine the engine", async () => {
+    const { app } = createTestApp();
+
+    await app.request("/api/v1/instructions/ins-2026w37-01/decide", {
+      method: "POST",
+      headers: writeHeaders(TEST_CLERK),
+      body: JSON.stringify({ action: "hold", decidedBy: TEST_CLERK.name }),
+    });
+
+    const text = asText(
+      await bytes(await app.request("/api/v1/run/current/constancia")),
+    );
+
+    expect(text).toContain("(Quien resolvio cada instruccion) Tj");
+    expect(text).toContain(`${TEST_CLERK.name} \\(capturista\\)`);
+    /* The lines the engine decided are on the page too and say so, so the
+       document never implies a person looked at a line nobody looked at. */
+    expect(text).toContain("(Firma) Tj");
   });
 
   it("watermarks the synthetic company on the document itself", async () => {

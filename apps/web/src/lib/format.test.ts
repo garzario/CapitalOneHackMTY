@@ -12,6 +12,7 @@ import {
   formatDate,
   formatMoney,
   formatPercent,
+  formatPlural,
   shortUuid,
   splitClabe,
 } from "./format";
@@ -98,5 +99,31 @@ describe("shortUuid", () => {
 
   test("leaves a short string alone", () => {
     expect(shortUuid("a1b2")).toBe("a1b2");
+  });
+});
+
+describe("formatPlural", () => {
+  test("leaves a singular alone", () => {
+    expect(formatPlural(1, "hallazgo")).toBe("1 hallazgo");
+  });
+
+  test("adds -s after a vowel", () => {
+    expect(formatPlural(3, "hallazgo")).toBe("3 hallazgos");
+  });
+
+  /* The case that made this function exist. "instruccion" is the noun the
+     payment run counts most, and the obvious +s rule prints "instruccions"
+     on the screen the product is judged on. */
+  test("adds -es after a consonant", () => {
+    expect(formatPlural(0, "instruccion")).toBe("0 instrucciones");
+    expect(formatPlural(92, "instruccion")).toBe("92 instrucciones");
+  });
+
+  test("turns a final -z into -ces", () => {
+    expect(formatPlural(2, "vez")).toBe("2 veces");
+  });
+
+  test("keeps the thousands separator the rest of the app uses", () => {
+    expect(formatPlural(1200, "instruccion")).toBe("1,200 instrucciones");
   });
 });

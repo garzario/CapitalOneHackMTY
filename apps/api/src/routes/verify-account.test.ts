@@ -11,11 +11,17 @@
 
 import { describe, expect, it } from "bun:test";
 import { syntheticCepFor } from "@hackmty/cep";
-import type { Cep } from "@hackmty/core";
+import type { Cep, LedgerEvent } from "@hackmty/core";
 import { FakeRail } from "@hackmty/rail";
 import { staticCepInbox } from "../cep";
 import { verificationStateSchema } from "../schemas";
-import { createTestApp, flush, TEST_NOW } from "../test-app";
+import {
+  actorHeader,
+  createTestApp,
+  flush,
+  TEST_CLERK,
+  TEST_NOW,
+} from "../test-app";
 
 const HELD_ID = "ins-2026w37-01";
 const HELD_CLABE = "058580000123456812";
@@ -53,10 +59,14 @@ function withRail(ceps: readonly Cep[] = []) {
   });
 }
 
-function post(app: ReturnType<typeof withRail>["app"], id: string) {
+function post(
+  app: ReturnType<typeof withRail>["app"],
+  id: string,
+  actor = TEST_CLERK,
+) {
   return app.request(
     `/api/v1/instructions/${encodeURIComponent(id)}/verify-account`,
-    { method: "POST" },
+    { method: "POST", headers: { "x-actor": actorHeader(actor) } },
   );
 }
 
@@ -199,5 +209,45 @@ describe("the stream", () => {
     stop();
 
     expect(seen).toEqual(["cent_sent", "cep_awaited"]);
+  });
+
+  it("names whoever spent the centavo, and names nobody on the wait", async () => {
+    /* One click, one name. The CEP that follows, the wait for it and the decision
+       the engine signs `system` are consequences of that click rather than three
+       more human actions, and `cep_awaited` carrying a clerk would read as a
+       second thing she did. */
+    const { app, deps } = withRail();
+    const seen: LedgerEvent[] = [];
+    const stop = deps.events.subscribe((event) => seen.push(event));
+
+    await post(app, HELD_ID);
+    await flush();
+    stop();
+
+    const sent = seen.find((event) => event.type === "cent_sent");
+    expect(sent?.type === "cent_sent" ? sent.actor : undefined).toEqual(
+      TEST_CLERK,
+    );
+
+    const awaited = seen.find((event) => event.type === "cep_awaited");
+    expect(awaited).toBeDefined();
+    expect(Object.keys(awaited ?? {})).not.toContain("actor");
+  });
+
+  it("refuses the probe with no actor on it, because the cent is somebody's money", async () => {
+    const { app, deps } = withRail();
+    const seen: LedgerEvent[] = [];
+    const stop = deps.events.subscribe((event) => seen.push(event));
+
+    const res = await app.request(
+      `/api/v1/instructions/${encodeURIComponent(HELD_ID)}/verify-account`,
+      { method: "POST" },
+    );
+    stop();
+
+    expect(res.status).toBe(400);
+    /* And no cent left. A `cent_sent` for a probe nobody authorised is the one
+       entry this ledger must not hold. */
+    expect(seen).toEqual([]);
   });
 });

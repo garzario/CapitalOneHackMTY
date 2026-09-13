@@ -79,6 +79,12 @@ export function constanciaRoutes(deps: ApiDeps) {
         }
 
         const company = await deps.repo.company();
+        /* Who loaded the version, off the `sat_list_published` event rather than
+           out of the ledger page above: that page is the oldest 500 events and a
+           publication from a minute ago would not be in it. Undefined is the
+           honest answer for the committed official snapshot, which nobody in this
+           company posted. */
+        const publishedBy = await deps.repo.publisher(listVersion);
         const bytes = sweepConstancia({
           company,
           issuedAt: deps.clock.now(),
@@ -88,6 +94,7 @@ export function constanciaRoutes(deps: ApiDeps) {
           publishedAt: snapshot.publishedAt,
           source: sourceOf(listVersion),
           suppliersChecked: snapshot.suppliersChecked,
+          ...(publishedBy === undefined ? {} : { publishedBy }),
         });
 
         return pdf(c, bytes, constanciaFilename("sweep", listVersion));

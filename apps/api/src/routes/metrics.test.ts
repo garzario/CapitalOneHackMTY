@@ -90,4 +90,40 @@ describe("GET /api/v1/metrics", () => {
 
     expect(second).toEqual(first);
   });
+
+  it("reports the evaluation per confidence level as well as per control", async () => {
+    const { app } = createTestApp();
+    const metrics = metricsSchema.parse(
+      await (await app.request("/api/v1/metrics")).json(),
+    );
+
+    const levels = Object.keys(metrics.perLevel).sort();
+    expect(levels).toEqual(["alerta", "confiable", "precaucion"]);
+  });
+
+  it("counts every case once on each axis of the level matrix", async () => {
+    const { app } = createTestApp();
+    const metrics = metricsSchema.parse(
+      await (await app.request("/api/v1/metrics")).json(),
+    );
+
+    const rows = Object.values(metrics.perLevel);
+    const expected = rows.reduce((total, row) => total + row.expected, 0);
+    const predicted = rows.reduce((total, row) => total + row.predicted, 0);
+
+    expect(expected).toBe(metrics.cases);
+    expect(predicted).toBe(metrics.cases);
+  });
+
+  it("never calls a payment confiable that was not", async () => {
+    const { app } = createTestApp();
+    const metrics = metricsSchema.parse(
+      await (await app.request("/api/v1/metrics")).json(),
+    );
+
+    // The one mistake this product cannot make twice. A line it called
+    // trustworthy and that was not is worse than ten it stopped for nothing,
+    // so this is the row to defend and the one to watch in review.
+    expect(metrics.perLevel.confiable.precision).toBe(1);
+  });
 });

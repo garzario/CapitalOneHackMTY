@@ -3,6 +3,7 @@
  * runtime dependencies at all. See README.md in this folder for the rule.
  */
 
+export * from "./actor";
 export * from "./behaviour";
 export * from "./cfdi";
 export * from "./clabe";

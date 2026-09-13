@@ -72,16 +72,6 @@ import { loadSentryOne } from "../packages/seed/src/index.ts";
 
 const HTTP_TIMEOUT_MS = 10_000;
 
-/**
- * Who the demo executes the run as.
- *
- * Every write in this product carries an actor and the ledger records the name, so the
- * demo carries one too rather than reaching for a path that does not need it. Lupita
- * Elizondo is the persona of `docs/02-persona.md` and she is synthetic like everything
- * else here.
- */
-const DEMO_ACTOR = "role=clerk; name=Lupita Elizondo";
-
 /* -------------------------------------------------------------------------- */
 /* Transport                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -201,10 +191,24 @@ function remoteApi(base: string): Api {
   };
 }
 
+/**
+ * Who is driving the demo.
+ *
+ * Every write endpoint requires an `X-Actor` and answers 400 naming the header
+ * without one, so the beat sheet carries the persona of `docs/02-persona.md`. She
+ * is a clerk, which is the point: nothing on this path is the owner's exception,
+ * and a demo that had to be the owner to run would be saying the opposite of what
+ * `docs/02-persona.md` says about this company.
+ */
+const DEMO_ACTOR = "role=clerk; name=Lupita Elizondo";
+
 function post(body: unknown): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-actor": DEMO_ACTOR,
+    },
     body: JSON.stringify(body),
   };
 }
@@ -825,7 +829,7 @@ async function beatVerification(api: Api, say: Say): Promise<void> {
 async function verify(api: Api, line: VerifyLine) {
   const response = await api.request(
     `/api/v1/instructions/${encodeURIComponent(line.instructionId)}/verify-account`,
-    { method: "POST" },
+    { method: "POST", headers: { "x-actor": DEMO_ACTOR } },
   );
   need(
     response.status === 202,

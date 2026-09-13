@@ -25,13 +25,18 @@
  * chain in the anti-persona column, so sending the run is the clerk's own work and the
  * owner-only shape is a release over a finding, which belongs to `decide`. The header
  * is still required, because the ledger has to answer who.
+ *
+ * The header is parsed with `parseActorHeader` rather than through the `requireActor`
+ * middleware, for the reason that function's own comment gives: a route that answers
+ * `text/event-stream` has to start the stream before a middleware could fail it, so the
+ * two streaming endpoints read the same header with the same function instead of a
+ * second reading of the same contract.
  */
 
 import { readLayoutResponse } from "@hackmty/rail";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { actorOf } from "../actor";
 import type { ApiDeps } from "../deps";
 import {
   applyLayoutResponse,
@@ -41,6 +46,7 @@ import {
   layoutFor,
 } from "../execution";
 import { fail, notFound, rejectInvalid } from "../http";
+import { ACTOR_HEADER, parseActorHeader } from "../middleware/actor";
 import {
   executeBodySchema,
   idParamSchema,
@@ -84,7 +90,7 @@ export function executeRoutes(deps: ApiDeps) {
       async (c) => {
         const { id } = c.req.valid("param");
         const body = c.req.valid("json");
-        const actor = actorOf(c);
+        const actor = parseActorHeader(c.req.header(ACTOR_HEADER));
 
         if (!actor.ok) {
           return fail(c, 400, "bad_request", actor.message);
@@ -212,7 +218,7 @@ export function executeRoutes(deps: ApiDeps) {
       async (c) => {
         const { id } = c.req.valid("param");
         const { file } = c.req.valid("json");
-        const actor = actorOf(c);
+        const actor = parseActorHeader(c.req.header(ACTOR_HEADER));
 
         if (!actor.ok) {
           return fail(c, 400, "bad_request", actor.message);

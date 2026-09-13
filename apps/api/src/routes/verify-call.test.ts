@@ -7,13 +7,13 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import type { LedgerEvent } from "@hackmty/core";
+import type { Actor, LedgerEvent } from "@hackmty/core";
 import { CONVERSATION_PAYLOAD, TRANSCRIPT_DENIED } from "@hackmty/voice";
 import {
   verifyCallResponseSchema,
   verifyCallScriptResponseSchema,
 } from "../schemas";
-import { createTestApp, TEST_NOW } from "../test-app";
+import { createTestApp, TEST_CLERK, TEST_NOW, writeHeaders } from "../test-app";
 import type { VoiceDeps } from "./verify-call";
 
 /** Instruction 1 of the synthetic run: the CLABE one digit off a known one. */
@@ -58,10 +58,17 @@ function voice(answer: { status?: number; body: unknown }): {
   };
 }
 
-function json(body: unknown): RequestInit {
+/**
+ * A JSON write, with the actor every write endpoint requires.
+ *
+ * The header is the default clerk unless a test names somebody else, so a test
+ * about a role says which role it is about and every other test reads as it did
+ * before the header existed.
+ */
+function json(body: unknown, actor: Actor = TEST_CLERK): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: writeHeaders(actor),
     body: JSON.stringify(body),
   };
 }
@@ -379,7 +386,7 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
       json({
         outcome: "denied",
         evidence: "Me dijo que esa cuenta no es de ellos",
-        recordedBy: "clerk@sintetica.mx",
+        recordedBy: TEST_CLERK.name,
       }),
     );
 
@@ -399,7 +406,25 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     /* The name is why the schema requires it. A hand-recorded call with nobody
        against it would be the only human action in this product that the ledger
        cannot attribute, on the exact path the demo falls back to. */
-    expect(event.recordedBy).toBe("clerk@sintetica.mx");
+    expect(event.recordedBy).toBe(TEST_CLERK.name);
+    /* And the actor next to it, which carries the role a bare name cannot. */
+    expect(event.actor).toEqual(TEST_CLERK);
+  });
+
+  it("refuses a hand-recorded outcome signed by somebody other than the header", async () => {
+    const { app, deps } = createTestApp();
+    const events: LedgerEvent[] = [];
+    deps.events.subscribe((event) => events.push(event));
+
+    const res = await app.request(
+      path(),
+      json({ outcome: "confirmed", recordedBy: "Alguien Mas" }),
+    );
+
+    expect(res.status).toBe(400);
+    /* Nothing is appended. A call outcome signed by one name under a header
+       carrying another is a record nobody could rely on later. */
+    expect(events).toEqual([]);
   });
 
   it("leaves recordedBy off a call the agent placed, because there the conversation id is the provenance", async () => {
@@ -420,13 +445,16 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     }
     expect(event.manual).toBe(false);
     expect(event.recordedBy).toBeUndefined();
+    /* The actor is still there: somebody chose to ring a supplier about a payment,
+       and that is a human action whoever placed the call. */
+    expect(event.actor).toEqual(TEST_CLERK);
   });
 
   it("accepts no_answer with no sentence, because silence is an outcome", async () => {
     const { app } = createTestApp();
     const res = await app.request(
       path(),
-      json({ outcome: "no_answer", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "no_answer", recordedBy: TEST_CLERK.name }),
     );
     const body = verifyCallResponseSchema.parse(await res.json());
 
@@ -441,7 +469,7 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     const { app } = createTestApp();
     const res = await app.request(
       path(),
-      json({ outcome: "no_answer", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "no_answer", recordedBy: TEST_CLERK.name }),
     );
     const body = verifyCallResponseSchema.parse(await res.json());
 
@@ -475,7 +503,7 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     const { app } = createTestApp();
     const res = await app.request(
       path("ins-2026w37-04"),
-      json({ outcome: "no_answer", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "no_answer", recordedBy: TEST_CLERK.name }),
     );
     const body = verifyCallResponseSchema.parse(await res.json());
 
@@ -488,7 +516,7 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     const { app } = createTestApp();
     const res = await app.request(
       path(),
-      json({ outcome: "denied", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "denied", recordedBy: TEST_CLERK.name }),
     );
     const body = verifyCallResponseSchema.parse(await res.json());
 
@@ -499,7 +527,7 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     const { app } = createTestApp();
     const res = await app.request(
       path(),
-      json({ outcome: "maybe", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "maybe", recordedBy: TEST_CLERK.name }),
     );
 
     expect(res.status).toBe(400);
@@ -535,7 +563,7 @@ describe("POST /api/v1/instructions/:id/verify-call, the basics", () => {
       (
         await app.request(
           `/api/v1/instructions/${INSTRUCTION}/decide`,
-          json({ action: "hold", decidedBy: "clerk@sintetica.mx" }),
+          json({ action: "hold", decidedBy: TEST_CLERK.name }),
         )
       ).status,
     ).toBe(200);

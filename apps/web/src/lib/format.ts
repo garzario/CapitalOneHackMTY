@@ -65,6 +65,33 @@ export function formatCount(value: number): string {
   return integerFormatter.format(value);
 }
 
+/**
+ * A count and the noun it counts, agreeing in number.
+ *
+ * "1 hallazgo(s)" is the shape a template leaves behind, and the payment run
+ * carried it once per row. The rule here is the regular Spanish one, which is
+ * the only one this interface needs: a word ending in an unstressed vowel takes
+ * -s, one ending in -z takes -ces, and anything else takes -es. That last case
+ * is not academic -- "instruccion" is the noun this app counts most, and naive
+ * +s would print "instruccions" on the busiest screen in the product.
+ *
+ * Irregular nouns are out of scope on purpose: the app counts six things, all
+ * of them regular, and a plural engine for six words is a plural engine nobody
+ * maintains.
+ */
+export function formatPlural(count: number, singular: string): string {
+  const noun = count === 1 ? singular : pluralise(singular);
+
+  return `${formatCount(count)} ${noun}`;
+}
+
+function pluralise(singular: string): string {
+  if (/[aeiou]$/i.test(singular)) return `${singular}s`;
+  if (/z$/i.test(singular)) return `${singular.slice(0, -1)}ces`;
+
+  return `${singular}es`;
+}
+
 /** Thousands separated, up to two decimals. For evidence values. */
 export function formatDecimal(value: number): string {
   return decimalFormatter.format(value);

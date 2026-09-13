@@ -33,6 +33,7 @@ import type {
 } from "../packages/seed/src/holdout/index.ts";
 import {
   ALL_DETECTORS,
+  ALL_LEVELS,
   computeMetrics,
   emptyMetrics,
   parseHoldoutCase,
@@ -153,6 +154,44 @@ function printTable(
   console.log(`false positive rate  ${pct(metrics.falsePositiveRate)}`);
 }
 
+/**
+ * The level matrix, which is the per-control table read the way a clerk reads
+ * the screen.
+ *
+ * It is printed second and not first because the per-control table is what a
+ * detector author fixes. This one is what a judge asks about: a control can be
+ * right and the line still read `precaucion` when it should read `alerta`, and
+ * the row that matters most is `confiable`, because a payment the product
+ * called trustworthy and that was not is the mistake it cannot make twice.
+ */
+function printLevels(
+  metrics: Metrics,
+  rows: readonly { expectedLevel: string; predictedLevel?: string }[],
+): void {
+  const width = Math.max(...ALL_LEVELS.map((level) => level.length));
+
+  console.log("");
+  console.log(
+    `${pad("nivel", width)}  ${padStart("esperado", 10)}${padStart("predicho", 10)}${padStart("coincide", 10)}${padStart("precision", 12)}${padStart("recall", 9)}`,
+  );
+  console.log("-".repeat(width + 53));
+
+  for (const level of ALL_LEVELS) {
+    const cell = metrics.perLevel[level];
+    console.log(
+      `${pad(level, width)}  ${padStart(cell.expected, 10)}${padStart(cell.predicted, 10)}${padStart(cell.agreed, 10)}${padStart(pct(cell.precision), 12)}${padStart(pct(cell.recall), 9)}`,
+    );
+  }
+
+  const agreed = rows.filter(
+    (row) => row.predictedLevel === row.expectedLevel,
+  ).length;
+  console.log("-".repeat(width + 53));
+  console.log(
+    `${pad("total", width)}  ${padStart(rows.length, 10)}${padStart(rows.length, 10)}${padStart(agreed, 10)}`,
+  );
+}
+
 const cases = await loadCases(casesDir);
 
 const predictions: CasePrediction[] = runEngine(cases);
@@ -174,6 +213,7 @@ if (flags.has("--json")) {
 } else {
   console.log(`eval: ${cases.length} case(s) from ${casesDir}`);
   printTable(evaluation.metrics, evaluation.trueNegatives);
+  printLevels(evaluation.metrics, evaluation.rows);
 
   if (flags.has("--rows")) {
     console.log("");
@@ -181,7 +221,8 @@ if (flags.has("--json")) {
       const verdict =
         row.missed.length === 0 && row.spurious.length === 0 ? "ok  " : "MISS";
       console.log(
-        `[${verdict}] ${row.caseId}  expected ${row.expected.join(",") || "-"}  got ${row.predicted.join(",") || "-"}`,
+        `[${verdict}] ${row.caseId}  expected ${row.expected.join(",") || "-"}  got ${row.predicted.join(",") || "-"}` +
+          `  level ${row.expectedLevel} -> ${row.predictedLevel ?? "-"}`,
       );
     }
   }

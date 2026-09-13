@@ -29,7 +29,7 @@
  */
 
 import type { PaymentReceipt, SealState } from "@hackmty/core";
-import { formatAmount } from "@hackmty/core";
+import { ACTOR_ROLE_LABEL, formatAmount } from "@hackmty/core";
 import {
   type ConstanciaCommon,
   closeWithFingerprint,
@@ -111,10 +111,9 @@ export function paymentReceipt(input: PaymentReceiptInput): Uint8Array {
 
   sheet.heading("Quien lo ejecuto");
   sheet.field("Persona", receipt.executedBy.name);
-  sheet.field(
-    "Rol",
-    receipt.executedBy.role === "owner" ? "Dueno" : "Responsable de pagos",
-  );
+  // The same label the constancia prints, from `@hackmty/core`: three documents that
+  // called one role three things would be three products on one desk.
+  sheet.field("Rol", ACTOR_ROLE_LABEL[receipt.executedBy.role]);
   sheet.gap(12);
 
   sheet.heading("Sello del CEP");

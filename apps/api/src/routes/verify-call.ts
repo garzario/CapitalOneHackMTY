@@ -44,6 +44,7 @@
  */
 
 import type {
+  Actor,
   Decision,
   VerificationOutcome,
   VerificationTurn,
@@ -60,6 +61,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { errorBody, fail, notFound, rejectInvalid, requestIdOf } from "../http";
+import { actorOf, requireActor } from "../middleware/actor";
 import {
   idParamSchema,
   type VerifyCallResponse,
@@ -177,11 +179,26 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
     )
     .post(
       "/:id/verify-call",
+      requireActor,
       zValidator("param", idParamSchema, rejectInvalid),
       zValidator("json", verifyCallBodySchema, rejectInvalid),
       async (c) => {
+        const actor = actorOf(c);
         const { id } = c.req.valid("param");
         const body = c.req.valid("json");
+
+        /* The hand-recorded variant names a person and so does the header, so
+           they have to be the same person. Neither name is echoed back, for the
+           reason `rejectInvalid` gives about a CLABE: a refusal is the response
+           most likely to be pasted into a chat. */
+        if ("outcome" in body && body.recordedBy !== actor.name) {
+          return fail(
+            c,
+            400,
+            "bad_request",
+            "`recordedBy` and the name on the X-Actor header have to be the same person. A call outcome signed by one name under a header carrying another is a record nobody can rely on later.",
+          );
+        }
 
         const detail = await deps.repo.instructionDetail(id);
         if (detail === undefined) {
@@ -207,6 +224,7 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               transcript: [],
               manual: true,
               recordedBy: body.recordedBy,
+              actor,
               decision: detail.decision,
             }),
           );
@@ -262,6 +280,7 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               transcript: conversation.transcript,
               conversationId: conversation.conversationId,
               manual: false,
+              actor,
               decision: detail.decision,
             }),
           );
@@ -321,6 +340,14 @@ interface RecordInput {
    * in the product that nobody signed.
    */
   recordedBy?: string;
+  /**
+   * Who made the request, from the `X-Actor` header.
+   *
+   * Present on both paths, unlike `recordedBy`: a call the agent placed was still
+   * somebody's decision to ring a supplier about a payment, and the role is the
+   * half a bare name cannot carry.
+   */
+  actor: Actor;
   /** The standing decision, so the answer can say how long the hold lasts. */
   decision: Decision | null;
 }
@@ -351,6 +378,7 @@ async function record(
       : { conversationId: input.conversationId }),
     manual: input.manual,
     ...(input.recordedBy === undefined ? {} : { recordedBy: input.recordedBy }),
+    actor: input.actor,
   });
 
   const response: VerifyCallResponse = {
