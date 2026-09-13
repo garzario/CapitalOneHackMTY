@@ -27,7 +27,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 
 `PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings }> }`.
 
-`totals` answers in line counts and in pesos, because the value of the product is the loss it prevents and not the minutes it saves. Counts: `instructions`, `held`, `toVerify`, `released`. Pesos, all MXN and exact to the centavo, from `runMoney` in `packages/core/src/exposure.ts`: `amount` (the whole run), `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount` (held plus to verify, the money that has not left), `amountAtRisk` (the largest single amount at risk on each line, added across lines, never the sum inside a line), `retroactive69bBase` and `retroactive69bExposure` (the subtotal already deducted to the suppliers this run's 69-B findings name, and the ISR plus IVA that reverses on it). The last two are zero until a sweep has priced a supplier this run pays; the whole-ledger figure for one publication is `SweepResult.totalExposure` on `POST /api/v1/sat/publish`.
+`totals` answers in line counts and in pesos, because the value of the product is the loss it prevents and not the minutes it saves. Counts: `instructions`, `held`, `toVerify`, `released`. Pesos, all MXN and exact to the centavo, from `runMoney` in `packages/core/src/exposure.ts`: `amount` (the whole run), `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount` (held plus to verify, the money that has not left), `amountAtRisk` (the largest single amount at risk on each line, added across lines, never the sum inside a line), `retroactive69bBase` and `retroactive69bExposure` (the subtotal already deducted to the suppliers this run's 69-B findings name, and the ISR plus IVA that reverses on it). The last two are zero until a publication has priced a supplier this run pays, and `POST /api/v1/sat/publish` is what prices one: it re-scores the pending lines of the current run in the same request, so the pair climbs as the list lands rather than after somebody reloads something. The whole-ledger figure for one publication is `SweepResult.totalExposure` on that endpoint, and this pair is the part of it the run in front of the clerk carries. Each supplier is counted once however many lines of the run pay it, because the sweep prices per supplier.
 
 ### The lookup box, in detail
 
@@ -49,11 +49,42 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 |---|---|---|---|
 | POST | `/api/v1/instructions` | `{ supplierRfc?, cfdiUuids?, clabe?, amount, source, text?, image? (base64), audio? (base64) }` | intake from the QR page. Runs all detectors, stores the instruction, findings and decision, returns them. If `image` or `audio` is present the CLABE is extracted first and `ocrConfidence` set, and a voice-note transcript lands in `text`; a typed `clabe` always wins over one a model read. Extraction is transcription only (`packages/extract`, docs/06 section 6.2.1). A server with no `GEMINI_API_KEY` answers 422 `unprocessable` and says so. |
 | POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy, reason? }` | a person confirms. Appends `decision_made`, carrying `decidedBy` and `reason` on the decision, so a release nobody can explain later is not a thing this product allows. Answers `{ instruction, decision, amountAtRisk, hold }`: `amountAtRisk` is the largest single amount at risk among the findings, stated rather than left to be re-derived, and `hold` is `null` exactly when the action is `release`. `reason` is optional in the contract and asked for by the screen on an override: an API that refused a release with no prose would be refused by the clerk instead, outside the product, where nothing is recorded at all. |
-| POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only) and runs the retroactive sweep over everything the ledger says is already paid. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult`. |
+| POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only), runs the retroactive sweep over everything the ledger says is already paid, and re-scores the run. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult` plus `rescored`. See "What a publication re-scores" below |
 | POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | retrieves or accepts the CEP, checks the Banxico seal, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`, where `finding` is the `beneficiary_cep` finding `packages/engine` authors, or `null` when no pending payment goes to that account. See "The CEP, and what verify can prove" below. |
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand, and `recordedBy` travels onto the `verification_call` event so that entry carries a name like every other human action. A recorded outcome also carries `hold`, the window and the next step, which is how a `no_answer` answers "what now" in the same response, and that window is three days on a `hold` and one day on a `verify`, from `EXPECTED_DELAY_DAYS`. Never releases a payment: every response that reports a call carries `releasesPayment: false`, and no `decision_made` is ever appended. A `404` or a `400` carries only the error envelope, because there is no call to report. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
 | POST | `/api/v1/instructions/:id/verify-account` | no body | the one-cent verification, with nobody typing. Sends 0.01 MXN to the account this instruction pays, through the configured rail; appends `cent_sent` with the clave de rastreo the rail answered; resolves the CEP for that clave; and with the CEP in hand runs the beneficiary control and the expected-loss rule and appends `decision_made` signed `system`. Answers `202` with the `VerificationState` it reached synchronously. `404` unknown instruction, `409` when it is already released or blocked, `503` when this server has no rail. See "The cent inside the run" below |
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
+
+### What a publication re-scores
+
+`POST /api/v1/sat/publish` does two things and only the first one used to be written down. It loads
+the list version and prices what the ledger says is already paid to the suppliers it names, which is
+the retroactive sweep and answers `SweepResult`. Then, in the same request, it re-scores the run.
+
+- **What is re-scored.** The lines of the current run whose supplier the publication names and whose
+  decision is still pending. For each one the six controls run again, this time with the sweep on
+  `ComposeInput.sweep`, so the `sat_69b` finding carries `deductedBase` and `retroactiveExposure`;
+  those findings are stored and `decide` reaches the action again.
+- **What is not.** A released line, because that is money the run already let go, and a line a person
+  decided, because that decision has their name on it and is not the engine's to overwrite. A decision
+  the engine signed `system` is re-scorable, since a second publication is new evidence and the
+  engine's own earlier verdict is not somebody's signature.
+- **What it appends.** `sat_list_published` first and then one `decision_made` per re-scored line,
+  signed `system`, in that order, so a replay a year later can never show a payment re-decided by a
+  list that had not been posted. Every one of them goes out on `GET /api/v1/events`, which is what
+  makes the run screen move while the list publishes.
+- **What the response adds.** `rescored`, one row per line that moved:
+  `{ instructionId, supplierRfc, before, decision }`, with `before` null when nothing had decided the
+  line. It carries no pesos of its own, because the exposure is priced per supplier and one supplier
+  can sit on several lines of the same run: a figure per line would invite adding the same voided
+  deductions twice. An empty array is an ordinary answer, not a failure.
+
+Findings are added and never replaced, so a line listed as `presunto` in August carries that row next
+to the `definitivo` one published today. That is history rather than duplication, and
+`totals.retroactive69bBase` still counts the supplier once because `runMoney` keys the pair on the RFC.
+The decision that follows is the ADR-0002 amendment of 2026-09-12: the number lives in the stored
+findings, not in a read-time join, because two sources of one figure is what
+`packages/core/src/exposure.ts` exists to prevent. Issue #175.
 
 ### The CEP, and what verify can prove
 
@@ -256,7 +287,10 @@ curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0]
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
   -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
-  -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' | jq '.totalExposure'
+  -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' \
+  | jq '{totalExposure, rescored: [.rescored[] | {instructionId, before, after: .decision.action}]}'
+# And the run, which now carries the part of that exposure the suppliers it pays account for.
+curl -s https://<host>/api/v1/run/current | jq '.totals | {retroactive69bBase, retroactive69bExposure}'
 # The consortium, for one beneficiary pair. Both halves are required, and the answer comes
 # out of the local snapshot: this call reaches no warehouse and works with the network down.
 curl -s 'https://<host>/api/v1/consortium/signal?rfc=SYN980101S01&clabe=072180100000000007' | jq '.network'

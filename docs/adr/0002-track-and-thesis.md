@@ -79,3 +79,11 @@ Banxico signs for every SPEI.
   the QR intake page, the SAT publication simulation, the CEP viewer and the metrics page.
 - The generator (owner Fabian) and the labelled holdout cases (owner Fabricio) are written by different
   people from the detectors (owner Patricio), so the reported precision and recall are blind.
+
+## Amendment, 2026-09-12, control 1
+
+A 69-B publication re-scores the pending lines of the run it affects, in the same request that prices
+it, so the retroactive exposure is carried by the stored findings rather than joined in at read time.
+Issue #175, and the alternative was to attach the newest sweep to the run read, which would leave two
+sources of one number and is the thing `packages/core/src/exposure.ts` exists to prevent. Released
+lines and lines a person decided are never re-scored.

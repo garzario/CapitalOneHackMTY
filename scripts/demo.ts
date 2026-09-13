@@ -34,7 +34,7 @@ import {
   metricsSchema,
   type PaymentRunItem,
   paymentRunSchema,
-  sweepResultSchema,
+  satPublishResponseSchema,
   verificationStateSchema,
 } from "../apps/api/src/schemas.ts";
 import {
@@ -61,6 +61,8 @@ import {
   assessNetwork,
   formatAmount,
   networkLabel,
+  subtractAmounts,
+  sumAmounts,
 } from "../packages/core/src/index.ts";
 import { FakeRail } from "../packages/rail/src/index.ts";
 import { loadSentryOne } from "../packages/seed/src/index.ts";
@@ -534,13 +536,22 @@ async function beatClabeForensics(api: Api, say: Say): Promise<void> {
 }
 
 /**
- * Beat 3. A simulated 69-B publication, priced against what is already deducted.
+ * Beat 3. A simulated 69-B publication, priced against what is already deducted
+ * and folded back into the run it affects.
  *
  * ADR-0002 binds this to synthetic RFCs, and both the request schema and
  * `simulatePublication` refuse anything else, so the publication that meets an
  * invoice can never carry a real taxpayer. The exposure is computed over the
  * seeded ledger: the CFDIs of that supplier that a payment complement or a
  * `payment_sent` event says we already paid.
+ *
+ * The second half of this beat is issue #175 and it is the one a judge with a
+ * calculator checks. The publication re-scores the pending lines of the current
+ * run that belong to the suppliers it names, so the run's retroactive pair climbs
+ * in the same request. This asserts the identity that makes the two figures one
+ * number rather than two: the run-level pair is exactly the part of the sweep that
+ * belongs to the suppliers the re-score touched, to the centavo, and it is read
+ * back off `GET /api/v1/run/current` rather than recomputed here.
  */
 async function beatSweep(api: Api, say: Say): Promise<void> {
   need(
@@ -549,7 +560,10 @@ async function beatSweep(api: Api, say: Say): Promise<void> {
   );
   const rfc = hero.listedSupplierRfc;
 
-  const sweep = sweepResultSchema.parse(
+  const before = paymentRunSchema.parse(
+    await json(api, "/api/v1/run/current"),
+  ).totals;
+  const sweep = satPublishResponseSchema.parse(
     await json(
       api,
       "/api/v1/sat/publish",
@@ -579,6 +593,63 @@ async function beatSweep(api: Api, say: Say): Promise<void> {
     `  ISR ${formatAmount(subject.isrExposure)} MXN, IVA ${formatAmount(subject.ivaExposure)} MXN`,
   );
   say(`  total exposure ${formatAmount(sweep.totalExposure)} MXN`);
+
+  /* The run, read again. `before` was zero on both fields, because nothing had
+     priced a supplier this run pays; after the publication it carries the part of
+     the sweep that belongs to the lines that were re-scored. */
+  const after = paymentRunSchema.parse(
+    await json(api, "/api/v1/run/current"),
+  ).totals;
+  const touched = new Set(sweep.rescored.map((line) => line.supplierRfc));
+  const mine = sweep.newlyListed.filter((row) => touched.has(row.supplier.rfc));
+
+  need(
+    sweep.rescored.length > 0,
+    "the publication re-scored no line, so the run counter cannot have moved",
+  );
+  need(
+    before.retroactive69bExposure === 0,
+    "the run already carried retroactive exposure before the publication",
+  );
+  need(
+    after.retroactive69bBase ===
+      sumAmounts(mine.map((row) => row.deductedBase)),
+    "the run's retroactive base is not the deducted base of the suppliers it re-scored",
+  );
+  need(
+    after.retroactive69bExposure ===
+      sumAmounts(mine.flatMap((row) => [row.isrExposure, row.ivaExposure])),
+    "the run's retroactive exposure is not the ISR plus IVA of the suppliers it re-scored",
+  );
+  /* The pesos at risk climb by exactly that exposure, because the finding on the
+     line now carries the deductions the publication voided next to the amount about
+     to leave. They are different money, which is why one total legitimately exceeds
+     the instruction. The stopped money does not have to move at all: a line already
+     stopped is already stopped, and what changes there is which column it sits in. */
+  const climb = subtractAmounts(after.amountAtRisk, before.amountAtRisk);
+  need(
+    climb === after.retroactive69bExposure,
+    "the pesos at risk did not climb by the retroactive exposure the publication priced",
+  );
+
+  for (const line of sweep.rescored) {
+    const priced = line.decision.findings.find(
+      (finding) => finding.evidence.retroactiveExposure !== undefined,
+    );
+    say(
+      `  re-scored ${line.instructionId}: ${line.before ?? "sin decision"} -> ${line.decision.action}, signed ${line.decision.decidedBy ?? "nobody"}`,
+    );
+    say(
+      `    expected loss ${formatAmount(line.decision.expectedLoss)} MXN against ${formatAmount(line.decision.delayCostPerDay)} a day of delay${priced === undefined ? "" : `, ${formatAmount(priced.amountAtRisk)} MXN at risk on the new finding`}`,
+    );
+  }
+  say(
+    `  run totals now: base ${formatAmount(after.retroactive69bBase)} MXN, exposure ${formatAmount(after.retroactive69bExposure)} MXN`,
+  );
+  /* The delta and not the two absolutes, because this script runs beat 2's intake
+     before this beat and the stage does not: the run-level pair and this climb are
+     the same on both paths, the absolute at-risk total is not. */
+  say(`  pesos at risk climbed by ${formatAmount(climb)} MXN on the same run`);
 }
 
 /**

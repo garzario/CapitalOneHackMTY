@@ -429,14 +429,25 @@ second is larger than the first, and that is not a bug: the pesos at risk are co
 that carries a finding, including the one the engine released because waiting costs more than the risk.
 Read both off a fresh run, like every other number on this sheet.
 
-The two 69-B fields are the honest gap to volunteer here, because they read **zero on stage**. They
-carry only what the run's own findings price, and a `sat_69b` finding gets `deductedBase` and
-`retroactiveExposure` written on its evidence only when a sweep has already priced that supplier, which
-the seeded run has not. So do not point at them. The number to show for "what we already paid and
-already deducted" is `SweepResult.totalExposure` on `POST /api/v1/sat/publish` and on the sweep
-constancia, which on the demo supplier is MXN 878,592.59 of base and MXN 404,152.59 of exposure.
-Folding the newest sweep into the run counter so that pair climbs on stage is #175, and the run screen
-showing the pair at all is #174.
+The two 69-B fields used to be the honest gap here, because they read zero on stage. Since #175 they do
+not: `POST /api/v1/sat/publish` re-scores the pending lines of the run that pay the suppliers it names,
+in the same request that prices the ledger, so the run's own findings carry the voided deductions and
+the pair climbs while the list publishes. On the seeded run it goes from zero on both to
+`retroactive69bBase` MXN 878,592.59 and `retroactive69bExposure` MXN 404,152.59, and `amountAtRisk`
+climbs by exactly that exposure, from MXN 799,209.86 to MXN 1,203,362.45. One line moved,
+`INS-2026-09-07-070`, from `verify` to `hold`, signed `system`. So this can be pointed at now, and the
+sentence to say over it is that the run counter and the sweep are one arithmetic and not two: the
+whole-ledger figure is `SweepResult.totalExposure` on that endpoint and on the sweep constancia, and the
+run-level pair is the part of it belonging to the suppliers this run pays, counted once per RFC by
+`runMoney`. Read all of it off a fresh run.
+
+Two things are still worth volunteering in the same breath. The run screen renders the money that is
+stopped and the alert rail, so what a judge watches move there is the line going from `Verificar` to
+`Retener`, the held split going from 2 and 4 to 3 and 3 and MXN 676,112.38 held, and the new
+`definitivo` row at MXN 487,672.59 at risk; the pair itself is on `totals` and reaches the screen with
+#174. And a released line and a line a person decided are deliberately never re-scored, which is why
+the pair can be lower than the whole-ledger figure and must never be described as the total cost of a
+publication.
 
 ### 5a. "What if the person does not answer the call?"
 
@@ -552,7 +563,12 @@ measurement.** `LOSS_PROBABILITY_BY_SEVERITY` in `decision.ts` carries three num
 top saying exactly that. The screen does not yet say it: it renders "Perdida esperada" as a peso figure
 with no note that the probability behind it is an assumption, so this one is said out loud rather than
 pointed at (#174). What is not a prior is the amount at risk: it is the instruction's own pesos plus, for
-a listed supplier, the ISR and IVA that reverse on the subtotal already deducted, at the published rates. The shape of the table is the argument, the values are the
+a listed supplier, the ISR and IVA that reverse on the subtotal already deducted, at the published rates.
+That second term used to be a sentence with nothing behind it on stage, because the run-level pair read
+zero until a publication had priced a supplier the run pays; since #175 the publication in beat 2 prices
+one and the run carries it, so the claim is now a figure on the screen: MXN 487,672.59 at risk on
+`INS-2026-09-07-070`, which is its own MXN 83,520.00 plus the MXN 404,152.59 of voided deductions.
+The shape of the table is the argument, the values are the
 assumption, and they sit in one place so tuning the engine is a one-line diff a reviewer can see.
 
 ### 6. "The judges looked uninterested. It did not seem like a real problem"
