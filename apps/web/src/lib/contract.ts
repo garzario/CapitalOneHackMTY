@@ -44,6 +44,7 @@ import type {
   ProposalValue,
   RailId,
   Rfc,
+  Sat49BisEntry,
   SatListEntry,
   SatListStatus,
   SealState,
@@ -197,6 +198,7 @@ export interface SupplierDetail {
 
 /** Which download of the official list the answer came out of. */
 export interface SatLookupSource {
+  article: "69-B" | "49 Bis";
   /** DOF publication date of the snapshot. */
   listVersion: string;
   /** The day we retrieved it, which is what a judge asks next. */
@@ -207,6 +209,53 @@ export interface SatLookupSource {
   /** Rows, larger because one taxpayer carries one row per situation. */
   rows: number;
 }
+
+export interface Sat69BLookupBlock {
+  article: "69-B";
+  answered: true;
+  listed: boolean;
+  entries: SatListEntry[];
+  effective?: SatListEntry;
+  source: SatLookupSource;
+}
+
+export interface Sat49BisPublications {
+  oficios: number;
+  taxpayers: number;
+  firstPublishedAt: string;
+  lastPublishedAt: string;
+  surveyedAt: string;
+  url: string;
+}
+
+export interface Sat49BisLoadedBlock {
+  article: "49 Bis";
+  answered: true;
+  coverage: "loaded";
+  listed: boolean;
+  entries: Sat49BisEntry[];
+  effective?: Sat49BisEntry;
+  source: SatLookupSource;
+}
+
+/**
+ * The SAT has not published a machine-readable Article 49 Bis listing yet.
+ * There is deliberately no `listed` key: an empty local index did not answer
+ * whether this RFC appears in the DOF notices.
+ */
+export interface Sat49BisUnavailableBlock {
+  article: "49 Bis";
+  answered: false;
+  coverage: "not_published_machine_readable";
+  entries: [];
+  note: string;
+  publications: Sat49BisPublications;
+}
+
+export type SatLookupBlock =
+  | Sat69BLookupBlock
+  | Sat49BisLoadedBlock
+  | Sat49BisUnavailableBlock;
 
 /**
  * `GET /api/v1/sat/lookup?rfc=`. The judge types a real RFC into this one.
@@ -224,6 +273,8 @@ export interface SatLookup {
   /** The row that decides, which is the newest one. Absent when not listed at all. */
   effective?: SatListEntry;
   source: SatLookupSource;
+  /** One explicit answer per statute, including coverage that could not answer. */
+  lists: SatLookupBlock[];
 }
 
 /** One loaded version of the official Article 69-B list. */
@@ -283,6 +334,19 @@ export type SatPublishBody =
   | { listVersion: string; entries: SatListEntry[] }
   /** `status` defaults to presunto on the server. See docs/09-api.md. */
   | { simulate: true; rfcs: Rfc[]; status?: SatListStatus };
+
+/** One current-run line re-scored inside the publication request. */
+export interface SatRescoredLine {
+  instructionId: string;
+  supplierRfc: Rfc;
+  before: Action | null;
+  decision: Decision;
+}
+
+/** `POST /api/v1/sat/publish`: the whole-ledger sweep plus current-run effects. */
+export interface SatPublishResult extends SweepResult {
+  rescored: SatRescoredLine[];
+}
 
 /** `POST /api/v1/cep/verify`, either by tracking key or by pasted signed XML. */
 export type CepVerifyBody =

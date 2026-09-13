@@ -42,10 +42,10 @@ import type {
   RailsStatus,
   SatLookup,
   SatPublishBody,
+  SatPublishResult,
   SatVersions,
   SeedBody,
   SupplierDetail,
-  SweepResult,
   VerificationScriptText,
   VerificationState,
   VerifyCallBody,
@@ -112,6 +112,8 @@ export type ApiFailure = {
   message: string;
   /** The requestId from the error envelope, when the API answered with one. */
   requestId?: string;
+  /** Seconds the caller must wait after a 429, parsed from `Retry-After`. */
+  retryAfterSeconds?: number;
   /**
    * The parsed response body, kept because two routes answer a refusal that
    * carries something the screen needs: `/verify-call` puts the script the
@@ -149,7 +151,30 @@ function isAbortError(error: unknown): boolean {
 }
 
 /** Pull the documented error envelope out of a failing response body. */
-function failureFrom(status: number, body: unknown): ApiFailure {
+export function retryAfterSeconds(value: string | null): number | undefined {
+  if (value === null) {
+    return undefined;
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds);
+  }
+
+  const instant = Date.parse(value);
+  if (Number.isNaN(instant)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.ceil((instant - Date.now()) / 1000));
+}
+
+function failureFrom(
+  status: number,
+  body: unknown,
+  retryAfter: string | null = null,
+): ApiFailure {
+  const wait = status === 429 ? retryAfterSeconds(retryAfter) : undefined;
   if (isRecord(body) && isRecord(body.error)) {
     const { code, message, requestId } = body.error;
 
@@ -165,11 +190,17 @@ function failureFrom(status: number, body: unknown): ApiFailure {
           : typeof code === "string"
             ? code
             : undefined,
+      ...(wait === undefined ? {} : { retryAfterSeconds: wait }),
       body,
     };
   }
 
-  return { status, message: `The API answered with status ${status}.`, body };
+  return {
+    status,
+    message: `The API answered with status ${status}.`,
+    ...(wait === undefined ? {} : { retryAfterSeconds: wait }),
+    body,
+  };
 }
 
 type JsonInit = {
@@ -231,7 +262,14 @@ async function request(
       response.status === 204 ? null : await response.json().catch(() => null);
 
     if (!response.ok) {
-      return { ok: false, error: failureFrom(response.status, payload) };
+      return {
+        ok: false,
+        error: failureFrom(
+          response.status,
+          payload,
+          response.headers.get("retry-after"),
+        ),
+      };
     }
 
     return { ok: true, data: payload };
@@ -414,7 +452,20 @@ export async function lookupSatRfc(
         (lookup) =>
           typeof lookup.rfc === "string" &&
           Array.isArray(lookup.entries) &&
-          typeof lookup.listed === "boolean",
+          typeof lookup.listed === "boolean" &&
+          Array.isArray(lookup.lists) &&
+          lookup.lists.some(
+            (block) =>
+              isRecord(block) &&
+              block.article === "69-B" &&
+              block.answered === true,
+          ) &&
+          lookup.lists.some(
+            (block) =>
+              isRecord(block) &&
+              block.article === "49 Bis" &&
+              typeof block.answered === "boolean",
+          ),
         "SAT lookup",
       ),
   );
@@ -651,7 +702,7 @@ export async function decideInstruction(
 export async function publishSatList(
   body: SatPublishBody,
   options?: RequestOptions,
-): Promise<ApiResult<SweepResult>> {
+): Promise<ApiResult<SatPublishResult>> {
   return andThen(
     await request(
       `${API_PREFIX}/sat/publish`,
@@ -659,11 +710,12 @@ export async function publishSatList(
       options,
     ),
     (value) =>
-      shaped<SweepResult>(
+      shaped<SatPublishResult>(
         value,
         (sweep) =>
           Array.isArray(sweep.newlyListed) &&
-          typeof sweep.totalExposure === "number",
+          typeof sweep.totalExposure === "number" &&
+          Array.isArray(sweep.rescored),
         "sweep result",
       ),
   );
@@ -907,7 +959,14 @@ export async function streamSse(
          lets the panel show the 422 naming the variable this server lacks. */
       const payload = await response.json().catch(() => null);
 
-      return { ok: false, error: failureFrom(response.status, payload) };
+      return {
+        ok: false,
+        error: failureFrom(
+          response.status,
+          payload,
+          response.headers.get("retry-after"),
+        ),
+      };
     }
 
     const body = response.body;
