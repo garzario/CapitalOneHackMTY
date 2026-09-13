@@ -51,14 +51,20 @@ be backed by a file, a test or a run.
 - Whoever adds a dependency commits `bun.lock` in the same PR. Never hand-merge `bun.lock`.
 - Synthetic data only. No real PII, ever, including in issues and screenshots. See `SECURITY.md`.
 
-## Deploy target (ADR-0005)
+## Deploy target (ADR-0005, as amended 2026-09-12 03:10)
 
-Default, unless `docs/adr/0005-deploy-target.md` says otherwise: `apps/web` is a static build on
-Vercel, and `apps/api` is a Hono app on the **Node runtime**.
+`apps/web` is a static build on Vercel. `apps/api` runs on a **Vultr instance**, in docker compose
+behind Caddy, because the payment-run screen reads a Server-Sent Events stream and SSE needs a
+long-lived process: a function runtime with a request timeout either drops the stream or forces a
+polling fallback. The amendment is written into `docs/adr/0005-deploy-target.md` itself and tracked in
+#44, and `deploy/` holds the compose file, the Caddyfile and the cloud-init script. Live pair:
+<https://sentryone-one.vercel.app> over <https://api.104.238.147.69.sslip.io>.
 
-Consequence, and it is a hard one: **`apps/api` may import no `bun:*` modules at all.** Do not
-reach for `bun:sqlite`, `bun:ffi` or `Bun.serve` specifics in that workspace. Bun remains the
-local runtime, the test runner, the package manager and the script runner everywhere else.
+Consequence, and it is a hard one that survived the move: **`apps/api` may import no `bun:*` modules
+at all.** Do not reach for `bun:sqlite`, `bun:ffi` or `Bun.serve` specifics in that workspace. It
+costs nothing on a box we control and it keeps the function runtime available as a fallback if the
+instance dies at 05:00, which is why a constraint that buys a fallback for free is kept. Bun remains
+the local runtime, the test runner, the package manager and the script runner everywhere else.
 If the ADR is changed, change this section in the same PR.
 
 ## Where things live
@@ -95,13 +101,38 @@ If the ADR is changed, change this section in the same PR.
   `consortium_snapshot` table and a decision never waits on a warehouse. Read its README before
   quoting the consortium anywhere, because the network in this repository is synthetic and every
   claim about it has to say so.
+- `packages/sat`, the two SAT lists: the loader and the version index over the committed official
+  Article 69-B snapshot, `matchRfc`, the retroactive `sweep` and `priceSweep`, and article 49 Bis,
+  whose listing the SAT publishes one DOF oficio at a time with no machine-readable file, so the
+  lookup answers `answered: false` with the counts and the URL instead of implying a check.
+- `packages/cep`, the Banxico receipt: `parseCep`, XMLDSig against the Banxico certificate byte for
+  byte, and `nameMatch`. It reports `unconfirmed_scheme` rather than claiming a seal it cannot prove,
+  which is why a screen may say "firma no verificada" and may never say "firma invalida".
+- `packages/extract`, the only file in the repository that sends anything to a language model, and it
+  may only transcribe: read a CLABE off a photo, transcribe a voice note. `src/boundary.test.ts` reads
+  the package's own source and fails if it names anything from the decision layer. ADR-0004.
+- `packages/voice`, the verification call to the supplier when the decision is `verify`. The agent
+  reads a script this repo wrote and the outcome parser is deterministic string work and not a model,
+  for the same ADR-0004 reason. None of its four outcomes releases a payment.
+- `packages/constancia`, four real PDFs written on the server with no dependency and no headless
+  browser: the sweep constancia, the run constancia, the one-page evidence letter of an instruction,
+  and the receipt of one payment. All four carry a SHA-256 huella of the ledger range and say on the
+  page that it is not an electronic signature. Pure, so the same input is byte-identical output.
 - `packages/seed`, deterministic synthetic Mexican transaction generator, fixed RNG seed.
 - `packages/db`, schema, migrations and SQL. Raw SQL through `postgres`, no ORM. Postgres only,
-  no SQLite. `0001_init.sql` runs on any Postgres 16+. `0002_timescale.sql` is applied only when
-  the `timescaledb` extension exists, so a plain local Postgres 18 works as the offline fallback.
+  no SQLite. Fourteen migrations, listed as `MIGRATIONS` in `src/migrate.ts` rather than discovered by
+  reading the directory. The eleven plain files run on any Postgres 16+; `0002`, `0004` and `0008` are
+  applied only when the `timescaledb` extension exists, so a plain local Postgres 18 works as the
+  offline fallback. Never edit an applied migration: the checksum in `schema_migrations` reports it and
+  the next laptop diverges.
 - `apps/api`, thin Hono transport: HTTP, validation, streaming. No business logic. Every write
   carries the `X-Actor` header (`role=clerk|owner; name=...`) and the ledger event it appends
-  records that name, because nothing in this product executes without a person.
+  records that name, because nothing in this product executes without a person. Two shapes need
+  `role=owner` and a written reason and `decideRequirement` in `packages/core/src/actor.ts` decides
+  which: a release over a line that is not `confiable`, and any decision on a line the run cancelled.
+  `src/assistant/` is the panel: Gemini with function calling over nine read-only GETs of this same
+  API, called in process, ending a turn with at most one `ActionProposal` that a person executes.
+  It writes nothing but the conversation and the intake a screenshot becomes. ADR-0007.
 - `apps/web`, the judge-facing UI. Vite, React, Tailwind, motion.
 - `scripts/`, `doctor`, `migrate`, `seed`, `reset`, `demo`, `deploy-vultr`, and `web:mock`, which
   writes `apps/web/src/lib/mock-data.ts` out of the same seeded company the API serves. Edit the
@@ -120,14 +151,17 @@ If the ADR is changed, change this section in the same PR.
 ```
 bun run doctor                    # versions, env vars, DB reachability
 bun install --frozen-lockfile     # never plain bun install in CI
-bun run dev | bun test | bun run typecheck | bun run build
-bun run migrate                   # 0001 always, 0002 only if timescaledb is available
+bun run dev | bun test | bun run typecheck | bun run build | bun run lint
+bun run eval                      # the six controls against 35 labelled cases, per control and per level
+bun run scrub                     # the tree, the history and the commit messages, for secrets
+bun run migrate                   # fourteen files in order; 0002, 0004 and 0008 only with timescaledb
 bun run seed                      # idempotent, prints the demo IDs
 bun run nessie:mirror             # pushes the company bank mirror, validates the key with a write
 bun run consortium:seed           # warehouse schema plus the synthetic network, needs ALLOW_CONSORTIUM=1
 bun run consortium:push           # this tenant's outcomes, hashed, never a name or an amount
 bun run consortium:pull           # fills the local snapshot; --offline needs no Snowflake account
-bun run demo                      # drives the demo path headless, green before any rehearsal
+bun run demo                      # drives the demo path headless as nine checks, green before any rehearsal
+bun run offline                   # the same path with every outward call closed, the conference Wi-Fi case
 ```
 
 Every workspace `package.json` must define `typecheck` as `tsc --noEmit` and a `build`

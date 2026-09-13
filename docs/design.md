@@ -381,7 +381,7 @@ bun run apps/web/audit/audit.ts http://localhost:4173
 ```
 
 It reports clean on all four as of the run that closed #207: no horizontal
-overflow at 390, 768, 1440 or 1920 on any of the six screens or the token sheet;
+overflow at 390, 768, 1440 or 1920 on any of the eight screens or the token sheet;
 every focusable control named, reached by a real Tab press and showing a focus
 ring; reduced motion collapsing all three duration tokens to 1 ms with nothing on
 the page still transitioning; and all 52 colour pairings at or above their floor

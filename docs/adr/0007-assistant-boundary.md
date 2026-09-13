@@ -31,11 +31,15 @@ of that endpoint, so the panel shows what is about to happen in the words of the
 
 Four properties carry the boundary, and three of them are in the type rather than in this paragraph.
 
-1. **The tools are reads, and a writing tool is unrepresentable.** `AssistantTool` is the whole list:
-   `get_run`, `get_instruction`, `get_verification`, `get_execution`, `get_receipt`, `sat_lookup`,
-   `consortium_signal`. `AssistantToolCall.readOnly` is the literal `true`, so a tool call that writes
-   cannot be constructed, and `result` is `Record<string, EvidenceValue>`, the same evidence the
-   finding panel renders as chips. Nothing a model wrote arrives dressed as a fact.
+1. **The tools are reads, and a writing tool is unrepresentable.** `AssistantTool` is the whole
+   list, seven of them when this was decided and nine since issue #197 added `get_supplier` and
+   `get_metrics`: `get_run`, `get_instruction`, `get_supplier`, `get_verification`, `get_execution`,
+   `get_receipt`, `sat_lookup`, `consortium_signal`, `get_metrics`. The count is not the property.
+   `AssistantToolCall.readOnly` is the literal `true`, so a tool call that writes cannot be
+   constructed, and `result` is `Record<string, EvidenceValue>`, the same evidence the finding panel
+   renders as chips. Nothing a model wrote arrives dressed as a fact, and a tenth read changes none
+   of that, which is why "What the build of 13 September settled" below records the growth rather
+   than reopening this decision.
 2. **No level, no action and no number comes from the model.** `confidenceOf`, `transactionStateOf`,
    `decide` and the six controls are deterministic, pure and unit-tested, which is how "is this a
    wrapper around a language model" gets answered by running the suite instead of by arguing.

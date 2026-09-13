@@ -6,12 +6,18 @@
 **API:** <https://api.104.238.147.69.sslip.io/health> |
 HackMTY 2026, Capital One track 3, Real-Time Anomaly & Security Sentinel
 
-The live URL serves the seeded synthetic company out of Tiger Data through the API on Vultr. Add
-`?data=api` to prove the deployed backend is answering rather than the offline fallback, or
-`?data=mock` to see the same screens with no network at all. `sentryone.tech` is not registered yet
-(issue #59, and the MLH .Tech offer is how it will be): the Vercel project already carries both
-`sentryone.tech` and `www.sentryone.tech`, so the domain is a registration and two DNS records away
-from being the URL above.
+The live web URL serves the seeded synthetic company out of Tiger Data through the API on Vultr. The
+browser only ever talks to the Vercel origin: `vercel.json` rewrites `/api` and `/health` to the
+instance, which is why the bundle carries no base URL and there is no CORS configuration anywhere in
+`apps/api`. Add `?data=api` to prove the deployed backend is answering rather than the offline
+fallback, or `?data=mock` to see the same screens with no network at all. `sentryone.tech` is not
+registered yet (issue #59, and the MLH .Tech offer is how it will be): the Vercel project already
+carries both `sentryone.tech` and `www.sentryone.tech`, so the domain is a registration and two DNS
+records away from being the URL above.
+
+Three deep links worth opening in that order: `#/run` is the payment run, `#/payments` is where the
+run leaves, and `#/metrics` is the blind evaluation. The whole route table is in
+`apps/web/src/lib/router.tsx`.
 
 ## The problem
 
@@ -39,13 +45,33 @@ screen.
 
 ## What it does
 
-- Stops a payment to a supplier the SAT has listed, and quantifies the ISR and IVA already exposed.
-- Catches a CLABE that differs from the supplier's history, fails its check digit or changed bank without a payment complement behind it.
+- **Takes the payment in a conversation.** Lupita drops the screenshot the supplier sent her on
+  WhatsApp into the assistant panel and the instruction comes back as a card with its level and its
+  evidence. The panel reads and proposes over nine read-only tools; a person presses the button, and
+  the ordinary endpoint appends the ordinary event with their name on it. ADR-0007.
+- Stops a payment to a supplier the SAT has listed, on either list: Article 69-B with the retroactive
+  sweep priced in ISR and IVA, and article 49 Bis beside it, which answers `answered: false` with the
+  counts and the DOF URL rather than implying a check the SAT publishes no file for.
+- Catches a CLABE that differs from the supplier's history, fails its check digit, changed bank
+  without a payment complement behind it, or moved plaza: digits 4 to 6 are where the account was
+  opened, so the finding names both places as well as both codes.
 - Proves who owns the destination account with a Banxico-signed CEP and keeps it as evidence. One
   cent travels inside the same payment run, the clave de rastreo comes back from the bank instead of
   from a keyboard, and the large payment is released or blocked by the engine when the signed CEP
   arrives. Nobody types anything.
-- Flags duplicate invoices and suppliers whose billing behaviour changed.
+- Flags duplicate invoices and suppliers whose billing behaviour changed, and corroborates a
+  beneficiary against a cross-tenant network on Snowflake that holds only salted hashes, a bank code,
+  a date and an outcome.
+- **Says one of three words about each line and one of three states, never a probability.**
+  `confiable`, `precaucion` or `alerta` always shown with the findings that produced it, and `rojo`,
+  `cancelado` or `enviado`. Both are derived on every read and neither is stored. A definitive listing
+  cancels the line rather than holding it, and only the owner reopens one, with a written reason.
+  ADR-0009.
+- **Sends the run, and that is where the money leaves.** A person reviews the released lines and
+  confirms; each line goes out for its own instruction's amount to the account that instruction names,
+  and comes back with a clave de rastreo, a receipt and a line on the run constancia. Every write
+  carries the name and the role of whoever made it, on an append-only ledger. SentryOne holds no
+  funds: it instructs the participant the company itself contracts. ADR-0008.
 - Decides hold, verify or release by expected loss, and always leaves the final call to a person.
 
 ## Why it is different
@@ -92,7 +118,7 @@ Requires bun 1.3.11 (the version in `.bun-version`) and a reachable Postgres.
 
 ```bash
 bun install --frozen-lockfile   # also wires the git hooks
-bun run migrate                 # 0001 always, 0002 only if timescaledb is available
+bun run migrate                 # fourteen files in order; the three Timescale ones only if the extension exists
 bun run seed                    # idempotent, prints the demo account IDs
 bun run dev                     # web and API together
 ```
@@ -104,13 +130,19 @@ live and how much of it is migrated and seeded, and closes on whether this lapto
 the network unplugged, naming the command that fixes whatever is in the way; `--strict` turns any
 warning into exit 1 for a release gate. Copy `.env.example` to `.env` first.
 
-Three commands worth knowing about. `bun test` runs 1,725 tests across 99 files with no network, no
-database and no API key, which is the fastest way to check that the intelligence is real. The 111
-database cases skip themselves unless `TEST_DATABASE_URL` names a database they may empty, and they
-share one, so run them a workspace at a time rather than all at once. `bun run eval` scores the six
-controls against 35 labelled holdout cases and prints precision, recall and the false positive rate
-per control and per confidence level. `bun run demo` drives the demo path headless and must be green
-before any rehearsal or judge visit.
+Four commands worth knowing about. `bun test` runs 2,459 tests across 128 files with no network, no
+database and no API key, which is the fastest way to check that the intelligence is real: 2,341 pass
+and 118 skip on 2026-09-13. Those 118 are the database cases, and they skip themselves unless
+`TEST_DATABASE_URL` names a database they may empty; they share one, so run them a workspace at a
+time rather than all at once. `bun run eval` scores the six controls against 35 labelled holdout
+cases and prints precision, recall and the false positive rate per control and per confidence level:
+87.0 percent precision, 83.3 percent recall, a 1.6 percent false positive rate, and 12 of the 12
+lines that should read `confiable` doing so, on 2026-09-13. `bun run demo` drives the whole demo path
+headless as nine checks, from the run loading through the 69-B publication, the cent, the levels and
+the one-page letter to the run leaving on the rail with a receipt per line, exits non-zero on any of
+them, prints the hero ids, and must be green before any rehearsal or judge visit. `bun run offline`
+rehearses that same path with every outward call closed, which is the conference Wi-Fi case rather
+than the missing-key one.
 
 The consortium network is opt-in, because it is the only part of the product that talks to a second
 vendor. It stays behind `ALLOW_CONSORTIUM=1`, and with the flag unset every control still runs and the
@@ -133,15 +165,38 @@ two.
 
 ## Screenshots
 
-The payment run, captured reproducibly by `apps/web/brand/shoot.ts`:
+Captured reproducibly by `bun run shoot:web`, which drives a headless browser at fixed widths in
+both themes with reduced motion on, so a capture is a fact about a build rather than a good moment.
+
+The payment run, where the money is decided:
 
 | | |
 |---|---|
 | ![Payment run, light](assets/screenshots/run-light.png) | ![Payment run, dark](assets/screenshots/run-dark.png) |
 
-Narrow viewport, the way a clerk opens it from a phone:
-[`run-narrow-light.png`](assets/screenshots/run-narrow-light.png) and
-[`run-narrow-dark.png`](assets/screenshots/run-narrow-dark.png).
+The run leaving, which is the screen a person presses send on:
+
+| | |
+|---|---|
+| ![Run output, light](assets/screenshots/payments-light.png) | ![Run output, dark](assets/screenshots/payments-dark.png) |
+
+The finding panel with its evidence chips:
+
+| | |
+|---|---|
+| ![Finding panel, light](assets/screenshots/finding-light.png) | ![Finding panel, dark](assets/screenshots/finding-dark.png) |
+
+The rest, each one screen: the 69-B list and its lookup box
+[`sat.png`](assets/screenshots/sat.png), the CEP and the cent
+[`cep.png`](assets/screenshots/cep.png), the blind evaluation
+[`metrics.png`](assets/screenshots/metrics.png), and a short loop over the whole product
+[`tour.gif`](assets/screenshots/tour.gif).
+
+Narrower viewports, the way a clerk opens it from a phone or a 13-inch laptop:
+[`run-tablet.png`](assets/screenshots/run-tablet.png),
+[`run-phone.png`](assets/screenshots/run-phone.png),
+[`payments-phone.png`](assets/screenshots/payments-phone.png) and the QR intake page
+[`intake-phone.png`](assets/screenshots/intake-phone.png).
 
 ## Stack, and why
 
@@ -206,7 +261,7 @@ build night mode cost us, the ADR index, and the list of work we consciously cut
 | 12 | [judge Q and A](docs/12-judge-qa.md) | The walk-up answer sheet, per person and shared |
 | 13 | [Devpost](docs/13-devpost.md) | The exact submission copy |
 | 14 | [process](docs/14-process.md) | How we worked: board, PRs, reviews, ADR index, what we cut |
-| adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target, consortium |
+| adr | [decisions](docs/adr/) | Stack, track, datastore, LLM boundary, deploy target, consortium, and the three that bind the build of 12 September: the assistant boundary, the payment rails, the three levels and the three states |
 
 Plus [`AGENTS.md`](AGENTS.md), the contract every person and every assistant in this repository
 works under, and [`docs/design.md`](docs/design.md) for the reasoning behind the design system.

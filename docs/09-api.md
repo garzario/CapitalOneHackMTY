@@ -10,7 +10,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 
 | Method | Path | Returns | Notes |
 |---|---|---|---|
-| GET | `/health` | `{ ok, service, version, dependencies }` | liveness, plus what this instance was configured with. See "Health, and what it may not check" below |
+| GET | `/health` | `{ ok, service, version }` | liveness, and deliberately nothing else. The dependency block is specified under "Health, and what it may not check" below and is issue #200, not merged: what this instance holds is answered today by `GET /api/v1/rails` |
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold, confidence, confidenceRule, confidenceFindingIds, state, stateRule }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. The last five are the same level and state the run carries for that line. See "The hold window" and "Confidence and state" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
@@ -478,8 +478,12 @@ the rail, `failed` refused with a sentence a clerk can act on, `cancelled` dropp
 was sent. `sent` and `settled` are two different claims and this API never collapses them: a
 transfer is acknowledged when the rail says so and not when we asked.
 
-**Status codes.** `202` with the stream. `400` for a missing `confirm`. `403 forbidden` for a role
-that may not do it. `404` for a run nobody holds. `409` for a run already executed, or for a request
+**Status codes.** `202` with the stream. `400` for a missing `confirm`, and for an `X-Actor` that
+does not parse. **There is deliberately no `403` here**, and that is the role rule above rather than
+an omission: sending the run is the clerk's own work, because `docs/02-persona.md` puts a
+maker-checker chain in the anti-persona column, so both roles may execute and the owner-only shape is
+a release over a finding, which belongs to `decide`. The header is still required, because the ledger
+has to answer who. `404` for a run nobody holds. `409` for a run already executed, or for a request
 naming a line the decisions stop. `503 service_unavailable` when this server has no rail, with the
 message `packages/rail` wrote, naming `RAIL`, `NESSIE_API_KEY` and the `STP_*` variables. On a `503`
 nothing is appended, because a `payment_sent` for a payment that never left is the one entry this
@@ -589,21 +593,31 @@ rail is live without reading an environment file it cannot see.
 
 ### Health, and what it may not check
 
-`GET /health` stays liveness and grows a block that says what this instance was configured with.
+**What `GET /health` answers today**, and the whole of it: `{ ok: true, service: "api", version }`.
+`ok` is liveness and it is `true` whenever the process can answer, because a load balancer that
+restarts the container when the Banxico portal is slow takes the demo down for a reason that has
+nothing to do with the demo. `version` is bumped by hand, since the API has no build step and there
+is no generated version to drift.
 
-- `{ ok: true, service, version, dependencies }`. `ok` is liveness and it is `true` whenever the
-  process can answer, because a load balancer that restarts the container when the Banxico portal is
-  slow takes the demo down for a reason that has nothing to do with the demo.
-- `dependencies` is one row per capability: `database`, `nessie`, `rail`, `consortium`, `cep`,
+**It may not touch the network, and today it touches nothing at all.** No Nessie call, no Banxico
+fetch, no Snowflake query, no database probe: a health check that depends on a third party is a
+health check that lies at 04:00, and `apps/api/src/routes/health.ts` has carried that comment since
+the first day. What this instance was configured with is answered instead by
+`GET /api/v1/rails`, which is a route that was written for the job and holds no secret.
+
+**The dependency block is specified and not built.** Issue #200 adds it and this is the shape it
+takes, written here so the endpoint is not invented twice:
+
+- `dependencies`, one row per capability: `database`, `nessie`, `rail`, `consortium`, `cep`,
   `extraction` and `voice`, each `{ configured, state, detail?, checkedAt }` with `state` one of `up`,
   `down` and `not_configured`. `not_configured` is a statement about this deployment and is never
   reported as a failure, which is the same distinction `503 service_unavailable` draws against `403`.
-- **It may not touch the network.** No Nessie call, no Banxico fetch, no Snowflake query: a health
-  check that depends on a third party is a health check that lies at 04:00, which is what the route
-  comment in `apps/api/src/routes/health.ts` has said since the first day. `database` is the one
-  dependency that may be probed, with a bounded `select 1`, and it reports `down` with a sentence
-  rather than hanging.
+- `database` is the one dependency that may be probed, with a bounded `select 1`, reporting `down`
+  with a sentence rather than hanging. The other six stay `configured` and nothing more.
 - No secret, no connection string, no key fingerprint. `configured` is a boolean.
+
+Until it lands, nothing in this repository reads a `dependencies` key, and a screen or a pitch that
+says the health endpoint reports the dependencies is saying something this build does not do.
 
 ### The consortium, and what the network can say
 
@@ -730,8 +744,8 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
   | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
 # Which rails this server holds, and which of them has ever moved money. No secret in it.
 curl -s https://<host>/api/v1/rails | jq '{active, rails: [.rails[] | {id, configured, producesCep, live}]}'
-# What the instance was configured with. Never a key, and never a network call.
-curl -s https://<host>/health | jq '{ok, version, dependencies}'
+# Liveness, and that is all it answers. The dependency block is issue #200.
+curl -s https://<host>/health | jq '{ok, service, version}'
 # The actor, which every write needs. A clerk cannot release a payment a finding
 # stopped: 403 with the sentence that says who can, and nothing is appended.
 curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \

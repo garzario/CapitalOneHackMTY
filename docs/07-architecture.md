@@ -24,10 +24,12 @@ flowchart LR
     X["CFDI 4.0 de ingreso<br/>XML"]
     Y["Complemento de pagos 2.0<br/>XML"]
     P["Payment instruction<br/>email, WhatsApp, PDF, portal"]
-    Q["QR photo and voice note<br/>from the judge's phone"]
+    Q["Screenshot and voice note<br/>QR page, or dropped in the panel"]
     L["SAT Article 69-B<br/>official snapshot, 14234 rows"]
+    L2["SAT article 49 Bis<br/>DOF oficios, no file published"]
     C["Banxico CEP<br/>signed XML"]
     N["Nessie sandbox<br/>bank mirror of outflows"]
+    PZ["Plaza catalogue<br/>786 rows, a name and nothing else"]
     G["packages/seed<br/>deterministic generator, seed 69"]
     H["packages/seed/src/holdout<br/>35 labelled cases"]
   end
@@ -35,26 +37,30 @@ flowchart LR
   subgraph I[2 Ingest and normalise]
     PA["packages/core/src/cfdi.ts<br/>parseCfdi, parseComplement"]
     EX["packages/extract<br/>Gemini, transcription only"]
-    SA["packages/sat<br/>loader, versions, matchRfc"]
+    SA["packages/sat<br/>loader, versions, matchRfc, art49bis"]
     CE["packages/cep<br/>parseCep, verifySignature"]
     NE["packages/nessie<br/>the only Nessie caller"]
-    DB[("packages/db<br/>Postgres 16+, Timescale optional<br/>ledger_events append-only")]
+    CO["packages/consortium<br/>Snowflake, scripts only"]
+    DB[("packages/db<br/>Postgres 16+, Timescale optional<br/>14 migrations, ledger_events append-only")]
   end
 
   subgraph E[3 Intelligence, no IO]
     K["packages/engine runControls<br/>six adapters over one ComposeInput"]
-    KC["packages/core<br/>clabe, duplicates, behaviour,<br/>reconciliation, decide"]
+    KC["packages/core<br/>clabe, plazas, duplicates, behaviour,<br/>reconciliation, decide"]
+    KL["packages/core/src/levels.ts<br/>confidenceOf, transactionStateOf,<br/>planRunExecution"]
     KS["packages/sat<br/>matchRfc, sweep, priceSweep"]
     KP["packages/cep<br/>nameMatch"]
-    T["1341 tests, 77 files<br/>plus bun run eval"]
+    T["2459 tests, 128 files<br/>plus bun run eval"]
   end
 
   subgraph U[4 Surfaces]
     A["apps/api<br/>Hono, REST per docs/09-api.md"]
+    AS["apps/api/src/assistant<br/>Gemini over our own GETs,<br/>reads and proposes"]
     SSE["GET /api/v1/events<br/>Server-Sent Events"]
-    W["apps/web, six screens<br/>run, instruction, intake,<br/>SAT, CEP, metrics"]
+    W["apps/web, eight screens<br/>run, payments, instruction, intake,<br/>SAT, CEP, call, metrics"]
     V["verification call<br/>VerifyCallScreen plus packages/voice"]
-    R["packages/constancia<br/>two PDFs"]
+    RL["packages/rail<br/>the only place money leaves:<br/>the centavo and the run"]
+    R["packages/constancia<br/>four documents"]
     D["scripts/demo.ts<br/>headless demo path"]
   end
 
@@ -63,8 +69,10 @@ flowchart LR
   P --> A
   Q --> EX
   L --> SA
+  L2 --> SA
   C --> CE
   N --> NE
+  PZ --> KC
   G --> DB
   H --> T
   PA --> DB
@@ -72,23 +80,30 @@ flowchart LR
   SA --> DB
   CE --> DB
   NE --> DB
+  CO --> DB
   DB --> A
   A --> K
   K --> KC
   K --> KS
   K --> KP
   K --> A
+  A --> KL
+  KL --> A
   K --- T
   A --> SSE
   A --> W
   SSE --> W
+  A --> AS
   A --> V
   A --> R
+  A --> RL
+  RL --> NE
+  AS -. reads this API and proposes, writes only the turn .-> A
   D -. drives and asserts .-> A
   V -. never releases a payment .-> A
 ```
 
-Four things to say out loud about this diagram.
+Six things to say out loud about this diagram.
 
 1. **`packages/core` has no edge to the database, to Nessie, to the SAT or to Banxico.** Everything
    it needs arrives as an argument. `packages/engine` exists for that dependency direction and
@@ -110,6 +125,23 @@ Four things to say out loud about this diagram.
 4. **The verification call points back at the API and stops there.** A voice agent that phoned the
    supplier can append a `verification_call` event, and none of its four outcomes releases a
    payment. The release stays a `decision_made` a person signs.
+5. **`packages/rail` is the only edge on which money leaves, and it carries two things.** The 0.01
+   MXN probe that makes a CEP exist, and one line of one payment instruction for that instruction's
+   own amount to the account it names. There is no shape of `PaymentOrder` that expresses an amount
+   the instruction did not carry, which is what makes the instruction the payment order rather than a
+   note about one. `NessieRail` writes both to the company's bank mirror, so the edge back into
+   `packages/nessie` is the outflow control 6 reconciles against; `StpRail` is the rail that would
+   produce a Banxico-signed CEP and refuses to construct without `STP_*`; `LayoutRail` is the bank
+   portal's file and has no `RailId`, because the participant that executes it is the company's own
+   bank. `POST /api/v1/run/:id/execute` needs `confirm: true` and an `X-Actor`, and on a server with
+   no rail it answers `503` and appends nothing. ADR-0008.
+6. **The assistant is in lane 4 and its only edge is back into this same API.** Every one of its nine
+   tools is a GET `apps/api` already serves, called in process through the very handler the browser
+   calls over the wire, so the panel cannot tell a clerk something the screen beside it does not
+   show. It reads and it proposes; the proposal becomes an action when a person presses the button
+   and the ordinary endpoint appends the ordinary event with their name on it. No level, no action,
+   no finding and no amount on any screen of this product comes from a model: lane 3 answers all
+   four and it has no model in it. ADR-0007.
 
 ## The most important flow, the intake path
 
@@ -310,11 +342,83 @@ legitimate supplier accounts carry months of sightings from many tenants and the
 none or a fraud report. Every row is written with `synthetic = true`. There is
 one real tenant, and `docs/10-demo-script.md` carries the sentence that says so on stage.
 
+## The fourth flow, the run leaving on the rail
+
+The first three flows read. This one writes to the world, and it is the half of the product that did
+not exist before ADR-0008: SentryOne stopped payments and the SPEI left from the company's own
+banking portal, which left the honest answer to "why would Lupita upload the screenshot" at "because
+we asked her to". Now the instruction is the payment order, so every peso that leaves has a CFDI, a
+decision and a name behind it on an append-only ledger.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant L as Lupita, payments screen
+  participant A as apps/api, POST /run/:id/execute
+  participant K as core.planRunExecution
+  participant RL as packages/rail
+  participant N as Nessie, or STP, or the portal file
+  participant D as Repository, ledger_events
+  participant B as Every open screen
+  L->>A: confirm true, X-Actor role and name
+  A->>A: zValidator over executeBodySchema
+  A->>K: planRunExecution({ lines, only })
+  Note over K: one ExecutableLine per payment, carrying its instruction,<br/>its decision, its verification and its execution line
+  Note over K: one question each, through assessTransactionState:<br/>liberado goes, cancelado is dropped, rojo and pendiente<br/>stay in front of a person, enviado is already gone
+  K-->>A: send, cancel, skip, refused, unknown,<br/>each line carrying the rule that put it there
+  A->>D: appendEvent payment_cancelled for every cancel line,<br/>with the reason and no actor on it
+  A->>RL: resolveRail, only once the plan says something may go
+  Note over A,RL: no rail is a 503 and NOTHING is appended:<br/>a payment_sent for a payment that never left<br/>is the one entry this ledger must not hold
+  RL->>N: one order per line, the instruction's own amount<br/>to the account the instruction names
+  N-->>RL: accepted with a clave de rastreo, or refused with a sentence
+  RL-->>A: PaymentSent per line, the rail's own claim and nothing upgraded
+  A->>D: appendEvent payment_sent, or payment_failed with the reason
+  A->>RL: confirm, once, for the whole run
+  RL-->>A: the lines this rail can answer for
+  A->>D: appendEvent payment_settled with the receipt id
+  A->>D: LedgerTx debit on the company's own bank mirror
+  Note over D: so control 6 reconciles the payment instead of<br/>reporting payment_not_in_mirror against it
+  A-->>L: 202 and a stream: one line per payment,<br/>one skipped per line left alone, then done
+  A->>B: SSE event: ledger, once per appended event
+```
+
+Four properties of this path, and each one is a thing a judge can check rather than believe.
+
+**Idempotence is per instruction and not per request.** A line the ledger already says was paid reads
+`enviado` through the same `transactionStateOf`, so it is never offered to a rail again, and the run
+is read against the whole ledger rather than only against its own events. That is what makes a SPEI
+the company sent from its own portal before ADR-0008 unrepeatable here. A run with nothing left to
+send is a `409`, and a request naming a line the decisions stop is a `409` that says which line.
+
+**`sent` and `settled` are two claims and nothing collapses them.** The rail reports which one it
+reached, `confirm` is asked as its own question, and a rail that cannot be asked leaves its lines on
+`sent`. On the Nessie mirror the strongest honest acknowledgement is that the row is on the account,
+which is what `confirm` asks for: the `status` on a Nessie row is the one we posted, so reading it
+back would be us signing a settlement on our own behalf.
+
+**The execution is a projection and never a stored row.** `foldExecution` builds `PaymentExecution`
+out of `payment_sent`, `payment_settled`, `payment_failed` and `payment_cancelled`, exactly as
+`foldVerification` does next door, so the screen, the stream, the receipt, the run constancia and a
+replay a year later read one history. `0012_assistant_and_payment_events.sql` adds the event kinds and
+no column.
+
+**A cancelled line is a statement and a skipped one is not.** The run cancels only the line whose
+decision says release and whose evidence says no, which is a definitive SAT listing nobody signed a
+release over or a beneficiary verification that came back blocked, and that `payment_cancelled`
+carries no actor because the evidence dropped it rather than a person. A line nobody released is
+`skipped` on the stream with the ADR-0009 rule that decided it, and nothing is appended for it.
+
+**The no-API path closes the same loop.** `GET /api/v1/run/:id/layout` writes the dispersal file a
+bank portal takes, through the same `planRunExecution`, so a file can never hold a line the run would
+not send; `POST /api/v1/run/:id/layout/response` reads the portal's answer and records the clave de
+rastreo per row. The rule survives it: the clave arrives from the bank and never from a keyboard, and
+a row the portal reports as paid with no clave on it is dropped rather than recorded.
+
 ## Why each choice, and what would make us switch
 
 | Decision | Alternative considered | Why this, for this problem | What would make us switch |
 |---|---|---|---|
-| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 1341 tests across 77 files in 5.8 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
+| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 2459 tests across 128 files in 13.1 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
 | TypeScript monorepo, Bun workspaces | Separate repos, or one flat app | All four people commit on day one, and the engine is imported by the API, the tests, the metrics harness and the demo script with nothing published | Nothing in this window |
 | `packages/core`, pure functions, zero runtime dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
 | `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `SENTRYONE_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |
@@ -485,7 +589,7 @@ preference.
 | **MongoDB**, including MongoDB Atlas | It is an MLH prize category (`docs/00-challenge.md`), which is exactly why it is named here rather than quietly skipped. Our two write shapes are an append-only event log and a set of projections with foreign keys and check constraints, and both are Postgres shapes. Adopting a document store for a prize would be the sponsor-costume version of the Timescale decision we made honestly | A workload that is genuinely document-shaped. The nearest candidate is raw Nessie payloads, whose `_id` mixes UUIDs and Mongo ObjectIds and whose `amount` mixes integers and floats, and today those live verbatim in `ledger_tx.raw` as `jsonb`, which costs nothing and needs no second database |
 | **A queue or a worker tier** | The sweep is a replay over events that fits in one request at demo scale: 3.6 ms over 7997 events. The SSE fan-out is one process | A second API instance, which is the SSE row of the scaling table below: the fan-out moves to Postgres `LISTEN`/`NOTIFY` and a sweep that no longer fits one request goes behind the same publisher. Until then a queue would be a component with nothing in it |
 | **A second database for the SAT list** | A list version is rows in `sat_list_versions` and `sat_list_entries` plus an in-memory index keyed by RFC, rebuilt on load. The committed official snapshot is 14234 rows and 28935 situations, parsed once per process | Nothing at this size. Matching is a hash lookup, so growth changes load time and not query time |
-| **An LLM explanation layer** | ADR-0004 allows one, on demand and outside the decision. It is not built: `Finding.explanation` is deterministic Spanish written by the control that produced the finding | A clerk asking for a rephrasing often enough to be worth the cost model in `docs/06-regulatory-privacy.md`. It never changes an action, a severity or a state |
+| **An LLM that writes a finding** | ADR-0004 allows a model to explain on demand and outside the decision, and since issue #197 one does: the assistant panel answers "por que esta en rojo" over nine read-only tools, and ADR-0007 is its boundary. What is still not built, and is the row this one has become, is a model anywhere near the text a control produces. `Finding.explanation` is deterministic Spanish written by the control itself, the panel quotes it rather than rewriting it, and the level it reads comes from `confidenceOf` | Nothing in this window. A rephrasing that replaced the control's own sentence would put a model inside the evidence, which is the line ADR-0004 draws, and the cost per turn is already on the `assistant_message` ledger event rather than estimated |
 
 ## How this scales beyond one platform
 
