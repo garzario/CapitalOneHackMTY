@@ -35,7 +35,6 @@ import {
   anySynthetic,
   ConfidenceBadge,
   PaymentLineBadge,
-  SectionHeader,
   TransactionStateBadge,
 } from "../components/Primitives";
 import { ReceiptDrawer } from "../components/Receipt";
@@ -59,6 +58,7 @@ import {
   formatDate,
   formatDateTime,
   formatMoney,
+  formatPlural,
 } from "../lib/format";
 import { RAIL_LABEL } from "../lib/labels";
 import {
@@ -106,7 +106,7 @@ export function sendLabel(
   }
 
   if (confirming) {
-    return `Si, enviar ${formatCount(lines)} linea(s)`;
+    return `Si, enviar ${formatPlural(lines, "linea")}`;
   }
 
   return "Enviar corrida";
@@ -145,9 +145,26 @@ export function railSentence(rails: RailsStatus | null): string {
     : `Riel activo: ${name}. Produce un CEP firmado por Banxico y nunca se ha corrido en vivo desde este repositorio.`;
 }
 
+/**
+ * The rail in three words, for the header line, where the whole sentence would
+ * not fit and shortening it there would be shortening the claim.
+ *
+ * The claim itself stays in `railSentence`, one line below, and that is the rule:
+ * a label may be short, and what the rail proves may not be.
+ */
+export function railName(rails: RailsStatus | null): string {
+  if (rails === null) {
+    return "Riel por confirmar";
+  }
+
+  return rails.active === null
+    ? "Sin riel configurado"
+    : `Riel: ${RAIL_LABEL[rails.active]}`;
+}
+
 /** The sentence under the counters while the run is on the wire or finished. */
 export function progressSentence(answered: number, inRun: number): string {
-  return `${formatCount(answered)} de ${formatCount(inRun)} linea(s) contestadas por el riel`;
+  return `${formatCount(answered)} de ${formatPlural(inRun, "linea")} contestadas por el riel`;
 }
 
 function nowIso(): string {
@@ -405,67 +422,72 @@ export function PaymentsScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Salida de la corrida"
-        description={
-          run
-            ? `Semana del ${formatDate(run.weekOf)}. ${formatCount(outlook.inRun)} linea(s) en la corrida, ${formatCount(outlook.stopped)} de ellas detenida(s) por un control, y ${formatCount(outlook.excluded)} fuera de la corrida.`
-            : "Lo que esta por salir esta semana, y lo que no."
-        }
-        aside={
-          <div className="flex flex-col items-start gap-2 sm:items-end">
-            {run && !offline ? (
-              <a
-                className="btn"
-                href={runConstanciaHref(run.id)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Constancia de la corrida (PDF)
-              </a>
-            ) : null}
-            {execution?.startedAt ? (
-              <span className="subtle t-xs">
-                {`Ejecutada el ${formatDateTime(execution.startedAt)}${
-                  execution.startedBy ? ` por ${execution.startedBy.name}` : ""
-                }`}
-              </span>
-            ) : null}
-          </div>
-        }
-      />
-
       {resource.status === "loading" ? (
-        <div className="panel">
-          <LoadingBlock label="Cargando la corrida" rows={6} />
-        </div>
+        <LoadingBlock label="Cargando la corrida" rows={6} />
       ) : null}
 
       {resource.status === "error" ? (
-        <div className="panel">
-          <ErrorBlock message={resource.message} onRetry={reload} />
-        </div>
+        <ErrorBlock message={resource.message} onRetry={reload} />
       ) : null}
 
       {run && execution ? (
-        <>
-          <SourceNotice
-            notice={resource.status === "ready" ? resource.notice : null}
-          />
+        <div className="run-stack">
+          {/* An h2: the top bar of the shell keeps the page's one h1. */}
+          <header className="run-hero">
+            <div>
+              <h2 className="run-hero-title">Salida de la corrida</h2>
+              <p className="run-hero-sub">
+                {`Semana del ${formatDate(run.weekOf)} · ${formatPlural(outlook.inRun, "linea")} en la corrida · ${formatPlural(outlook.excluded, "linea")} fuera`}
+              </p>
+            </div>
+
+            <div className="run-hero-aside">
+              <SourceNotice
+                notice={resource.status === "ready" ? resource.notice : null}
+                compact
+              />
+              {execution.startedAt ? (
+                <span className="status-line">
+                  {`Ejecutada el ${formatDateTime(execution.startedAt)}${
+                    execution.startedBy
+                      ? ` por ${execution.startedBy.name}`
+                      : ""
+                  }`}
+                </span>
+              ) : null}
+              {offline ? null : (
+                <a
+                  className="btn btn-pill"
+                  href={runConstanciaHref(run.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Constancia (PDF)
+                </a>
+              )}
+            </div>
+          </header>
 
           {executionError ? (
-            <p role="status" className="panel-sunken muted px-4 py-2 t-sm">
+            <p role="status" className="well well-body muted m-0 t-sm">
               {`No se pudo leer la ejecucion (${executionError}). La tabla de abajo no afirma que no haya salido nada.`}
             </p>
           ) : null}
 
-          <section aria-labelledby="send-heading" className="panel">
-            <div className="flex flex-col gap-4 p-5">
+          <section aria-labelledby="send-heading" className="well">
+            <div className="well-head">
+              <h2 id="send-heading" className="t-lg">
+                Enviar la corrida
+              </h2>
+              <span className="status-line">
+                {offline
+                  ? `Riel del dato: ${RAIL_LABEL.nessie}`
+                  : railName(rails)}
+              </span>
+            </div>
+            <div className="well-panel flex flex-col gap-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex flex-col gap-1">
-                  <h2 id="send-heading" className="eyebrow">
-                    Enviar la corrida
-                  </h2>
                   <p className="muted m-0 max-w-prose t-sm">
                     {offline
                       ? `Sin API: la corrida se ejecuta contra la corrida sintetica de este navegador y no sale nada. Las lineas traen el ${RAIL_LABEL.nessie} porque es el riel del que se genero el dato.`
@@ -476,11 +498,11 @@ export function PaymentsScreen() {
                   <span className="eyebrow">Por salir</span>
                   <Amount value={outlook.pendingAmount} size="xl" />
                   <span className="subtle t-xs">
-                    {`${formatCount(outlook.pending)} linea(s) de las ${formatCount(outlook.inRun)} que lleva la corrida`}
+                    {`${formatPlural(outlook.pending, "linea")} de las ${formatCount(outlook.inRun)} que lleva la corrida`}
                   </span>
                   {outlook.stopped > 0 ? (
                     <span className="subtle t-xs">
-                      {`Detenidas por un control: ${formatCount(outlook.stopped)}. El motivo va en su renglon y no se paga.`}
+                      {`Detenidas por un control: ${formatCount(outlook.stopped)}. El motivo va en su renglon y no se pagan.`}
                     </span>
                   ) : null}
                 </div>
@@ -539,7 +561,7 @@ export function PaymentsScreen() {
                   </div>
                   {confirming && !sending ? (
                     <p role="status" className="m-0 max-w-prose t-sm">
-                      {`Van ${formatCount(outlook.pending)} linea(s) por un total de ${formatMoney(
+                      {`Van ${formatPlural(outlook.pending, "linea")} por un total de ${formatMoney(
                         outlook.pendingAmount,
                       )}. Un SPEI no regresa.`}
                     </p>
@@ -560,7 +582,7 @@ export function PaymentsScreen() {
               </div>
 
               {writeError ? (
-                <p role="alert" className="panel-sunken muted px-4 py-2 t-sm">
+                <p role="alert" className="status-line status-line-off m-0">
                   {writeError}
                 </p>
               ) : null}
@@ -610,11 +632,11 @@ export function PaymentsScreen() {
               <div className="form-actions">
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn-pill"
                   disabled={exportable.length === 0}
                   onClick={onExport}
                 >
-                  {`Exportar layout de dispersion (${formatCount(exportable.length)} linea(s))`}
+                  {`Exportar layout de dispersion (${formatPlural(exportable.length, "linea")})`}
                 </button>
                 <span className="subtle t-xs">
                   Un CSV con una columna por dato que ya tenemos de cada linea,
@@ -626,30 +648,31 @@ export function PaymentsScreen() {
             </div>
           </section>
 
-          <section aria-labelledby="leaving-heading" className="panel min-w-0">
-            <div className="flex flex-col gap-1 p-5 pb-0">
-              <h2 id="leaving-heading" className="eyebrow">
+          <section aria-labelledby="leaving-heading" className="well min-w-0">
+            <div className="well-head">
+              <h2 id="leaving-heading" className="t-lg">
                 Lineas de la corrida
               </h2>
-              <p className="subtle m-0 t-xs">
-                Lo que la corrida entrega al riel, de mayor a menor importe. Una
-                linea detenida por un control sigue aqui con su motivo, y no se
-                paga.
-              </p>
+              <span className="subtle t-xs">
+                Lo que se entrega al riel, de mayor a menor importe. Una linea
+                detenida por un control sigue aqui con su motivo.
+              </span>
             </div>
 
             {taken.length === 0 ? (
-              <EmptyBlock
-                title="No hay nada liberado esta semana"
-                description="Una linea entra aqui cuando una persona la libera. Mientras tanto, la corrida no tiene nada que entregar al riel."
-                action={
-                  <Link to="/run" className="btn">
-                    Revisar la corrida
-                  </Link>
-                }
-              />
+              <div className="well-panel">
+                <EmptyBlock
+                  title="No hay nada liberado esta semana"
+                  description="Una linea entra aqui cuando una persona la libera. Mientras tanto, la corrida no tiene nada que entregar al riel."
+                  action={
+                    <Link to="/run" className="btn btn-pill">
+                      Revisar la corrida
+                    </Link>
+                  }
+                />
+              </div>
             ) : (
-              <div className="table-scroll p-2">
+              <div className="well-panel well-panel-table table-scroll">
                 <table className="data-table">
                   <caption className="sr-only">
                     Lineas liberadas de la corrida, con su nivel, su estado, lo
@@ -681,24 +704,26 @@ export function PaymentsScreen() {
             )}
           </section>
 
-          <section aria-labelledby="excluded-heading" className="panel min-w-0">
-            <div className="flex flex-col gap-1 p-5 pb-0">
-              <h2 id="excluded-heading" className="eyebrow">
+          <section aria-labelledby="excluded-heading" className="well min-w-0">
+            <div className="well-head">
+              <h2 id="excluded-heading" className="t-lg">
                 Fuera de la corrida
               </h2>
-              <p className="subtle m-0 t-xs">
+              <span className="subtle t-xs">
                 Lo que no sale, con el motivo. Una linea que desaparece en
                 silencio es una linea que alguien cree pagada.
-              </p>
+              </span>
             </div>
 
             {excluded.length === 0 ? (
-              <EmptyBlock
-                title="Ninguna linea quedo fuera"
-                description="Los seis controles no detuvieron nada de esta semana y nadie retuvo una linea a mano."
-              />
+              <div className="well-panel">
+                <EmptyBlock
+                  title="Ninguna linea quedo fuera"
+                  description="Los seis controles no detuvieron nada de esta semana y nadie retuvo una linea a mano."
+                />
+              </div>
             ) : (
-              <div className="table-scroll p-2">
+              <div className="well-panel well-panel-table table-scroll">
                 <table className="data-table">
                   <caption className="sr-only">
                     Lineas que no salen en esta corrida, con su estado y el
@@ -753,7 +778,7 @@ export function PaymentsScreen() {
             )}
           </section>
 
-          <p className="subtle t-xs">
+          <p className="subtle m-0 t-xs">
             {[
               `Corrida ${run.id}.`,
               anySynthetic(run.items.map((item) => item.instruction))
@@ -764,7 +789,7 @@ export function PaymentsScreen() {
               .filter((part) => part !== null)
               .join(" ")}
           </p>
-        </>
+        </div>
       ) : null}
 
       {openReceipt ? (

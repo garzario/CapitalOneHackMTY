@@ -12,12 +12,17 @@
 
 import { describe, expect, test } from "bun:test";
 import type { RailsStatus } from "../lib/contract";
-import { progressSentence, railSentence, sendLabel } from "./PaymentsScreen";
+import {
+  progressSentence,
+  railName,
+  railSentence,
+  sendLabel,
+} from "./PaymentsScreen";
 
 describe("sendLabel", () => {
   test("asks once, confirms with the count, then admits it is working", () => {
     expect(sendLabel(false, false, 86)).toBe("Enviar corrida");
-    expect(sendLabel(false, true, 86)).toBe("Si, enviar 86 linea(s)");
+    expect(sendLabel(false, true, 86)).toBe("Si, enviar 86 lineas");
     expect(sendLabel(true, true, 86)).toBe("Enviando la corrida");
   });
 
@@ -26,7 +31,7 @@ describe("sendLabel", () => {
        many payments it is about. A first press that already named them would read
        as the action having happened. */
     expect(sendLabel(false, false, 86)).not.toContain("86");
-    expect(sendLabel(false, true, 1)).toContain("1");
+    expect(sendLabel(false, true, 1)).toBe("Si, enviar 1 linea");
   });
 });
 
@@ -102,17 +107,33 @@ describe("railSentence", () => {
   });
 });
 
+describe("railName", () => {
+  test("names the rail short without shortening what it proves", () => {
+    /* The header line is three words and `railSentence` is the claim. A label
+       that said "Riel: STP" where the sentence would have said the production
+       path has never run is the shortening ADR-0008 warns about, so the two are
+       separate functions and both are on screen. */
+    expect(railName(null)).toBe("Riel por confirmar");
+    expect(railName({ active: null, rails: [], message: "sin riel" })).toBe(
+      "Sin riel configurado",
+    );
+    expect(railName({ active: "nessie", rails: [] })).toBe(
+      "Riel: espejo Nessie",
+    );
+  });
+});
+
 describe("progressSentence", () => {
   test("counts lines and never prints a proportion", () => {
     const sentence = progressSentence(34, 86);
 
-    expect(sentence).toBe("34 de 86 linea(s) contestadas por el riel");
+    expect(sentence).toBe("34 de 86 lineas contestadas por el riel");
     expect(sentence).not.toContain("%");
   });
 
   test("reads correctly before anything has been answered", () => {
     expect(progressSentence(0, 86)).toBe(
-      "0 de 86 linea(s) contestadas por el riel",
+      "0 de 86 lineas contestadas por el riel",
     );
   });
 });

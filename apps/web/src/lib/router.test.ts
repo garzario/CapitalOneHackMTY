@@ -6,12 +6,14 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  cepPath,
   DEFAULT_PATH,
   href,
   instructionPath,
   parsePath,
   pathOf,
   queryOf,
+  satPath,
   targetFromHash,
   verifyAccountPath,
   verifyCallPath,
@@ -80,6 +82,27 @@ describe("verifyCallPath", () => {
     const path = verifyCallPath("ins 2026w37/01");
 
     expect(queryOf(path).get("instruction")).toBe("ins 2026w37/01");
+  });
+});
+
+describe("satPath and cepPath", () => {
+  test("carry the supplier the evidence link is about", () => {
+    expect(parsePath(satPath("SYN010101AAA"))).toEqual({ name: "sat" });
+    expect(queryOf(satPath("SYN010101AAA")).get("rfc")).toBe("SYN010101AAA");
+
+    expect(parsePath(cepPath("SYN070707GGG"))).toEqual({ name: "cep" });
+    expect(queryOf(cepPath("SYN070707GGG")).get("rfc")).toBe("SYN070707GGG");
+  });
+
+  /* A space is the character that would silently end the query, and a typed
+     RFC is exactly where one arrives from. */
+  test("encode a value with a space and round trip through queryOf", () => {
+    expect(queryOf(satPath("SYN 010101 AAA")).get("rfc")).toBe(
+      "SYN 010101 AAA",
+    );
+    expect(queryOf(cepPath("SYN 070707 GGG")).get("rfc")).toBe(
+      "SYN 070707 GGG",
+    );
   });
 });
 

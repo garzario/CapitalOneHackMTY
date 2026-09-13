@@ -24,6 +24,112 @@
     border-radius: var(--radius-md);
   }
 
+  /*
+   * Wells and panels: the depth strategy, in three classes.
+   *
+   * A well is a pale container with a faint line, one step below the page. A
+   * panel is the white shelf inside it, one step above the well, and it only
+   * appears where the content is dense enough to need a ground of its own --
+   * a table, a chart. Two surfaces and a hairline each, no hard shadow
+   * anywhere, so the eye reads a shelf rather than a stack of frames.
+   *
+   * The radii are concentric and that is the whole reason the panel's is the
+   * smaller one: the well is 24 and pads its contents by 12, so a panel drawn
+   * at 12 keeps a constant 12px of well visible all the way around its
+   * corner. Stamp the same radius on both and the corner goes thin on the
+   * diagonal, which is the detail that makes nested boxes look glued on.
+   */
+  .well {
+    background-color: var(--c-well);
+    border: var(--border-width) solid var(--c-well-line);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-3);
+  }
+
+  /* The title row inside the well, above the panel. It sits on the well's own
+     ground, so it is inset by a little more than the panel it introduces. */
+  .well-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  .well-panel {
+    background-color: var(--c-surface-raised);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+
+  /* The panel a table lives in. A table already pads itself -- twelve pixels
+     in every cell, and a row whose height the two-line supplier cell sets --
+     so the panel only has to keep the first and last rows off its own hairline. The
+     full padding here would be a margin inside a margin, and the column of
+     amounts would stop lining up with the head above it. */
+  .well-panel-table {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  /* For a well whose content is a handful of words and a number: no panel,
+     because there is nothing dense enough to need its own ground, and a white
+     rectangle behind three lines of text is a box for the sake of a box. */
+  .well-body {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  /*
+   * The one dark card. It is the focal point of the screen and it is dark for
+   * the same reason the figure on it is the biggest: a single inversion on a
+   * pale page is the strongest hierarchy available, and it only works while
+   * there is exactly one of them.
+   *
+   * The grain is a dot every `--grain-pitch`, a few percent of light. It is
+   * the only texture in the app, it is dots and never lines, and at arm's
+   * length it does not read as pattern at all -- it reads as the difference
+   * between a surface and a fill.
+   */
+  .card-dark {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--c-card-dark);
+    color: var(--c-card-dark-ink);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    background-image: radial-gradient(
+      var(--grain-dot) var(--border-width),
+      transparent var(--border-width)
+    );
+    background-size: var(--grain-pitch) var(--grain-pitch);
+  }
+
+  /* The card's two muted inks are further down, next to the page's own: a
+     rule that overrides `.muted` has to be written after it or the cascade
+     does not reach it. */
+
+  .card-dark a {
+    color: inherit;
+  }
+
+  .card-dark :focus-visible {
+    outline-color: var(--c-card-dark-ink);
+  }
+
+  /* The row a link arrived at. Someone who followed an evidence link off a
+     finding should not have to read the list to find the supplier they came
+     for, so the row they came for is tinted. Brand blue and not a status
+     colour: it says "here", not "bad".
+
+     The tint is a third ground and the subtle ink is the one that does not
+     survive it: on the dark accent it measures 4.37, under AA, and the RFC is
+     the line wearing it. The tinted row lifts subtle one step, next to the rule
+     that defines it so the specificity climbs rather than descends. */
+  [data-highlight="true"] {
+    background-color: var(--c-accent-soft);
+  }
+
   .divider {
     height: var(--border-width);
     background-color: var(--c-border);
@@ -54,29 +160,41 @@
   .t-lg {
     font-size: var(--text-lg);
     line-height: var(--leading-snug);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   .t-xl {
     font-size: var(--text-xl);
     line-height: var(--leading-snug);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   .t-2xl {
     font-size: var(--text-2xl);
     line-height: var(--leading-tight);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
   .t-3xl {
     font-size: var(--text-3xl);
     line-height: var(--leading-tight);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
   }
 
+  /* A section label. It used to be uppercase with wide tracking, which is the
+     fastest way to make six unrelated headings look like one generated
+     template. Sentence case, one step down the scale, same job. */
   .eyebrow {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    color: var(--c-ink-subtle);
+    letter-spacing: var(--tracking-tight);
+    color: var(--c-ink);
+    /* Set explicitly: it is usually an h2, and h2 is light now. */
+    line-height: var(--leading-snug);
   }
 
   .muted {
@@ -85,6 +203,21 @@
 
   .subtle {
     color: var(--c-ink-subtle);
+  }
+
+  /* One step up on the marked row. See the note on `[data-highlight]`: subtle
+     ink on that tint is under AA in dark, and the RFC is the line wearing it. */
+  [data-highlight="true"] .subtle {
+    color: var(--c-ink-muted);
+  }
+
+  /* Every ink token on the page is dark on dark inside the dark card, the same
+     way it is inside the rail, so the card carries its own two. Both of the
+     page's muted inks collapse to one up there: a third step of grey on navy
+     is a step nobody can see. */
+  .card-dark .muted,
+  .card-dark .subtle {
+    color: var(--c-card-dark-ink-muted);
   }
 
   /* --------------------------------------------------------------- numerals */
@@ -99,16 +232,17 @@
   .num-lg {
     font-variant-numeric: var(--numeric-tabular);
     font-size: var(--text-xl);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-light);
     line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
   }
 
   .num-xl {
     font-variant-numeric: var(--numeric-tabular);
     font-size: var(--text-3xl);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-light);
     line-height: var(--leading-tight);
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-display);
   }
 
   .code {
@@ -152,14 +286,27 @@
     font-weight: var(--weight-medium);
     cursor: pointer;
     text-decoration: none;
+    /* `filter` is in the list because the accent's hover is a brightness and
+       without it that one variant snapped while every other part of the same
+       button eased. */
     transition:
       background-color var(--motion-fast) var(--ease-standard),
       border-color var(--motion-fast) var(--ease-standard),
-      color var(--motion-fast) var(--ease-standard);
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard),
+      filter var(--motion-fast) var(--ease-standard);
   }
 
   .btn:hover:not(:disabled) {
     background-color: var(--c-surface-sunken);
+  }
+
+  /* The whole of the press feedback: three per cent, for as long as the finger
+     is down. A button that does not move under a press is a button a person
+     presses twice, and on this screen the second press is on a control that
+     decides whether money leaves. */
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .btn:disabled,
@@ -182,10 +329,35 @@
     font-size: var(--text-md);
   }
 
+  /*
+   * The secondary button on a page with no borders on anything else.
+   *
+   * Rounder and wider than `.btn`, and its boundary is the hairline rather
+   * than the strong border: WCAG 1.4.11 asks 3.0 of the boundary of an *input*,
+   * where the box is the only thing saying "you can type here". A button whose
+   * own word carries the affordance is not that case, and a 3.0 outline on a
+   * page this open reads as a fourth kind of box. The pair is measured by
+   * `bun run audit:web` anyway, at 1.0, so the number is on the record instead
+   * of in an argument.
+   */
+  .btn-pill {
+    border-color: var(--c-border);
+    border-radius: var(--radius-pill);
+    padding-inline: var(--space-5);
+    /* White, and lifted. On a page of wells a secondary button has to read as
+       something sitting on the ground rather than a shape cut into it, and
+       the raised shadow is the whole of that claim. The hover is `.btn`'s own
+       and is left alone: a whisper that deepens under the pointer stops being
+       a whisper, and a control that rises while you aim at it is worse. */
+    background-color: var(--c-surface-raised);
+    box-shadow: var(--shadow-raised);
+  }
+
   .btn-accent {
     background-color: var(--c-accent);
     border-color: var(--c-accent);
     color: var(--c-accent-ink);
+    box-shadow: var(--shadow-raised);
   }
 
   .btn-accent:hover:not(:disabled) {
@@ -196,27 +368,48 @@
   /* The three decision buttons. Colour carries meaning here, so it is never
      the only signal: each button also says what it does in words. */
   .btn-hold {
-    border-color: var(--c-hold);
+    border-color: var(--c-border-strong);
     color: var(--c-hold-ink);
+  }
+
+  .btn-hold:hover:not(:disabled) {
+    border-color: var(--c-hold);
     background-color: var(--c-hold-soft);
   }
 
   .btn-verify {
-    border-color: var(--c-verify);
+    border-color: var(--c-border-strong);
     color: var(--c-verify-ink);
+  }
+
+  .btn-verify:hover:not(:disabled) {
+    border-color: var(--c-verify);
     background-color: var(--c-verify-soft);
   }
 
   .btn-release {
-    border-color: var(--c-release);
+    border-color: var(--c-border-strong);
     color: var(--c-release-ink);
+  }
+
+  .btn-release:hover:not(:disabled) {
+    border-color: var(--c-release);
     background-color: var(--c-release-soft);
   }
 
-  .btn-hold[aria-pressed="true"],
-  .btn-verify[aria-pressed="true"],
+  .btn-hold[aria-pressed="true"] {
+    border-color: var(--c-hold);
+    background-color: var(--c-hold-soft);
+  }
+
+  .btn-verify[aria-pressed="true"] {
+    border-color: var(--c-verify);
+    background-color: var(--c-verify-soft);
+  }
+
   .btn-release[aria-pressed="true"] {
-    box-shadow: inset 0 0 0 1px currentcolor;
+    border-color: var(--c-release);
+    background-color: var(--c-release-soft);
   }
 
   /* ------------------------------------------------------------------ chips */
@@ -227,9 +420,9 @@
     align-items: baseline;
     gap: var(--space-2);
     max-width: 100%;
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-1) var(--space-2);
     border: var(--border-width) solid var(--c-border);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-sm);
     background-color: var(--c-surface-sunken);
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
@@ -268,37 +461,30 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border: var(--border-width) solid transparent;
-    border-radius: var(--radius-pill);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
     font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
+    font-weight: var(--weight-medium);
     white-space: nowrap;
   }
 
   .badge-hold {
     background-color: var(--c-hold-soft);
-    border-color: var(--c-hold);
     color: var(--c-hold-ink);
   }
 
   .badge-verify {
     background-color: var(--c-verify-soft);
-    border-color: var(--c-verify);
     color: var(--c-verify-ink);
   }
 
   .badge-release {
     background-color: var(--c-release-soft);
-    border-color: var(--c-release);
     color: var(--c-release-ink);
   }
 
   .badge-neutral {
     background-color: var(--c-surface-sunken);
-    border-color: var(--c-border);
     color: var(--c-ink-muted);
   }
 
@@ -316,6 +502,14 @@
     height: 0.625rem;
     border-radius: var(--radius-pill);
     flex: none;
+  }
+
+  /* Breathing while a request is in flight, and only then. The card already
+     says "Consultando la API" in words; this is the same claim in the corner
+     of the eye, and it stops the moment the answer arrives so that a dot at
+     rest means the reading on screen is current. */
+  .status-dot[data-checking="true"] {
+    animation: pulse 1.4s var(--ease-standard) infinite;
   }
 
   /* ------------------------------------------------------------------ table */
@@ -340,18 +534,24 @@
     background-color: var(--c-surface);
     text-align: left;
     font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
+    font-weight: var(--weight-medium);
     color: var(--c-ink-subtle);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-3);
     border-bottom: var(--border-width) solid var(--c-border);
     white-space: nowrap;
   }
 
+  /* The sticky header rides on whatever it is stuck to, and inside a well it
+     is stuck to the panel. `--c-surface` and `--c-surface-raised` are the same
+     white on a light page and a step apart on a dark one, where the generic
+     surface shows as a band across the top of the table. */
+  .well-panel .data-table th {
+    background-color: var(--c-surface-raised);
+  }
+
   .data-table td {
     padding: var(--space-3);
-    border-bottom: var(--border-width) solid var(--c-border);
+    border-bottom: var(--border-width) solid var(--c-grid);
     vertical-align: middle;
   }
 
@@ -457,14 +657,53 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border: var(--border-width) dashed var(--c-border-strong);
-    border-radius: var(--radius-pill);
     color: var(--c-watermark-ink);
     font-size: var(--text-xs);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
     white-space: nowrap;
+  }
+
+  .watermark::before {
+    content: "";
+    flex: none;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-verify);
+  }
+
+  /* Dot plus a short phrase, the same grammar as `.watermark` above and
+     `.decision` below: one small coloured mark carrying the state and the
+     words carrying the meaning, so colour is never the only signal. It is the
+     header row's unit of measure -- everything in that row that is a fact
+     rather than a control is one of these. */
+  .status-line {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--c-ink-subtle);
+    white-space: nowrap;
+  }
+
+  .status-line::before {
+    content: "";
+    flex: none;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-ink-subtle);
+  }
+
+  .status-line-ok::before {
+    background-color: var(--c-release);
+  }
+
+  .status-line-warn::before {
+    background-color: var(--c-verify);
+  }
+
+  .status-line-off::before {
+    background-color: var(--c-hold);
   }
 
   .watermark-tile {
@@ -552,11 +791,44 @@
     }
   }
 
-  /* The one animation in this layer that cannot read a motion token, switched
-     off for anyone who asked the system for less movement. */
+  /* The animations in this layer that cannot read a motion token, switched off
+     for anyone who asked the system for less movement. The rail icon's draw
+     does read one, so `--motion-draw` has already cut it to a millisecond
+     before this rule is reached; it is named here anyway, because a
+     millisecond of movement is still movement and the stroke should simply
+     start whole. */
   @media (prefers-reduced-motion: reduce) {
-    .skeleton {
+    .skeleton,
+    .status-dot {
       animation: none;
+    }
+
+    .icon-draw path {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* An empty state and an error state arrive after a decision or a failed
+     request, never on the first paint of a screen, so they are the one place
+     where something is allowed to settle into view: four pixels and a fade,
+     which is enough to say "this is new" and not enough to make a person wait
+     for it. `@starting-style` rather than a keyframe, so the entrance belongs
+     to the element instead of to a class somebody has to remember to remove,
+     and so reduced motion switches it off through the duration token like
+     every other transition in the file. */
+  .state-block {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity var(--motion-base) var(--ease-standard),
+      transform var(--motion-base) var(--ease-standard);
+  }
+
+  @starting-style {
+    .state-block {
+      opacity: 0;
+      transform: translateY(4px);
     }
   }
 }
@@ -614,6 +886,975 @@
       padding: 0;
       background-color: transparent;
       border-top: 0;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * The shell: a collapsible rail on the left, the screen on the right.
+   *
+   * Why a rail and not the row of tabs this app had. The five sections are not
+   * peers of equal weight -- the payment run is the product and the other four
+   * are evidence you open from it -- and a horizontal tab row says the
+   * opposite. A rail also survives a sixth section, which a tab row does not,
+   * and it keeps the run's own header free for the run's own numbers.
+   *
+   * There were six. The verification call moved onto the instruction, because
+   * a call is a step in one decision about one payment and not a place you go
+   * to; the rail lights "Corrida" while you are on it. The four that stayed
+   * sit in groups, with the two evidence screens under a label of their own.
+   *
+   * It collapses to icons because the run is a wide financial table and on a
+   * 13-inch laptop the last column is the one that decides whether money
+   * leaves. The collapsed state is a preference, not a breakpoint: someone who
+   * wants the labels back gets them at any width.
+   */
+
+  .shell {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 100svh;
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-rail);
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    width: var(--rail-width);
+    height: 100svh;
+    padding: var(--space-3) var(--space-2);
+    gap: var(--space-2);
+    background-color: var(--c-rail);
+    border-right: var(--border-width) solid var(--c-rail);
+    color: var(--c-rail-ink);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  .rail[data-collapsed="true"] {
+    width: var(--rail-width-collapsed);
+  }
+
+  /* The rail's first row is the lockup and nothing else; the control that
+     collapses the rail is in the top bar, where it survives the collapse.
+     When the rail is collapsed the mark stays and the word goes, which is the
+     whole point of a mark. */
+  .rail-top {
+    display: flex;
+    align-items: center;
+    /* Top padding is a step rather than three, so the mark rides as high as
+       the top bar's title beside it: collapsed, the icon's centre lands within
+       three pixels of the bar's own. The air the head lost at the top is given
+       back below it, where it separates the lockup from the first section. */
+    padding: var(--space-1) var(--space-2) var(--space-5);
+  }
+
+  /* The lockup scales down to fit the rail's own width, so it is never clipped
+     on the right. */
+  .rail-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 8.5rem;
+  }
+
+  .rail[data-collapsed="true"] .rail-brand {
+    flex: none;
+    max-width: none;
+  }
+
+  .rail[data-collapsed="true"] .rail-top {
+    flex-direction: column;
+    padding-inline: 0;
+  }
+
+  .rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The groups stack inside the rail's own column so the spacer below them
+     still pushes the foot to the bottom. */
+  .rail-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  /* A label, not a link: it names the two screens under it and is hidden from
+     the accessibility tree, where the list carries the same name instead. */
+  .rail-group-label {
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    color: var(--c-rail-ink-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  /* The rule that separates the groups. It has its own token because neither
+     of the rail's existing lines works here: `--c-rail-line` disappears on the
+     navy and the muted ink at full strength reads as a divider. */
+  .rail-rule {
+    height: var(--border-width);
+    margin: var(--space-1) var(--space-2);
+    border: 0;
+    background-color: var(--c-rail-rule);
+  }
+
+  /* Collapsed there is no room for a word, and the rules carry the grouping on
+     their own, inset so they read as separators and not as a border. */
+  .rail[data-collapsed="true"] .rail-group-label {
+    display: none;
+  }
+
+  .rail[data-collapsed="true"] .rail-rule {
+    margin-inline: var(--space-3);
+  }
+
+  /* Measured off capitalone.com's own navigation and matched exactly: Optimist
+     14px, weight 400, no tracking, 21px line box. The rail is the part of this
+     app that stands where their nav stands, so it is the part that has to agree
+     with it letter for letter. */
+  .rail-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 2.25rem;
+    padding: 0 var(--space-2);
+    /* The navy panel is the one surface where a hover has to arrive rather
+       than appear: the active row and the hovered row are two shades of the
+       same blue, and switched instantly they read as a flicker. */
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
+    border-radius: var(--radius-md);
+    color: var(--c-rail-ink-muted);
+    font-size: var(--text-nav);
+    font-weight: var(--weight-regular);
+    letter-spacing: normal;
+    line-height: var(--leading-normal);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .rail-item:hover {
+    background-color: var(--c-rail-active);
+    color: var(--c-rail-ink);
+  }
+
+  /* The current section is marked by colour and ground, not by weight. Capital
+     One's own active nav item is not bolder than its neighbours -- it carries a
+     rule under it -- and a rail where one of six labels is semibold makes the
+     other five look switched off. */
+  .rail-item[aria-current="page"] {
+    background-color: var(--c-rail-active);
+    color: var(--c-rail-active-ink);
+    /* Raised, like every other current thing in the app. On the navy the
+       shadow is nearly invisible and that is the correct amount: it stops the
+       active row reading as a flat patch of a second blue. */
+    box-shadow: var(--shadow-raised);
+  }
+
+  .rail-item svg {
+    flex: none;
+  }
+
+  /* Rune's "draw": the stroke is one dash as long as the path, pushed off the
+     start and pulled back over the first seven tenths of the duration. Only
+     `.icon-draw` carries it, and AppShell puts that class on exactly one svg,
+     so nothing else in the rail moves.
+
+     The class is wrapped in `:where()` to spend no specificity, because the
+     rule that switches this off for reduced motion sits hundreds of lines
+     above -- in the one block where this file collects that preference -- and
+     two selectors of equal weight are decided by which came last. This way the
+     preference wins where it belongs rather than by an `!important`. */
+  :where(.icon-draw) path {
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 1;
+    animation: icon-draw var(--motion-draw) var(--ease-draw) 0s 1 both;
+  }
+
+  @keyframes icon-draw {
+    0% {
+      stroke-dashoffset: 1;
+    }
+    70%,
+    100% {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .rail[data-collapsed="true"] .rail-item {
+    justify-content: center;
+    padding: 0;
+  }
+
+  /* Kept in the DOM when collapsed so the accessible name never disappears;
+     only the pixels go. */
+  .rail-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rail[data-collapsed="true"] .rail-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .rail-spacer {
+    flex: 1;
+  }
+
+  /*
+   * The Capital One lockup, as attribution and nothing else.
+   *
+   * It is in the rail's foot, under a rule, beside the words that say what the
+   * relationship is: this is an entry in their track, built on their palette and
+   * their type. It is deliberately not next to the SentryOne mark at the top of
+   * the rail, because two marks side by side in a product's header is the visual
+   * grammar of "a Capital One product", which this is not.
+   *
+   * Their navy wordmark disappears on a near-black page, so dark mode swaps in
+   * the reverse lockup. The swoosh red is the same file in both: it holds on
+   * either ground, and it is the only place that red appears in the app.
+   */
+  .co-mark {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .co-mark img {
+    width: 4.25rem;
+    height: auto;
+    flex: none;
+  }
+
+  .rail[data-collapsed="true"] .co-mark {
+    display: none;
+  }
+
+  .rail-foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-2) var(--space-2);
+    border-top: var(--border-width) solid var(--c-rail-line);
+  }
+
+  /* `.subtle` and `.muted` are page ink and every one of them is dark on dark
+     in here. The rail overrides them once, at its root, rather than asking each
+     element inside it to remember. */
+  .rail .subtle,
+  .rail .muted {
+    color: var(--c-rail-ink-muted);
+  }
+
+  /* The app's focus ring is the brand navy, which is this panel's ground. On
+     the rail it inverts, or keyboard focus disappears exactly where a keyboard
+     user starts. */
+  .rail :focus-visible {
+    outline-color: var(--c-rail-ink);
+  }
+
+  .rail-foot-detail {
+    line-height: var(--leading-snug);
+  }
+
+  .rail[data-collapsed="true"] .rail-foot {
+    align-items: center;
+    padding-inline: 0;
+  }
+
+  .rail[data-collapsed="true"] .rail-foot-detail {
+    display: none;
+  }
+
+  /* Under 60rem the rail stops being furniture and becomes an overlay, because
+     a 15rem column on a phone leaves nothing for the table it exists to
+     navigate. */
+  @media (max-width: 60rem) {
+    .rail {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: var(--z-drawer);
+      width: var(--rail-width);
+      /* The extra pixel is not cosmetic. At exactly -100% the rail's right edge
+         lands on x = 0, and an element whose box touches the viewport's left
+         edge is indistinguishable from one that overflows into it -- which is
+         how `bun run audit:web` reported it, intermittently, as content pushing
+         the page sideways. One pixel further puts it unambiguously off-canvas. */
+      transform: translateX(calc(-100% - 1px));
+      /* Not just moved off-canvas: taken out of the page. A rail parked at
+         translateX(-100%) is still focusable, so Tab from the top bar walked a
+         keyboard user through six invisible links before reaching the screen,
+         and the audit reported it as content sitting outside the viewport.
+         `visibility` is transitionable, so it waits for the slide instead of
+         cutting it off. */
+      visibility: hidden;
+      transition:
+        transform var(--motion-base) var(--ease-standard),
+        visibility var(--motion-base) var(--ease-standard);
+      box-shadow: var(--shadow-3);
+    }
+
+    .rail[data-open="true"] {
+      transform: translateX(0);
+      visibility: visible;
+    }
+
+    .rail[data-collapsed="true"] {
+      width: var(--rail-width);
+    }
+
+    .rail[data-collapsed="true"] .rail-label {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      clip-path: none;
+    }
+
+    .rail[data-collapsed="true"] .rail-item {
+      justify-content: flex-start;
+      padding: 0 var(--space-2);
+    }
+
+    .rail[data-collapsed="true"] .rail-top {
+      flex-direction: row;
+      padding-inline: var(--space-2);
+    }
+
+    .rail[data-collapsed="true"] .rail-foot {
+      align-items: stretch;
+      padding-inline: var(--space-2);
+    }
+
+    .rail[data-collapsed="true"] .rail-foot-detail {
+      display: block;
+    }
+  }
+
+  /* ------------------------------------------------------------- top bar */
+
+  /* The screen's own header. One line: where you are, and the one action that
+     belongs to the whole screen. Everything else lives in the screen. */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 3.25rem;
+    padding: var(--space-2) var(--layout-gutter);
+    background-color: var(--c-canvas);
+    border-bottom: var(--border-width) solid var(--c-border);
+  }
+
+  .topbar-title {
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  /* Pushed to the far end of the bar, away from the title it is not part of. */
+  .topbar-mark {
+    margin-inline-start: auto;
+  }
+
+  /* The frame's one control, left of the title at every width. Bare at rest:
+     the reference puts nothing around it, and a box here would read as a
+     fourth kind of button on a bar that already has a border of its own. */
+  .topbar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--c-ink-muted);
+    cursor: pointer;
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard);
+  }
+
+  .topbar-toggle:hover {
+    background-color: var(--c-surface-sunken);
+    color: var(--c-ink);
+  }
+
+  .topbar-toggle:active {
+    transform: scale(0.97);
+  }
+
+  /* Which of the button's two names a screen reader gets. The control opens
+     the overlay below 60rem and collapses the rail above it, and that is a
+     question about the width, which is CSS's to answer: React would have to
+     hold the width in state and keep it honest across every resize. A span
+     that is not displayed is not in the accessibility tree. */
+  .topbar-toggle-narrow {
+    display: none;
+  }
+
+  @media (max-width: 60rem) {
+    .topbar-toggle-narrow {
+      display: inline;
+    }
+
+    .topbar-toggle-wide {
+      display: none;
+    }
+  }
+
+  .screen {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: var(--layout-max);
+    padding: var(--space-6) var(--layout-gutter) var(--space-8);
+  }
+
+  .shell-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-top: auto;
+    padding-top: var(--space-6);
+    border-top: var(--border-width) solid var(--c-border);
+  }
+
+  .shell-foot p {
+    max-width: 68ch;
+  }
+
+  /* --------------------------------------------------------------- cards */
+
+  /* A card's header. The title carries the weight and the link is quiet: on a
+     screen with five cards, five loud "View all" links is five invitations to
+     leave the screen you just arrived at. */
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+
+  .card-link,
+  .card-note {
+    color: var(--c-ink-subtle);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .card-link {
+    transition: color var(--motion-fast) var(--ease-standard);
+  }
+
+  /* The note is a hint about the card, not information the card is missing
+     without it. On a phone it is the widest thing in the header and it pushed
+     past the card's own edge, so below this width it goes. A link in the same
+     slot stays: that one is somewhere to go. */
+  @media (max-width: 48rem) {
+    .card-note {
+      display: none;
+    }
+  }
+
+  .card-link:hover {
+    color: var(--c-accent);
+    text-decoration: underline;
+  }
+
+  /* ------------------------------------------------------- the payment run */
+
+  /*
+   * The run's own column.
+   *
+   * The greeting, then four blocks that are all wells, separated by 24px. The
+   * air used to be 32px because it was the only thing grouping the blocks;
+   * now every block draws its own soft container and a gap that wide leaves
+   * the page reading as loose cards. The depth strategy is the well and the
+   * panel inside it -- one step below the page, one step above the well -- and
+   * exactly one dark card at the top for the figure the screen exists for.
+   */
+  .run-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  /* The greeting. One large light line naming the ritual, the week and the
+     counts under it, and everything that describes the run's provenance
+     pushed to the right where it stays available without being read first.
+     Everything wraps, because on a phone it is four objects in 390px. */
+  .run-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-6);
+  }
+
+  .run-hero-title {
+    margin: 0;
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
+    line-height: var(--leading-tight);
+  }
+
+  .run-hero-sub {
+    margin: var(--space-2) 0 0;
+    color: var(--c-ink-muted);
+    font-size: var(--text-md);
+    font-weight: var(--weight-light);
+  }
+
+  /* Right-aligned on a laptop and under the greeting on a phone, which is what
+     `flex-wrap` on the parent already does; this only keeps the three objects
+     on one line for as long as there is a line. */
+  .run-hero-aside {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3) var(--space-4);
+  }
+
+  /*
+   * How the run's money splits between held, awaiting verification and
+   * released.
+   *
+   * It is the one object on this screen that could not belong to any other
+   * product, and it is not decoration: the sentence below it states the same
+   * split in words, and this says it in the channel the eye reads first. Six
+   * pixels tall and unlabelled, so it stays under the figure rather than
+   * competing with it. The track is the page's own hairline, so a run with a
+   * rounding gap between segments shows a line and not a hole.
+   */
+  .run-bar {
+    display: flex;
+    gap: 2px;
+    height: 0.375rem;
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    background-color: var(--c-border);
+  }
+
+  /* The one transition in the app that moves something other than opacity or
+     transform. It is allowed because it never runs on the first paint -- the
+     widths are correct in the first frame and only change when a decision
+     changes the split under them -- and because the thing being laid out is a
+     6px bar with nothing inside it to reflow. */
+  .run-bar-seg {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  .run-bar-hold {
+    background-color: var(--c-hold);
+  }
+
+  .run-bar-verify {
+    background-color: var(--c-verify);
+  }
+
+  .run-bar-release {
+    background-color: var(--c-release);
+  }
+
+  /*
+   * The same bar on the dark card, in the card's own ink at three opacities.
+   *
+   * The decision colours are not used here and that is deliberate: they are
+   * tuned to be read on white, they are the loudest thing in the table below,
+   * and three saturated bars across a navy card would outshout the figure
+   * they belong to. Monochrome keeps the card one object.
+   *
+   * The track goes too. On the page it is the hairline, so a rounding gap
+   * reads as a line; on the card the ground behind the bar is the card
+   * itself, and a warm grey line drawn across navy is not a whisper.
+   */
+  .run-bar-dark {
+    background-color: transparent;
+  }
+
+  .run-bar-dark .run-bar-hold {
+    background-color: var(--c-bar-dark-1);
+  }
+
+  .run-bar-dark .run-bar-verify {
+    background-color: var(--c-bar-dark-2);
+  }
+
+  .run-bar-dark .run-bar-release {
+    background-color: var(--c-bar-dark-3);
+  }
+
+  /* ---------------------------------------------------------- the open list */
+
+  .row-lead {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  /* The round tile at the head of a row: tinted by the decision, drawn as the
+     channel the instruction arrived by. Two facts, one object, and neither of
+     them is only here. */
+  .row-tile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-pill);
+  }
+
+  .row-tile-hold {
+    background-color: var(--c-hold-soft);
+    color: var(--c-hold-ink);
+  }
+
+  .row-tile-verify {
+    background-color: var(--c-verify-soft);
+    color: var(--c-verify-ink);
+  }
+
+  .row-tile-release {
+    background-color: var(--c-release-soft);
+    color: var(--c-release-ink);
+  }
+
+  /* --------------------------------------------------------------- charts */
+
+  /* The detector names do not shrink below their own width, so on a phone the
+     chart scrolls inside its own box instead of scrolling the page.
+
+     `min-width: 0` is the half of that which is not optional. Without it the
+     box is sized by the min-content of the canvas inside it, the grid column
+     around it grows to 448px, and a 390px phone scrolls the whole document
+     sideways -- which is the exact failure `bun run audit:web` exists to
+     catch, and did. */
+  .chart-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chart-canvas {
+    min-width: 28rem;
+  }
+
+  /*
+   * The donut and the list that names its three arcs.
+   *
+   * The list is the accessible copy of the chart and it is also the part a
+   * person actually reads: an arc says "about a third", the row next to it
+   * says which third and how many pesos. They wrap under 40rem -- chart on
+   * top, list under -- because side by side in 390px neither is legible.
+   */
+  .donut-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-5);
+  }
+
+  /* The chart's own box, at the size the geometry in RunDonut.tsx is drawn
+     for. `relative` is what the centre stat is positioned against.
+
+     The auto margins are for the wrapped case only: beside the list there is
+     no free space left on the line once the list has grown into it, and on a
+     phone, where the donut is alone on its line, they centre it. */
+  .donut-figure {
+    position: relative;
+    flex: none;
+    margin-inline: auto;
+  }
+
+  .donut-centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    /* The arcs take the pointer, not the label sitting on top of them. */
+    pointer-events: none;
+  }
+
+  .donut-legend {
+    display: flex;
+    flex: 1 1 14rem;
+    min-width: 0;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Rows separated by the faintest rule in the palette, and none under the
+     last one, so the list ends in air the way the table does. */
+  .donut-legend-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: var(--border-width) solid var(--c-grid);
+  }
+
+  .donut-legend-row:last-child {
+    border-bottom: 0;
+  }
+
+  .donut-legend-main {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* Three amounts of three different lengths can only be compared on their
+     right edge, which is the same reason the table's Importe column is there. */
+  .donut-legend-amount {
+    flex: none;
+    margin-inline-start: auto;
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  /* The tooltip, and the one floating object the chart has. It is the only
+     place on this screen that still carries a hairline and a shadow, because
+     it genuinely floats over the page the way the drawer does. */
+  .chart-tip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--c-surface-raised);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-2);
+    font-size: var(--text-xs);
+  }
+
+  /* --------------------------------------------------------- decision ink */
+
+  /* What replaced the pill and the three coloured buttons in every row. The
+     dot is the colour, the word is the meaning, and colour is never the only
+     signal because the word is always there. */
+  .decision {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+  }
+
+  .decision-dot {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: var(--radius-pill);
+    flex: none;
+  }
+
+  .decision-hold {
+    color: var(--c-hold-ink);
+  }
+  .decision-hold .decision-dot {
+    background-color: var(--c-hold);
+  }
+
+  .decision-verify {
+    color: var(--c-verify-ink);
+  }
+  .decision-verify .decision-dot {
+    background-color: var(--c-verify);
+  }
+
+  .decision-release {
+    color: var(--c-release-ink);
+  }
+  .decision-release .decision-dot {
+    background-color: var(--c-release);
+  }
+
+  /* The donut's legend borrows the dot and nothing else: the word beside it is
+     the legend's own, at its own size. Seven pixels against a fifteen-pixel
+     line need the nudge a flex row cannot work out for itself -- the dot
+     belongs on the middle of the label, not on the top of a two-line cell. */
+  .donut-legend-row .decision {
+    margin-top: var(--space-2);
+  }
+}
+
+@layer components {
+  /*
+   * The segmented filter above the payment run.
+   *
+   * Real radio inputs, visually replaced. The input keeps the keyboard
+   * behaviour and the accessible role; `.segment-face` is the word you see and
+   * `.segment-thumb` is the pill under it.
+   *
+   * The state machine is still the input's own `:checked`, so there is no class
+   * to keep in sync with the React state and no way for the two to disagree.
+   * It reads through `:has()` rather than through the sibling combinator now,
+   * because the thumb is mounted between the input and the face when an option
+   * is selected and `input:checked + .segment-face` stopped matching the
+   * element it names.
+   */
+
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-pill);
+    background-color: var(--c-surface-sunken);
+  }
+
+  .segment {
+    position: relative;
+    display: inline-flex;
+    cursor: pointer;
+  }
+
+  /* Off-screen rather than display:none, because a hidden input is an input a
+     keyboard cannot reach and a screen reader does not announce. */
+  .segment input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The selected pill, and the only element in the control that carries the
+     selection's surface. It is one shared-layout element moved between the
+     three options rather than three pills switched on and off, so changing the
+     filter slides it to the word you picked instead of teleporting it. */
+  .segment-thumb {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-surface);
+    /* The same lift the pill buttons carry: the thumb is the one part of the
+       control that is proud of its track. */
+    box-shadow: var(--shadow-raised);
+  }
+
+  .segment-face {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    color: var(--c-ink-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard);
+  }
+
+  .segment:hover .segment-face {
+    color: var(--c-ink);
+  }
+
+  /* The same press feedback as `.btn`, on the word rather than on the thumb:
+     scaling the thumb would fight the layout animation that is moving it. */
+  .segment:active .segment-face {
+    transform: scale(0.97);
+  }
+
+  .segment:has(input:checked) .segment-face {
+    color: var(--c-ink);
+  }
+
+  /* The input is off-screen, so the ring has to be drawn on what you can see. */
+  .segment:has(input:focus-visible) .segment-face {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
+
+  /* The bucket's size, so "what am I not looking at" is answered before it is
+     asked. Tabular, because the three counts sit in a row and a shifting digit
+     width makes the control twitch as the run changes under it. */
+  .segment-count {
+    font-variant-numeric: var(--numeric-tabular);
+    font-size: var(--text-xs);
+    color: var(--c-ink-subtle);
+  }
+
+  .segment:has(input:checked) .segment-count {
+    color: var(--c-ink-muted);
+  }
+
+  /* A row mid-transition must not drag the column widths around with it, or
+     every other row shifts sideways while one is fading. */
+  .data-table tbody tr {
+    will-change: opacity;
+  }
+}
+
+@layer components {
+  @media (max-width: 48rem) {
+    .segmented {
+      width: 100%;
+    }
+
+    .segment {
+      flex: 1;
+    }
+
+    .segment-face {
+      width: 100%;
+      justify-content: center;
     }
   }
 }

@@ -29,7 +29,7 @@ flowchart LR
     C["Banxico CEP<br/>signed XML"]
     N["Nessie sandbox<br/>bank mirror of outflows"]
     G["packages/seed<br/>deterministic generator, seed 69"]
-    H["packages/seed/src/holdout<br/>30 labelled cases"]
+    H["packages/seed/src/holdout<br/>35 labelled cases"]
   end
 
   subgraph I[2 Ingest and normalise]
