@@ -71,7 +71,9 @@ src/
   design/
     tokens.css        colour, type scale, spacing, radius, motion, light and dark, tabular numerals
     base.css          element rules, in Tailwind's base layer
-    primitives.css    .panel .btn .chip .badge .data-table .watermark, in Tailwind's components layer
+    primitives.css    .panel .btn .chip .level .state .data-table .toast .watermark, in Tailwind's
+                      components layer
+    TokenSheet.tsx    every token and every base component on one page, at #/design
   lib/
     api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE)
     contract.ts       the HTTP shapes, composed from packages/core/src/domain.ts
@@ -82,13 +84,20 @@ src/
     format.ts         money, dates, CLABE blocks, digit diffs
     labels.ts         every Spanish word the clerk reads, in one dictionary
   components/         AppShell, States, Primitives, Evidence, Decision, Findings,
-                      SupplierDrawer, StatusCard
+                      SupplierDrawer, StatusCard, and the base set below
   screens/            RunScreen, InstructionScreen, IntakeScreen, SatScreen, CepScreen,
                       MetricsScreen
 ```
 
+The base components, which every screen is built from: `Button`, `LevelChip` and `StateChip`
+(the two vocabularies of ADR-0009), `DataTable`, `Drawer`, `Toast`, and the `LoadingBlock`,
+`EmptyBlock` and `ErrorBlock` of `States.tsx`. `docs/design.md` says what each is responsible
+for. If a second screen needs the same object, it belongs there rather than in one screen.
+
 Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
-change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`.
+change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`, and
+`#/design` for the token sheet, which is a reference rather than a screen and is deliberately
+not in the navigation.
 
 The intake page reads `rfc`, `amount` and `clabe` out of its own query, so the QR code can
 carry a prefilled instruction: `#/intake?rfc=SYN990202S02&amount=38417.48`. That RFC is the
@@ -107,6 +116,11 @@ A component that needs a new one adds a token there, named for what it means.
   `--c-hold`, `--c-verify`, `--c-release`. Severity reuses the same three, so one colour
   always means one thing. Colour is never the only signal: every badge and button also says
   what it is in words.
+- The level (`--c-level-*`) and the state (`--c-state-*`) of ADR-0009. The level aliases the
+  three decision triplets, because a level and an action are two readings of one body of
+  evidence. The state does not: `enviado` is the informational tone and not green, because
+  money that left is a fact and not a verdict. Never a probability and never the word
+  "seguro", in either, which `src/lib/labels.test.ts` enforces over the whole dictionary.
 - Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`), so a column of
   pesos lines up digit over digit.
 - Light is the default, dark follows the operating system, and only colour tokens change
@@ -146,10 +160,16 @@ From ADR-0002, and they are not negotiable:
 
 ## Accessibility
 
-Every route is reachable by keyboard: navigation is real anchors, the supplier drawer is a
-`role="dialog"` that takes focus, closes on Escape and gives focus back, and the scrim is a
-button rather than a div with a click handler. Tables have scoped headers and a caption. The
-focus ring is defined once in `base.css`.
+Every route is reachable by keyboard: navigation is real anchors, the drawer is a
+`role="dialog"` that takes focus, traps Tab, closes on Escape and gives focus back, and the
+scrim is a button rather than a div with a click handler. Tables have scoped headers, a
+caption and a row header. The focus ring is defined once in `base.css`, from `--c-focus`,
+`--focus-width` and `--focus-offset`.
 
-`TODO(FabriBanda)`: a full focus trap inside the drawer, and a pass with a screen reader on
-the intake page.
+`bun run audit:web http://localhost:4173` measures it against the built app: overflow at four
+widths, every control named and ringed under a real Tab press, reduced motion, and every
+colour pairing in both themes. It reports clean as of #207. Two environment variables keep it
+from colliding with somebody else's browser on the same machine: `CDP_PORT` and
+`CHROME_PROFILE`.
+
+`TODO(FabriBanda)`: a pass with a screen reader on the intake page.

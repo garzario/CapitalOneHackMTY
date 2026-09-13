@@ -14,11 +14,13 @@
 
 import type {
   Action,
+  Confidence,
   Detector,
   FindingState,
   InstructionSource,
   SatListStatus,
   Severity,
+  TransactionState,
 } from "@hackmty/core";
 import type {
   CepSealState,
@@ -50,6 +52,111 @@ export const ACTION_BUTTON: Record<Action, string> = {
   hold: "btn btn-hold",
   verify: "btn btn-verify",
   release: "btn btn-release",
+};
+
+/** The 4 px rule down a panel that carries a verdict. */
+export const ACTION_EDGE: Record<Action, string> = {
+  hold: "edge-hold",
+  verify: "edge-verify",
+  release: "edge-release",
+};
+
+/** The 3 px rule down the first cell of a row, which is thinner on purpose. */
+export const ACTION_ROW_EDGE: Record<Action, string> = {
+  hold: "row-edge-hold",
+  verify: "row-edge-verify",
+  release: "row-edge-release",
+};
+
+/** The decision ink as a text colour, for a figure that carries the tone. */
+export const ACTION_INK: Record<Action, string> = {
+  hold: "ink-hold",
+  verify: "ink-verify",
+  release: "ink-release",
+};
+
+/**
+ * The level one payment is read at, and the words are the whole vocabulary.
+ *
+ * Three of them, in the order a clerk scans a column: worst first. `confiable`
+ * is a statement about the evidence we hold and it is the closest this product
+ * ever gets to a reassurance. It is not "seguro", here or anywhere else: a SPEI
+ * does not come back, so nobody can promise one is safe. ADR-0009 forbids the
+ * word outright, along with any probability, percentage or score on screen.
+ */
+export const CONFIDENCE_ORDER: Confidence[] = [
+  "alerta",
+  "precaucion",
+  "confiable",
+];
+
+export const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  alerta: "Alerta",
+  precaucion: "Precaucion",
+  confiable: "Confiable",
+};
+
+export const CONFIDENCE_HELP: Record<Confidence, string> = {
+  alerta:
+    "Los documentos ya prueban un problema, o el proveedor esta en la lista como definitivo.",
+  precaucion:
+    "Falta algo por confirmar: una cuenta sin historial, una verificacion pendiente o un hallazgo de atencion.",
+  confiable:
+    "Los documentos que tenemos coinciden y no hay nada abierto. No quiere decir que no exista riesgo.",
+};
+
+export const CONFIDENCE_CHIP: Record<Confidence, string> = {
+  alerta: "level level-alerta",
+  precaucion: "level level-precaucion",
+  confiable: "level level-confiable",
+};
+
+/**
+ * How many of the three bars the meter fills. An ordinal over the same three
+ * values the word already carries, so that colour is never the only channel,
+ * and never a number: see the note on `.level` in `design/primitives.css`.
+ */
+export const CONFIDENCE_BARS: Record<Confidence, number> = {
+  alerta: 3,
+  precaucion: 2,
+  confiable: 1,
+};
+
+/**
+ * Where one payment of the run stands. The three the team settled on plus the
+ * two the run has always counted internally, in the order money moves through
+ * them: nothing decided, nothing stopping it, stopped, closed, gone.
+ */
+export const TRANSACTION_STATE_ORDER: TransactionState[] = [
+  "pendiente",
+  "liberado",
+  "rojo",
+  "cancelado",
+  "enviado",
+];
+
+export const TRANSACTION_STATE_LABEL: Record<TransactionState, string> = {
+  pendiente: "Pendiente",
+  liberado: "Liberado",
+  rojo: "En rojo",
+  cancelado: "Cancelado",
+  enviado: "Enviado",
+};
+
+export const TRANSACTION_STATE_HELP: Record<TransactionState, string> = {
+  pendiente: "Nadie ha decidido esta linea todavia.",
+  liberado: "Nada la detiene. El dinero no ha salido.",
+  rojo: "Esta detenida y frente a una persona.",
+  cancelado: "No sale con esta evidencia.",
+  enviado: "El dinero ya salio. Un SPEI no regresa.",
+};
+
+export const TRANSACTION_STATE_CHIP: Record<TransactionState, string> = {
+  pendiente: "state state-pendiente",
+  liberado: "state state-liberado",
+  rojo: "state state-rojo",
+  cancelado: "state state-cancelado",
+  enviado: "state state-enviado",
 };
 
 export const DETECTOR_LABEL: Record<Detector, string> = {

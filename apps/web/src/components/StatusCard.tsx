@@ -16,11 +16,11 @@ const LABEL: Record<Status["kind"], string> = {
   offline: "API no responde",
 };
 
-const DOT_COLOR: Record<Status["kind"], string> = {
-  checking: "var(--c-ink-subtle)",
-  skipped: "var(--c-ink-subtle)",
-  online: "var(--c-release)",
-  offline: "var(--c-hold)",
+const DOT_CLASS: Record<Status["kind"], string> = {
+  checking: "dot-neutral",
+  skipped: "dot-neutral",
+  online: "dot-release",
+  offline: "dot-hold",
 };
 
 function detail(status: Status): string {
@@ -115,8 +115,7 @@ export function StatusCard() {
         </h2>
         <span
           aria-hidden="true"
-          className="status-dot mt-1"
-          style={{ backgroundColor: DOT_COLOR[status.kind] }}
+          className={`status-dot mt-1 ${DOT_CLASS[status.kind]}`}
         />
       </div>
 

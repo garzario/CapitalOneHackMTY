@@ -1,15 +1,21 @@
 /**
  * The frame every screen sits in: skip link, product header, the six routes,
- * and the footer that says what this is.
+ * the toast region and the footer that says what this is.
  *
  * The header is deliberately small. The screen a judge is looking at is the
  * payment run, not our logo.
+ *
+ * The toast provider is mounted here rather than per screen for two reasons: the
+ * live region has to exist in the document before the first message lands, or a
+ * screen reader does not reliably announce it, and a confirmation must survive
+ * the navigation that follows the write that produced it.
  */
 
 import type { ReactNode } from "react";
 import { SYNTHETIC_LABEL } from "../lib/labels";
 import { dataMode } from "../lib/resource";
 import { href, PATHS, type Route, type RouteName } from "../lib/router";
+import { ToastProvider } from "./Toast";
 import { Wordmark } from "./Wordmark";
 
 const NAV: Array<{ to: string; label: string; match: RouteName[] }> = [
@@ -41,90 +47,69 @@ export function AppShell({
   const mode = dataMode();
 
   return (
-    <div className="min-h-svh">
-      <a className="skip-link" href="#main">
-        Ir al contenido
-      </a>
+    <ToastProvider>
+      <div className="min-h-svh">
+        <a className="skip-link" href="#main">
+          Ir al contenido
+        </a>
 
-      <header
-        className="border-b"
-        style={{
-          borderColor: "var(--c-border)",
-          backgroundColor: "var(--c-surface)",
-        }}
-      >
-        <div
-          className="mx-auto flex w-full flex-col gap-4 px-4 py-4 sm:px-6"
-          style={{ maxWidth: "var(--layout-max)" }}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <a
-                href={href(PATHS.run)}
-                className="no-underline"
-                style={{ color: "var(--c-ink)" }}
-              >
-                <Wordmark />
-              </a>
-              <p className="muted max-w-prose t-sm">{TAGLINE}</p>
+        <header className="app-bar">
+          <div className="app-width flex flex-col gap-4 px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <a href={href(PATHS.run)} className="app-brand">
+                  <Wordmark />
+                </a>
+                <p className="muted max-w-prose t-sm">{TAGLINE}</p>
+              </div>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <span className="watermark">{SYNTHETIC_LABEL}</span>
+                <span className="subtle t-xs">
+                  Datos: {DATA_MODE_LABEL[mode] ?? mode}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col items-start gap-2 sm:items-end">
-              <span className="watermark">{SYNTHETIC_LABEL}</span>
-              <span className="subtle t-xs">
-                Datos: {DATA_MODE_LABEL[mode] ?? mode}
-              </span>
-            </div>
+
+            <nav aria-label="Secciones">
+              <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
+                {NAV.map((item) => {
+                  const isCurrent = item.match.includes(route.name);
+
+                  return (
+                    <li key={item.to}>
+                      {/* The current item is selected in CSS off its own ARIA
+                        attribute, so what a screen reader announces and what an
+                        eye sees cannot drift apart. */}
+                      <a
+                        href={href(item.to)}
+                        aria-current={isCurrent ? "page" : undefined}
+                        className="nav-link"
+                      >
+                        {item.label}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
           </div>
+        </header>
 
-          <nav aria-label="Secciones">
-            <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
-              {NAV.map((item) => {
-                const isCurrent = item.match.includes(route.name);
+        <main
+          id="main"
+          className="app-width flex flex-col gap-6 px-4 py-6 sm:px-6"
+        >
+          {children}
+        </main>
 
-                return (
-                  <li key={item.to}>
-                    <a
-                      href={href(item.to)}
-                      aria-current={isCurrent ? "page" : undefined}
-                      className="inline-flex rounded-lg px-3 py-2 t-sm no-underline"
-                      style={{
-                        color: isCurrent
-                          ? "var(--c-accent)"
-                          : "var(--c-ink-muted)",
-                        backgroundColor: isCurrent
-                          ? "var(--c-accent-soft)"
-                          : "transparent",
-                        fontWeight: isCurrent ? 600 : 500,
-                      }}
-                    >
-                      {item.label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-        </div>
-      </header>
-
-      <main
-        id="main"
-        className="mx-auto flex w-full flex-col gap-6 px-4 py-6 sm:px-6"
-        style={{ maxWidth: "var(--layout-max)" }}
-      >
-        {children}
-      </main>
-
-      <footer
-        className="mx-auto w-full px-4 py-8 sm:px-6"
-        style={{ maxWidth: "var(--layout-max)" }}
-      >
-        <p className="subtle t-xs">
-          Prototipo sobre datos sinteticos. No es una institucion financiera y
-          no es asesoria fiscal. Los RFC reales solo aparecen en la consulta de
-          la lista oficial.
-        </p>
-      </footer>
-    </div>
+        <footer className="app-width px-4 py-8 sm:px-6">
+          <p className="subtle t-xs">
+            Prototipo sobre datos sinteticos. No es una institucion financiera y
+            no es asesoria fiscal. Los RFC reales solo aparecen en la consulta
+            de la lista oficial.
+          </p>
+        </footer>
+      </div>
+    </ToastProvider>
   );
 }

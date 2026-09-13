@@ -6,6 +6,7 @@
 import { useEffect } from "react";
 import { AppShell } from "./components/AppShell";
 import { EmptyBlock } from "./components/States";
+import { TokenSheet } from "./design/TokenSheet";
 import { DEFAULT_PATH, href, PATHS, type Route, useRoute } from "./lib/router";
 import { CepScreen } from "./screens/CepScreen";
 import { InstructionScreen } from "./screens/InstructionScreen";
@@ -23,6 +24,7 @@ const TITLES: Record<Route["name"], string> = {
   cep: "CEP",
   verifyCall: "Llamada de verificacion",
   metrics: "Evaluacion ciega",
+  design: "Sistema de diseno",
   notFound: "Pagina no encontrada",
 };
 
@@ -42,6 +44,10 @@ function screenFor(route: Route) {
       return <VerifyCallScreen />;
     case "metrics":
       return <MetricsScreen />;
+    /* The token sheet. It is a reference rather than a screen, so it lives in
+       `design/` with the stylesheet it documents and not in `screens/`. */
+    case "design":
+      return <TokenSheet />;
     case "notFound":
       return (
         <div className="panel">

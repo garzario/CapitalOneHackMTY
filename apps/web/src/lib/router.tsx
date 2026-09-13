@@ -22,6 +22,8 @@ export type Route =
   | { name: "cep" }
   | { name: "verifyCall" }
   | { name: "metrics" }
+  /* The token sheet. A reference page, deliberately not in the navigation. */
+  | { name: "design" }
   | { name: "notFound"; path: string };
 
 export type RouteName = Route["name"];
@@ -33,6 +35,7 @@ export const PATHS = {
   cep: "/cep",
   verifyCall: "/verify-call",
   metrics: "/metrics",
+  design: "/design",
 } as const;
 
 export const DEFAULT_PATH = PATHS.run;
@@ -102,6 +105,8 @@ export function parsePath(target: string): Route {
         return { name: "verifyCall" };
       case "metrics":
         return { name: "metrics" };
+      case "design":
+        return { name: "design" };
       default:
         return { name: "notFound", path };
     }

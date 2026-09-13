@@ -37,18 +37,11 @@ import {
 } from "../lib/api";
 import type { PaymentRun } from "../lib/contract";
 import { formatClabe, formatCount, formatDate } from "../lib/format";
-import { SOURCE_LABEL } from "../lib/labels";
+import { ACTION_ROW_EDGE, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { reachesApi, useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
 import { orderItems, runVerdict } from "../lib/run-view";
-
-/** The border colour that marks a row's decision, from the semantic tokens. */
-const ROW_ACCENT: Record<Action, string> = {
-  hold: "var(--c-hold)",
-  verify: "var(--c-verify)",
-  release: "var(--c-release)",
-};
 
 /**
  * What the screen says about the event stream, in one place.
@@ -158,8 +151,10 @@ export function RunScreen() {
 
       /* Offline the write cannot happen, so the interaction is applied to the
          synthetic run and labelled as such. The real path is the POST below.
-         TODO(FabriBanda): surface the confirmed decision in a toast once the
-         API answers, and keep the optimistic update for the offline demo. */
+         TODO(FabriBanda): surface the confirmed decision through `useToasts`
+         once the API answers, and keep the optimistic update for the offline
+         demo. The toast region is mounted by the shell and the hook is in
+         `components/Toast.tsx`; what is missing here is the call. */
       if (source === "mock" && run) {
         replace(withDecision(run, instructionId, action));
         setWriteError(
@@ -310,10 +305,7 @@ export function RunScreen() {
                       {rows.map((item) => (
                         <tr key={item.instruction.id}>
                           <td
-                            className="cell-supplier"
-                            style={{
-                              borderLeft: `3px solid ${ROW_ACCENT[item.decision.action]}`,
-                            }}
+                            className={`cell-supplier ${ACTION_ROW_EDGE[item.decision.action]}`}
                           >
                             <div className="flex flex-col gap-1">
                               <button

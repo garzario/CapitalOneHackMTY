@@ -136,6 +136,53 @@ then the screens, then the narrative, then the plumbing.
   beat 3 asserts the identity between the two figures rather than the direction of the change, and the
   Postgres half of it is checked against `MemoryRepository` on the same publication.
 
+- The design system the three screens of 12 September are built on: the tokens of ADR-0009 and the
+  base components (issue #207). `apps/web/src/design/tokens.css` gains the level and the state as
+  named colours. The level aliases the three decision triplets, because a level and an action are two
+  readings of one body of evidence and a fourth hue on the same row would mean nothing pulls the eye;
+  the state does not, because a state is a fact about money and not a verdict, so `enviado` is the
+  informational tone and not green (a green chip would say the payment was fine, which nobody can say
+  about a transfer that cannot be recalled and that a list published on Friday can still poison),
+  `cancelado` is neutral and firm rather than red, and `pendiente` fills with the surface it sits on
+  and carries a dashed border, so the chip is its outline and its word. An alias needs no entry in the
+  dark block, because a custom property resolves where it is used, and `tokens.test.ts` learned that
+  rule plus the other half of it, that the target exists. `LevelChip` and `StateChip` carry a three
+  step meter and a dot beside their word: never a number, never a percentage, and never "seguro", which
+  the new `apps/web/src/lib/labels.test.ts` enforces over the whole copy dictionary and then over every
+  source file in `src/`. The meter is an ordinal over the same three words and is not a score, which is
+  written down where it is drawn, because roughly one man in twelve cannot separate the red from the
+  amber and colour may not be the only channel.
+
+  The base set is `Button`, `LevelChip`, `StateChip`, `DataTable`, `Drawer`, `Toast` and the three
+  blocks of `States.tsx`, so the assistant panel and the payment screen build on one vocabulary rather
+  than three. Two of them close real gaps: `Drawer` traps Tab and gives focus back, which was
+  `TODO(FabriBanda)` in `apps/web/README.md` and meant focus used to walk out of the supplier drawer
+  into the run behind the scrim, where the ring was invisible and the next Enter pressed a button
+  nobody could see; and `Toast` is the confirmation the run screen carried as a `TODO`, one live region
+  mounted by the shell, where a confirmation clears itself after six seconds and a refusal has no timer
+  at all, because the line that says why a payment was rejected is the one a clerk has to read. No
+  screen was restyled: the adoption pass replaces inline `style={{ color: "var(--c-hold-ink)" }}` and
+  interpolated borders with classes, since an inline style cannot be overridden and hides the token
+  from anyone reading the stylesheet. `#/design` renders every token and every base component on one
+  page, reading the values back with `getComputedStyle` so the sheet cannot drift from the file it
+  documents; it is a reference and not a screen, so it is not in the navigation.
+
+  The measured pass is where the work is checked, and getting a true one meant fixing the audit
+  itself. `apps/web/audit/audit.ts` navigated to paths with no `#`, and this app is a hash router that
+  rewrites an empty hash to the payment run on the first paint, so every row of the report was the run
+  screen under another screen's name: all seven answered with the same focusable count to the digit.
+  It also measured `position: fixed` boxes against the layout viewport, while under device emulation
+  they are laid out against `window.innerWidth`, which reported the toast region as a 719 px overflow
+  at a 390 px width that does not exist on a phone. With both fixed, the seven routes are clean at 390,
+  768, 1440 and 1920, every control is named and shows a ring under a real Tab press, and all 36 colour
+  pairings clear WCAG AA in both themes. One token moved to get there: `--c-state-cancelado` measured
+  2.99 against the sunken fill its chip has, under the floor of 3 for the boundary of a non-text
+  element, so it is `--c-ink-subtle` rather than `--c-border-strong`, which is tuned against a panel.
+  `brand/shoot.ts` and the audit now take `CDP_PORT` and `CHROME_PROFILE` from the environment,
+  because two Chromes launched with one `--user-data-dir` are one Chrome and the second caller drives
+  the first caller's page: a capture of the token sheet came back holding another branch's not-found
+  page, in the wrong theme, under our file name. `docs/design.md` carries all of it.
+
 - `docs/print/team-card.html`, one A4 page in Spanish for the four of us and not for a judge: the
   problem in two sentences, the user in one, the five competitors `docs/04-market.md` names with one
   line each, the business model in three sentences, and the six objections of 2026-09-12 with the

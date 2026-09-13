@@ -26,7 +26,19 @@ const CHROME =
   process.env.CHROME_PATH ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-const PORT = 9333;
+/**
+ * The DevTools port and the profile directory behind it, both overridable.
+ *
+ * They are not constants because four people run this repo's browser tools on
+ * one machine during the build night, and two Chromes launched with the same
+ * `--user-data-dir` do not start two browsers: the second attaches to the
+ * session the first already has, `pageSocket` returns whatever page that session
+ * had open, and the shutter fires on somebody else's screen. That is not a
+ * theory. A capture of the token sheet came back holding another branch's
+ * not-found page, in the wrong theme, and the file was named as if it were ours.
+ */
+const PORT = Number(process.env.CDP_PORT ?? 9333);
+const PROFILE = process.env.CHROME_PROFILE ?? `/tmp/sentryone-shoot-${PORT}`;
 
 /**
  * The line the finding screenshot is of, read off the synthetic run.
@@ -82,6 +94,10 @@ const SHOTS: Shot[] = [
   { path: "#/sat", name: "sat", width: 1440, height: 1000 },
   { path: "#/cep", name: "cep", width: 1440, height: 1000 },
   { path: "#/metrics", name: "metrics", width: 1440, height: 1000 },
+  /* The token sheet, in both themes, because the sheet's whole claim is that the
+     system holds up in whichever one the browser is in. It is the tall capture
+     of the set: every token and every base component is on that page. */
+  { path: "#/design", name: "tokens", width: 1440, height: 5040, both: true },
 ];
 
 /**
@@ -211,7 +227,7 @@ async function main(): Promise<void> {
       "--disable-gpu",
       "--hide-scrollbars",
       `--remote-debugging-port=${PORT}`,
-      "--user-data-dir=/tmp/sentryone-shoot",
+      `--user-data-dir=${PROFILE}`,
       "about:blank",
     ],
     { stdio: "ignore" },

@@ -13,7 +13,7 @@
  */
 
 import { formatCount } from "../lib/format";
-import { DETECTOR_LABEL } from "../lib/labels";
+import { ACTION_EDGE, ACTION_INK, DETECTOR_LABEL } from "../lib/labels";
 import { instructionPath, Link } from "../lib/router";
 import type { RunVerdict as Verdict } from "../lib/run-view";
 import { Amount } from "./Primitives";
@@ -37,16 +37,20 @@ export function RunVerdict({ verdict }: { verdict: Verdict }) {
 
   /* Tone follows the verdict, not the screen. A run where nothing was stopped
      is a good outcome and must not be painted as an alert, or the colour stops
-     meaning anything on the run where something was. */
+     meaning anything on the run where something was.
+     
+     Classes and not tokens in an inline style: the design system owns the edge
+     and the ink, and `ACTION_EDGE` keys them off the same `Action` union the
+     decision buttons read. */
   const tone = stopped
     ? {
-        edge: "var(--c-hold)",
-        ink: "var(--c-hold-ink)",
+        edge: ACTION_EDGE.hold,
+        ink: ACTION_INK.hold,
         eyebrow: "No sale todavia",
       }
     : {
-        edge: "var(--c-release)",
-        ink: "var(--c-release-ink)",
+        edge: ACTION_EDGE.release,
+        ink: ACTION_INK.release,
         eyebrow: "Nada detenido",
       };
 
@@ -55,13 +59,10 @@ export function RunVerdict({ verdict }: { verdict: Verdict }) {
       aria-label="Resumen de la corrida"
       className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]"
     >
-      <div
-        className="panel flex flex-col gap-2 p-5"
-        style={{ borderLeft: `4px solid ${tone.edge}` }}
-      >
+      <div className={`panel flex flex-col gap-2 p-5 ${tone.edge}`}>
         <span className="eyebrow">{tone.eyebrow}</span>
 
-        <span style={{ color: tone.ink }}>
+        <span className={tone.ink}>
           <Amount value={verdict.stoppedAmount} size="xl" />
         </span>
 
@@ -97,7 +98,7 @@ export function RunVerdict({ verdict }: { verdict: Verdict }) {
 
       <div className="panel flex flex-col gap-1 p-5">
         <span className="eyebrow">Liberado</span>
-        <span style={{ color: "var(--c-release-ink)" }}>
+        <span className="ink-release">
           <Amount value={verdict.releasedAmount} size="lg" />
         </span>
         <span className="subtle t-xs">

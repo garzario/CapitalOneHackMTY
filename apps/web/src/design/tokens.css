@@ -79,6 +79,14 @@
   --layout-gutter: var(--space-5);
   --rail-width: 18rem;
   --drawer-width: 30rem;
+  /* A toast is read at a glance and dismissed, so it is narrower than the
+     drawer and never as wide as the content it covers. */
+  --toast-width: 22rem;
+
+  /* The keyboard affordance, as tokens, so the ring is one value and not one
+     per component. `base.css` is the only place that draws it. */
+  --focus-width: 2px;
+  --focus-offset: 2px;
 
   /* Elevation */
   --z-header: 20;
@@ -126,6 +134,11 @@
   --c-accent-ink: #ffffff;
   --c-accent-soft: #e6eefc;
 
+  /* The focus ring is the accent, named for its job. A ring that is a
+     different colour per component is a ring a keyboard user has to learn
+     twice, and naming it here is what lets the audit measure one pair. */
+  --c-focus: var(--c-accent);
+
   /* The QR code, and the one pair in this file that is deliberately identical
      in both schemes. A scanner needs contrast in a fixed direction, dark
      modules on a light quiet zone, so inverting these in dark mode would hand
@@ -153,6 +166,77 @@
   --c-info: #2f5d80;
   --c-info-soft: #e8f0f6;
   --c-info-ink: #1f4257;
+
+  /* ------------------------------------------------- levels, ADR-0009 */
+
+  /* The level one payment is read at: `confiable`, `precaucion`, `alerta`,
+     derived by `confidenceOf` in packages/core/src/levels.ts and never a
+     number, because the expected-loss arithmetic is an upper bound on the
+     evidence and says so in its own comment.
+
+     These are aliases onto the three decision triplets rather than a fourth
+     palette. The level and the action are two readings of one body of
+     evidence, so a fourth hue on the same row would mean nothing pulls the
+     eye. They carry their own names anyway for two reasons: the mapping is
+     then a line in this file instead of a decision buried in a component, and
+     a level can be recoloured later without touching the decision buttons.
+
+     An alias needs no entry in the dark block: it resolves through the token
+     it points at, which does have one. `tokens.test.ts` knows that rule. */
+  --c-level-confiable: var(--c-release);
+  --c-level-confiable-soft: var(--c-release-soft);
+  --c-level-confiable-ink: var(--c-release-ink);
+
+  --c-level-precaucion: var(--c-verify);
+  --c-level-precaucion-soft: var(--c-verify-soft);
+  --c-level-precaucion-ink: var(--c-verify-ink);
+
+  --c-level-alerta: var(--c-hold);
+  --c-level-alerta-soft: var(--c-hold-soft);
+  --c-level-alerta-ink: var(--c-hold-ink);
+
+  /* ------------------------------------------------- states, ADR-0009 */
+
+  /* Where one payment of the run stands. A state is a fact about money and
+     not a verdict about risk, which is why this is deliberately NOT the
+     decision palette repeated:
+
+     `enviado` is the informational tone and not green. Money that left is a
+     fact, and a green chip would say the payment was fine, which is a claim
+     nobody can make about a transfer that cannot be recalled and that a list
+     published on Friday can still poison.
+
+     `cancelado` is neutral and firm rather than red. It is a closed line, not
+     an alarm: the thing that needs attention now is `rojo`.
+
+     `pendiente` fills with the surface it sits on, so the chip is its dashed
+     border and its word. Nothing has decided that line and the chip should
+     not imply otherwise. */
+  --c-state-rojo: var(--c-hold);
+  --c-state-rojo-soft: var(--c-hold-soft);
+  --c-state-rojo-ink: var(--c-hold-ink);
+
+  /* The border is `--c-ink-subtle` and not `--c-border-strong`, which is the
+     control border and is tuned against a panel. Measured on the sunken fill
+     this chip actually has, `--c-border-strong` comes out at 2.99 in both
+     themes, which is under the 3:1 floor WCAG 1.4.11 sets for the boundary of
+     a non-text element, and this chip's border is the thing that says the line
+     is closed. The audit in apps/web/audit/audit.ts is where that was caught. */
+  --c-state-cancelado: var(--c-ink-subtle);
+  --c-state-cancelado-soft: var(--c-surface-sunken);
+  --c-state-cancelado-ink: var(--c-ink-muted);
+
+  --c-state-enviado: var(--c-info);
+  --c-state-enviado-soft: var(--c-info-soft);
+  --c-state-enviado-ink: var(--c-info-ink);
+
+  --c-state-liberado: var(--c-release);
+  --c-state-liberado-soft: var(--c-release-soft);
+  --c-state-liberado-ink: var(--c-release-ink);
+
+  --c-state-pendiente: var(--c-border-strong);
+  --c-state-pendiente-soft: var(--c-surface);
+  --c-state-pendiente-ink: var(--c-ink-muted);
 
   /* The synthetic-data watermark. Deliberately low contrast: it must be
      legible in a screenshot without competing with the numbers. */

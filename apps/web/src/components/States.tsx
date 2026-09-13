@@ -10,6 +10,7 @@
  */
 
 import type { ReactNode } from "react";
+import { Button } from "./Button";
 
 type LoadingProps = {
   /** What is being loaded, so a screen reader says something useful. */
@@ -26,12 +27,16 @@ export function LoadingBlock({ label, rows = 4 }: LoadingProps) {
       className="flex flex-col gap-3 p-5"
     >
       <span className="sr-only">{label}</span>
+      {/* The first row is short, because the real content starts with a
+          heading and a skeleton that does not match the shape underneath makes
+          the layout jump when the data lands. The height is a class rather than
+          an inline style: a pixel value in a component is a value the design
+          system cannot change. */}
       {Array.from({ length: rows }, (_, index) => (
         <div
           // biome-ignore lint/suspicious/noArrayIndexKey: skeleton rows have no identity
           key={index}
-          className="skeleton"
-          style={{ height: "2.25rem", width: index === 0 ? "40%" : "100%" }}
+          className={`skeleton skeleton-row ${index === 0 ? "w-2/5" : "w-full"}`}
         />
       ))}
     </div>
@@ -46,7 +51,7 @@ type EmptyProps = {
 
 export function EmptyBlock({ title, description, action }: EmptyProps) {
   return (
-    <div className="flex flex-col items-start gap-3 p-8">
+    <div className="state-block">
       <h3 className="t-md">{title}</h3>
       {description ? (
         <p className="muted max-w-prose t-sm">{description}</p>
@@ -68,14 +73,10 @@ export function ErrorBlock({
   onRetry,
 }: ErrorProps) {
   return (
-    <div role="alert" className="flex flex-col items-start gap-3 p-8">
+    <div role="alert" className="state-block">
       <h3 className="t-md">{title}</h3>
       <p className="muted max-w-prose t-sm">{message}</p>
-      {onRetry ? (
-        <button type="button" className="btn" onClick={onRetry}>
-          Reintentar
-        </button>
-      ) : null}
+      {onRetry ? <Button onClick={onRetry}>Reintentar</Button> : null}
     </div>
   );
 }
