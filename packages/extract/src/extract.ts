@@ -151,8 +151,17 @@ export const AUDIO_PROMPT = [
  * without being open ended. A budget that runs out returns `bad_response`
  * rather than a truncated account number.
  */
-export const IMAGE_MAX_OUTPUT_TOKENS = 1024;
-export const AUDIO_MAX_OUTPUT_TOKENS = 2048;
+/**
+ * Output allowance for one photograph.
+ *
+ * Raised from 1024 when the configured model turned out to think whether or not
+ * we ask it to: the thinking tokens are billed and counted against this budget,
+ * and at 1024 the JSON came back truncated, which reads as an unreadable photo
+ * at the intake screen. The answer itself is six short fields.
+ */
+export const IMAGE_MAX_OUTPUT_TOKENS = 4096;
+/** Same, for a voice note, whose transcript is longer than a CLABE. */
+export const AUDIO_MAX_OUTPUT_TOKENS = 8192;
 
 /** The fields the image schema asks for, before any of our own checks. */
 export interface ImagePayload {

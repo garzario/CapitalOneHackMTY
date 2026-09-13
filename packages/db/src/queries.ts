@@ -2039,3 +2039,28 @@ export async function countConsortiumAccounts(
   `;
   return Number(rows[0]?.accounts ?? "0");
 }
+
+/**
+ * Every `assistant_message` of one session, in append order.
+ *
+ * A targeted read and not a slice of the whole ledger, for the same reason
+ * `readVerificationEvents` is one: `readLedger` answers the OLDEST 500 rows and the
+ * seeded company's ledger is thousands long, so a conversation that started a
+ * minute ago would never be in the page. The session id lives at the top of the
+ * payload, which is why this is one jsonb key lookup and not a join.
+ *
+ * No limit. A conversation is bounded by how much a person typed, and truncating
+ * the middle of one would mean the panel replayed a session that never happened.
+ */
+export async function readAssistantMessages(
+  sql: Db,
+  sessionId: string,
+): Promise<LedgerEvent[]> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type = 'assistant_message'
+      and payload ->> 'sessionId' = ${sessionId}
+    order by at asc, seq asc
+  `;
+  return rows.map(ledgerEventFromRow);
+}

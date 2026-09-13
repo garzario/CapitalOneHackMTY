@@ -16,6 +16,7 @@
 
 import type {
   Actor,
+  AssistantMessage,
   Cfdi,
   ConsortiumPull,
   ConsortiumSnapshotRow,
@@ -31,6 +32,7 @@ import type {
 } from "@hackmty/core";
 import { runLevels, runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
+import { assistantMessagesFrom } from "./assistant/session";
 import { levelled } from "./levels";
 import type {
   InstructionDetail,
@@ -245,6 +247,17 @@ export interface Repository {
    * printing a name nobody signed.
    */
   publisher(listVersion: string): Promise<Actor | undefined>;
+  /**
+   * Every turn of one assistant conversation, in append order, so the panel's
+   * memory is the ledger and not a second table.
+   *
+   * A targeted read for the same reason `verificationEvents` is one: `ledger`
+   * answers the oldest 500 events and the seeded company's ledger is thousands
+   * long, so a conversation that started a minute ago would never be in the page.
+   * An empty array is "nobody holds this session", which is what the route answers
+   * `404` for.
+   */
+  assistantMessages(sessionId: string): Promise<AssistantMessage[]>;
   /**
    * The four payment events a `PaymentExecution` is folded out of, in append order,
    * for one run or for one clave de rastreo.
@@ -729,6 +742,17 @@ export class MemoryRepository implements Repository {
       }
     }
     return undefined;
+  }
+
+  /**
+   * The turns of one conversation, with the same matching rule as
+   * `readAssistantMessages` in `packages/db`: the session id off the event, in
+   * append order, with no limit. A conversation is bounded by how much a person
+   * typed, and truncating the middle of one would replay a session that never
+   * happened.
+   */
+  async assistantMessages(sessionId: string): Promise<AssistantMessage[]> {
+    return copy(assistantMessagesFrom(this.data.ledger, sessionId));
   }
 
   /**

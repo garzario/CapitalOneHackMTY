@@ -30,6 +30,7 @@
 import { nameMatch } from "@hackmty/cep";
 import type {
   Actor,
+  AssistantMessage,
   Cfdi,
   ConsortiumPull,
   ConsortiumSnapshotRow,
@@ -84,6 +85,7 @@ import {
   listVerifiedBeneficiariesFor,
   lookupSatEntries,
   markInstructionSent,
+  readAssistantMessages,
   readLedger,
   readPaymentEvents,
   readVerificationEvents,
@@ -106,6 +108,7 @@ import {
   runEngine,
 } from "@hackmty/seed";
 import { assessRun } from "./assess";
+import { assistantMessagesFrom } from "./assistant/session";
 import { levelled } from "./levels";
 import type {
   Cancellation,
@@ -442,6 +445,19 @@ export class PostgresRepository implements Repository {
 
   async publisher(listVersion: string): Promise<Actor | undefined> {
     return latestListPublisher(this.sql, listVersion);
+  }
+
+  /**
+   * The turns of one conversation, out of the same `assistant_message` rows the
+   * memory store folds. The fold is shared with the memory path on purpose: two
+   * projections of one conversation is how the panel and its replay would start
+   * disagreeing about what was said.
+   */
+  async assistantMessages(sessionId: string): Promise<AssistantMessage[]> {
+    return assistantMessagesFrom(
+      await readAssistantMessages(this.sql, sessionId),
+      sessionId,
+    );
   }
 
   async paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]> {

@@ -416,20 +416,24 @@ export const PAYMENT_LINE_HELP: Record<PaymentLineState, string> = {
 };
 
 /**
- * The seven reads the assistant may perform, named for the clerk.
+ * The nine reads the assistant may perform, named for the clerk.
  *
  * Every one of them is a read of something this product already computed, and the
  * list is closed: `AssistantTool` in the domain has no member that writes, which
- * is ADR-0007 enforced in the type rather than in a sentence.
+ * is ADR-0007 enforced in the type rather than in a sentence. It grew from seven
+ * to nine when the assistant panel landed, and the two that arrived are a supplier
+ * drawer and the blind evaluation, so the sentence above still holds.
  */
 export const ASSISTANT_TOOL_LABEL: Record<AssistantTool, string> = {
   get_run: "Leer la corrida",
   get_instruction: "Leer la instruccion y sus hallazgos",
+  get_supplier: "Leer el historial del proveedor",
   get_verification: "Leer la verificacion de la cuenta",
   get_execution: "Leer lo que hizo la corrida en el riel",
   get_receipt: "Leer el comprobante del pago",
   sat_lookup: "Consultar las listas del SAT",
   consortium_signal: "Consultar la red SentryOne",
+  get_metrics: "Leer la evaluacion a ciegas de los controles",
 };
 
 /** The five things the panel can offer, and there is no sixth. */
