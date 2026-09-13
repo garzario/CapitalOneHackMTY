@@ -72,8 +72,10 @@ src/
     tokens.css        colour, type scale, weights, spacing, radius, motion, light and dark
     base.css          element rules, in Tailwind's base layer
     primitives.css    .well .well-panel .card-dark .btn-pill .segmented .decision .badge
-                      .data-table .btn .chip .watermark, in the components layer
+                      .level .state .data-table .toast .btn .chip .watermark, in the
+                      components layer
     tokens.test.ts    the enforcement: no colour outside tokens.css, no token without a dark pair
+    TokenSheet.tsx    every token and every base component on one page, at #/design
   lib/
     api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE),
                       streamSse (a POST that answers a stream), executeRun and the
@@ -103,9 +105,19 @@ src/
                       CepScreen, MetricsScreen, VerifyCallScreen
 ```
 
+The base components, which every screen is built from: `Button`, the `ConfidenceBadge` and
+`TransactionStateBadge` of `Primitives.tsx` (the two vocabularies of ADR-0009), `DataTable`,
+`Drawer`, `Toast`, and the `LoadingBlock`, `EmptyBlock` and `ErrorBlock` of `States.tsx`.
+`docs/design.md` says what each one is responsible for. If a second screen needs the same
+object, it belongs there rather than inside one screen.
+
 Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
 change of host: `#/run`, `#/payments`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`,
 `#/metrics`, `#/verify-call`.
+
+`#/design` is the token sheet: every token and every base component on one page. It is a
+reference rather than a screen, so it is not in the rail and nothing in the product links
+to it.
 
 The rail holds six of them, in three groups: the run, the payments and the intake, then
 `Evidencia` with the 69-B list and the CEP, then the metrics. `#/verify-call` is not one of them
@@ -265,6 +277,12 @@ invented. The long version is `docs/design.md`; the short version:
 - Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`),
   so a column of pesos lines up digit over digit. `<Amount size="inherit">` takes the size of
   the block around it.
+- **The level and the state** of ADR-0009 have their own named colours (`--c-level-*` and
+  `--c-state-*`). The level aliases the three decision triplets, because a level and an
+  action are two readings of one body of evidence. The state does not: `enviado` is the
+  informational tone and not green, because money that left is a fact and not a verdict.
+  Never a probability and never the word "seguro" in either, which `src/lib/labels.test.ts`
+  enforces over the whole dictionary and then over every source file.
 - Light is the default, dark follows the operating system, and only colour tokens change
   between them. The rail palette is the exception and is identical in both.
 - **Icons come from Rune Icons** (Apache-2.0, copyright Nexvyn) and from nowhere else. No
@@ -308,10 +326,16 @@ From ADR-0002, and they are not negotiable:
 
 ## Accessibility
 
-Every route is reachable by keyboard: navigation is real anchors, the supplier drawer is a
-`role="dialog"` that takes focus, closes on Escape and gives focus back, and the scrim is a
-button rather than a div with a click handler. Tables have scoped headers and a caption. The
-focus ring is defined once in `base.css`.
+Every route is reachable by keyboard: navigation is real anchors, the drawer is a
+`role="dialog"` that takes focus, traps Tab, closes on Escape and gives focus back, and the
+scrim is a button rather than a div with a click handler. Tables have scoped headers, a
+caption and a row header. The focus ring is defined once in `base.css`, from `--c-focus`,
+`--focus-width` and `--focus-offset`.
 
-`TODO(FabriBanda)`: a full focus trap inside the drawer, and a pass with a screen reader on
-the intake page.
+`bun run audit:web http://localhost:4173` measures it against the built app: overflow at four
+widths, every control named and ringed under a real Tab press, reduced motion, and every
+colour pairing in both themes. It reports clean as of #207. Two environment variables keep it
+from colliding with somebody else's browser on the same machine: `AUDIT_PORT` here and
+`SHOOT_PORT` in `brand/shoot.ts`, each with its own profile directory derived from the port.
+
+`TODO(FabriBanda)`: a pass with a screen reader on the intake page.

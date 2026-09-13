@@ -115,6 +115,10 @@ const SHOTS: Shot[] = [
   { path: "#/sat", name: "sat", width: 1440, height: 1000 },
   { path: "#/cep", name: "cep", width: 1440, height: 1000 },
   { path: "#/metrics", name: "metrics", width: 1440, height: 1000 },
+  /* The token sheet, in both themes, because the sheet's whole claim is that the
+     system holds up in whichever one the browser is in. It is the tall capture
+     of the set: every token and every base component is on that page. */
+  { path: "#/design", name: "tokens", width: 1440, height: 5020, both: true },
 ];
 
 /**

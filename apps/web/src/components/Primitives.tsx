@@ -17,6 +17,7 @@ import {
   ACTION_BADGE,
   ACTION_LABEL,
   CONFIDENCE_BADGE,
+  CONFIDENCE_BARS,
   CONFIDENCE_HELP,
   CONFIDENCE_LABEL,
   PAYMENT_LINE_BADGE,
@@ -29,6 +30,9 @@ import {
   STATE_LABEL,
   SYNTHETIC_LABEL,
 } from "../lib/labels";
+
+/** The three steps of the level meter, so the JSX has nothing to count. */
+const LEVEL_BARS = [1, 2, 3] as const;
 
 type AmountSize = "inherit" | "sm" | "base" | "lg" | "xl";
 
@@ -117,6 +121,12 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
  * The level of one payment: `confiable`, `precaucion` or `alerta`, and never a
  * percentage, a score or the word "seguro".
  *
+ * Two channels, never one. The word is real text, and beside it a three step
+ * meter fills one bar, two or three. The meter is not a score and must never
+ * become one: it carries exactly the information the word carries, an ordinal
+ * over three values, and it exists because red against amber is the pair roughly
+ * one man in twelve cannot separate reliably.
+ *
  * It is a primitive for the reason `confidenceOf` is one function in
  * `packages/core`: the same three words appear on the run, on the detail, in the
  * assistant panel and on the documents, and a level painted one way on one screen
@@ -125,8 +135,21 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
  * the caller's job and is why this component takes no evidence of its own.
  */
 export function ConfidenceBadge({ level }: { level: Confidence }) {
+  const filled = CONFIDENCE_BARS[level];
+
   return (
     <span className={CONFIDENCE_BADGE[level]} title={CONFIDENCE_HELP[level]}>
+      {/* The meter repeats the word, so it is hidden from a screen reader
+          rather than read out as three empty spans. */}
+      <span aria-hidden="true" className="level-meter">
+        {LEVEL_BARS.map((bar) => (
+          <span
+            key={bar}
+            className="level-bar"
+            data-on={bar <= filled ? "true" : "false"}
+          />
+        ))}
+      </span>
       {CONFIDENCE_LABEL[level]}
     </span>
   );
@@ -139,6 +162,7 @@ export function ConfidenceBadge({ level }: { level: Confidence }) {
 export function TransactionStateBadge({ state }: { state: TransactionState }) {
   return (
     <span className={STATE_BADGE[state]} title={STATE_HELP[state]}>
+      <span aria-hidden="true" className="status-dot" />
       {STATE_LABEL[state]}
     </span>
   );

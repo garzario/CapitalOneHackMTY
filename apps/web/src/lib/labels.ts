@@ -269,11 +269,39 @@ export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   alerta: "Alerta",
 };
 
-/** The level reuses the decision palette, so one colour means one thing. */
+/**
+ * Worst first, which is the order a clerk scans a column in and the order the
+ * token sheet lists them in.
+ */
+export const CONFIDENCE_ORDER: Confidence[] = [
+  "alerta",
+  "precaucion",
+  "confiable",
+];
+
+/**
+ * The chip reads the level palette in `design/tokens.css`, which aliases the
+ * three decision triplets: the level and the action are two readings of one body
+ * of evidence, so one colour still means one thing.
+ */
 export const CONFIDENCE_BADGE: Record<Confidence, string> = {
-  confiable: "badge badge-release",
-  precaucion: "badge badge-verify",
-  alerta: "badge badge-hold",
+  confiable: "level level-confiable",
+  precaucion: "level level-precaucion",
+  alerta: "level level-alerta",
+};
+
+/**
+ * How many of the three bars the meter fills beside the word.
+ *
+ * An ordinal over the same three values the word already carries, which is why
+ * it is allowed: it adds a channel and not a digit, and red against amber is the
+ * pair roughly one man in twelve cannot separate. It is not a score and must
+ * never become one. See the note on `.level` in `design/primitives.css`.
+ */
+export const CONFIDENCE_BARS: Record<Confidence, number> = {
+  alerta: 3,
+  precaucion: 2,
+  confiable: 1,
 };
 
 export const CONFIDENCE_HELP: Record<Confidence, string> = {
@@ -309,16 +337,33 @@ export const STATE_LABEL: Record<TransactionState, string> = {
   liberado: "Liberado",
 };
 
+/** In the order money moves through them, for the sheet and for a legend. */
+export const STATE_ORDER: TransactionState[] = [
+  "pendiente",
+  "liberado",
+  "rojo",
+  "cancelado",
+  "enviado",
+];
+
 /**
+ * The chip reads the state palette, which is deliberately not the decision one
+ * repeated, because a state is a fact about money and not a verdict about risk.
+ *
  * `cancelado` is neutral on purpose: a line that did not go out is the product
  * working, not an alarm. `rojo` is the one that carries the hold palette.
+ * `enviado` is the informational tone and not green, because money that left is
+ * a fact and a green chip would say the payment was fine, which nobody can say
+ * about a transfer that cannot be recalled and that a list published on Friday
+ * can still poison. `pendiente` is dashed and fills with the surface it sits on,
+ * because nothing has decided that line yet. ADR-0009 and `docs/design.md`.
  */
 export const STATE_BADGE: Record<TransactionState, string> = {
-  rojo: "badge badge-hold",
-  cancelado: "badge badge-neutral",
-  enviado: "badge badge-release",
-  pendiente: "badge badge-neutral",
-  liberado: "badge badge-verify",
+  rojo: "state state-rojo",
+  cancelado: "state state-cancelado",
+  enviado: "state state-enviado",
+  pendiente: "state state-pendiente",
+  liberado: "state state-liberado",
 };
 
 /**
