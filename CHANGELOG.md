@@ -18,6 +18,7 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
   moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;
@@ -78,6 +79,49 @@ then the screens, then the narrative, then the plumbing.
   than eighteen. The assistant session quotes the engine's own `explanation` and its tool result IS
   that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
   not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
+
+- The assistant panel: Gemini with function calling over this API's own reads, and a card a person
+  presses (issue #197). `apps/api/src/assistant/` is the whole of it.
+  `POST /api/v1/assistant/messages` answers `text/event-stream` with the five events of docs/09,
+  `token`, `tool_call`, `tool_result`, `proposal` and `done`, every one of them carrying the session
+  id so a minted one reaches the client on the first byte;
+  `GET /api/v1/assistant/sessions/:id` replays a conversation, projected from the
+  `assistant_message` rows of the ledger on both stores rather than stored a second time. Nine read
+  tools, each one a GET through the very handler the web app calls over the wire, so the run the
+  panel quotes is byte for byte the run on the screen: the run, one instruction with its evidence,
+  the supplier drawer, the verification state, the execution, a receipt, the SAT lookup over both
+  lists, the consortium signal and the blind metrics. Five action tools that return an
+  `ActionProposal` and nothing else.
+
+  The boundary is where the interesting part is, and every clause of it is a property of the code
+  rather than a line in a comment. The only function that issues a request hardcodes `GET`, so a
+  writing tool cannot be added by accident. The proposal's payload is built from the contract in
+  docs/09 on our side and `decidedBy` is read off the `X-Actor` header, so a model cannot sign a
+  decision with somebody else's name. The Spanish sentence on a proposal is checked against a
+  forbidden-vocabulary list before it leaves, which is ADR-0009 holding on the one line of copy a
+  model is nearest to writing: three levels, never a probability, never "seguro". Accounts leave as
+  four digits because `mask.ts` rewrites the whole payload on the way out, and the test asserts over
+  a serialised request body that no eighteen-digit run survives. The turn appends two
+  `assistant_message` events and never a `decision_made`, a `cent_sent` or a `payment_sent`.
+
+  Intake by chat: a screenshot goes to `packages/extract` for transcription only, the supplier is
+  attributed deterministically by matching the account against the ones this company has paid and
+  then the payee against the legal names in the run with `nameMatch`, and the instruction is created
+  through the ordinary `POST /api/v1/instructions` with the image on it, so `imageRef`,
+  `ocrConfidence` and the `ocrChannel` evidence of the CLABE control are the pipeline's own and the
+  six controls that run are the six controls. When the attribution does not answer, nothing is
+  created and the turn ends with an `intake` proposal for a person to complete. `intake_image`
+  carries the reference, the actor and the instruction it became, never the bytes.
+
+  `bun run eval:assistant` is twenty golden questions with the read each one has to reach for. Live
+  against `gemini-3.6-flash` on 2026-09-13 it routed 20 of 20 and offered the action that was asked
+  for 5 of 5, for MXN 3.54, and the same twenty run offline against a recorded plan in `bun test`
+  with no key and no network. `docs/06-regulatory-privacy.md` section 6.4 is the transfer paragraph
+  and the measured cost, with the token prices and the Banxico FIX stamped with their dates in
+  `apps/api/src/assistant/cost.ts`, and every turn writes its own tokens and pesos onto the ledger
+  event so the cost question is answered by summing rows. ADR-0007 gains what the build settled and
+  docs/09 gains the stream, the nine tools and `AssistantUsage`. `X-Actor` parsing lands in
+  `apps/api/src/actor.ts` for every write that follows.
 
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now
@@ -850,6 +894,17 @@ then the screens, then the narrative, then the plumbing.
   and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
 
 ### Fixed
+
+- The photo and voice-note intake against the model this repository actually configures (issue
+  #197, found while building the panel). `packages/extract` sent
+  `thinkingConfig: { thinkingBudget: 0 }` on every request, which Gemini 2.5 accepts and
+  `gemini-3.6-flash` refuses with `400 Request contains an invalid argument`: every screenshot and
+  every voice note failed against the configured model, and the intake answered "the image could not
+  be read" for a reason that had nothing to do with the image. The field is now sent only when a
+  caller pins a budget, and the output allowance is raised to 4096 and 8192 tokens because the model
+  thinks whether or not it is asked to and the answer was being truncated instead. Verified against
+  the live API with a real screenshot: the account, the amount and the payee all come back, and
+  `docs/06` section 6.4 carries what the thinking tokens cost.
 
 - `?data=mock` was documented as "no request leaves the browser" and it was making two, so the offline
   mode looked broken exactly where it is meant to be the strongest (found verifying issue #125).

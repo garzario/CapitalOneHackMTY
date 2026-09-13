@@ -12,6 +12,7 @@
     "build": "bun run --filter '*' build",
     "doctor": "bun run scripts/doctor.ts",
     "eval": "bun run scripts/eval.ts",
+    "eval:assistant": "bun run scripts/eval-assistant.ts",
     "migrate": "bun run scripts/migrate.ts",
     "seed": "bun run scripts/seed.ts",
     "reset": "bun run scripts/reset.ts",

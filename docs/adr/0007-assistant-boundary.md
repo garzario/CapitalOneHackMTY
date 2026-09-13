@@ -55,6 +55,29 @@ The conversation is on the append-only ledger as `assistant_message`, because a 
 acted on is part of the history of that payment. `AssistantSession` is projected from those rows and
 never stored twice.
 
+## What the build of 13 September settled
+
+Three things the decision above left open, recorded here rather than in a second ADR because none
+of them moves the boundary. Issue #197 is where they were built.
+
+- **The list of reads grew by two and stayed a list of reads.** `get_supplier`, the supplier drawer,
+  and `get_metrics`, the blind holdout evaluation, are both GET endpoints that already existed and
+  both answer what the engine computed. The property that matters is unchanged: `AssistantTool` is a
+  closed union, `readOnly` is the literal `true`, and every tool is served by the one function in
+  `apps/api/src/assistant/tools.ts` that issues a request, which hardcodes `GET`.
+- **The screenshot a clerk drops is her own action, so it reaches the ordinary intake.** The panel
+  does not decide to create an instruction: she attached a file, the transcription is
+  `packages/extract` under ADR-0004, the supplier is attributed by matching accounts and legal names
+  with no model involved, and the instruction is created by `POST /api/v1/instructions` in process,
+  with `intake_image` carrying her name. The model is not consulted about whether to create it and
+  cannot create one: there is no tool for it, and when the attribution does not answer, the turn ends
+  with the `intake` proposal this ADR already named and a person completes it. Nothing else about
+  "it writes nothing but the conversation" changes: no `decision_made`, no cent, no payment.
+- **What leaves is narrower than this ADR allows.** The image is not sent to the panel's model at
+  all, and neither is the clerk's name. Everything the turn needs from a screenshot is what the
+  extractor already read, and `decidedBy` on a proposal is filled in from the `X-Actor` header on our
+  side. `docs/06-regulatory-privacy.md` section 6.4 is the transfer paragraph and the measured cost.
+
 ## Consequences
 
 - Positive: the panel is the thing the judges asked for and the decision is still the thing the judges

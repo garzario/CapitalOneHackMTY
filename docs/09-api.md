@@ -24,7 +24,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/run/:id/constancia` | `application/pdf` | constancia of one weekly payment run. `current` is accepted as the id |
 | GET | `/api/v1/instructions/:id/verify-call` | `{ script, voiceConfigured, releasesPayment: false }` | the words the voice agent reads, or the clerk does. Side effect free: no call is placed and nothing is appended |
 | GET | `/api/v1/instructions/:id/verification` | `VerificationState` | where the one-cent verification of this instruction stands, folded out of the event ledger. `state: "not_started"` when the cent has not been sent, which is a real answer and what lets the screen offer the action. `404` for an instruction nobody holds |
-| GET | `/api/v1/assistant/sessions/:id` | `AssistantSession` | one conversation of the assistant panel, projected from the `assistant_message` events of that session id. `404` for a session nobody holds |
+| GET | `/api/v1/assistant/sessions/:id` | `AssistantSession` | one conversation of the assistant panel, projected from the `assistant_message` events of that session id, on either store. `404` for a session nobody holds |
 | GET | `/api/v1/run/:id/execution` | `PaymentExecution` | what this run did on the payment rail, folded out of the ledger. `current` is accepted as the id. A run nobody has executed answers `200` with `lines: []` and `totals` at zero, because "nothing has been sent" is an answer and a `404` there would read as "no such run" |
 | GET | `/api/v1/payments/:id/receipt` | `PaymentReceipt` or `application/pdf` | the receipt of one payment. `:id` is the `receiptId` the execution line carries. JSON by default and the PDF on `Accept: application/pdf` or `?format=pdf`, and the two are the same object. See "The receipt and the carta" below |
 | GET | `/api/v1/instructions/:id/carta` | `application/pdf` | the one-page evidence letter of one instruction: the level with its findings, the decision and the name against it. See "The receipt and the carta" below |
@@ -59,7 +59,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand, and `recordedBy` travels onto the `verification_call` event so that entry carries a name like every other human action. A recorded outcome also carries `hold`, the window and the next step, which is how a `no_answer` answers "what now" in the same response, and that window is three days on a `hold` and one day on a `verify`, from `EXPECTED_DELAY_DAYS`. Never releases a payment: every response that reports a call carries `releasesPayment: false`, and no `decision_made` is ever appended. A `404` or a `400` carries only the error envelope, because there is no call to report. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
 | POST | `/api/v1/instructions/:id/verify-account` | no body | the one-cent verification, with nobody typing. Sends 0.01 MXN to the account this instruction pays, through the configured rail; appends `cent_sent` with the clave de rastreo the rail answered; resolves the CEP for that clave; and with the CEP in hand runs the beneficiary control and the expected-loss rule and appends `decision_made` signed `system`. Answers `202` with the `VerificationState` it reached synchronously. `404` unknown instruction, `409` when it is already released or blocked, `503` when this server has no rail. See "The cent inside the run" below |
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
-| POST | `/api/v1/assistant/messages` | `multipart/form-data` or `{ sessionId?, text, images?: string[] }` | one turn of the assistant panel. Answers `text/event-stream` with `token`, `tool_call`, `tool_result`, `proposal` and `done`. It reads and it proposes, and it writes nothing but the conversation: no decision, no cent, no payment. See "The assistant, and what it may not do" below |
+| POST | `/api/v1/assistant/messages` | `multipart/form-data` or `{ sessionId?, text, images?: string[] }` | one turn of the assistant panel. Answers `text/event-stream` with `token`, `tool_call`, `tool_result`, `proposal` and `done`. It reads and it proposes, and it writes nothing but the conversation and, when a screenshot is attached and can be attributed, the ordinary intake that screenshot becomes: no decision, no cent, no payment. Rate limited per client, 20 turns a minute. See "The assistant, and what it may not do" below |
 | POST | `/api/v1/run/:id/execute` | `{ instructionIds?, confirm: true }` | the payment run leaves on the configured rail. `202` and `text/event-stream`, one `line` event per payment and a final `done` carrying the `PaymentExecution`. Nothing is sent without `confirm: true` and an `X-Actor`. See "The payment execution" below |
 
 ### The actor on every write
@@ -282,10 +282,21 @@ answer to "is this a wrapper around a language model" that can be given by runni
 than argued. A model that returned `alerta` would be a different product and a worse one.
 
 **The request.** `multipart/form-data` with `text`, an optional `sessionId` and zero or more `images`
-parts, or the same thing as JSON with base64 images. A new `sessionId` is minted when none is sent
-and comes back on the first event. Images are the reason the panel exists: the clerk drops the
+parts, or the same thing as JSON with base64 images. Every write on this endpoint carries `X-Actor`
+like every other write, and a turn with no actor is `400`. A new `sessionId` is minted when none is
+sent and comes back on the first event. Images are the reason the panel exists: the clerk drops the
 screenshot she already received on WhatsApp, and `intake_image` records the reference, the media type
 and who dropped it. The bytes are never on the ledger.
+
+**What a screenshot becomes.** The image goes to `packages/extract`, which transcribes it and
+nothing else, and then the supplier is attributed deterministically: the transcribed account against
+the accounts this company has already paid, and then the payee as written against the legal names of
+the suppliers in the run, with `nameMatch` from `@hackmty/cep` and only on an exact match. When that
+answers, the instruction is created through `POST /api/v1/instructions`, in process, the same handler
+the QR page posts to, so the six controls that run are the six controls, and the reply carries the
+card the endpoint answered: the level, the state and the findings behind them. When it does not
+answer, nothing is created and the turn ends with an `intake` proposal carrying what was read, for a
+person to complete. No model is ever asked who is being paid.
 
 **The stream.** `text/event-stream`, and five event names:
 
@@ -297,17 +308,42 @@ and who dropped it. The bytes are never on the ledger.
 | `proposal` | `ActionProposal` | the turn offers an action, at most one |
 | `done` | `AssistantMessage` | the whole stored turn, which is what the session replays |
 
-**The tools are reads, and the type says so.** `AssistantTool` is the whole list (`get_run`,
-`get_instruction`, `get_verification`, `get_execution`, `get_receipt`, `sat_lookup`,
-`consortium_signal`) and `AssistantToolCall.readOnly` is the literal `true`, so a tool that writes
-cannot be expressed in the contract at all. `result` is `Record<string, EvidenceValue>`, the same
-evidence the finding panel renders as chips, so nothing a model wrote arrives dressed as a fact.
+Every `data` also carries `sessionId`, which is how a minted session id reaches the client on the
+first event without a sixth event name existing to carry it. `done` carries it inside the
+`AssistantMessage` it already had. A client that reads only the columns above is unaffected.
 
-**What leaves the perimeter.** The clerk's own sentence, the image she dropped, and the evidence of
-the findings the turn is about. Never the CFDI ledger, never a CLABE in full, never the bank mirror
-and never another company's data from the consortium, which only ever answers counts and dates about
-a hashed pair. `docs/06-regulatory-privacy.md` section 6.2.1 holds the extraction rule and ADR-0007
-holds this one.
+`token` is our chunking of a finished answer and it is stated here rather than implied: a
+function-calling turn is several round trips to the provider, only the last one writes prose, and
+the call is not streamed. `tool_call` and `tool_result` are live, and `done` is the stored turn.
+
+**The tools are reads, and the type says so.** `AssistantTool` is the whole list (`get_run`,
+`get_instruction`, `get_supplier`, `get_verification`, `get_execution`, `get_receipt`,
+`sat_lookup`, `consortium_signal`, `get_metrics`) and `AssistantToolCall.readOnly` is the literal
+`true`, so a tool that writes cannot be expressed in the contract at all. `result` is
+`Record<string, EvidenceValue>`, the same evidence the finding panel renders as chips, so nothing
+a model wrote arrives dressed as a fact.
+
+Every one of the nine is a GET this API already serves, called in process through the very handler
+the web app calls over the wire, which is what stops the panel telling a clerk something the screen
+next to it cannot show. `consortium_signal` is asked for by `instructionId` and not by the pair the
+endpoint takes, because every account the model has ever seen came back masked to four digits: a
+tool that asked it for eighteen could only be answered by inventing them, and the pair is resolved
+inside this process instead.
+
+**What a turn cost.** The `assistant_message` ledger event of an answer carries `AssistantUsage`:
+the prompt and output tokens the provider billed, the model that answered, how many round trips the
+turn took, and `costMxn`, computed from the token prices and the Banxico FIX that
+`docs/06-regulatory-privacy.md` section 6.4 stamps with their dates. A person's turn carries none,
+because typing a question costs nothing. Summing the column is how the cost question is answered
+with rows instead of with an estimate.
+
+**What leaves the perimeter.** The clerk's own sentence with every account in it masked to four
+digits, and the evidence of the reads the turn performed, also masked. Never the CFDI ledger, never
+a CLABE in full, never an XML or a CEP seal, never the bank mirror and never another company's data
+from the consortium, which only ever answers counts and dates about a hashed pair. The image is not
+sent to this model at all, which is narrower than ADR-0007 permits: it goes to `packages/extract`,
+which transcribes it and nothing else. `docs/06-regulatory-privacy.md` section 6.2.1 holds the
+extraction rule, section 6.4 holds this one and the cost, and ADR-0007 holds the boundary.
 
 **Status codes.** `200` with the stream once the turn starts. `400 bad_request` for an empty `text`
 with no image, or an actor header that does not parse. `404 not_found` for a `sessionId` nobody

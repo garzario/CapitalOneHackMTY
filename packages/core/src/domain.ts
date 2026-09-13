@@ -639,20 +639,28 @@ export type AssistantAuthor = "clerk" | "assistant";
  * The reads the assistant is allowed to perform, and the whole list of them.
  *
  * Every one is a read of something this product already computed: the run, one
- * instruction, where its verification stands, what the execution did, the SAT
- * lists, the consortium signal for a pair somebody already holds, a receipt. There
- * is no tool that decides, sends, holds or releases, and that is the boundary
- * ADR-0007 draws: the assistant reads deterministic output and proposes, and a
- * person executes.
+ * instruction, the supplier behind it, where its verification stands, what the
+ * execution did, the SAT lists, the consortium signal for a pair somebody already
+ * holds, a receipt, the blind evaluation. There is no tool that decides, sends,
+ * holds or releases, and that is the boundary ADR-0007 draws: the assistant reads
+ * deterministic output and proposes, and a person executes.
+ *
+ * `get_supplier` and `get_metrics` were added when the panel was built, in issue
+ * #197, and they do not widen the boundary: the first is the supplier drawer, the
+ * invoices and the accounts behind a line, and the second is the blind holdout
+ * evaluation, which is the one number a judge asks the panel for. Both are GET
+ * endpoints that already exist and both answer what the engine computed.
  */
 export type AssistantTool =
   | "get_run"
   | "get_instruction"
+  | "get_supplier"
   | "get_verification"
   | "get_execution"
   | "get_receipt"
   | "sat_lookup"
-  | "consortium_signal";
+  | "consortium_signal"
+  | "get_metrics";
 
 /**
  * One read the assistant performed while answering, kept so the answer can be
@@ -715,6 +723,35 @@ export interface AssistantMessage {
   toolCalls?: AssistantToolCall[];
   /** What the turn offers to do next. A person executes it, or does not. */
   proposal?: ActionProposal;
+}
+
+/**
+ * What one assistant turn cost, in tokens and in pesos.
+ *
+ * It travels on the `assistant_message` ledger event and not on the message,
+ * because it is a fact about the call and not about the sentence a clerk reads:
+ * two turns showing the same text can cost different amounts, and a panel that
+ * rendered this next to the answer would be charging the clerk's attention for
+ * accounting. `docs/06-regulatory-privacy.md` section 6.4 holds the rate, its
+ * source and its date, and `costMxn` is computed from those constants rather than
+ * read back from the provider, which is why the arithmetic is unit-tested.
+ *
+ * `promptTokens` is everything that went up, the instruction and the evidence the
+ * tools returned included, so a turn that read four tools is visibly more
+ * expensive than one that answered from the conversation. Absent on a person's
+ * turn: typing a sentence costs nothing.
+ */
+export interface AssistantUsage {
+  promptTokens: number;
+  outputTokens: number;
+  /** What the provider billed in total. Never assumed to be the sum of the two. */
+  totalTokens: number;
+  /** Pesos, at the rate and on the date docs/06 section 6.4 stamps. */
+  costMxn: number;
+  /** The model that answered, so a re-price can be attributed to a model. */
+  model: string;
+  /** How many provider round trips the turn took, one per tool hop plus the answer. */
+  rounds: number;
 }
 
 /**
@@ -997,6 +1034,14 @@ export type LedgerEvent =
       at: string;
       sessionId: string;
       message: AssistantMessage;
+      /**
+       * Tokens and pesos this turn cost, absent on a person's turn because typing
+       * costs nothing. It is on the event rather than on the message because the
+       * ledger is where the cost question is answered: a judge asking what the
+       * panel costs per company per month gets a sum over these rows instead of an
+       * estimate, and `AssistantUsage` says where the rate comes from.
+       */
+      usage?: AssistantUsage;
     }
   | {
       /**

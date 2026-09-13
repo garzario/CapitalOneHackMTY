@@ -9,6 +9,7 @@
 
 import { NO_RAIL } from "@hackmty/rail";
 import { createApp } from "./app";
+import { UNAVAILABLE_MODEL } from "./assistant/model";
 import { acceptOnlyCepSource, staticCepInbox } from "./cep";
 import { offConsortiumSource } from "./consortium";
 import { type ApiDeps, createDeps, type DepsOverrides } from "./deps";
@@ -68,6 +69,10 @@ export function createTestApp(
     allowSeed: false,
     repo: new MemoryRepository(),
     extractor: UNAVAILABLE_EXTRACTOR,
+    /* And the assistant model, for the same reason and with the same teeth: a
+       `GEMINI_API_KEY` in somebody's `.env` would turn the panel tests into live
+       calls to a paid third party. A test about the panel passes `scriptedModel`. */
+    model: UNAVAILABLE_MODEL,
     cep: acceptOnlyCepSource(),
     /* No rail, because the default one is whatever `NESSIE_API_KEY` is in the
        `.env` of whoever runs the suite. A test that wants to send a cent passes
