@@ -53,7 +53,7 @@ erDiagram
     text rfc PK
     text legal_name
     timestamptz first_invoice_at
-    numeric delay_cost_per_day "null until the relationship is priced"
+    numeric delay_cost_per_day "null until the relationship is priced, set on all 44 generated"
     boolean synthetic
   }
   KNOWN_ACCOUNT {
@@ -525,7 +525,7 @@ and a re-seed of the company should not throw away a pull.
 | `signature_reason text` | `packages/cep` refuses to report a valid Banxico seal because Banxico publishes no specification of the signed string, the hash or the padding. It runs the whole candidate matrix and returns `unconfirmed_scheme`, and the column carries that word so the UI can say "firma no verificada" and never "firma invalida". Two different claims, and only one of them is ours to make |
 | `synthetic boolean` | The watermark is rendered from this flag and never from a name. Set on every generated row, per ADR-0002 |
 | `ocr_confidence numeric(4,3) check (between 0 and 1)` | Present only when the CLABE came from a file. A low value weakens the CLABE finding rather than being ignored, which is what keeps a blurry photo from becoming a confident accusation |
-| `delay_cost_per_day numeric(14,2)` nullable | Absent means the relationship has not been priced yet, and `supplierModelOf` reads that as zero. Zero is conservative rather than neutral: with no delay cost the engine verifies anything carrying a positive expected loss and releases only what is clean |
+| `delay_cost_per_day numeric(14,2)` nullable | Absent means the relationship has not been priced yet, and `supplierModelOf` reads that as zero. Zero is conservative rather than neutral: with no delay cost the engine verifies anything carrying a positive expected loss and releases only what is clean. It is nullable because a real tenant's first import prices nothing; the generated company prices all 44, so the column is populated everywhere the demo reads it |
 | `message_text` rather than `text` | `text` is a type name in Postgres and reads badly as a column. It is the one column name that is not the domain field spelled in snake_case, and `rows.ts` maps it back |
 | `sent_at timestamptz` nullable | Projected from the `payment_sent` event. Absent while the instruction is still pending, which is what separates "not paid yet" from "paid and missing from the bank mirror", and the second is a `bank_reconciliation` finding |
 | `decided_by text` nullable | Null until a person decides. The system proposes, a human disposes, and the column is the proof |
@@ -596,9 +596,19 @@ because rolling to the next Monday puts three times its share of the due dates i
 document behind it, because nothing in this week's run has left the bank yet and that is the premise
 of the product. Findings, decisions and verified beneficiaries, because they are the engine's
 output and a generator that shipped its own findings would be answering the question the controls
-exist to answer. Voice notes and `delayCostPerDay`, which is why `supplierModelOf` reads the whole
-seeded company as unpriced and the engine takes the conservative branch. All of that is printed by
-`bun run seed` under `pending`, rather than left for a judge to discover.
+exist to answer. Voice notes, because no instruction in the generated run arrived as audio. All of
+that is printed by `bun run seed` under `pending`, rather than left for a judge to discover.
+
+**What it does produce, and used not to.** `Supplier.delayCostPerDay` on all 44 suppliers, between
+MXN 101.98 and MXN 4,611.27 a day, priced in `packages/seed/src/sentryone/delay-cost.ts` from the
+catalogue row: moratory interest on the balance this company owes that supplier, plus the pronto pago
+discount that expires the day the payment is late, weighted up where a delay stops production rather
+than annoying a consumables vendor. It is arithmetic over the spec and draws nothing from the RNG, so
+the price is the same whichever eight months the generator drew, and adding it moved no id. Until #182
+the field was unset, `supplierModelOf` fell back to `DEFAULT_DELAY_COST_PER_DAY`, and the expected-loss
+trade-off weighed the pesos at risk against zero: every line with any positive expected loss was
+stopped and rule 3 never reached its release branch. It reaches it now, on one line of the reference
+run.
 
 **Does it look real.** TODO(garzario): the honest comparison is one summary statistic of the
 generator against a public series, and the only figures above that a public source could contradict

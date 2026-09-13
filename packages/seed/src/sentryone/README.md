@@ -10,6 +10,7 @@ src/sentryone/
   company.ts         the demo company and the constants the rest of the repo reads
   suppliers.ts       the 42-supplier catalogue, literals, with valid CLABEs
   clabe.ts           CLABE arithmetic, including the two-digit near miss
+  delay-cost.ts      what a day of delay costs, per supplier, the other half of decide
   timeline.ts        the calendar and money helpers every phase shares
   build.ts           the object builders: supplier row, CFDI, complements, run line
   types.ts           the plan, the draft, the case and the dataset shapes
@@ -93,6 +94,7 @@ Four demo scenarios, one per named hero instruction:
 | Payment-run lines | 70 to 110, about 90 | roughly a week of dues, grouped one line per supplier per due day |
 | Monthly supplier spend | 5 to 6 million MXN | the generated invoices, not an assumption |
 | History | 8 months | `HISTORY_MONTHS` |
+| Cost of one day of delay | 101.98 to 4,611.27 MXN per supplier | `delayCostPerDayOf`, arithmetic over the catalogue row, no draw |
 
 The run size is **not padded to a target.** It falls out of the cadence, and
 `RUN_SIZE_MIN` and `RUN_SIZE_MAX` are asserted in the test so that editing the
@@ -111,6 +113,41 @@ catalogue without noticing what it does to the demo screen fails in CI instead o
 - **Invoices are drawn on working days**, not on calendar days rolled forward to the
   next Monday. Rolling puts three times its share of the invoices on Mondays, and then
   three times its share of the due dates lands in one payment run.
+
+## What a day of delay costs
+
+`Supplier.delayCostPerDay` is the second half of the expected-loss decision in
+@hackmty/core, and it was unset until issue #182. With it unset `supplierModelOf`
+falls back to zero, the trade-off weighs the pesos at risk against nothing, every line
+with any positive expected loss is stopped, and the release branch of rule 3 is only
+ever reached by the lines that carry no finding at all.
+
+It is priced in `delay-cost.ts` from two things a Mexican supplier contract actually
+carries, and the comment at the top of that file is the argument:
+
+1. moratory interest on the balance this company owes that supplier, which is the
+   monthly spend scaled by the payment terms, at three per cent a month over a 360-day
+   commercial year, and
+2. the pronto pago discount, one and a half per cent of the payment that was about to
+   leave, lost in full the day it is late because the window closes.
+
+Raw material, tooling and the outside processes a shipment waits on carry
+`LINE_STOP_FACTOR`; consumables and services carry 1. The split is the complement of
+`CONSUMABLE_SEGMENTS` plus the services rather than a third list, because the things a
+plant buys more of during a shutdown are exactly the things whose delay does not stop
+a line, and two lists that disagreed would make one of the two cases wrong without
+either failing.
+
+Two properties: it **draws nothing**, so adding it moved no invoice, no amount and no
+instruction id, and it is priced **from the relationship rather than from the
+window**, so the same supplier costs the same to delay whichever eight months the
+generator drew.
+
+On the reference run it changes one outcome. `INS-2026-09-07-032` carries a warning
+from the duplicate control worth 2,088.00 MXN of expected loss and the engine releases
+it, because a day of delay with that supplier costs 4,611.27 MXN. A critical finding
+can never be released that way: rules 1 and 2 of `decide` return above the branch that
+weighs anything.
 
 ## What is deliberately not here
 

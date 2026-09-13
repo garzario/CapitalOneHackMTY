@@ -23,7 +23,6 @@
 
 import type { Cfdi, PaymentComplement, Rfc } from "@hackmty/core";
 import { addMonths, monthsInWindow } from "../dates";
-import { AMOUNT_MEDIAN_POSITION } from "../rng";
 import {
   bankCodeOf,
   MX_BANKS,
@@ -31,7 +30,11 @@ import {
   syntheticBankRfc,
 } from "./clabe";
 import { IVA_RATE } from "./company";
-import { CONSUMABLE_SEGMENTS, type SentryOneSupplierSpec } from "./suppliers";
+import {
+  CONSUMABLE_SEGMENTS,
+  medianTicket,
+  type SentryOneSupplierSpec,
+} from "./suppliers";
 import { cents, dayOf, fromCents, round2 } from "./timeline";
 import type { CaseInjector, CaseResult, SentryOneDraft } from "./types";
 
@@ -96,14 +99,6 @@ function monthKey(year: number, month: number): string {
 
 function cadenceKey(rfc: Rfc, year: number, month: number): string {
   return `${rfc}|${monthKey(year, month)}`;
-}
-
-/** The median ticket of a supplier, the figure the plan sizes the ramp against. */
-function medianTicket(spec: SentryOneSupplierSpec): number {
-  return (
-    spec.ticket.min +
-    (spec.ticket.max - spec.ticket.min) * AMOUNT_MEDIAN_POSITION
-  );
 }
 
 /**

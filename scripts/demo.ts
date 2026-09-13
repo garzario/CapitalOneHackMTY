@@ -319,6 +319,31 @@ async function beatPaymentRun(api: Api, say: Say): Promise<void> {
     "every payment was released, so nothing is being stopped",
   );
 
+  /* The other half of the decision, and the one that used to be missing: what a day
+     of delay costs this company with this supplier. Priced per supplier by
+     @hackmty/seed since #182. At zero the trade-off is not a trade-off and the field
+     the instruction screen shows reads MXN 0.00 on every line, so the demo asserts
+     the price exists rather than trusting it. */
+  need(
+    run.items.every((item) => (item.decision?.delayCostPerDay ?? 0) > 0),
+    "some decision prices a day of delay at zero, so the expected loss is weighed against nothing",
+  );
+  /* And the release branch of rule 3 is a real branch: a line may carry a finding a
+     person can read and still be released, because waiting costs more than the
+     expected loss. What may never happen is a critical finding on a released line. */
+  const releasedWithFindings = run.items.filter(
+    (item) => item.findings.length > 0 && item.decision?.action === "release",
+  );
+  need(
+    releasedWithFindings.every(
+      (item) =>
+        item.findings.every((finding) => finding.severity !== "critical") &&
+        Math.round((item.decision?.expectedLoss ?? 0) * 100) <=
+          Math.round((item.decision?.delayCostPerDay ?? 0) * 100),
+    ),
+    "a line was released against its own arithmetic: either a critical finding or an expected loss above one day of delay",
+  );
+
   const clabe = run.items.find((item) =>
     item.findings.some(
       (finding) =>
@@ -423,9 +448,15 @@ async function beatPaymentRun(api: Api, say: Say): Promise<void> {
       continue;
     }
     say(
-      `  ${item.instruction.id} ${String(item.decision?.action).padEnd(7)} ${formatAmount(item.instruction.amount).padStart(12)} MXN  ${item.findings.map((finding) => finding.detector).join(", ")}`,
+      `  ${item.instruction.id} ${String(item.decision?.action).padEnd(7)} ${formatAmount(item.instruction.amount).padStart(12)} MXN  expected loss ${formatAmount(item.decision?.expectedLoss ?? 0).padStart(10)} against ${formatAmount(item.decision?.delayCostPerDay ?? 0).padStart(8)} a day of delay  ${item.findings.map((finding) => finding.detector).join(", ")}`,
     );
   }
+  // The sentence that was not sayable before #182: the trade-off changed an outcome.
+  say(
+    releasedWithFindings.length === 0
+      ? "every line that carries a finding is stopped on this run: no expected loss came out under one day of delay"
+      : `${releasedWithFindings.length} line(s) carry a finding and are released anyway, because a day of delay costs more than the expected loss: ${releasedWithFindings.map((item) => item.instruction.id).join(", ")}`,
+  );
 }
 
 /**

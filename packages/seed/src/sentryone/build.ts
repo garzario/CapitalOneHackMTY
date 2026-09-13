@@ -20,6 +20,7 @@ import { addDays, addMonths } from "../dates";
 import type { Rng } from "../rng";
 import { bankCodeOf, syntheticBankRfc } from "./clabe";
 import { type CompanyProfile, IVA_RATE } from "./company";
+import { delayCostPerDayOf } from "./delay-cost";
 import type { SentryOneSupplierSpec } from "./suppliers";
 import {
   addBusinessDays,
@@ -34,7 +35,16 @@ import {
   WORK_DAY_START_MINUTE,
 } from "./timeline";
 
-/** Supplier row, with the account history we already trust. */
+/**
+ * Supplier row, with the account history we already trust and what a day of delay
+ * costs us with them.
+ *
+ * `delayCostPerDay` is the second half of the expected-loss trade-off and it is priced
+ * in ./delay-cost.ts from the catalogue row rather than left unset. A supplier record
+ * with no price reads through `supplierModelOf` as a delay that costs nothing, and a
+ * company where nothing costs anything to delay holds every payment that carries any
+ * finding at all.
+ */
 export function buildSupplierRow(
   spec: SentryOneSupplierSpec,
   windowFrom: string,
@@ -58,6 +68,7 @@ export function buildSupplierRow(
         timesPaid: Math.max(1, Math.round(spec.tenureMonths * 0.9)),
       },
     ],
+    delayCostPerDay: delayCostPerDayOf(spec),
     synthetic: true,
   };
 }

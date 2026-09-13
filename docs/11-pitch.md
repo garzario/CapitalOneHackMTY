@@ -52,7 +52,7 @@ Refresh this table at every milestone.
 | "It is deployed, open it on your phone" | Vercel for `apps/web`, Vultr for `apps/api`, per the ADR-0005 amendment | **Not ticked.** Issue #44. Until then the demo runs local and we say so |
 | "A held payment carries a deadline and a way out" | `holdWindow` in `packages/core/src/hold.ts`, on `GET /api/v1/instructions/:id` and on a recorded `verify-call`; the reason and the name on `POST /api/v1/instructions/:id/decide` | Ticked in the engine and the API. **Not on screen yet**, issue #174, so say "la API lo contesta y la pantalla lo muestra para el demo" and show it with `curl` if pushed |
 | "The run answers in pesos, not in minutes" | `runMoney` in `packages/core/src/exposure.ts`, on the `totals` of `GET /api/v1/run/current` | Ticked for the money that is stopped, released and at risk. The retroactive 69-B pair reads zero until a sweep prices a supplier in the run, issue #175 |
-| "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, and the `Costo de retrasar un dia` field on the instruction screen | **Ticked in the engine, flat in the demo data.** The generator prices no `Supplier.delayCostPerDay`, so all 92 decisions carry zero and the field reads MXN 0.00, issue #182. Say the mechanism, never point at the number |
+| "The decision weighs the pesos at risk against what a day of delay costs" | `decide` in `packages/core/src/decision.ts`, `EXPECTED_DELAY_DAYS`, `Supplier.delayCostPerDay` priced per supplier in `packages/seed/src/sentryone/delay-cost.ts`, and the `Costo de retrasar un dia` field on the instruction screen | Ticked, and the number is on screen since #182: all 92 decisions carry a price between MXN 101.98 and MXN 4,611.27 a day, and on this run it changes one outcome. Point at `INS-2026-09-07-032`, released with its warning still showing because a day of delay costs MXN 4,611.27 against MXN 2,088.00 of expected loss |
 
 **The live call happened, so the row above is ticked.** Two outbound calls went out on 2026-09-12
 through the imported Twilio number to a teammate's own mobile, the first of them 18 seconds and
@@ -79,15 +79,18 @@ than being corrected.
 | Firms in the target band | About 246,000 Mexican firms of 11 to 250 people | INEGI CE 2024, `docs/04-market.md` source [1] |
 | TAM, SAM, SOM | MXN 2,655 million, MXN 948 million, MXN 12.1 million per year | `docs/04-market.md#sizing`, bottom-up, entities times price |
 | Our price | MXN 899 per company per month; MXN 3,900 per month for an accounting firm with up to 20 client companies, MXN 195 each | `docs/05-business-model.md` |
-| The price anchor | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
+| The price anchor on the list side | 69b.mx `Smart` at MXN 199 per month for 30 monitored RFCs, and Tesio from MXN 499 per month | `docs/04-market.md` sources [7] and [8] |
+| The price anchor on the account side | Verificamex's one-cent test, MXN 17.85 down to MXN 8.93 plus IVA per verification depending on the token tier. Say "de nueve a dieciocho pesos"; it is also our build-versus-buy answer and our COGS anchor, never called our competitor | `docs/04-market.md` source [36] |
+| What has no published price | ValidX and Portal de Proveedores, both quote-only, so no number is said about either | `docs/04-market.md#what-we-could-not-verify-about-the-competition` |
 | Break-even | One stopped invoice of MXN 23,452 of subtotal per year | `docs/05-business-model.md` |
 | Avoided loss | One held invoice of MXN 100,000 of subtotal pays 51 months of subscription; one misdirected SPEI of the same amount pays 111 months | `docs/05-business-model.md` |
 | The demo company | 28 employees, Apodaca, 44 suppliers, 8 months of history (2026-01-07 to 2026-09-07), 4,103 CFDIs, 3,801 complements, 7,997 ledger events, seed 69 | `packages/seed/src/sentryone`. `bun run seed` prints the suppliers, the CFDIs, the complements and the run; the headcount and the city are in `company.ts` and the event count is the ledger row of `docs/08-data-model.md` |
 | This week's run | 92 payment instructions, MXN 2,174,210.76 | same, `summarizeSentryOne` |
-| This week's run in pesos | MXN 885,658.73 stopped (MXN 592,592.38 held plus MXN 293,066.35 to verify), MXN 1,288,552.03 released, MXN 799,209.86 at risk | `totals` of `GET /api/v1/run/current`, from `runMoney`. The two `retroactive69b` fields on the same object read zero on this run, and #175 is why |
+| This week's run in pesos | MXN 785,289.86 stopped (MXN 592,592.38 held plus MXN 192,697.48 to verify), MXN 1,388,920.90 released, MXN 799,209.86 at risk | `totals` of `GET /api/v1/run/current`, from `runMoney`. The two `retroactive69b` fields on the same object read zero on this run, and #175 is why |
+| What a day of delay costs | MXN 101.98 to MXN 4,611.27 across the 44 suppliers, MXN 1,120.05 on the hero line. Six of the seven lines that carry a finding are stopped; the seventh is released because waiting costs more than the risk | `Supplier.delayCostPerDay` on every decision of `GET /api/v1/run/current`, priced in `packages/seed/src/sentryone/delay-cost.ts` from moratory interest on the balance owed plus the pronto pago discount that expires |
 | The listed-supplier scenario | MXN 878,592.59 of base already deducted and MXN 404,152.59 of exposure (MXN 263,577.78 ISR plus MXN 140,574.81 IVA), across 24 of the 31 invoices to the supplier the simulated publication names. The base is the settled ones only, because an invoice nobody has paid yet was not deducted yet | same, `notes.scenarios`, and `bun run demo` beat 3 prints the same pair |
 | The blind evaluation | 30 labelled cases and 21 labelled expectations over six detectors, scored as 183 counts. Precision 85.0 percent, recall 81.0 percent, false-positive rate 1.9 percent, and the engine chose the labelled action on 28 of the 30 | `bun run eval`, re-read on 2026-09-12. **Re-run it before quoting it.** Say 30 cases, never a pair count: six detectors on thirty cases looks like 180 slots, and the matrix sums to 183 because a detector that fires with the wrong severity on a case that expected it is counted twice, once as a miss and once as a false positive |
-| Tests | 1,777 tests across 97 files on 2026-09-12: 1,666 passing, 111 skipped, 0 failing | `bun test`. Say passing and skipped, because a judge who runs it sees both |
+| Tests | 1,836 tests across 99 files on 2026-09-12: 1,725 passing, 111 skipped, 0 failing | `bun test`, re-read on this branch after merging `origin/dev`. Say passing and skipped, because a judge who runs it sees both, and re-read it after every merge |
 
 The reference run amount in `docs/02-persona.md` is MXN 2,174,210.76, the same figure this table
 carries, so the pitch and the persona doc agree in front of a judge who reads both. That cell used to
@@ -155,6 +158,40 @@ Then the sentence that closes it, because it does not depend on an attacker exis
 old, and the SAT publishes a list that voids the deductions already taken on it, retroactively, with
 thirty days to answer. Talking to your supplier every day protects you from none of that.
 
+## The competition, and the two sentences that lose the room
+
+The market research of PR #177 rewrote this part of the pitch. Eight paragraphs in this file claimed,
+in one form or another, an empty window, an only-ones position, or a competitor picture the research
+falsifies: the closing line of the 60-second version, beats 3 and 4 of the 90-second one, the "why
+different" and the "market, model and regulation" beats of the 240-second one, hardest questions 1 and
+2, and the one that always follows them. They are gone, because a judge who breaks one claim stops
+believing the rest. Refs #171 and #169. The roster with one line per company is section 1 of
+`docs/12-judge-qa.md#table-feedback-of-12-september-and-the-answers`, and `docs/12` wins if the two
+ever disagree.
+
+**The two camps, said in this order.** The fiscal half already holds payments: ValidX retains before
+paying and notifies Compras, Portal de Proveedores holds when a document expires and sweeps 69-B
+daily, and 69b.mx and Tesio run on the list. None of them sees the account. The money half moves the
+pesos without checking who receives them: Clara disperses hundreds of SPEI from a spreadsheet the
+payer uploads, Xepelin's own three-step flow contains no counterparty check. CONTPAQi has both halves
+inside one product and its own changelog shows they never meet at the moment of payment. Bind ERP
+alerts and, in its own help centre's words, "no restringira". HSBCnet really does validate beneficiary
+names, "unicamente cuentas HSBC". Trustpair, nsKnox and Eftsure verify accounts for corporate
+treasuries abroad and mention neither Mexico nor CFDI, SAT, SPEI or CLABE.
+
+**Our claim is the union**, in one sentence and no wider: the fiscal half and the money half in one
+decision, retener, verificar o liberar, with the evidence attached, before the transfer is
+irrevocable. Two edges of it are sharper than the join: we found nobody selling the comparison of a
+new CLABE against the accounts that supplier has already been paid on, and nobody turning either
+signal into a decision with an amount at risk on it.
+
+**The two sentences never to say.** "Nadie hace esto", nobody does this, because ValidX's own landing
+page is the counterexample; say "no encontramos a nadie que venda las dos mitades juntas" instead.
+And "nosotros inventamos la prueba del centavo", we invented the one-cent test, because Verificamex
+sells it metered and Banco de Mexico writes it into Regla 51a Bis of the SPEI rules; say that the
+centavo is a commodity primitive and that ours is the decision hung on its answer. Both of these are
+also in the delivery rules at the end of this file, because they are the two that cost the room.
+
 ## The six controls, in the words used at the table
 
 Said in this order, because it is the order `Detector` declares in
@@ -174,12 +211,17 @@ Then the decision, which is the part engineers ask about: **"seis detectores ind
 hallazgo trae pesos en riesgo, y una sola decision de perdida esperada pesa esos pesos contra lo que
 cuesta retrasar ese pago un dia. Retener, verificar o liberar, y firma una persona."**
 
-**Do not open the delay figure to prove it.** The trade-off is in `decide` and in `EXPECTED_DELAY_DAYS`,
-but the seeded company prices no supplier relationship, so `Costo de retrasar un dia` renders MXN 0.00
-on every instruction and rule 3 never reaches its release branch. If an engineer asks what the delay is
-worth here, the answer is "cero en esta empresa, porque el generador no le pone precio a la relacion;
-el mecanismo esta en la decision y lo puedes leer", and #182 is what fills it in. Volunteering that is
-cheap. Being caught pointing at a zero is not.
+**Open the delay figure, it holds up now.** `Costo de retrasar un dia` carries a number on every one
+of the 92 instructions, between MXN 101.98 and MXN 4,611.27, priced per supplier from moratory interest
+on the balance we owe them plus the pronto pago discount that expires the day the payment is late, and
+higher for the raw material and the tooling that stop production than for consumables and services. On
+the hero line it reads MXN 1,120.05 against MXN 23,050.49 of expected loss, and that payment is stopped
+by its critical finding anyway, which is what rules 1 and 2 are for. The two lines where the arithmetic
+decides on its own are the pair to show an engineer: `INS-2026-09-07-077`, **"cuatrocientos veintisiete
+pesos al dia contra dos mil seiscientos diez de perdida esperada, y por eso se verifica"**, and
+`INS-2026-09-07-032`, which carries a duplicate-invoice warning of MXN 2,088.00 and is released because
+a day of delay with that supplier costs MXN 4,611.27. What must never be said is that a critical finding
+could be released that way: rules 1 and 2 of `decide` return above the branch that weighs anything.
 
 And the property that is easy to miss and worth volunteering: **every one of the six lands in `ran`
 or in `skipped` with a named reason.** A run that says "sin hallazgos" because the engine could not
@@ -188,7 +230,7 @@ accounts for all six.
 
 ## 60 seconds, the hallway version
 
-About 150 words. Say it and then stop talking.
+About 170 words, counted off this file. Say it and then stop talking.
 
 > Dos cosas son ciertas cuando le pagas a un proveedor en Mexico. Si ese proveedor aparece en la
 > lista del articulo 69-B del SAT, las deducciones que ya tomaste sobre sus facturas se anulan de
@@ -202,12 +244,12 @@ About 150 words. Say it and then stop talking.
 > lista oficial del SAT y el comprobante que firma Banxico por cada SPEI. Cada pago regresa como
 > retener, verificar o liberar, con la razon en pantalla, y decide una persona.
 >
-> La consulta es publica y gratuita. Nadie la corre cada semana. Nosotros la corremos en cada pago,
-> antes de que el dinero se vaya.
+> La consulta es publica y hay quien la vende. No encontramos a nadie que la lea junto a la cuenta a
+> la que va el dinero. Ahi decidimos nosotros.
 
 ## 90 seconds, a judge walking up
 
-This is the one to memorise. About 230 words, five beats.
+This is the one to memorise. About 280 words, counted off this file, five beats.
 
 > **(20 s, la persona y el momento.)** Jueves por la manana, taller metalmecanico en Apodaca,
 > veintiocho empleados. Una sola persona lleva toda la administracion y hoy tiene que mandar entre
@@ -220,15 +262,15 @@ This is the one to memorise. About 230 words, five beats.
 > la exposicion la crea la publicacion, no el pago. Y si la cuenta esta mal, el SPEI es firme e
 > irrevocable. SentryOne vive exactamente en los minutos antes de que ella le de enviar.
 >
-> **(25 s, el mecanismo.)** Juntamos tres fuentes que nadie junta: su propio catalogo de CFDI, la
-> lista oficial del SAT con todas sus versiones, y el CEP que firma Banxico por cada SPEI. Seis
-> controles independientes y una decision de perdida esperada. Son funciones puras, sin red y sin
-> base de datos, y no hay ningun modelo de lenguaje en la decision. Los puedes leer, y puedes correr
-> las pruebas en esta laptop.
+> **(25 s, el mecanismo.)** Juntamos tres fuentes que hoy viven en tres productos distintos: su
+> propio catalogo de CFDI, la lista oficial del SAT con todas sus versiones, y el CEP que firma
+> Banxico por cada SPEI. Seis controles independientes y una decision de perdida esperada. Son
+> funciones puras, sin red y sin base de datos, y no hay ningun modelo de lenguaje en la decision.
+> Los puedes leer, y puedes correr las pruebas en esta laptop.
 >
-> **(15 s, el diferenciador.)** El banco conoce la cuenta y no conoce la factura. El contador conoce
-> la factura y la ve el mes que entra. Ninguno de los dos esta en el cuarto en el momento en que el
-> dinero se vuelve irreversible. Ese momento es el producto.
+> **(15 s, el diferenciador.)** Hay productos que ya retienen el pago sobre la lista del SAT y nunca
+> ven la cuenta, y plataformas que dispersan SPEI sin mirar a quien recibe. Las dos mitades no se
+> encuentran en el momento en que el dinero se vuelve irreversible. Ese momento es el producto.
 >
 > **(10 s, la invitacion.)** Preguntame lo que quieras del algoritmo, de los datos o de la
 > regulacion. O manda tu una instruccion de pago desde tu telefono, ahorita.
@@ -271,11 +313,16 @@ About 350 spoken words plus the demo lines, which are in `docs/10-demo-script.md
 
 **3:05, why different and how we know.**
 
-> El banco conoce la cuenta y no la factura. El contador conoce la factura y la ve el mes que entra.
-> Las plataformas de verificacion de beneficiarios que existen no mencionan Mexico, ni CFDI, ni SAT,
-> ni SPEI en nada de su material publico que hayamos encontrado. Y los numeros de nuestra pagina de
-> metricas son ciegos, porque quien etiqueta los casos no escribe los detectores y no abre esa
-> carpeta hasta que el codigo ya esta integrado.
+> El mercado ya partio esta tesis en dos. ValidX y Portal de Proveedores retienen el pago sobre las
+> listas del SAT y nunca ven la cuenta. Clara y Xepelin dispersan cientos de SPEI sin verificar a
+> quien recibe. CONTPAQi tiene las dos mitades y no se cruzan en el pago. Lo nuestro es la union, en
+> una decision con evidencia. Y nuestros numeros son ciegos: quien etiqueta los casos no escribe los
+> detectores y no abre esa carpeta hasta que el codigo ya esta integrado.
+
+If a judge names the one-cent probe here, the answer is one sentence and it is not defensive:
+Verificamex sells it metered at MXN 8.93 to 17.85 a call and Banco de Mexico writes it into Regla 51a
+Bis of the SPEI rules, so it is a commodity primitive and ours is the decision hung on its answer. The
+roster with one line per company is section 1 of `docs/12-judge-qa.md#table-feedback-of-12-september-and-the-answers`.
 
 Optional clause, only if `bun run eval` was run within the hour and the screen is open on it:
 "treinta casos etiquetados, uno punto nueve por ciento de falsos positivos, y los cuatro casos que
@@ -287,10 +334,10 @@ number in your mouth.
 > Doscientos cuarenta y seis mil empresas mexicanas de once a doscientos cincuenta personas, y el
 > tamano se construye de abajo hacia arriba, entidades por precio, con cada insumo citado. Cobramos
 > ochocientos noventa y nueve pesos al mes por empresa, y tres mil novecientos al despacho contable
-> que trae veinte; el ancla publica del mercado son ciento noventa y nueve pesos al mes por
-> monitorear una lista, y nosotros no monitoreamos una lista, actuamos sobre un pago. Y no somos
-> entidad regulada: no custodiamos fondos, no ejecutamos transferencias y nada se rechaza sin que
-> una persona lo decida.
+> que trae veinte; las anclas publicas del mercado son ciento noventa y nueve pesos al mes por
+> monitorear una lista y de nueve a dieciocho pesos por verificar una cuenta, y lo que cobramos es la
+> decision que junta las dos. Y no somos entidad regulada: no custodiamos fondos, no ejecutamos
+> transferencias y nada se rechaza sin que una persona lo decida.
 
 **3:45, the ask.**
 
@@ -475,19 +522,22 @@ ever disagree, `docs/12` wins**, and this section gets fixed in the same pull re
 
 **1. The list is public and free. Why not just check it yourself?**
 
-> Porque la consulta no es la parte dificil, la cadencia si. Tiene que correr sobre cada proveedor
-> en cada corrida, y otra vez hacia atras cada vez que el SAT publica, sobre facturas que ya pagaste
-> y ya dedujiste. La lista cambio treinta y tres veces en doce meses, una cada once dias. La
-> exposicion la crea la publicacion, no el pago, asi que revisar al dar de alta al proveedor no
-> protege nada. Nuestro barrido reproduce la bitacora y pone precio a la base deducida, al ISR y al
-> IVA por proveedor recien listado.
+> Porque la consulta no es la parte dificil, la cadencia si, y la cadencia ya se vende: ValidX y
+> Portal de Proveedores barren la lista a diario. Tiene que correr sobre cada proveedor en cada
+> corrida, y otra vez hacia atras cada vez que el SAT publica, sobre facturas que ya pagaste y ya
+> dedujiste. La lista cambio treinta y tres veces en doce meses, una cada once dias. La exposicion la
+> crea la publicacion, no el pago, asi que revisar al dar de alta al proveedor no protege nada.
+> Nuestro barrido reproduce la bitacora y pone precio a la base deducida, al ISR y al IVA por
+> proveedor recien listado, y lo lee junto a la cuenta a la que esta por salir el dinero.
 
 Open: `SweepResult` in `packages/core/src/domain.ts`, `sweep` in `packages/sat/src/sweep.ts`, beat 2.
 
 **2. The bank already shows the beneficiary name.**
 
-> Te lo muestra despues de que capturaste la cuenta, y lo compara contra nada, porque el banco no
-> tiene la factura. Nosotros comparamos el nombre del titular en un comprobante firmado por Banxico
+> Un banco si lo vende, HSBCnet, y unicamente para cuentas HSBC, por archivo y en horario: eso es
+> higiene de una libreta de direcciones, no una puerta en la salida del pago. En general te lo
+> muestra despues de que capturaste la cuenta, y lo compara contra nada, porque el banco no tiene la
+> factura. Nosotros comparamos el nombre del titular en un comprobante firmado por Banxico
 > contra la razon social del CFDI que estamos pagando, guardamos el XML firmado byte por byte como
 > evidencia, y lo hacemos una vez por cuenta en lugar de una vez por pago. El registro de
 > beneficiarios verificados es un activo que se acumula.
@@ -566,13 +616,15 @@ wanted. Do not call an open issue a cut.
 **And the one that always follows: why would this not be a feature inside an accounting product in
 six months?**
 
-> Podria serlo, y el camino mas rapido para ellos somos nosotros. Lo dificil de copiar en seis meses
-> no es la consulta a la lista, es el catalogo unido: en que cuentas le hemos pagado de verdad a
-> este proveedor, establecidas por que documento, y la bitacora de eventos reproducible que hace
-> posible el barrido retroactivo. Ademas las plataformas de verificacion de beneficiarios que ya
-> existen no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en nada de su material publico que hayamos
-> encontrado, y los productos mexicanos que si conocen la lista no ven nunca la cuenta a la que esta
-> por salir el dinero.
+> Podria serlo, y el camino mas rapido para ellos somos nosotros. De hecho ya hay un incumbente con
+> las dos mitades adentro, CONTPAQi: tablero fiscal y dispersion masiva con conexion al banco en el
+> mismo producto, y su propio changelog muestra que no se cruzan en el momento del pago. Lo dificil
+> de copiar en seis meses no es la consulta a la lista, es el catalogo unido: en que cuentas le hemos
+> pagado de verdad a este proveedor, establecidas por que documento, y la bitacora de eventos
+> reproducible que hace posible el barrido retroactivo. Las plataformas de verificacion de
+> beneficiarios de afuera no mencionan Mexico, ni CFDI, ni SAT, ni SPEI en su material publico, y los
+> productos mexicanos que si conocen la lista no ven nunca la cuenta a la que esta por salir el
+> dinero.
 
 Open: `docs/04-market.md#competitor-map`, `KnownAccount` in `packages/core/src/domain.ts`.
 
@@ -590,6 +642,11 @@ positives, why Nessie at all, and how do you know it works. All four are in `doc
 - **Never claim the product is faster than doing it by hand.** The value is the loss prevented, in
   pesos. The eight-minutes sentence was said at the table on 2026-09-12 and it cost us the room. See
   "The value is the loss, not the minutes".
+- **Never say "nadie hace esto" and never say "nosotros inventamos la prueba del centavo".** Both
+  break in one search: ValidX sells a pre-payment hold on four SAT lists, and the one-centavo probe
+  is Banco de Mexico's own Regla 51a Bis. Say "no encontramos a nadie que venda las dos mitades
+  juntas", and say the centavo is a commodity. See "The competition, and the two sentences that lose
+  the room".
 - Never say "no nos dio tiempo". Say what we cut and why, which is a judgment story.
 - If a gate in the table above is not ticked, say the version of the sentence that is true. The
   product is strong enough without the sentence that is not.

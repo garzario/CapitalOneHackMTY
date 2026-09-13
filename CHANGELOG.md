@@ -523,6 +523,66 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- The demo company priced no supplier relationship, so the expected-loss trade-off weighed the pesos
+  at risk against zero and the field the instruction screen calls "Costo de retrasar un dia" read
+  MXN 0.00 on all 92 payments (issue #182). `packages/seed/src/sentryone/delay-cost.ts` now prices
+  `Supplier.delayCostPerDay` on all 44 suppliers from two things a Mexican supplier contract actually
+  carries: moratory interest at three per cent a month on the balance this company owes that supplier,
+  which is the monthly spend scaled by the payment terms, plus the pronto pago discount of one and a
+  half per cent on the payment that was about to leave, lost in full the day it is late because the
+  window closes. Raw material, tooling and the outside processes a shipment waits on carry
+  `LINE_STOP_FACTOR`; consumables and services carry 1, and the split is the complement of
+  `CONSUMABLE_SEGMENTS` plus the services rather than a third list, because the segments a plant buys
+  more of during a shutdown are exactly the ones whose delay does not stop a line. The result is MXN
+  101.98 to MXN 4,611.27 a day, the scale the hand-written fixture in `apps/api/src/synthetic.ts`
+  already used, and it is arithmetic over the catalogue row with no draw from the RNG, so not one
+  invoice, amount or instruction id moved: `INS-2026-09-07-047` is still the hero and
+  `INS-2026-09-07-029` is still the largest hold. What did move is the counters, and that is the point.
+  Rule 3 of `decide` now reaches its release branch on a line that carries a finding:
+  `INS-2026-09-07-032` shows a duplicate-invoice warning worth MXN 2,088.00 of expected loss and the
+  engine releases it, because a day of delay with that supplier costs MXN 4,611.27. The run is 785,289.86
+  MXN not leaving over 2 held and 4 to verify, against 885,658.73 over 2 and 5 before, and
+  `docs/10-demo-script.md`, `docs/11-pitch.md`, `docs/12-judge-qa.md` sections 5b and 5c,
+  `docs/08-data-model.md`, `docs/print/team-card.html` and beat 1 of `bun run demo` were re-read off a
+  fresh run rather than adjusted by hand. The demo now asserts the price exists on every decision, so a
+  regression to zero is a red gate instead of a flat field on stage, and the one test that assumed a
+  finding always stops a payment says what it meant instead: the four lines the demo names are stopped
+  structurally by rules 1 and 2, and a released line with a finding has to satisfy the arithmetic that
+  released it. The blind holdout is deliberately left unpriced, because nothing in a labelled case
+  document prices a relationship.
+
+- Three places still told the competition story the market research of PR #177 replaced, and all
+  three are now the one story (Refs #171 and #169). `docs/12-judge-qa.md` answer 1 of the table
+  feedback used to say "nosotros somos el unico que junta las tres cosas en el momento del pago"
+  while naming only 69b.mx, Tesio and three foreign platforms; it now names what `docs/04` documents,
+  in the order to say it: the fiscal camp already holds payments and never sees the account (ValidX,
+  Portal de Proveedores, 69b.mx, Tesio), the money camp disperses SPEI without verifying who receives
+  it (Clara, Xepelin), the one-centavo probe is a commodity that Verificamex sells metered and that
+  Banco de Mexico writes into Regla 51a Bis of the SPEI rules, CONTPAQi holds both halves and its own
+  changelog shows they never meet at the moment of payment, Bind ERP alerts and by its own help
+  centre "no restringira", HSBCnet validates beneficiary names for HSBC accounts only, and Trustpair,
+  nsKnox and Eftsure verify accounts for corporate treasuries abroad. The claim that replaces the old
+  one is the union of the fiscal half and the money half in a single decision, retain, verify or
+  release with the evidence attached, before the transfer is irrevocable, and the two sentences that
+  break in one search are written down as never to be said: "nadie hace esto" and "nosotros
+  inventamos la prueba del centavo". `docs/11-pitch.md` loses the same claim from the three timed
+  versions, from the "list is public and free" answer, from the bank answer, which now says out loud
+  that HSBCnet really does sell name validation for HSBC accounts only, and from the "why would an
+  accounting product not add this" answer, which now names CONTPAQi as the incumbent that already has
+  both halves; it gains the section "The competition, and the two sentences that lose the room", two
+  price-anchor rows, and a delivery rule for the two banned sentences. `docs/print/team-card.html`
+  carries nine competitor entries with one line each instead of five, the union claim and the two
+  banned sentences. The scope line those two files carry was drafted as "today 69-B, and by the demo
+  the 49 Bis list (#180)" and #180 merged before this branch did, so it says what is now true instead:
+  both articles are in the lookup, the control and the sweep, and the half to volunteer is that 49 Bis
+  answers `answered: false` with `coverage: "not_published_machine_readable"`, because the SAT
+  publishes it as fourteen DOF oficios and not as a file, which is also the answer to a competitor
+  advertising daily re-screening of it. No code moved: this touches `docs/12` and the card and nothing
+  under `packages/sat`. The card kept its single A4 page: the business model moved into the left
+  column so the roster gets a column of its own, and `docs/print/README.md` gains the headless
+  re-measurement, because `.page` clips silently and a PDF with one page is not evidence that nothing
+  was cut.
+
 - The evidence behind the article 49 Bis coverage, taken back to the SAT, the DOF and the compiled
   statute and made reproducible by somebody who was not there when it was written (issue #180). The
   facts all held: the committed 69-B snapshot was downloaded again and is byte for byte the file the
@@ -570,7 +630,9 @@ then the screens, then the narrative, then the plumbing.
   comment in `.githooks/pre-commit` names the `Co-authored-by` trailer it exists to prevent again,
   which the shape change in #187 made safe and which is how `.githooks/commit-msg` has always read it.
   `docs/01-rubric-mapping.md` and `README.md` said 1,670 tests across 97 files, and `README.md` said
-  109 database cases skip, where `bun test` answers 1,719 passing and 111 skipping across 99 files.
+  109 database cases skip, where `bun test` answers 1,725 passing and 111 skipping across 99 files.
+  The three documents that quote a count, those two and the table in `docs/11-pitch.md`, were read off
+  one run after merging `origin/dev`, so they agree with each other and with the case this branch adds.
 
 - Eight sentences in `docs/12-judge-qa.md`, `docs/11-pitch.md` and `docs/print/team-card.html` said
   things the running product does not do, found by taking each claim to the code and to `curl`
