@@ -216,7 +216,7 @@ them. One sentence each is enough; the evidence column is what you open when the
 | # | Control | Said out loud | Open this |
 |---|---|---|---|
 | 1 | `sat_69b` | "Cruzamos cada RFC contra la lista oficial del articulo 69-B, con todas sus versiones, y cuando hay publicacion nueva reproducimos la bitacora para poner precio a lo que ya pagamos y ya dedujimos" | `packages/engine/src/sat69b.ts`, `packages/sat/src/sweep.ts` |
-| 2 | `clabe_forensics` | "Revisamos el digito verificador con los pesos 3-7-1, el banco y la plaza, y la distancia contra las cuentas en las que si le hemos pagado a ese proveedor, con las confusiones tipicas de OCR" | `packages/core/src/clabe.ts` |
+| 2 | `clabe_forensics` | "Revisamos el digito verificador con los pesos 3-7-1, el banco, la plaza con su ciudad y su estado contra las plazas en las que si le hemos pagado y contra el lugar de expedicion de la factura, y la distancia contra las cuentas en las que si le hemos pagado a ese proveedor, con las confusiones tipicas de OCR" | `packages/core/src/clabe.ts` |
 | 3 | `duplicate_invoice` | "Mismo emisor, mismo monto, misma ventana de fechas, o el mismo folio o UUID dos veces" | `packages/core/src/duplicates.ts` |
 | 4 | `supplier_behaviour` | "Cambio de comportamiento del proveedor contra su propia historia, y si no hay muestra suficiente lo decimos en vez de inventar una senal" | `packages/core/src/behaviour.ts` |
 | 5 | `beneficiary_cep` | "Comparamos el nombre del titular en el comprobante que firma Banxico contra la razon social del CFDI que estamos pagando, y guardamos el XML firmado tal cual llego" | `packages/cep/src/name-match.ts`, `signature.ts` |

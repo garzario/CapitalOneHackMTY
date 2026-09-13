@@ -627,16 +627,44 @@ export function composeFindings(
  * Runs on every instruction, supplier or not: an RFC with no history at all is
  * the brand-new-supplier case, and the detector reports it as a warning rather
  * than staying silent.
+ *
+ * The `LugarExpedicion` of the invoices this instruction settles is handed in
+ * because `detectClabe` compares the plaza of the account against the state the
+ * supplier invoices from, and only the caller holds the documents: an instruction
+ * carries uuids. Only the CFDIs under review are passed, for the same reason the
+ * duplicate adapter narrows to them, and an instruction that names no invoice
+ * simply makes no geographic comparison.
  */
 export const clabeForensicsAdapter: DetectorAdapter = {
   detector: "clabe_forensics",
   run: (input) =>
     detectorRan(
       listOf(
-        detectClabe(input.instruction, input.supplier, { now: input.now }),
+        detectClabe(input.instruction, input.supplier, {
+          now: input.now,
+          invoicePostalCodes: invoicePlacesOf(input),
+        }),
       ),
     ),
 };
+
+/**
+ * The postal codes the invoices under review were issued from, deduplicated and
+ * ordered, so the finding is byte-identical across two runs over one ledger.
+ *
+ * A CFDI with no `LugarExpedicion` contributes nothing rather than an empty
+ * string: a missing place must never read as a place that disagrees.
+ */
+function invoicePlacesOf(input: ComposeInput): string[] {
+  const underReview = new Set(input.instruction.cfdiUuids);
+  const places = new Set<string>();
+  for (const cfdi of input.cfdis) {
+    if (underReview.has(cfdi.uuid) && cfdi.issuePlace !== undefined) {
+      places.add(cfdi.issuePlace);
+    }
+  }
+  return [...places].sort();
+}
 
 /**
  * Duplicate invoices, control 3.
