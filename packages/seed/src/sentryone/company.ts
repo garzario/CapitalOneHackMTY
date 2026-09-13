@@ -49,7 +49,7 @@ export const DEMO_COMPANY: CompanyProfile = {
   city: "Apodaca",
   state: "Nuevo Leon",
   employees: 28,
-  clabe: "058180001142789037",
+  clabe: "058580001142789035",
   bankName: "Banregio",
   bankAccountId: "5e1a0f00c0ffee0000000001",
   paymentRunWeekday: 4,

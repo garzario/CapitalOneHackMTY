@@ -10,12 +10,14 @@ import {
   isOcrConfusable,
   isValidClabe,
   lookupInstitution,
+  NO_PLAZA_HISTORY,
   normalizeClabe,
   OCR_CONFUSION_GROUPS,
   parseClabeParts,
   validateClabe,
 } from "./clabe";
 import type { KnownAccount, PaymentInstruction, Supplier } from "./domain";
+import { assessConfidence } from "./levels";
 
 /**
  * Every CLABE below is synthetic and closed with its real check digit, so no
@@ -574,7 +576,7 @@ describe("detectClabe", () => {
     expect(finding?.explanation).toContain("BBVA MEXICO");
   });
 
-  it("reports a change of plaza inside the same bank", () => {
+  it("reports a change of plaza inside the same bank, naming both places", () => {
     const supplier = makeSupplier([account(BBVA_MTY)]);
     const finding = detectClabe(makeInstruction(BBVA_CDMX), supplier);
 
@@ -582,6 +584,32 @@ describe("detectClabe", () => {
     expect(String(finding?.evidence.signals)).not.toContain("bank_changed");
     expect(finding?.evidence.plazaCode).toBe("180");
     expect(finding?.evidence.previousPlazaCodes).toBe("580");
+    /* The point of the snapshot: three digits are not a place a clerk can ask
+       about and "Distrito Federal" is. Both codes stay on the sentence beside
+       their names so the reader can check them against the committed CSV. */
+    expect(finding?.evidence.plazaCity).toBe("DISTRITO FEDERAL");
+    expect(finding?.evidence.plazaState).toBe("DF");
+    expect(finding?.evidence.previousPlazaPlaces).toBe("580 (APODACA, NL)");
+    expect(finding?.explanation).toContain("580 (APODACA, NL)");
+    expect(finding?.explanation).toContain("180 (DISTRITO FEDERAL, DF)");
+  });
+
+  it("raises no plaza signal when the account moved inside one plaza", () => {
+    /* The negative half of the control, and the one that keeps it usable: a
+       changed account number in the same plaza is a near miss and nothing more. */
+    const supplier = makeSupplier([account(BANORTE_MTY)]);
+    const finding = detectClabe(makeInstruction(TWO_DIGITS_OFF), supplier);
+
+    expect(String(finding?.evidence.signals)).toContain("near_miss");
+    expect(String(finding?.evidence.signals)).not.toContain("plaza_changed");
+    expect(String(finding?.evidence.signals)).not.toContain(
+      "plaza_off_invoice",
+    );
+    expect(finding?.evidence.previousPlazaPlaces).toBeUndefined();
+    expect(finding?.evidence.plazaComparison).toBe(
+      "Misma plaza que las cuentas ya pagadas: 580 (APODACA, NL).",
+    );
+    expect(finding?.explanation).not.toContain("plaza");
   });
 
   it("does not also report a plaza change when the bank already changed", () => {
@@ -710,5 +738,160 @@ describe("detectClabe", () => {
 
     expect(JSON.stringify(supplier)).toBe(before);
     expect(accounts).toHaveLength(1);
+  });
+});
+
+/**
+ * The second half of the plaza control: the account against the invoice.
+ *
+ * The plaza lives in the account number and `LugarExpedicion` lives in the CFDI,
+ * so this is the one comparison the company's own ledger cannot make on its own.
+ * Every case below is about the comparison refusing to speak when it does not have
+ * both sides, because a geographic signal that fires on missing data would fire on
+ * most of a real payment run.
+ */
+describe("detectClabe, the plaza against the invoice", () => {
+  /** Monterrey centro, and what every seeded CFDI carries. Resolves to NL. */
+  const MONTERREY_CP = "64000";
+  /** Mexico City, which is where plaza 180 is. Resolves to DF. */
+  const CDMX_CP = "06700";
+
+  it("asks about an account whose plaza is in another state than the invoice", () => {
+    const supplier = makeSupplier([account(BBVA_MTY)]);
+    const finding = detectClabe(makeInstruction(BBVA_CDMX), supplier, {
+      invoicePostalCodes: [MONTERREY_CP],
+    });
+
+    expect(String(finding?.evidence.signals)).toContain("plaza_off_invoice");
+    expect(finding?.evidence.invoicePostalCode).toBe(MONTERREY_CP);
+    expect(finding?.evidence.invoiceState).toBe("NL");
+    expect(finding?.explanation).toContain("180 (DISTRITO FEDERAL, DF)");
+    expect(finding?.explanation).toContain(MONTERREY_CP);
+    expect(finding?.explanation).toContain("NL");
+    /* Geography asks a question. It never proves one, so it cannot be the thing
+       that turns a line critical. */
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.state).toBe("requiere_verificacion");
+  });
+
+  it("says nothing when the plaza and the invoice agree", () => {
+    const supplier = makeSupplier([account(BANORTE_MTY)]);
+    const finding = detectClabe(makeInstruction(BBVA_MTY), supplier, {
+      invoicePostalCodes: [MONTERREY_CP],
+    });
+
+    expect(String(finding?.evidence.signals)).toContain("bank_changed");
+    expect(String(finding?.evidence.signals)).not.toContain(
+      "plaza_off_invoice",
+    );
+    expect(finding?.evidence.invoiceState).toBe("NL");
+  });
+
+  it("says nothing when the invoices point at more than one state", () => {
+    /* A supplier that invoices from two states has contradicted nothing, and
+       picking one of the two would be the detector inventing a home. */
+    const supplier = makeSupplier([account(BBVA_MTY)]);
+    const finding = detectClabe(makeInstruction(BBVA_CDMX), supplier, {
+      invoicePostalCodes: [MONTERREY_CP, CDMX_CP],
+    });
+
+    expect(String(finding?.evidence.signals)).toContain("plaza_changed");
+    expect(String(finding?.evidence.signals)).not.toContain(
+      "plaza_off_invoice",
+    );
+    expect(finding?.evidence.invoiceState).toBeUndefined();
+  });
+
+  it("says nothing when no postal code resolves to a state", () => {
+    /* `stateOfPostalCode` covers the states the synthetic dataset uses and no
+       more, so this is the common case outside the demo and it has to be quiet. */
+    const supplier = makeSupplier([account(BBVA_MTY)]);
+    const finding = detectClabe(makeInstruction(BBVA_CDMX), supplier, {
+      invoicePostalCodes: ["44100", "not a postal code"],
+    });
+
+    expect(String(finding?.evidence.signals)).not.toContain(
+      "plaza_off_invoice",
+    );
+    expect(finding?.evidence.invoicePostalCode).toBeUndefined();
+  });
+
+  it("says nothing when the snapshot does not know the account's plaza", () => {
+    /* The catalogue can go stale and the invoice cannot, so the stale half is the
+       half that stays silent. 999 is not a plaza in the committed snapshot. */
+    const unknownPlaza = "012999000445566774";
+    const finding = detectClabe(makeInstruction(unknownPlaza), undefined, {
+      invoicePostalCodes: [MONTERREY_CP],
+    });
+
+    expect(isValidClabe(unknownPlaza)).toBe(true);
+    expect(finding?.evidence.plazaCity).toBeUndefined();
+    expect(String(finding?.evidence.signals)).not.toContain(
+      "plaza_off_invoice",
+    );
+  });
+
+  it("says nothing when the caller passed no invoices at all", () => {
+    const supplier = makeSupplier([account(BBVA_MTY)]);
+    const finding = detectClabe(makeInstruction(BBVA_CDMX), supplier);
+
+    expect(String(finding?.evidence.signals)).not.toContain(
+      "plaza_off_invoice",
+    );
+    expect(finding?.evidence.invoicePostalCode).toBeUndefined();
+    expect(finding?.evidence.invoiceState).toBeUndefined();
+  });
+
+  it("still compares the invoice for a supplier with no history", () => {
+    const finding = detectClabe(makeInstruction(BBVA_CDMX), undefined, {
+      invoicePostalCodes: [MONTERREY_CP],
+    });
+
+    expect(String(finding?.evidence.signals)).toContain("new_supplier");
+    expect(String(finding?.evidence.signals)).toContain("plaza_off_invoice");
+    expect(finding?.evidence.plazaCity).toBe("DISTRITO FEDERAL");
+  });
+});
+
+/**
+ * The level on an account nobody has ever been paid on.
+ *
+ * Issue #203 asks for a specific thing here and it is a wording requirement as
+ * much as a logic one: the level rises for LACK OF INFORMATION, and the evidence
+ * has to say that in those words rather than leave a clerk to infer it from a
+ * chip that is missing.
+ */
+describe("detectClabe, an account with no history behind it", () => {
+  it("says in the evidence that the level rose for lack of information", () => {
+    const finding = detectClabe(makeInstruction(BANORTE_MTY), undefined);
+
+    expect(finding?.evidence.knownAccounts).toBe(0);
+    expect(finding?.evidence.plazaComparison).toBe(NO_PLAZA_HISTORY);
+    expect(String(finding?.evidence.plazaComparison)).toContain(
+      "falta de informacion",
+    );
+    expect(finding?.explanation).toContain("falta de informacion");
+  });
+
+  it("names the plaza even with nothing to compare it against", () => {
+    /* "We cannot compare this" and "we cannot read this" are different answers.
+       The place is still on the finding, so the clerk can ask the supplier about
+       it without the product claiming anything. */
+    const finding = detectClabe(makeInstruction(BANORTE_MTY), undefined);
+
+    expect(finding?.evidence.plazaCity).toBe("APODACA");
+    expect(finding?.evidence.plazaState).toBe("NL");
+    expect(finding?.evidence.previousPlazaCodes).toBeUndefined();
+  });
+
+  it("is precaucion, under the rule that names the missing history", () => {
+    /* The level is derived in `./levels.ts` and not here, so this asserts the
+       join: the sentence above is the reason the line reads `precaucion`, and a
+       future severity table cannot quietly turn it into something else. */
+    const finding = detectClabe(makeInstruction(BANORTE_MTY), undefined);
+    const assessment = assessConfidence(finding === null ? [] : [finding]);
+
+    expect(assessment.level).toBe("precaucion");
+    expect(assessment.rule).toBe("new_account_without_history");
   });
 });

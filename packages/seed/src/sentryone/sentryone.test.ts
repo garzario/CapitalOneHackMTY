@@ -32,7 +32,7 @@ import {
   LINE_STOP_FACTOR,
   LISTED_SUPPLIER_RFC,
   loadSentryOne,
-  MTY_PLAZA_CODE,
+  MTY_METRO_PLAZA_CODE,
   MX_BANKS,
   medianTicket,
   mintBrokenClabe,
@@ -74,7 +74,7 @@ describe("clabe arithmetic", () => {
   });
 
   it("rejects a single transposed digit", () => {
-    const clabe = mintClabe("012", MTY_PLAZA_CODE, "00123456789");
+    const clabe = mintClabe("012", MTY_METRO_PLAZA_CODE, "00123456789");
     expect(isClabeValid(clabe)).toBe(true);
     const transposed = `${clabe.slice(0, 15)}${clabe[16]}${clabe[15]}${clabe[17]}`;
     expect(transposed).not.toBe(clabe);
@@ -92,7 +92,7 @@ describe("clabe arithmetic", () => {
 
   it("mints what it validates", () => {
     for (const bank of MX_BANKS) {
-      const clabe = mintClabe(bank.code, MTY_PLAZA_CODE, "12345678901");
+      const clabe = mintClabe(bank.code, MTY_METRO_PLAZA_CODE, "12345678901");
       expect(clabe).toHaveLength(18);
       expect(isClabeValid(clabe)).toBe(true);
       expect(bankCodeOf(clabe)).toBe(bank.code);
@@ -101,7 +101,7 @@ describe("clabe arithmetic", () => {
 
   it("refuses a body that is not seventeen digits", () => {
     expect(() => clabeCheckDigit("123")).toThrow(/17 digits/);
-    expect(() => mintClabe("12", MTY_PLAZA_CODE, "12345678901")).toThrow(
+    expect(() => mintClabe("12", MTY_METRO_PLAZA_CODE, "12345678901")).toThrow(
       /bank code/,
     );
   });
