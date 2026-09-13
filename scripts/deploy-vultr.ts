@@ -60,10 +60,23 @@ const DEFAULTS = {
   sshPublicKey: `${process.env.HOME ?? ""}/.ssh/sentryone_vultr.pub`,
 } as const;
 
-/** Variables copied into /srv/sentryone/.env on the instance. */
+/**
+ * Variables copied into /srv/sentryone/.env on the instance.
+ *
+ * A variable missing from this list is a capability the deployed API does not have,
+ * and since issue #200 `GET /health` is what says so out loud: the instance refreshed
+ * on 2026-09-13 reported `consortium: not_configured` because `ALLOW_CONSORTIUM` had
+ * never been forwarded, so the cross-tenant signal of #164 was off in production while
+ * the snapshot sat filled in Tiger Data. `NESSIE_BASE_URL` was in the same state and
+ * `docs/07-architecture.md` had been claiming both. Both are here now, which means a
+ * PROVISION carries them; `refresh.sh` on the box rebuilds the code and deliberately
+ * does not rewrite that file, so an existing instance keeps the configuration it was
+ * provisioned with until somebody changes it there on purpose.
+ */
 const FORWARDED_ENV = [
   "DATABASE_URL",
   "NESSIE_API_KEY",
+  "NESSIE_BASE_URL",
   "GEMINI_API_KEY",
   "GEMINI_MODEL",
   "ELEVENLABS_API_KEY",
@@ -72,6 +85,7 @@ const FORWARDED_ENV = [
   "ELEVENLABS_VOICE_ID",
   "ALLOW_CEP_FETCH",
   "BANXICO_CEP_CERT_PEM",
+  "ALLOW_CONSORTIUM",
 ] as const;
 
 /** cloud-init has to install Docker and build the image before anything answers. */

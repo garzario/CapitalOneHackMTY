@@ -282,21 +282,27 @@ describe("reading the configuration", () => {
 describe("no secret reaches the report", () => {
   /**
    * The assertion this whole module exists to make. An environment full of
-   * recognisable fake values goes in, and every one of them has to be absent from
-   * the rendered report, including the connection string a `detail` could easily
-   * have quoted while explaining a failure.
+   * recognisable values goes in, and every one of them has to be absent from the
+   * rendered report, including the connection string a `detail` could easily have
+   * quoted while explaining a failure.
+   *
+   * None of these is shaped like the key it stands in for, deliberately. A fixture
+   * written as `sk_...` or `AIza...` is a fixture `bun run scrub` has to report, and a
+   * scanner that learns to ignore a shape because a test file uses it is a scanner
+   * that stops finding the real thing. The property under test is only that a
+   * distinctive string does not come out the other side.
    */
   const SECRETS = {
     DATABASE_URL:
-      "postgres://tsdbadmin:SUPERSECRETPASSWORD@db.tigerdata.example:5432/tsdb",
-    NESSIE_API_KEY: "nessiekey000000000000000000000000",
-    GEMINI_API_KEY: "AIzaFAKEGEMINIKEY0000000000000000000",
-    ELEVENLABS_API_KEY: "sk_elevenfake00000000000000000000",
-    ELEVENLABS_AGENT_ID: "agent_fake0000",
-    ELEVENLABS_PHONE_NUMBER_ID: "phone_fake0000",
-    BANXICO_CEP_CERT_PEM: "-----BEGIN CERTIFICATE-----FAKE",
-    SNOWFLAKE_ACCOUNT: "fakeorg-fakeaccount",
-    SNOWFLAKE_PRIVATE_KEY_PATH: "/Users/nobody/.ssh/snowflake_fake.p8",
+      "postgres://tsdbadmin:NOT-A-PASSWORD-JUST-DISTINCTIVE@db.tigerdata.example:5432/tsdb",
+    NESSIE_API_KEY: "nessie-value-that-must-not-appear",
+    GEMINI_API_KEY: "gemini-value-that-must-not-appear",
+    ELEVENLABS_API_KEY: "elevenlabs-value-that-must-not-appear",
+    ELEVENLABS_AGENT_ID: "agent-value-that-must-not-appear",
+    ELEVENLABS_PHONE_NUMBER_ID: "phone-value-that-must-not-appear",
+    BANXICO_CEP_CERT_PEM: "certificate-value-that-must-not-appear",
+    SNOWFLAKE_ACCOUNT: "snowflake-value-that-must-not-appear",
+    SNOWFLAKE_PRIVATE_KEY_PATH: "/nowhere/key-path-that-must-not-appear",
     ALLOW_CONSORTIUM: "1",
     ALLOW_CEP_FETCH: "1",
   } as const;
@@ -315,7 +321,7 @@ describe("no secret reaches the report", () => {
       }
       expect(rendered).not.toContain(value);
     }
-    expect(rendered).not.toContain("SUPERSECRETPASSWORD");
+    expect(rendered).not.toContain("NOT-A-PASSWORD-JUST-DISTINCTIVE");
     expect(rendered).not.toContain("tigerdata.example");
   });
 

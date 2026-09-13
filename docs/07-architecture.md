@@ -353,10 +353,12 @@ and both are deliberate.
 
 ### Deploy topology and commands
 
-Live as of 2026-09-12 15:32 CST: the web at <https://sentryone-one.vercel.app>, the API at
-<https://api.104.238.147.69.sslip.io>, the ledger on Tiger Data. The browser only ever talks to the
-Vercel origin: `vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle
-carries no base URL and there is no CORS configuration anywhere in `apps/api`.
+Live as of 2026-09-13 06:18 CST, re-verified end to end for issue #200: the web at
+<https://sentryone-one.vercel.app>, the API at <https://api.104.238.147.69.sslip.io>, the ledger on
+Tiger Data with all 14 migrations applied. The browser only ever talks to the Vercel origin:
+`vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle carries no base
+URL and there is no CORS configuration anywhere in `apps/api`. What that re-verification found, and
+what it cost, is in "What the redeploy of 2026-09-13 06:17 CST actually found" below.
 
 | Unit | Where | How it is deployed | Evidence |
 |---|---|---|---|
@@ -456,12 +458,22 @@ Two operational notes that cost time to learn on the night.
   Caddy log. A rebuild through `refresh.sh` keeps the volume and costs nothing.
 
 The instance holds its configuration in `/srv/sentryone/.env`, written by cloud-init from the deploy
-machine's own `.env`: `DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`,
-`GEMINI_MODEL` and the three `ELEVENLABS_*` values. `ALLOW_SEED` is forced empty there, because
-`POST /api/v1/seed` would rewrite the demo company under the judges' feet. Two consequences worth
-stating rather than discovering: the values travel inside the Vultr user data, which anyone holding
-the Vultr API key can read back, and they are the same keys the laptops hold, so the rotation after
-the ceremony in `SECURITY.md` covers the box as well.
+machine's own `.env`. `FORWARDED_ENV` in `scripts/deploy-vultr.ts` is the list and it is the authority:
+`DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, the four
+`ELEVENLABS_*` values, `ALLOW_CEP_FETCH`, `BANXICO_CEP_CERT_PEM` and `ALLOW_CONSORTIUM`. `ALLOW_SEED`
+is forced empty there, because `POST /api/v1/seed` would rewrite the demo company under the judges'
+feet. Two consequences worth stating rather than discovering: the values travel inside the Vultr user
+data, which anyone holding the Vultr API key can read back, and they are the same keys the laptops
+hold, so the rotation after the ceremony in `SECURITY.md` covers the box as well.
+
+The last two names on that list arrived with #200, and how they were found is the argument for the
+endpoint: the refreshed instance answered `consortium: not_configured` on `/health`, because
+`ALLOW_CONSORTIUM` had never been forwarded, so the cross-tenant signal of #164 was off in production
+while the snapshot sat filled in Tiger Data. This page had been claiming `NESSIE_BASE_URL` reached the
+box as well, and it did not. Both are forwarded now, which means a PROVISION carries them; a refresh
+rebuilds the code and deliberately leaves `/srv/sentryone/.env` alone, so the instance serving the
+judges keeps the configuration it was provisioned with and turning the network on there is a team
+decision rather than a side effect of a deploy.
 
 **Tiger Data, wired.** One connection string does everything: `bun run migrate`, `bun run seed` and
 the deployed API all read `DATABASE_URL`, and `packages/db` opens it lazily through `postgres@3.4.9`
@@ -524,6 +536,48 @@ curl -s https://sentryone-one.vercel.app/health | jq '.dependencies[] | {name, s
 
 `--smoke-only` now prints the dependency rows next to the run totals, so a deploy ends by proving the
 box holds its configuration as well as its code.
+
+**What the redeploy of 2026-09-13 06:17 CST actually found, in the order it found it.** The three
+defects below were all invisible to `bun test`, `bun run typecheck` and `bun run build`, and two of
+them had been in production for hours. This is the evidence for the closing claim of this page, which
+is not that the topology is nice but that it is now checkable.
+
+1. **The image could not be built from the tree.** `refresh.sh` stopped at
+   `bun install --frozen-lockfile` with "Workspace dependency @hackmty/rail not found":
+   `apps/api/Dockerfile` copies the workspace manifests one by one and `packages/rail` and
+   `packages/consortium` had never been added. So the instance had been serving the container from
+   before #164 and #198 existed, which means the deployed API had no payment run and no consortium
+   endpoint while the repository had both. The two lines are added and
+   `scripts/docker-image.test.ts` reads the workspace directories off disk so the list cannot drift
+   again.
+2. **The ledger was five migrations behind.** With the new image running, `/health` answered
+   `database: up` and the first assistant turn still failed. The request id found it in one grep:
+   `[smoke-200-assistant] POST /api/v1/assistant/messages 200 20ms` and then
+   `new row for relation "_hyper_6_1603_chunk" violates check constraint "ledger_events_type_check"`,
+   because `0010` through `0014` had never been applied to Tiger Data and `assistant_message` is not a
+   type the old constraint allows. `payment_sent` and `payment_cancelled` would have failed the same
+   way, which is to say the payment run of ADR-0008 could not have been executed against the deployed
+   instance. `bun run migrate` applied the five, idempotently, and `bun run doctor` now reports 14 of
+   14. That log line is the feature of this issue earning its keep on the day it shipped.
+3. **The consortium was off in production**, which is the `FORWARDED_ENV` paragraph above.
+
+After the five migrations, the verified state at 06:18 CST, all of it over HTTPS through the Vercel
+rewrite and none of it from the box directly:
+
+| What was checked | Result |
+|---|---|
+| `GET /health` | 200, seven dependency rows: `database up` (a `select 1` in 33 ms), `nessie up`, `rail up` (the nessie rail built), `cep up`, `extraction up`, `voice up`, `consortium not_configured` |
+| `POST /api/v1/assistant/messages` | 200 `text/event-stream` through the rewrite: `tool_call get_run`, `tool_result`, `token` and `done`, with `x-request-id` echoed back as the caller sent it, `x-accel-buffering: no` and `via: 1.1 Caddy` |
+| The turn was stored | `GET /api/v1/assistant/sessions/:id` answers both messages and the `execute_run` proposal, which is the write that had been failing |
+| The rate limit is live | a write answered `ratelimit-limit: 120`, `ratelimit-remaining: 119`; the assistant turn answered `ratelimit-limit: 20` |
+| The request id is live | `[smoke-200-assistant-2]` appears in `docker logs sentryone-api-1` as one line with the method, the path, the status and the duration, and with no query string on it |
+
+Two things that are true and are not claims about today. The `cache-control: no-store` rules added to
+`vercel.json` reach production with the next release PR to `main`, because the Vercel production build
+comes from `main`; the rewrites themselves have been live since #44. And `GET /api/v1/events` was not
+re-verified in this pass: `flush_interval -1` in the Caddyfile and the SSE trace from #44 are what
+stand behind it, and the assistant stream above is a second long-lived response through the same proxy
+arriving unbuffered.
 
 ## Deliberately not in this tree
 

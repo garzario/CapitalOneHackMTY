@@ -1162,6 +1162,20 @@ then the screens, then the narrative, then the plumbing.
   off disk rather than trusting the list, so a package added next week fails on a pull request instead of
   on the one deploy that matters.
 
+  **Then the request id paid for itself inside a minute.** With the new image running, `/health` said
+  `database: up` and the first assistant turn over HTTPS still came back as the failure sentence. One grep
+  for the id the caller sent found the line and then the cause: `ledger_events_type_check` refused
+  `assistant_message`, because migrations `0010` through `0014` had never been applied to Tiger Data. The
+  deployed ledger was five behind, which means the payment run of ADR-0008 could not have been executed
+  against it either, since `payment_sent` and `payment_cancelled` would have been refused the same way.
+  `bun run migrate` applied the five and `bun run doctor` reports 14 of 14. The third finding was
+  `consortium: not_configured` on the live `/health`: `ALLOW_CONSORTIUM` had never been forwarded to the
+  instance, so the cross-tenant signal of #164 was off in production while the snapshot sat filled in the
+  warehouse. `FORWARDED_ENV` now carries it and `NESSIE_BASE_URL`, which `docs/07` had been claiming all
+  along, and the box the judges will use keeps the configuration it was provisioned with, because a
+  refresh rebuilds code and does not rewrite `/srv/sentryone/.env`. The verified state, every line of it
+  through the Vercel rewrite, is the table in `docs/07-architecture.md`.
+
 ### Changed
 
 - **The pitch is a stand pitch now, and the clock is counted rather than claimed** (issue #75). The
