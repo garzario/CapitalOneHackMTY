@@ -38,6 +38,7 @@ import { mockRun } from "./mock";
 import { heroOf } from "./tour";
 import {
   CALL_BUTTON,
+  CALL_POLL_MS,
   CONSENT_TEXT,
   callBody,
   callProblem,
@@ -184,9 +185,9 @@ describe("the telephone number", () => {
   });
 
   test("it says what is missing instead of saying invalid", () => {
-    expect(phoneProblem("")).toContain("Escribe tu numero");
-    expect(phoneProblem("811 2345")).toBe("Falta 1 digito.");
-    expect(phoneProblem("81123")).toBe("Faltan 3 digitos.");
+    expect(phoneProblem("")).toContain("Escribe tu número");
+    expect(phoneProblem("811 2345")).toBe("Falta 1 dígito.");
+    expect(phoneProblem("81123")).toBe("Faltan 3 dígitos.");
     expect(phoneProblem("81 1234 5678")).toBeNull();
   });
 
@@ -345,12 +346,36 @@ describe("what an answer means", () => {
        transcript, which is not a thing that happens to the person holding the
        telephone: they are still on the call until the answer lands, so it folds
        into the middle one rather than being a fourth pill saying nothing. */
-    expect(TOUR_CALL_STRIP).toEqual(["Marcando", "En llamada", "Termino"]);
+    expect(TOUR_CALL_STRIP).toEqual(["Marcando", "En llamada", "Terminó"]);
 
     expect(stripIndexOf("initiated")).toBe(0);
     expect(stripIndexOf("in-progress")).toBe(1);
     expect(stripIndexOf("processing")).toBe(1);
     expect(stripIndexOf("done")).toBe(2);
+  });
+
+  test("the card asks where the call is while the call is happening", () => {
+    /* The bug this replaced: the poll only ran while the ledger stream was not
+       open, and the stream carries one event, written when the call ends. So a
+       visitor watched "Marcando" for the whole minute they were on the
+       telephone. It polls whatever the stream is doing now, and this is the
+       interval that decides whether the strip moves while somebody is looking
+       at it. */
+    expect(CALL_POLL_MS).toBeLessThanOrEqual(1500);
+    expect(CALL_POLL_MS).toBeGreaterThanOrEqual(500);
+  });
+
+  test("only a settled call stops being asked about", () => {
+    /* The other half of the same rule: the poll runs until one of the two
+       statuses that end a call, and the three that do not end it keep it
+       running. A status that stopped the poll early would be a card frozen on a
+       step of a call that was still going. */
+    expect(isSettled("done")).toBe(true);
+    expect(isSettled("failed")).toBe(true);
+
+    for (const status of ["initiated", "in-progress", "processing"] as const) {
+      expect([status, isSettled(status)]).toEqual([status, false]);
+    }
   });
 
   test("a call that failed is off the strip rather than stuck on it", () => {
@@ -479,11 +504,11 @@ describe("the words the owner hears", () => {
        `owner-script.test.ts` makes mandatory for the stored templates. The card
        says these are the words the owner hears, so the stand-in cannot open with
        words the real agent is forbidden to use. */
-    expect(script.firstMessage).toContain("linea automatica");
+    expect(script.firstMessage).toContain("línea automática");
   });
 
   test("it says it is an approximation, and the card says so too", () => {
-    expect(LOCAL_SCRIPT_NOTE).toContain("Aproximacion");
+    expect(LOCAL_SCRIPT_NOTE).toContain("Aproximación");
     expect(LOCAL_SCRIPT_NOTE).toContain("servidor");
     expect(forbiddenVerdict(LOCAL_SCRIPT_NOTE)).toBeNull();
   });
@@ -492,7 +517,7 @@ describe("the words the owner hears", () => {
 describe("the two plazas", () => {
   test("two different cities are both named, which is the whole signal", () => {
     expect(localScript(MOVED).spoken.join(" ")).toContain(
-      "se abrio en la plaza DISTRITO FEDERAL, y la de siempre esta en APODACA",
+      "se abrió en la plaza DISTRITO FEDERAL, y la de siempre está en APODACA",
     );
   });
 
@@ -547,6 +572,6 @@ describe("the copy of the form", () => {
   });
 
   test("the button says who the visitor is about to be", () => {
-    expect(CALL_BUTTON).toContain("dueno");
+    expect(CALL_BUTTON).toContain("dueño");
   });
 });

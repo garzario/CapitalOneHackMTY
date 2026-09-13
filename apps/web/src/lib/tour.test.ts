@@ -192,7 +192,7 @@ describe("the steps", () => {
     /* The headline is the whole argument of the product, and it is the one line
        the card sets large. */
     expect(welcome?.title).toBe(
-      "El ultimo control antes de que un pago sea irrevocable",
+      "El último control antes de que un pago sea irrevocable",
     );
     expect(welcome?.body).toHaveLength(3);
   });
@@ -374,15 +374,28 @@ describe("what the steps may say", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("the copy is written in the same ASCII Spanish as the rest of the app", () => {
-    /* `labels.ts` writes "Metricas" and "Exposicion" without accents and every
-       screen follows it, so a paragraph with an accent in it would be the one
-       place in the interface that is typeset differently. */
-    const offenders = lines
-      .filter((line) => /[^\x20-\x7E]/.test(line.text))
+  test("the copy is written in Spanish, with its accents and its enye", () => {
+    /* The rest of the interface is labels: single words on buttons and column
+       heads. The tour is the one place in this app that is prose a visitor
+       reads as prose, and prose without accents reads as a typo rather than as
+       a convention, which is what a judge saw on the stand. Every stop that
+       needs one carries it, so the check is that the copy as a whole is
+       accented rather than that each line is. */
+    const everything = lines.map((line) => line.text).join(" ");
+
+    expect(/[áéíóúñ]/i.test(everything)).toBe(true);
+
+    /* And the words this copy used to spell without them are spelled with
+       them, which is the half a single regex over the whole would not catch. */
+    const stale = lines
+      .filter((line) =>
+        /\b(ultimo|deduccion|linea|razon|abrio|boton|bitacora|unico|dueno|digitos|quien decide|confirmacion|exposicion|publicacion)\b/i.test(
+          line.text,
+        ),
+      )
       .map((line) => line.where);
 
-    expect(offenders).toEqual([]);
+    expect(stale).toEqual([]);
   });
 
   test("the welcome card carries both losses, in two clauses instead of two paragraphs", () => {
@@ -396,7 +409,7 @@ describe("what the steps may say", () => {
        check them, rather than in the first paragraph of a tour card. */
     expect(why).toContain("no regresan");
     expect(why).toContain("SAT");
-    expect(why).toContain("deduccion");
+    expect(why).toContain("deducción");
   });
 
   test("the peso figure of the welcome card is the line the tour is about", () => {
