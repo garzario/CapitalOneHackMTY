@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { assessLine } from "@hackmty/core";
 import { paymentRunSchema } from "../schemas";
-import { createTestApp } from "../test-app";
+import { createTestApp, writeHeaders } from "../test-app";
 
 describe("GET /api/v1/run/current", () => {
   it("answers with a payload that matches the documented shape", async () => {
@@ -238,7 +238,7 @@ describe("the level and the state of every line", () => {
 
     const published = await app.request("/api/v1/sat/publish", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: writeHeaders(),
       body: JSON.stringify({
         simulate: true,
         rfcs: ["SYN020202BBB"],

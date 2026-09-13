@@ -1,22 +1,23 @@
 import {
+  assessConfidence,
+  type DecideRequirement,
+  decideRequirement,
   definitiveListingReason,
   estimateLoss,
   holdWindow,
-  releasedByAPerson,
+  roleSatisfies,
 } from "@hackmty/core";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { ACTOR_HEADER, parseActor } from "../actor";
 import type { ApiDeps } from "../deps";
 import { fail, notFound, rejectInvalid } from "../http";
 import { detailLevels } from "../levels";
+import { ACTOR_HEADER, actorOf, requireActor } from "../middleware/actor";
 import { runIntake } from "../pipeline";
 import {
   createInstructionBodySchema,
-  type DecideBody,
   type DecideResponse,
   decideBodySchema,
-  type InstructionDetail,
   type InstructionDetailResponse,
   idParamSchema,
 } from "../schemas";
@@ -37,14 +38,16 @@ import {
  * already charged for. Neither is stored: both are functions of the decision and
  * the clock, so neither can drift away from the decision it describes.
  *
- * The third thing this file enforces is the reopening, which is issue #204 and
- * ADR-0009 row 4. A definitive SAT listing under article 69-B or article 49 Bis
- * cancels the line on the evidence, because the comprobantes have no fiscal effect
- * at all and that is not a hold somebody can wait out. The only way back is a
- * release signed by a named OWNER with a written reason, which is exactly the
- * exception `docs/02-persona.md` says the owner approves, and it is checked here
- * against the `X-Actor` header. See `src/actor.ts` for why the check lives in this
- * issue rather than waiting for the general middleware of issue #199.
+ * A third thing travels with it, and it is the one this file enforces rather than
+ * records: the name and the role on the `X-Actor` header. Two shapes are the
+ * owner's, `decideRequirement` in @hackmty/core decides which, and both of them
+ * need prose. A clerk who asks for one of the two is answered `403` with the
+ * sentence that says who can, and an owner who asks for one with no reason is
+ * answered `422` with the sentence that asks for it. Neither refusal is a
+ * formality: a release over a finding and the reopening of a cancelled line are
+ * the only two moments in this product where a person overrules the evidence, and
+ * an exception with nobody's name and no argument against it is the one record
+ * ADR-0002 says the ledger must never hold.
  */
 export function instructionRoutes(deps: ApiDeps) {
   return new Hono()
@@ -64,7 +67,7 @@ export function instructionRoutes(deps: ApiDeps) {
 
            The level and the state come from the same `assessLine` the run payload
            reads, so a judge who clicks a line of the run and lands here sees the
-           same two words. That is the whole point of ADR-0009 and the failure of
+           same two words. That is the whole point of ADR-0009, and the failure of
            issue #125 is what it was written after. */
         const response: InstructionDetailResponse = {
           ...detail,
@@ -80,8 +83,10 @@ export function instructionRoutes(deps: ApiDeps) {
     )
     .post(
       "/",
+      requireActor,
       zValidator("json", createInstructionBodySchema, rejectInvalid),
       async (c) => {
+        const actor = actorOf(c);
         const outcome = await runIntake(deps, c.req.valid("json"));
 
         if (!outcome.ok) {
@@ -90,10 +95,14 @@ export function instructionRoutes(deps: ApiDeps) {
 
         const { instruction, findings, decision } = outcome.record;
         await deps.repo.saveIntake(outcome.record);
+        /* The actor goes on the arrival and not on the decision that follows it:
+           the person posted the instruction, the engine scored it, and the name on
+           a `decision_made` means somebody signed the action. */
         await deps.emit({
           type: "instruction_received",
           at: instruction.receivedAt,
           instruction,
+          actor,
         });
         await deps.emit({
           type: "decision_made",
@@ -102,9 +111,12 @@ export function instructionRoutes(deps: ApiDeps) {
         });
         /* A payment to a definitively listed supplier is cancelled on arrival, and
            the ledger says so with the article in the sentence. No `actor`: nobody
-           dropped this line by hand, the evidence cancelled it, which is exactly
-           what `payment_cancelled` documents that field for. After the decision,
-           because a replay has to read as the assessment and then its consequence. */
+           dropped this line by hand, the evidence cancelled it, which is what
+           `payment_cancelled` documents that field for. It goes out after the
+           decision, because a replay has to read as the assessment and then its
+           consequence. From here it is `deps.repo.cancellation` that the owner rule
+           of issue #199 reads, so the two halves meet on the ledger and nowhere
+           else. */
         const cancellation = definitiveListingReason(findings);
         if (cancellation !== undefined) {
           await deps.emit({
@@ -120,30 +132,54 @@ export function instructionRoutes(deps: ApiDeps) {
     )
     .post(
       "/:id/decide",
+      requireActor,
       zValidator("param", idParamSchema, rejectInvalid),
       zValidator("json", decideBodySchema, rejectInvalid),
       async (c) => {
+        const actor = actorOf(c);
         const { id } = c.req.valid("param");
         const { action, decidedBy, reason } = c.req.valid("json");
+
+        /* The body names a person and so does the header, so they have to be the
+           same person. Neither name is echoed back: a failing response is the one
+           most likely to be pasted into a chat, which is the argument
+           `rejectInvalid` already makes about a CLABE. */
+        if (decidedBy !== actor.name) {
+          return fail(c, 400, "bad_request", NAME_DISAGREES);
+        }
 
         const detail = await deps.repo.instructionDetail(id);
         if (detail === undefined) {
           return notFound(c, `No instruction with id ${id}.`);
         }
 
-        const refused = refuseReopening(
-          detail,
-          { action, decidedBy, reason },
-          c.req.header(ACTOR_HEADER),
-        );
-        if (refused !== undefined) {
-          return fail(c, refused.status, refused.code, refused.message);
+        /* Whether the run already dropped this line, read off the ledger rather
+           than off a column: `payment_cancelled` is the fact, and a second home
+           for it would be a second answer. */
+        const cancellation = await deps.repo.cancellation(id);
+        const requirement = decideRequirement({
+          action,
+          findings: detail.findings,
+          standing: detail.decision,
+          cancelled: cancellation !== undefined,
+        });
+
+        if (!roleSatisfies(actor.role, requirement.requiresRole)) {
+          return fail(
+            c,
+            403,
+            "forbidden",
+            refusal(requirement, detail, cancellation?.at),
+          );
+        }
+        if (requirement.requiresReason && reason === undefined) {
+          return fail(c, 422, "unprocessable", reasonRequired(requirement));
         }
 
         const decision = await deps.repo.recordDecision(
           id,
           action,
-          decidedBy,
+          actor,
           deps.clock.now(),
           reason,
         );
@@ -175,76 +211,55 @@ export function instructionRoutes(deps: ApiDeps) {
     );
 }
 
-/** Why a write was refused: the status, the envelope code and the sentence. */
-interface Refusal {
-  status: 400 | 403 | 422;
-  code: "bad_request" | "forbidden" | "unprocessable";
-  message: string;
+/**
+ * The three sentences this file refuses with.
+ *
+ * English, like every other error message in this API, and each one says what to
+ * do next rather than only what went wrong: the caller is a screen that has to
+ * tell a person whether to call the owner or to write a line of prose.
+ */
+const NAME_DISAGREES =
+  "`decidedBy` in the body and the name on the " +
+  `${ACTOR_HEADER} header have to be the same person. A decision signed by one ` +
+  "name under a header carrying another is a record nobody can rely on later.";
+
+function refusal(
+  requirement: DecideRequirement,
+  line: Pick<InstructionDetailResponse, "findings" | "decision">,
+  cancelledAt?: string,
+): string {
+  const howTo =
+    `Send ${ACTOR_HEADER} with role=owner and a reason in the body, ` +
+    "or leave the payment stopped.";
+
+  if (requirement.rule === "reopen_cancelled") {
+    return (
+      "Only the owner can reopen a line the run cancelled" +
+      `${cancelledAt === undefined ? "" : ` on ${cancelledAt}`}. ` +
+      `A clerk cannot decide a payment that was already dropped. ${howTo}`
+    );
+  }
+
+  /* The level is named rather than the findings counted, because that is the word
+     on the chip the clerk is looking at while she reads this. It is assessed over
+     the same two inputs `decideRequirement` weighed, the findings and the standing
+     decision, so the sentence cannot name a level the rule did not use. */
+  const level = assessConfidence(line.findings, line.decision).level;
+  return (
+    `Only the owner can release a payment in ${level}. ` +
+    `A clerk can hold it or ask for a verification. ${howTo}`
+  );
 }
 
-/**
- * Why a reopening was refused, or undefined when this `decide` is not one.
- *
- * A reopening is one shape and only one: `action: "release"` on a line a definitive
- * SAT listing cancelled and that nobody has released yet. Everything else goes
- * through untouched, which is deliberate. Making every write carry `X-Actor` is
- * issue #199 and turning this narrow check into that one here would have broken
- * every caller the night before the demo for a rule that issue owns.
- *
- * Three refusals, and the status codes are the ones docs/09-api.md already sets.
- *
- * - A missing or malformed header is `400 bad_request` naming the header. Not a
- *   `403`: nothing about the caller was rejected, the request did not say who.
- * - A well formed header whose role may not do it is `403 forbidden`.
- * - A header whose name disagrees with `decidedBy` in the body is `400`, because a
- *   decision signed by one name under a header carrying another is a record nobody
- *   can rely on later.
- * - A release with no written reason is `422 unprocessable`. The reason is required
- *   here and optional everywhere else, because reopening a payment whose invoices
- *   have no fiscal effect at all is exactly the decision somebody has to be able to
- *   explain in eighteen months.
- */
-function refuseReopening(
-  detail: InstructionDetail,
-  body: { action: DecideBody["action"]; decidedBy: string; reason?: string },
-  header: string | undefined,
-): Refusal | undefined {
-  if (
-    definitiveListingReason(detail.findings) === undefined ||
-    body.action !== "release" ||
-    releasedByAPerson(detail.decision)
-  ) {
-    return undefined;
-  }
+function reasonRequired(requirement: DecideRequirement): string {
+  const what =
+    requirement.rule === "reopen_cancelled"
+      ? "Reopening a line the run cancelled"
+      : "Releasing a payment something stands against";
 
-  const parsed = parseActor(header);
-  if (!parsed.ok) {
-    return { status: 400, code: "bad_request", message: parsed.message };
-  }
-  if (parsed.actor.role !== "owner") {
-    return {
-      status: 403,
-      code: "forbidden",
-      message:
-        "Solo el propietario puede reabrir una linea que una lista definitiva del SAT cancelo. " +
-        `${ACTOR_HEADER} llego con role=${parsed.actor.role}.`,
-    };
-  }
-  if (parsed.actor.name !== body.decidedBy) {
-    return {
-      status: 400,
-      code: "bad_request",
-      message: `${ACTOR_HEADER} nombra a ${parsed.actor.name} y el cuerpo firma como ${body.decidedBy}. Los dos tienen que coincidir.`,
-    };
-  }
-  if (body.reason === undefined || body.reason.trim() === "") {
-    return {
-      status: 422,
-      code: "unprocessable",
-      message:
-        "Reabrir esta linea necesita un motivo escrito, porque los comprobantes del proveedor " +
-        "no tienen efecto fiscal y alguien tiene que poder explicarlo despues.",
-    };
-  }
-  return undefined;
+  return (
+    `${what} is recorded with the argument the owner gave for it. ` +
+    "Send `reason` in the body, in the words a person can be asked about a year " +
+    "from now."
+  );
 }

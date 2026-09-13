@@ -42,16 +42,17 @@ then the screens, then the narrative, then the plumbing.
   reads as the publication and then its consequences, and the intake does the same for an instruction
   that arrives naming a supplier already listed. `definitiveListingReason` writes the sentence once and
   it names the article, the version and the DOF date. It fires once per line: a second publication
-  naming the same supplier re-scores the pesos and appends nothing. Reopening it needs an owner.
-  `POST /api/v1/instructions/:id/decide` with `action: "release"` on such a line refuses a missing or
-  malformed `X-Actor` with `400` naming the header, a `clerk` with `403`, a header whose name
-  disagrees with `decidedBy` with `400`, and a release with no written reason with `422`. Nothing is
-  deleted when an owner does reopen it: the cancellation stays on the ledger, the `decision_made`
-  carries the name and the argument, and `releasedByAPerson` is what makes the signature outrank the
-  listing, which is ADR-0002 refusing to overrule a person in either direction. The general `X-Actor`
-  middleware is issue #199; what landed here is that one check, in `apps/api/src/actor.ts`, behind the
-  header name and the grammar docs/09-api.md already documented, so that issue replaces it rather than
-  finding a second spelling.
+  naming the same supplier re-scores the pesos and appends nothing, because `RescoredLine.cancellation`
+  is null unless this publication is what made the listing definitive.
+
+  That event is the whole point, and it is where this change meets issue #199. `deps.repo.cancellation`
+  reads it off the ledger and `decideRequirement` answers `reopen_cancelled`, so any decision on the
+  line then needs `role=owner` and a written reason, with the `403` and the `422` that issue already
+  wrote. Nothing here restates that rule: the publication produces the fact and the actor rule reads it,
+  which is why the test for it appends no event of its own. Nothing is deleted when an owner does reopen
+  the line either. The cancellation stays on the ledger next to the `decision_made` that carries the
+  name and the argument, and `releasedByAPerson` is what makes the signature outrank the listing, which
+  is ADR-0002 refusing to overrule a person in either direction.
 
   `GET /api/v1/instructions/:id/carta` is the one page a clerk attaches to an email when the supplier
   rings. `evidenceLetter` in `packages/constancia/src/letter.ts` reuses the constancia generator, the
@@ -74,8 +75,17 @@ then the screens, then the narrative, then the plumbing.
   line and checks it is one page and names the article. `docs/05-business-model.md` says what the
   client is sold (two words and never a figure, and the commitment that does not attach to a payment an
   owner reopened), `docs/08-data-model.md` adds the two domain types with no storage and the field note
-  on an absent `actor`, and `docs/09-api.md` carries the five keys, the cancellation, the reopening and
-  three more lines a judge can paste.
+  on an absent `actor`, and `docs/09-api.md` carries the five keys, the cancellation and three more
+  lines a judge can paste.
+- Where the software actually plugs into somebody else's stack, researched with a source and an
+  unverified column per surface (issue #205). Six of them in `docs/05`, ranked by what they cost and
+  by whether anybody has to agree to anything: the dispersal layout the ERP already exports and the
+  treasurer already uploads, which needs no counterparty; the STP rail, which changes what we are
+  rather than what we build; connectors to CONTPAQi, Siigo Aspel and SAP Business One; and email or
+  WhatsApp forwarding, which is the only one already built. `docs/07` draws the four seams they use,
+  all of which this repository already has. `docs/12` answers "no vamos a reemplazar nuestro SAP" in
+  thirty seconds and points at both.
+
 - The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
   cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
   clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
@@ -202,6 +212,63 @@ then the screens, then the narrative, then the plumbing.
   than eighteen. The assistant session quotes the engine's own `explanation` and its tool result IS
   that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
   not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
+
+- Who did it, on every write and on the ledger, with the two exceptions only the owner may approve
+  (issue #199). `X-Actor: role=clerk; name=Lupita Elizondo` is now required by every write endpoint
+  and read in one place, `apps/api/src/middleware/actor.ts`; a write without it is `400 bad_request`
+  naming the header and showing the form, which is a 400 and not a 403 because nothing about the
+  caller was rejected, the request did not say who was acting. The header is mounted per write route
+  rather than once over `/api/v1`, so a POST to a path that does not exist still answers `404` rather
+  than complaining about a header it would never have needed, and a table-driven test walks every
+  documented write path to catch a new endpoint that forgot it. Where a body already names a person,
+  `decidedBy` on a decision and `recordedBy` on a hand-recorded call, the two have to be the same
+  person and a mismatch is `400` with neither name echoed back, for the reason `rejectInvalid`
+  already gives about a CLABE.
+
+  The role guards exactly two shapes and `decideRequirement` in `packages/core/src/actor.ts` is the
+  rule, pure and unit-tested, so the screens and the assistant panel can show it before anybody
+  presses anything instead of discovering it in a refusal. A release on a line whose `confidence` is
+  not `confiable`, or on a line the engine was holding, is the exception `docs/02-persona.md` gives
+  the owner; and any decision on a line the run cancelled is the owner's too, because a cancelled line
+  is closed and putting it back in front of the run is a second decision about the same pesos. The
+  level and not a count of findings, because an `info` finding stops nothing: a supplier who was
+  listed and then cleared their name leaves a row that is history, and asking the owner to approve a
+  payment nothing stands against is how a control becomes a formality somebody clicks through. A
+  clerk asking for either is `403 forbidden` with the sentence that says who can and names the level,
+  and nothing is appended; the same request with no `reason` is `422 unprocessable` asking for the
+  argument, because an exception approved with no prose is the record ADR-0002 says this ledger must
+  never hold. `reason` stays optional everywhere else, since an API that refused an ordinary hold for
+  lack of a sentence would be refused by the clerk instead, outside the product, where nothing is
+  recorded at all. Whether a line was cancelled is asked of the ledger and not of a status column,
+  through one new repository read implemented on both stores, because a stored status can disagree
+  with the events it came from.
+
+  The ledger answers "who" without a join. `actor` now travels on `instruction_received`,
+  `sat_list_published`, `cep_verified`, `cent_sent` and `verification_call`, joining the four
+  variants that already carried one, and `Decision` grows `decidedByRole` next to `decidedBy` so a
+  document can tell an approved exception from a clerk exceeding theirs.
+  `packages/db/migrations/0013_decision_actor_role.sql` adds the one column that needed DDL, checked
+  to the two roles and nullable because the engine signs decisions too and `system` is not a person;
+  every other actor rides in the `payload` jsonb the event ledger already stores, so no other table
+  moved. Three events deliberately carry nobody: `payment_settled` and `payment_failed` are the rail
+  answering rather than a person acting and `cep_awaited` is a wait, each of them follows an event
+  that does carry the name, and putting a clerk on them would read as an action she never took.
+
+  The documents print it. The run constancia gains a "Quien resolvio cada instruccion" section with
+  the name, the capacity in Spanish and the argument, and calls the engine's own decisions `el motor
+  (automatico)` rather than dressing them as a signature; the sweep constancia says who loaded the
+  list version, off the `sat_list_published` event, and prints "No se cargo desde esta instancia" for
+  the committed official snapshot instead of a name nobody signed. `Decision.decidedByRole` is the
+  field the evidence letter of issue #204 reads next to the name.
+
+  `docs/06-regulatory-privacy.md` section 4.4 states in full what this is not: the demo identity
+  selector is not authentication, the header is caller-controlled, nothing verifies it, and a `curl`
+  can claim to be the owner as easily as the browser can. What the header satisfies is the
+  accountability rule of ADR-0002, that every action on somebody's money has a name against it in a
+  record nobody can rewrite, and the section lists what production needs instead, from an identity
+  provider in front of the API to per-company tenancy, none of which is in this repository. The
+  clerk's identity is personal data about an employee and is treated under the obligations of 4.2
+  like everything else on that page.
 
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now
@@ -803,6 +870,16 @@ then the screens, then the narrative, then the plumbing.
   because `confiable` right on twelve of twelve is the row a guarantee actually rides on.
 
 ### Changed
+
+- `docs/10-demo-script.md` is true against the app again (issue #79). Beat 2 says seven months of
+  replay because that is what the seeded ledger holds and what the screen shows; beat 5 carries the
+  thirty-five case numbers and stops claiming the labels were written by someone who had not read
+  the controls. The four-minute question is answered by counting rather than by asserting: 405
+  spoken words, 2:42 of talking at 150 words a minute, and a per-beat table showing that beats 3 and
+  4 have under five seconds of slack each and are the two that need a human to physically do
+  something. The checklist gains the boot line to read, because `bun run dev` from the repository
+  root does not hand `SEED` to the API and the fixture it serves instead makes every figure in the
+  file wrong. The same counts were stale in `docs/01`, `07`, `08`, `13`, `14` and the README.
 
 - `docs/11` and `docs/12` no longer claim the labelled cases were written by someone who had not
   read the controls. The controls were merged first, `packages/seed/src/holdout/README.md` has said

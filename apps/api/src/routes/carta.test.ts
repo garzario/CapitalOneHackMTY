@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { paymentRunSchema } from "../schemas";
-import { createTestApp } from "../test-app";
+import { createTestApp, writeHeaders } from "../test-app";
 
 /** The fixture line whose supplier the seeded 69-B list names. */
 const LISTED_RFC = "SYN020202BBB";
@@ -124,7 +124,7 @@ describe("GET /api/v1/instructions/:id/carta", () => {
     const { app } = createTestApp();
     await app.request("/api/v1/sat/publish", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: writeHeaders(),
       body: JSON.stringify({
         simulate: true,
         rfcs: [LISTED_RFC],

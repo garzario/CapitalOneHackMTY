@@ -17,6 +17,7 @@
  */
 
 import type {
+  Actor,
   Cfdi,
   Clabe,
   ConsortiumPull,
@@ -641,6 +642,74 @@ export async function readVerificationEvents(
     order by at asc, seq asc
   `;
   return rows.map(ledgerEventFromRow);
+}
+
+/**
+ * The newest `payment_cancelled` for one instruction, or undefined.
+ *
+ * It is the fact behind "reopening a cancelled line is the owner's call": the
+ * cancellation lives on the append-only ledger and nowhere else, so the question
+ * is asked of the ledger rather than of a status column that could disagree with
+ * it. Newest by `seq` and not by `at`, for the reason `latestDecisions` gives: a
+ * line cancelled twice in the same instant still has an append order.
+ *
+ * The projection is deliberately narrow. A route deciding whether a person may
+ * reopen a line needs when and why, and handing it the whole event would invite
+ * reading a beneficiary out of a row that exists to answer a yes or a no.
+ */
+export async function latestCancellation(
+  sql: Db,
+  instructionId: string,
+): Promise<{ at: string; reason: string; actor?: Actor } | undefined> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type = 'payment_cancelled'
+      and payload ->> 'instructionId' = ${instructionId}
+    order by seq desc
+    limit 1
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  const event = ledgerEventFromRow(row);
+  if (event.type !== "payment_cancelled") {
+    return undefined;
+  }
+  return {
+    at: event.at,
+    reason: event.reason,
+    ...(event.actor === undefined ? {} : { actor: event.actor }),
+  };
+}
+
+/**
+ * Who posted one SAT list version into this instance, off the ledger.
+ *
+ * Undefined for a version nobody published here, which is the committed official
+ * snapshot: it arrives with the repository rather than through a request, and a
+ * constancia that printed a name for it would be inventing a signature.
+ *
+ * Newest by `seq`, like `latestCancellation` above: loading the same version
+ * twice is legal and the name on the page is whoever did it last.
+ */
+export async function latestListPublisher(
+  sql: Db,
+  listVersion: string,
+): Promise<Actor | undefined> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type = 'sat_list_published'
+      and payload ->> 'listVersion' = ${listVersion}
+    order by seq desc
+    limit 1
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  const event = ledgerEventFromRow(row);
+  return event.type === "sat_list_published" ? event.actor : undefined;
 }
 
 /** How many events the ledger holds, for the doctor and the seed summary. */
@@ -1389,10 +1458,11 @@ export async function insertDecision(
   return transact(sql, async (tx) => {
     const rows = await tx<{ id: string | number }[]>`
       insert into decisions (instruction_id, action, expected_loss,
-        delay_cost_per_day, decided_at, decided_by, reason)
+        delay_cost_per_day, decided_at, decided_by, decided_by_role, reason)
       values (${decision.instructionId}, ${decision.action}, ${decision.expectedLoss},
         ${decision.delayCostPerDay}, ${decision.decidedAt}::timestamptz,
-        ${decision.decidedBy ?? null}, ${decision.reason ?? null})
+        ${decision.decidedBy ?? null}, ${decision.decidedByRole ?? null},
+        ${decision.reason ?? null})
       returning id
     `;
     const id = Number(rows[0]?.id);
@@ -1413,7 +1483,7 @@ export async function insertDecision(
 
 const DECISION_SELECT = `
   select d.id, d.instruction_id, d.action, d.expected_loss, d.delay_cost_per_day,
-         d.decided_at, d.decided_by, d.reason,
+         d.decided_at, d.decided_by, d.decided_by_role, d.reason,
          coalesce(
            json_agg(
              json_build_object(

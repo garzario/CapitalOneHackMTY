@@ -29,7 +29,7 @@ flowchart LR
     C["Banxico CEP<br/>signed XML"]
     N["Nessie sandbox<br/>bank mirror of outflows"]
     G["packages/seed<br/>deterministic generator, seed 69"]
-    H["packages/seed/src/holdout<br/>30 labelled cases"]
+    H["packages/seed/src/holdout<br/>35 labelled cases"]
   end
 
   subgraph I[2 Ingest and normalise]
@@ -499,6 +499,22 @@ POST.
 imported by a partner's backend, or run inside the client when data residency requires that the
 ledger never leaves the customer perimeter. The only shared assumption is the domain contract, which
 is deliberately narrow and lives in one file.
+
+**Where it plugs into somebody else's stack, drawn as the four places.** The commercial argument is
+in `docs/05-business-model.md#where-the-software-actually-plugs-in-and-what-each-surface-costs-to-build`
+with a source and an unverified column per surface. The architectural point is narrower and it is
+that all four are the same three seams this repository already has, so none of them is a rewrite:
+
+| Surface | The seam it uses | What has to be built |
+|---|---|---|
+| The dispersal layout the ERP exports | Intake and the run. Parse the file into `PaymentInstruction[]`, score them, write the same format back with the stopped lines removed | A parser and a writer per bank format. `packages/core` is untouched, because a line off a layout is the same `PaymentInstruction` a QR intake produces |
+| An ERP connector, CONTPAQi, Siigo Aspel or SAP Business One | The same intake endpoint. The ERP becomes one more producer of instructions and CFDIs | An adapter per vendor, in its own workspace, next to `packages/nessie`. The vendor's shape never reaches `packages/core`: `LedgerTx` and `Cfdi` are what every source normalises into, which is the rule `packages/core/src/types.ts` opens with |
+| The rail, ordering the SPEI ourselves | `packages/rail`, which already has the interface and a simulated adapter | An STP adapter behind the interface that exists. What changes is not the code, it is what we become: ordering a payment is a different regulatory posture from advising on one, and `docs/06-regulatory-privacy.md` is where that has to be answered before the adapter is written |
+| A bank embedding the control in its own portal | The HTTP contract in `docs/09-api.md`, exactly as `apps/web` uses it | Nothing new in this tree. That is the point of the paragraph above: a bank's SMB portal is another consumer of the same endpoints |
+
+**The one that is not an integration.** Email and WhatsApp forwarding needs no vendor to agree to
+anything, because it is `POST /api/v1/instructions` with `text`, an image or a voice note, and that
+is built. What does not exist is the address and the number in front of it.
 
 **Where it breaks first, in order.** Stated as thresholds so the answer is checkable rather than
 reassuring.

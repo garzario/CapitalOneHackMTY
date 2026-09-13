@@ -24,6 +24,7 @@
 
 import type {
   Action,
+  Actor,
   Decision,
   Finding,
   LedgerEvent,
@@ -31,7 +32,13 @@ import type {
   Supplier,
   SweepResult,
 } from "@hackmty/core";
-import { formatAmount, sumAmounts } from "@hackmty/core";
+import {
+  ACTOR_ROLE_LABEL,
+  describeActor,
+  formatAmount,
+  SYSTEM_DECIDER,
+  sumAmounts,
+} from "@hackmty/core";
 import { fingerprintLedger, groupDigest, type LedgerRange } from "./hash";
 import { type Column, Sheet } from "./layout";
 import { PdfDocument } from "./pdf";
@@ -65,6 +72,16 @@ export interface SweepConstanciaInput extends ConstanciaCommon {
   source: string;
   /** How many supplier RFCs were matched against the version. */
   suppliersChecked: number;
+  /**
+   * Who loaded the version into this instance, off the `sat_list_published`
+   * event.
+   *
+   * Absent for a version that was never posted through the API, which is the
+   * committed official snapshot: nobody in this company published that one, and
+   * printing a name there would be the document inventing a signature. The page
+   * then says so in those words rather than leaving the line blank.
+   */
+  publishedBy?: Actor;
 }
 
 export interface RunConstanciaItem {
@@ -201,6 +218,15 @@ export function sweepConstancia(input: SweepConstanciaInput): Uint8Array {
   sheet.field("Version de la lista", input.sweep.listVersion);
   sheet.field("Publicacion en el DOF", input.publishedAt);
   sheet.field("Origen", input.source);
+  /* Who put this list in front of the ledger. It is on the page because an
+     auditor reading a constancia eighteen months later asks who ran the cross
+     before they ask what it found. */
+  sheet.field(
+    "Cargada por",
+    input.publishedBy === undefined
+      ? "No se cargo desde esta instancia"
+      : describeActor(input.publishedBy),
+  );
   sheet.field("Proveedores cotejados", String(input.suppliersChecked));
   sheet.field(
     "Proveedores en la lista",
@@ -318,11 +344,81 @@ export function runConstancia(input: RunConstanciaInput): Uint8Array {
   }
 
   sheet.gap(12);
+  sheet.heading("Quien resolvio cada instruccion");
+  writeSignatures(sheet, input.items);
+
+  sheet.gap(12);
   sheet.heading("Hallazgos con detalle");
   writeFindings(sheet, input.items);
 
   closeWithFingerprint(sheet, input);
   return doc.toBytes();
+}
+
+/**
+ * Who signed each decision of the run, with the capacity and the argument.
+ *
+ * It is its own section rather than a seventh column, because the thing an
+ * auditor is looking for here is not a name next to a row: it is the short list
+ * of exceptions, and a release with a written reason on it is exactly that. The
+ * engine's own decisions are printed too and say `el motor`, so the page never
+ * implies a person looked at a line nobody looked at.
+ */
+function writeSignatures(
+  sheet: Sheet,
+  items: readonly RunConstanciaItem[],
+): void {
+  const decided = items.filter(
+    (item) =>
+      item.decision !== undefined && item.decision.decidedBy !== undefined,
+  );
+
+  if (decided.length === 0) {
+    sheet.paragraph(
+      "Ninguna instruccion de esta corrida lleva una resolucion firmada todavia. " +
+        "Lo que aparece arriba es la propuesta del motor, que nadie ha confirmado.",
+    );
+    return;
+  }
+
+  const columns: Column[] = [
+    { header: "Proveedor", share: 0.26 },
+    { header: "Resolucion", share: 0.14 },
+    { header: "Firma", share: 0.26 },
+    { header: "Motivo", share: 0.34 },
+  ];
+
+  sheet.tableHead(columns);
+  for (const item of decided) {
+    const decision = item.decision as Decision;
+    sheet.row(columns, [
+      item.supplier?.legalName ?? item.instruction.supplierRfc,
+      ACTION_LABEL[decision.action],
+      signatureOf(decision),
+      decision.reason ?? "sin motivo escrito",
+    ]);
+  }
+}
+
+/**
+ * The name and the capacity on one decision.
+ *
+ * `SYSTEM_DECIDER` is not a person, so it reads `el motor` rather than being
+ * dressed up as a signature, and a name with no role is printed as the name: a
+ * decision taken before the `X-Actor` header existed has one and inventing a
+ * capacity for it would be worse than leaving it out.
+ */
+function signatureOf(decision: Decision): string {
+  const by = decision.decidedBy;
+  if (by === undefined) {
+    return "sin firma";
+  }
+  if (by === SYSTEM_DECIDER) {
+    return "el motor (automatico)";
+  }
+  return decision.decidedByRole === undefined
+    ? by
+    : `${by} (${ACTOR_ROLE_LABEL[decision.decidedByRole]})`;
 }
 
 /** `sat_69b, clabe_forensics` or a dash. The detail is in the section below. */

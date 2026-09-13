@@ -12,6 +12,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { rejectInvalid } from "../http";
+import { actorOf, requireActor } from "../middleware/actor";
 import { createRateLimit } from "../middleware/rate-limit";
 import { rescoreSweptLines, runRetroactiveSweep } from "../pipeline";
 import {
@@ -145,8 +146,10 @@ export function satRoutes(deps: ApiDeps) {
     })
     .post(
       "/publish",
+      requireActor,
       zValidator("json", satPublishBodySchema, rejectInvalid),
       async (c) => {
+        const actor = actorOf(c);
         const body = c.req.valid("json");
         const now = deps.clock.now();
         const { listVersion, entries } = await materialise(deps, body, now);
@@ -154,11 +157,16 @@ export function satRoutes(deps: ApiDeps) {
         const subjects = await deps.repo.publishSatList(listVersion, entries);
         const sweep = await runRetroactiveSweep(listVersion, subjects);
 
+        /* Who posted the list. The sweep constancia reads it back off this event:
+           a document that prices eight months of deductions has to say who put the
+           list in front of it, and the `decision_made` rows below are the engine's
+           own and are signed `system` rather than by the person who published. */
         await deps.emit({
           type: "sat_list_published",
           at: now,
           listVersion,
           entries,
+          actor,
         });
 
         /* The publication is not finished when it is priced. Issue #175: the

@@ -1,13 +1,21 @@
 import { describe, expect, it } from "bun:test";
+import type { Actor } from "@hackmty/core";
 import { paymentRunSchema, seedResponseSchema } from "../schemas";
-import { createTestApp } from "../test-app";
+import { createTestApp, TEST_CLERK, writeHeaders } from "../test-app";
 
 type ErrorBody = { error: { code: string; message: string } };
 
-function json(body: unknown): RequestInit {
+/**
+ * A JSON write, with the actor every write endpoint requires.
+ *
+ * The header is the default clerk unless a test names somebody else, so a test
+ * about a role says which role it is about and every other test reads as it did
+ * before the header existed.
+ */
+function json(body: unknown, actor: Actor = TEST_CLERK): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: writeHeaders(actor),
     body: JSON.stringify(body),
   };
 }
