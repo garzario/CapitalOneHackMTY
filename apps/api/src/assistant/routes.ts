@@ -32,6 +32,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { ApiDeps } from "../deps";
+import { STREAM_OPEN_COMMENT } from "../events";
 import { fail, notFound, rejectInvalid } from "../http";
 import { ACTOR_HEADER, parseActorHeader } from "../middleware/actor";
 import { createRateLimit } from "../middleware/rate-limit";
@@ -128,6 +129,11 @@ export function assistantRoutes(deps: ApiDeps, api: ApiCaller) {
 
           c.header("X-Accel-Buffering", "no");
           return streamSSE(c, async (stream) => {
+            /* Before anything slow, so the headers reach the client now rather
+               than when the extractor and the model have both answered. See
+               STREAM_OPEN_COMMENT. */
+            await stream.write(STREAM_OPEN_COMMENT);
+
             let sequence = 0;
             const emit = async (event: TurnEvent): Promise<void> => {
               await stream.writeSSE({

@@ -767,6 +767,8 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 
 Three endpoints stream on their own connection rather than through that one, because each of them is one piece of work a caller started and is waiting on: `POST /api/v1/assistant/messages` (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `POST /api/v1/run/:id/execute` (`line` per payment, `skipped` per line the run left alone, then `done`), and `POST /api/v1/instructions/:id/verify-account`, which answers `202` with the state it reached and leaves the rest to the ledger channel. What those two new streams push is also appended to the ledger, so nothing is only visible to whoever happened to hold the connection.
 
+**How long a stream may say nothing, and why a client needs the number.** Only `GET /api/v1/events` heartbeats; the three above send an event when they have one and nothing in between. A turn that carries a screenshot is the longest silence this API has: the extractor answers first and the model after it, each bounded by the same twenty seconds, so the first `tool_call` of that turn can be forty seconds after the request. The server holds the connection for sixty (`IDLE_TIMEOUT_SECONDS` in `apps/api/src/index.ts`), so a client must not treat a quiet stream as a dead one before then. This is written down because the default was ten and the failure it produced said nothing at all: the response was `200 text/event-stream` with an empty body, and the ledger stream closed five seconds before its own first heartbeat.
+
 ## Curl a judge can paste
 
 The ids are the seeded ones from `docs/10-demo-script.md`, which `bun run demo` prints. A local
