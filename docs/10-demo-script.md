@@ -148,21 +148,28 @@ Beat 1 and beat 3 are stage 3 of `docs/03-user-journey.md`, the moment that is t
 is the one to protect if time is lost, because a judge who sent the instruction themselves does not
 need to be convinced that the product runs.
 
-`bun run demo` checks eight things rather than these five, and none of the extra three is a beat
+`bun run demo` checks nine things rather than these five, and none of the extra four is a beat
 this sheet is missing. It asserts the CEP parser and the name comparison on their own before it runs
 the cent through the pipeline, because a document that fails to parse and an account that fails to
 match are two different failures and the headless check says which, while on stage they are one
 screen; it puts the consortium network into a decision offline, which on stage is the chip inside
-beat 3 rather than a stop of its own; and it reads the level and the state of every line of the run
-after beat 3 has published the list, which on stage is the colour of the chips in beats 1 and 2. That
-last one also prints the evidence letter of the line the publication cancelled and checks it is one
-page, because the letter is a link on the instruction panel rather than a stop on the walkthrough.
+beat 3 rather than a stop of its own; it reads the level and the state of every line of the run
+after beat 3 has published the list, which on stage is the colour of the chips in beats 1 and 2, and
+that one also prints the evidence letter of the line the publication cancelled and checks it is one
+page, because the letter is a link on the instruction panel rather than a stop on the walkthrough;
+and it executes the run, which is the only check where money leaves. That last one is the gate that
+matters most before a rehearsal: it asserts that the released lines go and the held ones do not, that
+every sent line comes back with a clave de rastreo and a receipt, that the five peso buckets add up
+to the execution to the centavo, and that a second press of the button answers `409` and moves
+nothing.
 
-Its rows are worth reading out if a judge asks how the engine decides. On seed 69 three lines of one
-run carry three different state rules: `INS-2026-09-07-047` is `liberado` on a release, the line whose
-CEP named somebody else is `cancelado` through `verification_blocked`, and `INS-2026-09-07-070` is
-`cancelado` through `sat_definitive` once the publication lands. One vocabulary, three reasons, and
-each reason is a row of the ADR-0009 table.
+The rows of the level check are worth reading out if a judge asks how the engine decides. On seed 69
+three lines of one run carry three different state rules: `INS-2026-09-07-047` is `liberado` on a
+release, the line whose CEP named somebody else is `cancelado` through `verification_blocked`, and
+`INS-2026-09-07-070` is `cancelado` through `sat_definitive` once the publication lands. One
+vocabulary, three reasons, and each reason is a row of the ADR-0009 table. The execution then proves
+the other half of that table: those two `cancelado` lines are dropped with a `payment_cancelled` that
+carries no actor, because the evidence dropped them and not a person, and the run sends the rest.
 
 ### Walk-up variants, because judging is continuous
 
@@ -365,6 +372,7 @@ the difference between looking real and looking like a prototype.
       `ALLOW_CONSORTIUM` is unset on purpose and the finding says the network was not consulted, which
       is also green. Never pull inside the demo window
 - [ ] The CEP fixture parses and the name comparison answers. TODO(garzario) issue #57: swap in the real CEP and its certificate, and only then say the signature was validated
+- [ ] The run has not been executed on the instance the judges will see. `GET /api/v1/run/current/execution` must answer `lines: []`, because a second execute answers 409 and a run that already left has nothing to show. Re-seed if it does not
 - [ ] Beat 4 has not been run yet on the instance the judges will see. The cent is sent once per instruction and a second press answers 409, so `GET /api/v1/instructions/INS-2026-09-07-047/verification` must still say `not_started` when the window opens. Re-seed if it does not
 - [ ] One browser window, demo tabs in order, every other window closed
 - [ ] The printed card is on the table: QR code, the CLABE to photograph, the clave de rastreo, the real RFC

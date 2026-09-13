@@ -1,5 +1,6 @@
 /**
- * The two constancias.
+ * The two constancias, and the header and digest the receipt in `./receipt.ts`
+ * shares with them.
  *
  * A constancia is the retention artifact: the accountant files it, and eighteen
  * months later, when the SAT asks why a deduction was taken or why a payment
@@ -28,7 +29,9 @@ import type {
   Decision,
   Finding,
   LedgerEvent,
+  PaymentExecution,
   PaymentInstruction,
+  PaymentLineState,
   Supplier,
   SweepResult,
 } from "@hackmty/core";
@@ -96,6 +99,16 @@ export interface RunConstanciaInput extends ConstanciaCommon {
   /** Monday of the payment run, `YYYY-MM-DD`. */
   weekOf: string;
   items: readonly RunConstanciaItem[];
+  /**
+   * What the run did on the payment rail, when it has been executed.
+   *
+   * Absent on a run nothing has sent, and then the document says so in one sentence
+   * rather than printing an empty table: "nothing has left yet" is a statement an
+   * accountant needs, and a missing section would read as a document that forgot to
+   * ask. Since ADR-0008 a constancia that listed what was decided and not what left
+   * would be half the answer to the only question the SAT asks about a payment.
+   */
+  execution?: PaymentExecution;
 }
 
 /** How a proposed action is written on any document of this package. */
@@ -124,6 +137,12 @@ const SYNTHETIC_BAND =
  */
 const MONTERREY_OFFSET_MINUTES = -360;
 
+/**
+ * One instant, as the person reading the document sees their own clock.
+ *
+ * Exported because all four documents of this package print instants and a second
+ * implementation would put two timezones on one desk.
+ */
 export function localStamp(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) {
@@ -145,9 +164,9 @@ const NOT_A_SIGNATURE =
  * Draws the header every document of this package shares, and returns the sheet to
  * continue on.
  *
- * Exported because `./letter.ts` is the third document and it is the same heading:
- * the synthetic band, the title, the company and the instant. A second header would
- * be a second document standard on the same desk.
+ * Exported because `./letter.ts` and `./receipt.ts` are the third and fourth
+ * documents and both are the same heading: the synthetic band, the title, the company
+ * and the instant. A second header would be a second document standard on one desk.
  */
 export function openSheet(
   doc: PdfDocument,
@@ -171,8 +190,15 @@ export function openSheet(
   return sheet;
 }
 
-/** The digest block, identical on both constancias so it reads the same way. */
-function closeWithFingerprint(sheet: Sheet, input: ConstanciaCommon): void {
+/**
+ * The digest block, identical on both constancias and on the receipt so it reads the
+ * same way. The letter compresses the same digest into two fields, because it is one
+ * page by contract, and `./letter.ts` says so where it does it.
+ */
+export function closeWithFingerprint(
+  sheet: Sheet,
+  input: ConstanciaCommon,
+): void {
   const fingerprint = fingerprintLedger(input.ledger, input.range ?? {});
 
   sheet.gap(8);
@@ -344,6 +370,9 @@ export function runConstancia(input: RunConstanciaInput): Uint8Array {
   }
 
   sheet.gap(12);
+  writeExecution(sheet, input);
+
+  sheet.gap(12);
   sheet.heading("Quien resolvio cada instruccion");
   writeSignatures(sheet, input.items);
 
@@ -419,6 +448,109 @@ function signatureOf(decision: Decision): string {
   return decision.decidedByRole === undefined
     ? by
     : `${by} (${ACTOR_ROLE_LABEL[decision.decidedByRole]})`;
+}
+
+/** What a line of the execution reads as on the page. */
+const LINE_STATE_LABEL: Readonly<Record<PaymentLineState, string>> = {
+  queued: "En archivo",
+  sent: "Enviado",
+  settled: "Confirmado",
+  failed: "Rechazado",
+  cancelled: "Cancelado",
+};
+
+/**
+ * What left on the rail, line by line.
+ *
+ * The clave de rastreo is the column that makes this page worth filing: it is the
+ * string the CEP is filed under at Banxico, so an auditor holding this document can
+ * ask the central bank about any line on it. `Enviado` and `Confirmado` are two
+ * claims collapsed into one word each, and the note below says which is which,
+ * because "we asked" and "the rail says it happened" are not the same thing.
+ */
+function writeExecution(sheet: Sheet, input: RunConstanciaInput): void {
+  sheet.heading("Lo que salio del banco");
+
+  const execution = input.execution;
+  if (execution === undefined || execution.lines.length === 0) {
+    sheet.paragraph(
+      "Todavia no sale nada de esta corrida. Las instrucciones estan revisadas y " +
+        "resueltas, y ninguna linea se ha enviado por el riel de pagos.",
+    );
+    return;
+  }
+
+  const names = new Map(
+    input.items.map((item) => [
+      item.instruction.id,
+      item.supplier?.legalName ?? item.instruction.supplierRfc,
+    ]),
+  );
+
+  sheet.field(
+    "Ejecutada por",
+    execution.startedBy === undefined
+      ? "sin registro en la bitacora"
+      : `${execution.startedBy.name} (${ACTOR_ROLE_LABEL[execution.startedBy.role]})`,
+  );
+  sheet.field(
+    "Inicio",
+    execution.startedAt === undefined
+      ? "sin registro"
+      : localStamp(execution.startedAt),
+  );
+  sheet.field(
+    "Resultado",
+    `${execution.totals.settled} confirmadas, ${execution.totals.sent} enviadas, ${execution.totals.failed} rechazadas, ${execution.totals.cancelled} canceladas`,
+  );
+  sheet.field(
+    "Importe que salio (MXN)",
+    formatAmount(
+      sumAmounts([execution.totals.sentAmount, execution.totals.settledAmount]),
+    ),
+  );
+  sheet.gap(8);
+
+  const columns: Column[] = [
+    { header: "Proveedor", share: 0.28 },
+    { header: "Importe", share: 0.15, align: "right" },
+    { header: "Estado", share: 0.13 },
+    { header: "Clave de rastreo", share: 0.26 },
+    { header: "Riel", share: 0.18 },
+  ];
+
+  sheet.tableHead(columns);
+  for (const line of execution.lines) {
+    sheet.row(columns, [
+      names.get(line.instructionId) ?? line.instructionId,
+      formatAmount(line.amount),
+      LINE_STATE_LABEL[line.state],
+      line.claveRastreo ?? "sin clave",
+      line.rail ?? "sin riel",
+    ]);
+  }
+
+  const withReason = execution.lines.filter(
+    (line) => (line.reason ?? "") !== "",
+  );
+  if (withReason.length > 0) {
+    sheet.gap(8);
+    sheet.heading("Lineas que no salieron");
+    for (const line of withReason) {
+      sheet.paragraph(
+        `${names.get(line.instructionId) ?? line.instructionId}, ${formatAmount(line.amount)} MXN, ${LINE_STATE_LABEL[line.state]}: ${line.reason}`,
+        { grey: 0.3 },
+      );
+    }
+  }
+
+  sheet.gap(8);
+  sheet.paragraph(
+    "Enviado quiere decir que el riel acepto la transferencia. Confirmado quiere decir que el riel " +
+      "ya responde por el movimiento. Son dos cosas distintas y este documento no las junta. La clave " +
+      "de rastreo es con la que se localiza el CEP de cada transferencia.",
+    { grey: 0.3 },
+  );
 }
 
 /** `sat_69b, clabe_forensics` or a dash. The detail is in the section below. */

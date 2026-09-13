@@ -249,6 +249,80 @@ describe("runConstancia", () => {
 
     expect(pdf).toContain("La corrida no contiene instrucciones");
   });
+
+  /**
+   * Since ADR-0008 the run leaves through `packages/rail`, so a constancia that said
+   * what was decided and not what left would be half the answer to the only question
+   * the SAT asks about a payment.
+   */
+  it("says nothing has left when the run has not been executed", () => {
+    const pdf = text(runConstancia(runInput([held, clean])));
+
+    expect(pdf).toContain("(Lo que salio del banco) Tj");
+    expect(pdf).toContain("Todavia no sale nada de esta corrida");
+    expect(pdf).not.toContain("(Clave de rastreo) Tj");
+  });
+
+  it("lists every line that left, with the clave de rastreo the CEP is filed under", () => {
+    const pdf = text(
+      runConstancia({
+        ...runInput([held, clean]),
+        execution: {
+          runId: "run-2026-w37",
+          lines: [
+            {
+              instructionId: "ins-2",
+              state: "settled",
+              amount: 31320,
+              claveRastreo: "NSSABC123",
+              rail: "nessie",
+              sentAt: "2026-09-12T21:00:00.000Z",
+              receiptId: "rcp-NSSABC123",
+            },
+            {
+              instructionId: "ins-1",
+              state: "cancelled",
+              amount: 214600,
+              reason:
+                "El proveedor esta en la lista definitiva del SAT y nadie firmo una liberacion.",
+            },
+          ],
+          totals: {
+            lines: 2,
+            queued: 0,
+            sent: 0,
+            settled: 1,
+            failed: 0,
+            cancelled: 1,
+            amount: 245920,
+            queuedAmount: 0,
+            sentAmount: 0,
+            settledAmount: 31320,
+            failedAmount: 0,
+            cancelledAmount: 214600,
+          },
+          startedBy: { name: "Lupita Elizondo", role: "clerk" },
+          startedAt: "2026-09-12T21:00:00.000Z",
+          updatedAt: "2026-09-12T21:00:01.000Z",
+        },
+      }),
+    );
+
+    expect(pdf).toContain("(Clave de rastreo) Tj");
+    expect(pdf).toContain("(NSSABC123) Tj");
+    expect(pdf).toContain(
+      "1 confirmadas, 0 enviadas, 0 rechazadas, 1 canceladas",
+    );
+    // The money that left, and not the whole run.
+    expect(pdf).toContain("(31,320.00) Tj");
+    // Who pressed the button, because nothing here happens without a person.
+    expect(pdf).toContain("(Lupita Elizondo \\(capturista\\)) Tj");
+    // And the line that did not leave carries the reason it did not.
+    expect(pdf).toContain("(Lineas que no salieron) Tj");
+    expect(pdf).toContain("definitiva");
+    // Sent and settled are never collapsed, and the page says which is which.
+    expect(pdf).toContain("Confirmado quiere decir que el riel");
+  });
 });
 
 describe("constanciaFilename", () => {

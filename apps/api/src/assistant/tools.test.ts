@@ -252,20 +252,37 @@ describe("consortium_signal", () => {
 });
 
 describe("the endpoints issue #196 still owns", () => {
-  it("reports the execution and the receipt as reads that answered nothing", async () => {
-    /* Both are in the contract and neither is built yet. The tool answering with an
-       error rather than throwing is what lets the panel ship before they land, and
-       the model is told to say so rather than to invent an execution. */
+  it("reads the execution of a run nobody executed as an answer, not as a gap", async () => {
+    /* Issue #198 landed the endpoint, so this tool now answers. "Nothing has been
+       sent" is the answer for a run nobody executed, and it has to arrive as one:
+       an error here would have the model say the execution could not be read, when
+       what is true is that the money has not left. */
     const { api } = harness();
+
     const execution = await READ_TOOLS_BY_NAME.get_execution!.run(
       { runId: "current" },
       api,
     );
+
+    expect(execution.ok).toBe(true);
+    if (execution.ok) {
+      expect(execution.result.lines).toBe(0);
+      expect(execution.result["totals.sent"]).toBe(0);
+      expect(execution.result["totals.amount"]).toBe(0);
+    }
+  });
+
+  it("reports a receipt this instance never held as a read that answered nothing", async () => {
+    /* A receipt for a payment nobody made would be a fabricated document, so the
+       endpoint answers `404` and the tool reports it rather than throwing. The model
+       is told to say so rather than to invent a transfer. */
+    const { api } = harness();
+
     const receipt = await READ_TOOLS_BY_NAME.get_receipt!.run(
       { receiptId: "rcp-1" },
       api,
     );
-    expect(execution.ok).toBe(false);
+
     expect(receipt.ok).toBe(false);
   });
 });

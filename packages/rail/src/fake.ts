@@ -17,10 +17,15 @@
 import type { RailId } from "@hackmty/core";
 import {
   assertClaveRastreo,
+  assertPaymentAmount,
   CENT_AMOUNT,
   type CentRequest,
   type CentSent,
+  type PaymentConfirmation,
+  type PaymentOrder,
   type PaymentRail,
+  type PaymentSent,
+  RailSendError,
 } from "./rail";
 
 export interface FakeRailOptions {
@@ -32,12 +37,27 @@ export interface FakeRailOptions {
    * one call reaches `cep_signed` without a network.
    */
   mint?: (request: CentRequest, sequence: number) => string;
+  /** The clave for a payment of the run. Same reason, same shape. */
+  mintPayment?: (order: PaymentOrder, sequence: number) => string;
   now?: () => string;
+  /**
+   * Instruction ids this rail refuses, with the sentence it refuses them with.
+   *
+   * It exists so the suite can drive the `failed` branch of an execution, which is
+   * the branch where nothing is appended except a `payment_failed` carrying a
+   * reason. A demo never sets it.
+   */
+  refuse?: Readonly<Record<string, string>>;
 }
 
 /** The default clave: SYN, so nothing reads it as a clave anybody filed at Banxico. */
 export function syntheticClave(sequence: number): string {
   return `SYNVER${String(sequence).padStart(10, "0")}`;
+}
+
+/** The default clave of a payment. `SYNPAY`, for the same reason. */
+export function syntheticPaymentClave(sequence: number): string {
+  return `SYNPAY${String(sequence).padStart(10, "0")}`;
 }
 
 export class FakeRail implements PaymentRail {
@@ -46,15 +66,27 @@ export class FakeRail implements PaymentRail {
 
   /** Every request it was given, in order, so a test asserts what was asked. */
   readonly sent: CentRequest[] = [];
+  /** Every payment order it was given, in order, for the same reason. */
+  readonly dispersed: PaymentOrder[] = [];
 
   private readonly mint: (request: CentRequest, sequence: number) => string;
+  private readonly mintPayment: (
+    order: PaymentOrder,
+    sequence: number,
+  ) => string;
+  private readonly refuse: Readonly<Record<string, string>>;
   private readonly now: () => string;
   private sequence = 0;
+  private payments = 0;
 
   constructor(options: FakeRailOptions = {}) {
     this.rail = options.rail ?? "nessie";
     this.mint =
       options.mint ?? ((_request, sequence) => syntheticClave(sequence));
+    this.mintPayment =
+      options.mintPayment ??
+      ((_order, sequence) => syntheticPaymentClave(sequence));
+    this.refuse = options.refuse ?? {};
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
@@ -69,5 +101,45 @@ export class FakeRail implements PaymentRail {
       amount: CENT_AMOUNT,
       simulated: true,
     };
+  }
+
+  /**
+   * One line of the run, in process.
+   *
+   * `settled` and not `sent`, which is the one place this rail is allowed to claim
+   * more than the Nessie one: there is no wire, so there is nothing left to wait on,
+   * and the honesty lives where it always does in this class, in `simulated: true`
+   * travelling onto every event. Nothing downstream may read a simulated settlement
+   * as a transfer that posted, and that flag is what makes it impossible.
+   */
+  async send(order: PaymentOrder): Promise<PaymentSent> {
+    const refusal = this.refuse[order.instructionId];
+    if (refusal !== undefined) {
+      throw new RailSendError(this.rail, refusal);
+    }
+
+    this.payments += 1;
+    this.dispersed.push(order);
+
+    return {
+      rail: this.rail,
+      state: "settled",
+      claveRastreo: assertClaveRastreo(this.mintPayment(order, this.payments)),
+      sentAt: this.now(),
+      amount: assertPaymentAmount(order.amount),
+      instructionId: order.instructionId,
+      simulated: true,
+    };
+  }
+
+  /** Already settled on the way out, so the answer restates it and adds nothing. */
+  async confirm(sent: readonly PaymentSent[]): Promise<PaymentConfirmation[]> {
+    const at = this.now();
+    return sent.map((line) => ({
+      instructionId: line.instructionId,
+      state: "settled" as const,
+      at,
+      detail: "riel en proceso: nada salio y el movimiento es simulado",
+    }));
   }
 }
