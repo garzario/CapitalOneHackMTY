@@ -16,6 +16,9 @@
  * instruction behind it, and the screen had nothing to say. The rail keeps
  * "Corrida" lit while you are on it, because that is where you came from.
  *
+ * The rail's icons are Rune Icons, and the one belonging to the section you
+ * arrive at draws itself once, on arrival and on nothing else.
+ *
  * The rail collapses, and the choice is remembered. The run is a wide financial
  * table whose last column decides whether money leaves; on a 13-inch laptop
  * that column is the one that falls off. Collapsing is a preference and not a
@@ -50,7 +53,7 @@ type NavItem = {
   to: string;
   label: string;
   match: RouteName[];
-  Icon: (props: { size?: number }) => ReactNode;
+  Icon: (props: { size?: number; draw?: boolean }) => ReactNode;
 };
 
 /**
@@ -232,7 +235,14 @@ export function AppShell({
                            asked for. */
                         onClick={() => setOpen(false)}
                       >
-                        <Icon size={18} />
+                        {/* The draw is `isCurrent` and nothing more. A CSS
+                            animation runs when its `animation` property goes
+                            from none to set, which happens exactly when the
+                            class lands on the icon you arrived at -- so the
+                            section change is the trigger, for free, and
+                            collapsing, opening the overlay or re-rendering
+                            never touch the class and never restart it. */}
+                        <Icon size={18} draw={isCurrent} />
                         <span className="rail-label">{label}</span>
                       </a>
                     </li>

@@ -54,8 +54,9 @@ src/
     router.tsx        hash router, ~120 lines, no dependency
     format.ts         money, dates, CLABE blocks, digit diffs
     labels.ts         every Spanish word the clerk reads, in one dictionary
-  components/         AppShell (the rail and the top bar), Wordmark, Icons (the rail's five,
-                      plus the handset the instruction screen uses),
+  components/         AppShell (the rail and the top bar), Wordmark,
+                      Icons (Rune Icons, Apache-2.0, vendored as paths; the active one draws
+                      once per section change),
                       RunVerdict (the one figure), RunFilter, Controls (the six controls),
                       States, Primitives, Evidence, Decision, Findings, SupplierDrawer,
                       StatusCard, IntakeQr, QrCode
@@ -154,7 +155,10 @@ invented. The long version is `docs/design.md`; the short version:
   the block around it.
 - Light is the default, dark follows the operating system, and only colour tokens change
   between them. The rail palette is the exception and is identical in both.
-- Reduced motion switches the three duration tokens to 1ms, so CSS transitions stop in one
+- **Icons come from Rune Icons** (Apache-2.0, copyright Nexvyn) and from nowhere else. No
+  icon library is installed: the paths are vendored into `Icons.tsx`. The active rail icon
+  draws itself once per section change, over `--motion-draw` and on `--ease-draw`.
+- Reduced motion switches every duration token to 1ms, so CSS transitions stop in one
   place. Components that animate in JavaScript read the same preference through
   `useReducedMotion` from `motion/react`.
 

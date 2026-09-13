@@ -143,6 +143,12 @@
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
+  /* The rail icon's draw, Rune Icons' own animation. Quick, because it plays
+     every time you arrive at a section; once, and never on hover, collapse or
+     a reload of the same section. */
+  --motion-draw: 0.7s;
+  --ease-draw: var(--ease-standard);
+
   /* Surfaces. The page is white, like capitalone.com. The cream is Gravity's
      background-base-02 and appears only under something: a hover, a track, a
      tile that has to read as recessed. */
@@ -346,5 +352,6 @@
     --motion-fast: 1ms;
     --motion-base: 1ms;
     --motion-slow: 1ms;
+    --motion-draw: 1ms;
   }
 }

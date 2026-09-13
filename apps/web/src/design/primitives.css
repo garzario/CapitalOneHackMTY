@@ -617,12 +617,21 @@
     }
   }
 
-  /* The two animations in this layer that cannot read a motion token, switched
-     off for anyone who asked the system for less movement. */
+  /* The animations in this layer that cannot read a motion token, switched off
+     for anyone who asked the system for less movement. The rail icon's draw
+     does read one, so `--motion-draw` has already cut it to a millisecond
+     before this rule is reached; it is named here anyway, because a
+     millisecond of movement is still movement and the stroke should simply
+     start whole. */
   @media (prefers-reduced-motion: reduce) {
     .skeleton,
     .status-dot {
       animation: none;
+    }
+
+    .icon-draw path {
+      animation: none;
+      stroke-dashoffset: 0;
     }
   }
 
@@ -896,6 +905,32 @@
 
   .rail-item svg {
     flex: none;
+  }
+
+  /* Rune's "draw": the stroke is one dash as long as the path, pushed off the
+     start and pulled back over the first seven tenths of the duration. Only
+     `.icon-draw` carries it, and AppShell puts that class on exactly one svg,
+     so nothing else in the rail moves.
+
+     The class is wrapped in `:where()` to spend no specificity, because the
+     rule that switches this off for reduced motion sits hundreds of lines
+     above -- in the one block where this file collects that preference -- and
+     two selectors of equal weight are decided by which came last. This way the
+     preference wins where it belongs rather than by an `!important`. */
+  :where(.icon-draw) path {
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 1;
+    animation: icon-draw var(--motion-draw) var(--ease-draw) 0s 1 both;
+  }
+
+  @keyframes icon-draw {
+    0% {
+      stroke-dashoffset: 1;
+    }
+    70%,
+    100% {
+      stroke-dashoffset: 0;
+    }
   }
 
   .rail[data-collapsed="true"] .rail-item {
