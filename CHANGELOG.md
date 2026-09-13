@@ -1252,6 +1252,45 @@ then the screens, then the narrative, then the plumbing.
 
 ### Changed
 
+- **The Devpost submission is final copy now, and a person pastes it in minutes** (issue #76).
+  `docs/13-devpost.md` was an M3 draft of a product that has since grown an assistant, a payment rail,
+  a cross-company network on Snowflake, a second SAT list and the three levels and three states of
+  ADR-0009, and its numbers were the ones the deployed instance still serves rather than the ones
+  `bun run eval` and `bun test` print. It is rewritten field by field in the order Devpost asks for
+  them, Spanish first then English in both files because the judges at a Monterrey event read the first
+  block, with the three things that are genuinely unknown left as `TODO` rather than guessed: the video
+  link (#73), `sentryone.tech` (#59) and the four Devpost handles.
+
+  **`docs/print/devpost-fields.md` is new and it is the file the person pasting keeps open**: one
+  fenced block per field with no markdown inside it, so a field is selected, copied and pasted rather
+  than re-typed at 07:00. `docs/13` keeps the reasoning, the category gates, the screenshot table and
+  the source of every number, and says so: if the two disagree, `docs/13` wins.
+
+  **Six MLH categories, each with the sentence that goes in the submission and the gate that has to be
+  true before it is selected.** Gemini is the assistant's function calling over our own API plus the
+  OCR and the transcription, with the nine read tools named and the boundary stated as a test rather
+  than a promise; ElevenLabs is the verification call that speaks four digits and never eighteen, with
+  all five real calls and what each of the three of 2026-09-13 found, including the one that caught the
+  agent reading `4611` as a quantity; Tiger Data is the hypertable, the continuous aggregate and
+  the ledger the retroactive sweep replays; Vultr is the API beside the database behind Caddy with TLS
+  and `flush_interval -1`; Snowflake is the consortium network of salted hashed pairs over the SQL REST
+  API, seeded, pushed and pulled against a real account, with the other tenants labelled synthetic; and
+  Best .Tech Domain Name carries the one gate that is not passed, because `sentryone.tech` is not
+  registered yet. The track 3 statement is there in both languages as its own paste block.
+
+  **The screenshot list names the screen, the route, what has to be visible and where the capture
+  already is**, because the wave verifiers left most of them on pull requests and issues rather than
+  under `assets/`: the run and the instruction detail on #125 and #133, the three CEP states in the
+  body of #170, the run leaving and the receipt on #235, and the assistant drawer in the body of #228
+  and on #211, which is the one screen with nothing committed under `assets/screenshots/` at all.
+
+  **Two findings that belong to the submission rather than to a deploy.** The instance is behind `dev`:
+  `GET /api/v1/run/current` still answers the five-field totals with none of the money fields and
+  `GET /api/v1/metrics` still answers the older case count with `perLevel` null, so a judge opening
+  `?data=api` from the submission reads a build that is not this one. And `recharts`, untagged in the
+  M3 draft because nothing imported it, is now imported by `RunDonut.tsx` and `Controls.tsx`, so the
+  tag is honest and it is in the list.
+
 - **The verification call confirms the account change and the last four digits, and the agent the
   provider stores carries neither** (issue #206). The call used to ask one question, whether the
   account is theirs, which somebody who opened that account yesterday can answer yes to. It now asks
