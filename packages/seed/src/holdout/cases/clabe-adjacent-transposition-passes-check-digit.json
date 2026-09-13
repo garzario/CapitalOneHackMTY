@@ -55,5 +55,6 @@
       "because": "One transposition away from an account paid 57 times, with a check digit that cannot catch a transposition of digits five apart."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "alerta"
 }

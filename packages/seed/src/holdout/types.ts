@@ -16,11 +16,13 @@ import type {
   Action,
   Cep,
   Cfdi,
+  Confidence,
   Detector,
   FindingState,
   LedgerTx,
   PaymentComplement,
   PaymentInstruction,
+  Sat49BisEntry,
   SatListEntry,
   Severity,
   Supplier,
@@ -43,6 +45,12 @@ export interface HoldoutInput {
    * there.
    */
   bankMirror?: LedgerTx[];
+  /**
+   * Article 49 Bis rows for this supplier. A separate statute from 69-B with one
+   * published outcome and no published clearing, which is why the domain keeps
+   * the two lists apart and so does a case.
+   */
+  sat49BisEntries?: Sat49BisEntry[];
 }
 
 /**
@@ -73,6 +81,18 @@ export interface HoldoutCase {
   input: HoldoutInput;
   expectedFindings: ExpectedFinding[];
   expectedAction: Action;
+  /**
+   * How the line should read on the screen: `confiable`, `precaucion` or
+   * `alerta`.
+   *
+   * Labelled separately from the findings on purpose, and it is not derived from
+   * them here. A control can be right and the line still wrong, which is the
+   * failure a clerk actually experiences and the one the per-control table
+   * cannot show. Deriving this from `expectedFindings` through the same rule
+   * table the engine uses would make the level matrix agree with itself by
+   * construction and measure nothing.
+   */
+  expectedLevel: Confidence;
   /** Author's note. Not used by the harness. */
   notes?: string;
 }
@@ -107,6 +127,10 @@ const STATES: readonly FindingState[] = [
   "requiere_verificacion",
 ];
 const SEVERITIES: readonly Severity[] = ["info", "warning", "critical"];
+const LEVELS: readonly Confidence[] = ["confiable", "precaucion", "alerta"];
+
+/** Every level, in the order the matrix prints them: best news first. */
+export const ALL_LEVELS = LEVELS;
 
 /** Every detector, in the order the metrics table prints them. */
 export const ALL_DETECTORS = DETECTORS;
@@ -134,6 +158,15 @@ export function parseHoldoutCase(value: unknown): HoldoutCase {
     !ACTIONS.includes(raw.expectedAction as Action)
   ) {
     return fail(id, `expectedAction must be one of ${ACTIONS.join(", ")}`);
+  }
+  if (
+    typeof raw.expectedLevel !== "string" ||
+    !LEVELS.includes(raw.expectedLevel as Confidence)
+  ) {
+    // Required, not optional. A case with no level would be silently dropped
+    // from the matrix, and a matrix computed over the cases that happened to
+    // carry a label is a number nobody can reason about.
+    return fail(id, `expectedLevel must be one of ${LEVELS.join(", ")}`);
   }
 
   const input = asRecord(raw.input, id, "input");
@@ -196,6 +229,7 @@ export function parseHoldoutCase(value: unknown): HoldoutCase {
     input: input as unknown as HoldoutInput,
     expectedFindings,
     expectedAction: raw.expectedAction as Action,
+    expectedLevel: raw.expectedLevel as Confidence,
     ...(typeof raw.notes === "string" ? { notes: raw.notes } : {}),
   };
 }
