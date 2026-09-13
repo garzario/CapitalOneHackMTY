@@ -176,6 +176,94 @@ describe("buildAgentBody", () => {
     });
     expect(config.conversation).toEqual({ max_duration_seconds: 120 });
   });
+
+  /**
+   * The measured half of issue #250. Every one of these was a field somebody had
+   * dragged in a dashboard, which is the same as not having it: the point of the
+   * config file is that a rerun of `voice-setup` reproduces the agent that was
+   * heard, so each of these has to leave this repository on the wire.
+   */
+  test("sends the measured delivery and turn settings", () => {
+    const body = buildAgentBody({
+      name: "verificacion",
+      systemPrompt: "p",
+      firstMessage: "f",
+      ttsModelId: "eleven_flash_v2_5",
+      optimizeStreamingLatency: 3,
+      stability: 0.55,
+      similarityBoost: 0.85,
+      speed: 1,
+      turnTimeoutSeconds: 3,
+      turnEagerness: "normal",
+      speculativeTurn: false,
+    });
+
+    const config = body.conversation_config as Record<string, unknown>;
+
+    expect(config.tts).toEqual({
+      model_id: "eleven_flash_v2_5",
+      optimize_streaming_latency: 3,
+      stability: 0.55,
+      similarity_boost: 0.85,
+      speed: 1,
+    });
+    expect(config.turn).toEqual({
+      turn_timeout: 3,
+      turn_eagerness: "normal",
+      speculative_turn: false,
+    });
+  });
+
+  /**
+   * Rule 8 and the disclosure, as two fields. Without `end_call` the agent says
+   * the goodbye and holds the line open to the duration cap; without the
+   * interruption lock a supplier who starts talking over the greeting never
+   * hears what the call is.
+   */
+  test("enables the end_call tool and protects the greeting", () => {
+    const body = buildAgentBody({
+      name: "verificacion",
+      systemPrompt: "p",
+      firstMessage: "f",
+      endCall: true,
+      disableFirstMessageInterruptions: true,
+      llm: "gemini-2.5-flash-lite",
+      temperature: 0.25,
+    });
+
+    const config = body.conversation_config as Record<string, unknown>;
+    const agent = config.agent as Record<string, unknown>;
+    const prompt = agent.prompt as Record<string, unknown>;
+
+    expect(agent.disable_first_message_interruptions).toBe(true);
+    expect(prompt.llm).toBe("gemini-2.5-flash-lite");
+    expect(prompt.temperature).toBe(0.25);
+    expect(prompt.built_in_tools).toEqual({
+      end_call: {
+        type: "system",
+        name: "end_call",
+        description: "",
+        params: { system_tool_type: "end_call" },
+      },
+    });
+  });
+
+  /** False is a value, not an absence. An omitted flag means "keep yours". */
+  test("omits the tool and the lock when nobody asked for them", () => {
+    const body = buildAgentBody({
+      name: "verificacion",
+      systemPrompt: "p",
+      firstMessage: "f",
+      endCall: false,
+    });
+
+    const config = body.conversation_config as Record<string, unknown>;
+    const agent = config.agent as Record<string, unknown>;
+
+    expect(agent.prompt).not.toHaveProperty("built_in_tools");
+    expect(agent).not.toHaveProperty("disable_first_message_interruptions");
+    expect(config).not.toHaveProperty("turn");
+  });
 });
 
 describe("toTranscript", () => {
@@ -217,6 +305,31 @@ describe("VoiceClient", () => {
       "https://api.elevenlabs.io/v1/convai/agents/create",
     );
     expect(seen[0]?.url).not.toContain("test-key");
+  });
+
+  /**
+   * Read before write, which is acceptance criterion 9 of issue #250. It comes
+   * back raw on purpose: the fields worth seeing in a diff are the ones this
+   * repository does not model, and a typed shape would hide exactly those.
+   */
+  test("reads an agent back raw, with GET on its id", async () => {
+    const { client, seen } = clientWith({
+      body: {
+        agent_id: "agent-1",
+        conversation_config: { turn: { turn_timeout: 7 } },
+      },
+    });
+
+    const live = await client.getAgent("agent-1");
+
+    expect(seen[0]?.method).toBe("GET");
+    expect(seen[0]?.url).toBe(
+      "https://api.elevenlabs.io/v1/convai/agents/agent-1",
+    );
+    expect(live).toEqual({
+      agent_id: "agent-1",
+      conversation_config: { turn: { turn_timeout: 7 } },
+    });
   });
 
   test("updates an agent in place, with PATCH on its id", async () => {

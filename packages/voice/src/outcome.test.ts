@@ -169,6 +169,31 @@ describe("parseVerificationOutcome, the cases that decide the control", () => {
     expect(outcomeOf("No la reconozco")).toBe("denied");
   });
 
+  /**
+   * The answers the rewritten question of issue #250 actually got, on the live
+   * calls of 2026-09-13. The question no longer offers two words to pick from,
+   * so what comes back is a short sentence of the supplier's own, and
+   * `conv_7801m2cw1wxve2kv9yf768p3600f` answered "Sí, es mía". That read as
+   * `unclear` until these two phrases were added, and an unclear on a call where
+   * the supplier plainly confirmed costs the clerk the call again.
+   */
+  test("reads the own-words answers the new question gets", () => {
+    expect(outcomeOf("Sí, es mía")).toBe("confirmed");
+    expect(outcomeOf("Sí, nosotros la cambiamos")).toBe("confirmed");
+    expect(outcomeOf("Esa cuenta es mía, la abrimos hace dos meses")).toBe(
+      "confirmed",
+    );
+  });
+
+  /** The same two phrases under a negation, which is the expensive direction. */
+  test("reads those answers as denials when they are negated", () => {
+    expect(outcomeOf("No es mía")).toBe("denied");
+    expect(outcomeOf("Nosotros no la cambiamos")).toBe("denied");
+    expect(outcomeOf("Esa no es mía, nosotros no enviamos nada")).toBe(
+      "denied",
+    );
+  });
+
   test("only the supplier is scored, never the agent", () => {
     const agentOnly: VerificationTurn[] = [
       { role: "agent", text: "Confirmo que la cuenta es correcta." },

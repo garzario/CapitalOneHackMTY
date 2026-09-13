@@ -146,6 +146,15 @@ const UNSURE = [
  *
  * Each of these carries a verb or an object. "si" alone is deliberately absent,
  * and so is "ok", for the reason in the file header.
+ *
+ * Two of them were added from live calls of 2026-09-13 rather than from a list
+ * somebody imagined. `conv_7801m2cw1wxve2kv9yf768p3600f` answered the new
+ * question with "Sí, es mía", which this parser read as `unclear`, and a call
+ * where the supplier plainly confirmed and the ledger says unclear costs the
+ * clerk the telephone call the control just made. "La cambiamos" is the other
+ * half of the same question, which asks about the change as well as the digits.
+ * Both are safe against the negation rule below: "no la cambiamos" and "no es
+ * mía" put a negation immediately in front of the phrase and come back denials.
  */
 const CONFIRMATIONS = [
   "confirmo",
@@ -160,11 +169,13 @@ const CONFIRMATIONS = [
   "es nuestra",
   "es nuestro",
   "es mi cuenta",
+  "es mia",
   "es de nosotros",
   "somos nosotros",
   "esa es",
   "si cambiamos",
   "si la cambiamos",
+  "la cambiamos",
   "cambiamos de cuenta",
   "cambiamos de banco",
   "la abrimos",

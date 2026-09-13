@@ -15,18 +15,23 @@ import type { VerificationTurn } from "@hackmty/core";
 
 const AGENT_OPENING: VerificationTurn = {
   role: "agent",
-  text: "Hola, buen dia. Le llamo de parte de SentryOne, por un tema de pagos a proveedores. Hablo con Distribuidora Sintetica del Poniente?",
+  text: "Buen día. Le habla Alejandro, de la línea automática de pagos a proveedores de Metálicos del Norte. ¿Hablo con Distribuidora Sintetica del Poniente?",
   atSecond: 1,
 };
 
 /**
- * The question as the agent asks it when the account changed, which is the case
- * the control exists for. It asks about the change and the four digits in one
- * yes or no, and it reads no digits of the account paid before.
+ * The purpose and the question, in one agent turn, which is how the six live
+ * calls of 2026-09-13 came back: the supplier answers who they are, and the
+ * agent says why it called and asks in the same breath.
+ *
+ * It asks about the change and the four digits together, because that is the
+ * case the control exists for, and it reads no digit of the account paid before.
+ * It ends on a question the supplier answers in their own words: the two word
+ * either-or it used to end on is banned, per `BANNED_PHRASES` in script.ts.
  */
 const AGENT_QUESTION: VerificationTurn = {
   role: "agent",
-  text: "Recibimos una instruccion para depositarle $184,300.00 pesos a una cuenta que no es la que le hemos pagado antes, y que termina en 7 8 9 9. Solo necesito que me confirme si ustedes cambiaron su cuenta y si esa cuenta es de ustedes. Si o no?",
+  text: "Perfecto, gracias. Recibimos una instrucción para depositarle $184,300.00 pesos a una cuenta distinta de la que le hemos pagado antes, y antes de que salga el pago necesito confirmarla con ustedes. ¿Me confirma que ustedes cambiaron su cuenta y que la que termina en 7 8 9 9 es de ustedes?",
   atSecond: 9,
 };
 
