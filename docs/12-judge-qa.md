@@ -18,6 +18,62 @@ SAT loader and the CEP evidence (#43, #55, #35, #57) to `Apanawa`. The per-perso
 follow the board, because that is what a judge will see in the commits. TODO(garzario): reconcile
 `AGENTS.md` or the assignments before M4, so that both say the same thing.
 
+## Q&A cards
+
+Issue #75. One card per question the two Capital One tables actually asked, plus the three of the
+afternoon, in Spanish, each answer **under sixty words** so it is one breath rather than a paragraph,
+and each one owned by one of the four. These are the cards the hostile judge reads from at the
+rehearsal (`docs/14-process.md#the-75-rehearsal-protocol`), and the cards a teammate hands over on a
+phone while somebody else is mid-beat.
+
+Every card is the compression of a section further down this file, named in its last column. **The long
+section wins if the two disagree**, and the compression gets fixed in the same pull request. The stand
+pitch is written so that none of these has to be asked
+(`docs/11-pitch.md#the-stand-pitch-three-to-five-minutes`), so a card that still gets asked after the
+pitch is a defect in the pitch and the rehearsal log records which ones were asked.
+
+| # | Asked | Answer, under 60 words | Owner | Long version | w |
+|---|---|---|---|---|---|
+| 1 | Cual es el mercado | "Seis mil cuatrocientas setenta y seis empresas de once a doscientos cincuenta en Nuevo Leon, contadas una por una en el directorio del INEGI, seis mil ciento catorce metropolitanas. Doscientos cuarenta y seis mil nacional es el total, no el segmento. El filtro que lo define, treinta proveedores por semana, no lo publica nadie: los doscientos barridos lo miden." | Fabricio | [Table 2, question 7](#7-esta-interesante-ahora-acota-el-mercado-y-dinos-exactamente-quien-lo-vende-y-por-cual-canal) | 59 |
+| 2 | Mi papa tiene una PyME y habla con sus proveedores. No soy su usuario | "Correcto, usted no lo es. El usuario es la empresa cuya corrida del jueves pasa por una sola persona que no conoce a nadie por la voz. Y el WhatsApp del proveedor es justo el canal del atacante: confiar en la conversacion es el modo de falla, no la defensa. La perdida del 69-B no necesita fraude de nadie." | Fabricio | [Table 2, question 2](#2-my-father-has-a-pyme-and-talks-to-his-suppliers-constantly-i-am-not-your-user) | 59 |
+| 3 | Quien es la competencia | "La nombramos nosotros. La mitad fiscal retiene sin ver la cuenta: ValidX, Portal de Proveedores, 69b.mx, Tesio. La del dinero dispersa SPEI sin verificar a quien recibe: Clara, Xepelin. CONTPAQi tiene las dos mitades y su changelog muestra que no se cruzan al pagar. No encontramos a nadie que las venda juntas en una decision." | Fabricio | [Table 2, question 1](#1-do-you-know-who-your-competition-is-we-could-not-answer) | 55 |
+| 4 | Quien es exactamente el usuario | "La unica persona de administracion que corre los pagos en una empresa formal de once a doscientos cincuenta. No hay tesorero: once vacantes de tesoreria en Nuevo Leon contra ciento una de auxiliar contable, y eso es un tablero de empleo. El comprador es el dueno, a quien se le escala una retencion; el canal, el despacho contable." | Fabricio | [Afternoon, question 3](#3-who-exactly-is-the-target-user) | 58 |
+| 5 | Cuanta gente tiene este problema | "El INEGI mide cinco fraudes por cada cien unidades economicas al ano, y es un piso porque el noventa y tres punto nueve por ciento no se denuncio. Del lado fiscal, el SAT reporta unas dos mil auditorias a compradores de facturas falsas en veintidos meses. La interseccion de los dos no la publica nadie, y se lo digo antes." | Fabricio | [Afternoon, question 1](#1-how-many-people-have-this-problem-in-mexico-and-is-there-demand) | 60 |
+| 6 | A mano toma ocho minutos y con ustedes segundos. No nos importa | "Tiene razon, los minutos no valen nada. Lo que vale es la perdida que no ocurrio, y la corrida contesta en pesos: cuanto se detuvo, cuanto se libero, cuanto quedo en riesgo. Una factura de cien mil de subtotal detenida paga cincuenta y un meses, y un SPEI mal dirigido del mismo monto paga ciento once." | Patricio | [Table 2, question 4](#4-in-real-life-this-takes-8-minutes-and-with-your-product-it-takes-seconds-they-did-not-care) | 56 |
+| 7 | Y si llaman al proveedor y nadie contesta | "Nadie contestando es una respuesta, no un hueco: queda como no_answer y, si se oyo algo, con la frase exacta. El pago sigue detenido, porque la llamada nunca libera nada. En la misma respuesta viene el plazo y los siguientes pasos: volver a llamar, el centavo, o liberar con nombre y razon escrita." | Patricio | [Table 2, question 5a](#5a-what-if-the-person-does-not-answer-the-call) | 53 |
+| 8 | Y si es urgente y nadie contesta | "Se libera, y se libera bien, porque una retencion sin salida se brinca por fuera. Va con el nombre de quien decide y la razon escrita, y en pantalla estan los pesos en riesgo, la perdida esperada y lo que cuesta esperar un dia mas con ese proveedor. Queda en una bitacora que solo crece." | Patricio | [Table 2, question 5b](#5b-what-if-it-is-urgent-and-nobody-answers) | 55 |
+| 9 | Y si el calculo esta mal | "Los dos errores no cuestan lo mismo. Un falso positivo cuesta un retraso acotado, tres dias o uno, con el dia ya valuado por proveedor. Un falso negativo cuesta el monto completo y es irrevocable. Treinta y cinco casos etiquetados: ochenta y siete de precision, uno punto seis de falsos positivos, y doce de doce confiables." | Adan | [Table 2, question 5c](#5c-what-if-the-calculation-is-wrong-how-sure-are-you-about-the-percentages) | 56 |
+| 10 | No nos parecio un problema real | "Es falla del gancho. Si el SAT publica a tu proveedor en la lista del 69-B, las deducciones que ya tomaste se anulan hacia atras, con treinta dias para responder, y la lista cambio treinta y tres veces en doce meses. La exposicion la crea la publicacion, no el pago. No hace falta que nadie te defraude." | Patricio | [Table 2, question 6](#6-the-judges-looked-uninterested-it-did-not-seem-like-a-real-problem) | 57 |
+| 11 | Quien lo vende y por cual canal | "Los primeros seis meses lo vendemos nosotros, a compras y a finanzas, nunca a la auxiliar: ella lo opera y no lo firma. El abridor es el barrido gratuito de su propio registro de proveedores. Desde el mes seis, el despacho contable como revendedor: ciento cuarenta y tres en el estado, contados. La ruta larga es el banco." | Fabricio | [Table 2, question 7](#7-esta-interesante-ahora-acota-el-mercado-y-dinos-exactamente-quien-lo-vende-y-por-cual-canal) | 58 |
+| 12 | Marcan un pago como seguro y resulta fraude | "El producto nunca dice seguro: retiene, verifica o libera, con la evidencia de los seis controles y el nombre de quien decidio. Cuatro semanas en modo sombra sin cobrar, credito de servicio, y un make whole con tope de doce meses, diez mil setecientos ochenta y ocho pesos, el diez punto ocho por ciento de un SPEI de cien mil." | Fabricio | [Table 2, question 8](#8-you-mark-a-payment-as-safe-and-it-turns-out-to-be-fraud-what-does-the-client-get-194) | 60 |
+| 13 | Deberia el seguro venir incluido en la suscripcion | "No podemos suscribirlo: el articulo veinte de la ley de seguros lo reserva a aseguradoras autorizadas, el veinticuatro anula el contrato y el cuatrocientos noventa y cinco le pone prision. El canal licito es el ciento dos. Y no lo inventamos nosotros: Eftsure publica un millon de dolares con la misma condicion, que su motor haya aprobado el pago." | Fabricio | [Table 2, question 8](#8-you-mark-a-payment-as-safe-and-it-turns-out-to-be-fraud-what-does-the-client-get-194) | 59 |
+| 14 | Que porcentaje de las transferencias a proveedores se roba | "Nadie publica esa tasa, ni Banxico ni Condusef ni el INEGI. Lo publicado la acota entre dos por millon y siete por diez mil, con la derivacion en docs/04. Lo que si convierte: de cada peso reclamado por fraude regresa uno de cada cuatro, el veinticuatro punto tres por ciento, asi que el setenta y cinco punto siete no vuelve." | Fabricio | [Table 2, question 9](#9-what-percentage-of-supplier-transfers-in-mexico-is-stolen-we-answered-254-percent) | 60 |
+| 15 | La lista es publica y gratis. Por que no la consulto yo | "Porque la consulta no es lo dificil, la cadencia si, y ya se vende: ValidX y Portal de Proveedores barren a diario. Tiene que correr sobre cada proveedor en cada corrida, y otra vez hacia atras cada vez que el SAT publica, sobre facturas que ya pagaste y ya dedujiste. Revisar al dar de alta no protege nada." | Adan | [Shared answers](#shared-answers-anyone-can-give-these) | 58 |
+| 16 | El banco ya me muestra el nombre del beneficiario | "Uno si lo vende, HSBCnet, y unicamente para cuentas HSBC, por archivo y en horario. En general te lo muestra despues de capturar la cuenta y lo compara contra nada, porque el banco no tiene la factura. Nosotros comparamos el titular del comprobante firmado contra la razon social del CFDI, una vez por cuenta y no por pago." | Adan | [Shared answers](#shared-answers-anyone-can-give-these) | 58 |
+| 17 | Esto es un wrapper de un modelo de lenguaje | "No. El asistente lee y propone; ejecuta una persona. Siete herramientas, todas de lectura, y una que escriba no existe en el tipo. El nivel, el estado, la decision y los seis controles son funciones puras y probadas, y una prueba lee nuestro codigo y falla si aparece decide, score o recommend. Corre bun test sin red." | Patricio | [Shared answers](#shared-answers-anyone-can-give-these) | 57 |
+| 18 | Que es real y que es sintetico | "La lista del SAT es real: catorce mil doscientos treinta y cuatro registros descargados el doce de septiembre, guardados tal cual, y la puede consultar usted. El CEP es un documento real de Banxico y nuestro lector tambien; el de pantalla es el sintetico. Todo lo demas es sintetico y marcado, y un RFC real nunca toca evidencia fabricada." | Adan | [Shared answers](#shared-answers-anyone-can-give-these) | 59 |
+| 19 | Por que reglas y no un modelo | "Cuatro razones y las cuatro se califican: costo que escala con el volumen, latencia, no determinismo que no se puede probar unitariamente, y datos financieros saliendo del perimetro. La decision es deterministica y las pruebas corren aqui, sin red, enfrente de usted. El unico modelo transcribe, y su esquema no tiene donde quepa un veredicto." | Patricio | [Shared answers](#shared-answers-anyone-can-give-these) | 55 |
+| 20 | Que pasa a diez veces el volumen | "Los seis controles sobre un pago cuestan cero marginal, porque no hay inferencia en esa ruta: eso es arquitectura, no una estimacion. Leer una CLABE de una foto son fracciones de un centavo de dolar, y solo cuando llega como foto. Lo primero que se rompe es el abanico del stream, y se particiona por empresa." | Fabian | [Shared answers](#shared-answers-anyone-can-give-these) | 56 |
+| 21 | Por que Nessie, y que prueba | "Es el espejo bancario de la empresa, para que el sexto control tenga contra que conciliar. Es un sandbox de Capital One y no un banco: prueba el flujo completo y nada sobre los pesos. El riel que produce un CEP firmado esta escrito, se niega a correr sin contrato y nunca ha corrido en vivo." | Fabian | [Shared answers](#shared-answers-anyone-can-give-these) | 56 |
+| 22 | Que cortaron | "Cliente nativo de iOS, un sidecar de modelos en Python, nubes extra y cualquier integracion de patrocinador que no cargara peso: cuatro personas no mantienen cuatro superficies en treinta y seis horas. Y la regla estaba escrita antes de necesitarla: si a las cuatro no habia rebanada desplegada, se corta alcance y no se depura." | Patricio | [Shared answers](#shared-answers-anyone-can-give-these) | 55 |
+
+### How to use the cards
+
+- **Sixty words is the contract**, and the count is in the last column so it stays one. If an answer
+  needs more, the question is a conversation: give the card, then "lo abro si quiere", then the file.
+  Nobody reads a paragraph to a judge who is standing up.
+- **The owner answers.** If the owner is mid-beat, whoever is a step back says "te contesta <nombre> en
+  veinte segundos" rather than guessing. Two people answering the same question differently is the one
+  failure this sheet exists to prevent.
+- **A number that is not on a card and not on the screen is not said.** The answer is "no traigo ese
+  numero, se deriva en `docs/04-market.md`", which costs nothing and is much cheaper than being
+  corrected.
+- **Cards 9, 12 and 13 carry what moves.** Re-run `bun run eval` inside the hour before the judging
+  window and re-read card 9 off that output. Cards 12 and 13 are a proposal no lawyer has read, and that
+  sentence goes in the same breath.
+- **Cards 2, 6, 10 and 14 are the four that were answered badly the first time.** They are the ones to
+  say out loud at the rehearsal even if the hostile judge does not pick them.
+
 ## The three questions the judges actually asked
 
 On 2026-09-12 in the afternoon three Capital One judges came to the table and asked one of these
@@ -585,7 +641,7 @@ agrees. The line where the arithmetic decides on its own is `INS-2026-09-07-032`
 duplicate-invoice warning worth MXN 2,088.00 of expected loss and is released, because a day of
 delay with that supplier costs MXN 4,611.27. A critical finding can never be released that way, and
 that is the shape of `chooseRule` rather than a check bolted on the end. The numbers come from
-`scripts/eval.ts` over the thirty cases in `packages/seed/src/holdout/cases`, served by
+`scripts/eval.ts` over the thirty-five cases in `packages/seed/src/holdout/cases`, served by
 `GET /api/v1/metrics`, and they were re-run on this branch before this section was written. Read them
 off a fresh run, never from memory.
 
@@ -936,3 +992,9 @@ not anybody defrauds you, and keep the bracket for the question that asks for it
   in "Second table of 12 September" and the derivation behind it in `docs/04-market.md`.
 - If two people would answer differently, the answer is not written yet.
 - Every path named in this file has to exist when it is named. Check the paths at each milestone.
+- **[The cards](#qa-cards) are the compression and this sheet is the source.** A card that disagrees
+  with its own long section is a defect in the card, fixed in the same pull request, and never a licence
+  to say the card's version. Sixty words is the cap and the count sits in the card's last column.
+- **A card that still gets asked after the stand pitch is a defect in the pitch**, not in the card. The
+  rehearsal log in `docs/14-process.md#the-75-rehearsal-protocol` records which ones were asked, and the
+  fix goes into `docs/11-pitch.md` rather than into a longer answer here.
