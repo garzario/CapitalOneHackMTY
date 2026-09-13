@@ -331,8 +331,31 @@ describe("parseCfdi", () => {
       total: 183280,
       paymentMethod: "PUE",
       paymentForm: "03",
+      issuePlace: "64000",
       synthetic: true,
     });
+  });
+
+  it("keeps LugarExpedicion, and only when it is a postal code", () => {
+    /* The only geography a CFDI carries, and the invoice side of the plaza
+       comparison in `./clabe.ts`. A malformed place has to read as no place at
+       all: one that resolved to a state would disagree with every account the
+       supplier has ever been paid on. */
+    const cfdi = expectOk(
+      parseCfdi(CFDI_INGRESO_PUE_XML, SYNTHETIC_PARSE_OPTIONS),
+    );
+    expect(cfdi.issuePlace).toBe("64000");
+
+    for (const bad of ["", "6400", "640000", "64 00", "NL"]) {
+      const mangled = CFDI_INGRESO_PUE_XML.replace(
+        'LugarExpedicion="64000"',
+        `LugarExpedicion="${bad}"`,
+      );
+
+      expect(
+        expectOk(parseCfdi(mangled, SYNTHETIC_PARSE_OPTIONS)).issuePlace,
+      ).toBeUndefined();
+    }
   });
 
   it("parses the PPD fixture, two concepts and one IVA total", () => {

@@ -69,7 +69,11 @@ If the ADR is changed, change this section in the same PR.
   and app codes against, `src/decision.ts` is the sixth control, and `src/levels.ts` is the one
   place a confidence level and a transaction state are derived: `confidenceOf` and
   `transactionStateOf`, shared by the engine, the API, the screens and the generated mock so the
-  four cannot disagree about a line (ADR-0009).
+  four cannot disagree about a line (ADR-0009). `src/snapshot/` holds the plaza catalogue and its
+  README holds the rule that goes with it: that catalogue may put a NAME on three digits and nothing
+  else. It never raises a finding, never changes a severity, and a code it does not carry yields no
+  name and no claim, because it is not Banxico's file and the README says so in its first paragraph.
+  Read it before any screen, doc or finding quotes a plaza.
 - `packages/engine`, the six controls of ADR-0002 as one call, `runControls`. It exists only
   because `packages/sat` and `packages/cep` already depend on `packages/core`, so core cannot
   import them back. Adapters only: every rule lives in core.

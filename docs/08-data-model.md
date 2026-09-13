@@ -21,8 +21,8 @@ number.
 
 Transcribed from `packages/core/src/domain.ts`, including the fields the domain grew after the first
 schema landed: `Supplier.delayCostPerDay`, `PaymentComplement.paymentTotal` and `operationNumber`,
-`PaymentInstruction.audioRef` and `sentAt`, the CEP evidence fields, `ledger_tx` as a finding
-subject, and `verification_call`, `cent_sent` and `cep_awaited` as ledger events.
+`PaymentInstruction.audioRef` and `sentAt`, `Cfdi.issuePlace`, the CEP evidence fields, `ledger_tx`
+as a finding subject, and `verification_call`, `cent_sent` and `cep_awaited` as ledger events.
 
 ```mermaid
 erDiagram
@@ -76,6 +76,7 @@ erDiagram
     numeric total
     text payment_method "PUE or PPD"
     text payment_form "SAT c_FormaPago"
+    text issue_place "LugarExpedicion, the postal code the invoice was issued from"
     boolean synthetic
   }
   PAYMENT_COMPLEMENT {
@@ -218,7 +219,7 @@ question answered the other way.
 
 ## Migrations
 
-Nine files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
+Fourteen files, applied in order by `bun run migrate`. The list is `MIGRATIONS` in
 `packages/db/src/migrate.ts`, written out rather than discovered by reading the directory, so adding
 a file is a deliberate one-line change in a diff and a stray `.sql` left in the folder never runs.
 The plain files run first and the Timescale ones after, so a fresh database is fully usable even
@@ -238,6 +239,7 @@ laptops.
 | `0011_decision_reason.sql` | any Postgres 16+ | `decisions.reason`, the argument a person wrote when they overrode the engine, next to the name in `decided_by` |
 | `0012_assistant_and_payment_events.sql` | any Postgres 16+ | the five ledger event types the assistant panel and the payment execution append |
 | `0013_decision_actor_role.sql` | any Postgres 16+ | `decisions.decided_by_role`, the capacity the signature was given in, checked to the two roles of `ActorRole` |
+| `0014_cfdi_issue_place.sql` | any Postgres 16+ | `cfdis.issue_place`, the CFDI `LugarExpedicion`, which is the invoice half of the plaza comparison in control 2 |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |
@@ -536,6 +538,7 @@ and a re-seed of the company should not throw away a pull.
 | `sent_at timestamptz` nullable | Projected from the `payment_sent` event. Absent while the instruction is still pending, which is what separates "not paid yet" from "paid and missing from the bank mirror", and the second is a `bank_reconciliation` finding |
 | `decided_by text` nullable | Null until a person decides. The system proposes, a human disposes, and the column is the proof |
 | `decided_by_role text` nullable, checked | The capacity that name was acting in, from the `X-Actor` header of the request. It is the half an auditor reads first, because a release over a finding is the owner's exception to approve and a document printing only the name cannot tell that from a clerk exceeding theirs. Null for the same reason `decided_by` is, plus one more: `SYSTEM_DECIDER` is not a person and has no role. The check keeps the two roles of `ActorRole` so a third one is a migration rather than a typo in a request body |
+| `issue_place text` nullable | CFDI 4.0 `LugarExpedicion`, the five-digit postal code an invoice was issued from, and the only geography a CFDI carries. Control 2 compares it against the plaza in digits 4 to 6 of the beneficiary account, so this column is the only reason that comparison behaves the same on the deployed API as in the in-memory run: without it every invoice would come back from Postgres with no place and the geographic half of the control would go silent in production and nowhere else. Null is read as "no place" rather than as a place that disagrees, which is also what the API schema enforces by refusing anything that is not five digits at the edge |
 
 ## Synthetic data methodology
 
@@ -569,6 +572,9 @@ run of 92 invoices totalling MXN 673,460.27 over 42 suppliers while the generato
 | Pesos already out of the account | MXN 35,303,591.37 | the debits in the bank mirror |
 | Ledger events | 7997: 4103 `cfdi_received`, 3801 `complement_received`, 92 `instruction_received`, 1 `sat_list_published` | `toLedgerEvents`, in chronological order |
 | Article 69-B rows | 1, a synthetic RFC on version 2026-08-14 | taken verbatim from the synthetic snapshot in `@hackmty/sat` |
+| Plazas the known accounts sit in | 2: 41 of the 45 accounts in `580` and 4 in `598` | `PLAZA_BY_CITY` in `clabe.ts`, read off the committed plaza catalogue. `580` is the Monterrey metropolitan plaza and the four are the suppliers in Pesqueria, which the catalogue gives a plaza of its own |
+| Run lines naming a plaza outside Nuevo Leon | 1 of 92, in `180 (DISTRITO FEDERAL, DF)` | the seeded impostor account, and the only plaza finding in the run. The other 91 lines are in `580` or `598`, which is what makes the one line worth stopping |
+| `LugarExpedicion` on every CFDI | `64000`, which the product resolves to Nuevo Leon | `ISSUE_POSTAL_CODE`, one value for the dataset because the company and all 44 suppliers invoice from the Monterrey metropolitan area |
 
 **What the run size is not.** It is not padded to a target. It falls out of the cadence, and
 `RUN_SIZE_MIN` and `RUN_SIZE_MAX` are asserted so that editing the catalogue without noticing what
@@ -623,6 +629,42 @@ are the amount distribution and the PPD share. Cite the series by name or leave 
 empty cell is honest; a plausible number is not. The shape claims that are already checkable are the
 right-skew (mean over median 3.11, not 1.0) and the fact that the mirror reconciles to the cent
 against the complements and the transfers, which is a test name and not a claim.
+
+### The plaza catalogue, and why it is allowed to do only one thing
+
+`packages/core/src/snapshot/plazas-2026-09-13.csv` carries 786 plazas, `clave` and `nombre`, and it
+is the third committed reference dataset in this repository after the SAT 69-B list and the Banxico
+participant table. `packages/core/src/snapshot/README.md` is its provenance and it should be read
+before the catalogue is quoted anywhere, because its chain is the weakest of the three and the code
+is built around that fact rather than around the hope that it is not.
+
+What is primary is the definition. Banco de Mexico and the Asociacion de Bancos de Mexico publish the
+same sentence on their own FAQs: the plaza code is three digits, the city or region where the account
+is held, "de acuerdo a la definicion de claves de plaza definida para el servicio de cheques". What is
+not published by either of them is the catalogue itself, and the README carries the five repeatable
+checks that establish that absence: the CEP app exposes an institution endpoint and no plaza one, the
+Internet Archive index holds no Banxico URL containing the word, the one ABM URL that ever existed
+was already answering 404 in 2004, Circular 3/2012 and Circular 2019/95 contain no plaza table, and
+the DOF full-text search answers zero notes. The rows come instead from the plaza table published by
+STP, the SPEI participant `packages/rail` documents as the production rail.
+
+So the catalogue is permitted exactly one job, putting a name on three digits, and three properties
+hold in code rather than by convention:
+
+- A code the snapshot does not carry answers `undefined`. No name, no signal, no claim.
+- The snapshot never raises a finding and never changes a severity. `plaza_changed` is three digits
+  compared against the three digits of the accounts this company has actually paid, which is
+  arithmetic over our own ledger and needs no catalogue at all. The catalogue is read afterwards, to
+  write the sentence.
+- Every sentence that names a plaza prints the three digits beside the name, `180 (DISTRITO FEDERAL,
+  DF)`, so a reader checks the name against the committed file instead of trusting it.
+
+The postal-code side is smaller and is bounded on purpose. `POSTAL_PREFIX_STATES` maps two-digit
+postal prefixes to the states the synthetic dataset uses, which is Nuevo Leon and Mexico City, and a
+prefix it does not carry answers `undefined` and raises nothing. A 32-row national table written from
+memory would be a claim with no source. The primary national source exists, is downloadable and is
+named in the code: the SAT's `c_CodigoPostal` catalogue, published with the CFDI 4.0 catalogues.
+Importing it is a follow-on with its own snapshot and its own provenance.
 
 ## Hard negatives, and how they are measured
 

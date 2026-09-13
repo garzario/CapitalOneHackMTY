@@ -22,6 +22,7 @@ import {
 describe("parsePath", () => {
   test("maps each known path to its route", () => {
     expect(parsePath("/run")).toEqual({ name: "run" });
+    expect(parsePath("/payments")).toEqual({ name: "payments" });
     expect(parsePath("/intake")).toEqual({ name: "intake" });
     expect(parsePath("/sat")).toEqual({ name: "sat" });
     expect(parsePath("/cep")).toEqual({ name: "cep" });

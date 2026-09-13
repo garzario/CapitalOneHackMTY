@@ -905,7 +905,7 @@ export async function insertCfdis(
 }
 
 const CFDI_COLUMNS = `uuid, serie, folio, issued_at, issuer_rfc, issuer_name, receiver_rfc,
-  subtotal, iva, total, payment_method, payment_form, synthetic`;
+  subtotal, iva, total, payment_method, payment_form, issue_place, synthetic`;
 
 /**
  * The invoice history of one supplier, newest first. This is the series the

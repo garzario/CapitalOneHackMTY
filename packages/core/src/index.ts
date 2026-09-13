@@ -15,6 +15,7 @@ export * from "./hold";
 export * from "./levels";
 export * from "./money";
 export * from "./network";
+export * from "./plazas";
 export * from "./reconciliation";
 export * from "./rolling";
 export * from "./types";

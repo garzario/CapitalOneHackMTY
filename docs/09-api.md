@@ -610,7 +610,7 @@ curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' \
   | jq '.lists | map({article, answered, coverage, listed})'
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
-  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
+  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180102091764611","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' \
   | jq '{totalExposure, rescored: [.rescored[] | {instructionId, before, after: .decision.action}]}'

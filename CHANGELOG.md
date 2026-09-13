@@ -77,6 +77,56 @@ then the screens, then the narrative, then the plumbing.
   owner reopened), `docs/08-data-model.md` adds the two domain types with no storage and the field note
   on an absent `actor`, and `docs/09-api.md` carries the five keys, the cancellation and three more
   lines a judge can paste.
+- The plaza of a CLABE as a signal control 2 can name, and the geography comparison neither document
+  can make alone (issue #203). Digits 4 to 6 of an account number are the plaza the branch that
+  opened it belongs to, and `detectClabe` already compared those three digits against the three
+  digits of the accounts a supplier had actually been paid on. What it could not do was say where
+  that is. `packages/core/src/snapshot/plazas-2026-09-13.csv` is the 786-row catalogue that closes
+  the gap, `lookupPlaza` and `plazaLabel` in `packages/core/src/plazas.ts` read it, and the finding
+  now names both places with both codes: "Cambio la plaza dentro del mismo banco: la cuenta conocida
+  esta en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF)". The second
+  comparison is new. `Cfdi.issuePlace` carries `LugarExpedicion`, the postal code a CFDI was issued
+  from and the only geography an invoice has, the parser reads it, `0013_cfdi_issue_place.sql` stores
+  it so the deployed API behaves like the in-memory one, and `plaza_off_invoice` fires when the plaza
+  of a new account and the state of the invoices it settles disagree. A brand-new account with no
+  history raises the level for lack of information and says so in those words:
+  `NO_PLAZA_HISTORY` reaches the evidence and `confidenceOf` answers `precaucion` under
+  `new_account_without_history`, which is the join a test asserts.
+
+  **The provenance is the part to read before quoting any of this, and `packages/core/src/snapshot/README.md`
+  says it in its first paragraph: this is not Banxico's file, because Banxico does not publish one.**
+  What is primary is the definition, and Banco de Mexico and the ABM publish the same sentence on
+  their own FAQs, three digits and a cheque-service plaza key. The catalogue itself is published by
+  neither, and the README carries five repeatable checks that establish the absence rather than
+  asserting it: the CEP app exposes an institution endpoint and no plaza one, the Internet Archive
+  index holds no Banxico URL containing the word, the single ABM URL that ever existed was already
+  answering 404 when it was captured in 2004, Circular 3/2012 and Circular 2019/95 contain no plaza
+  table, and the DOF full-text search answers zero notes. The rows come from the plaza table STP
+  publishes, the SPEI participant `packages/rail` documents as the production rail, whose help-centre
+  article now answers a login page, so the bytes were read from a public copy whose `sha256` the
+  README records. That chain buys exactly one permission and the code enforces it: the catalogue puts
+  a name on three digits, a code it does not carry yields no name and no signal, it never raises a
+  finding and never changes a severity, and every sentence that names a plaza prints the digits
+  beside the name so a reader checks the file instead of trusting us. `POSTAL_PREFIX_STATES` is
+  bounded the same way, the states the synthetic dataset uses and no more, with the SAT
+  `c_CodigoPostal` catalogue named as the national source and the import left as a follow-on, because
+  a 32-row national table written from memory would be a claim with no source.
+
+  The seeded dataset moved with it, and the TODO that asked for this is now answered rather than
+  deleted. `MTY_PLAZA_CODE` was `180`, and `180` is `DISTRITO FEDERAL`: the comment in
+  `packages/seed/src/sentryone/clabe.ts` had been asking since the generator was written for somebody
+  to check it before the detector treated a plaza mismatch as evidence, and it was right about the
+  cost of being wrong. The Monterrey metropolitan plaza is `580`, Pesqueria has `598` of its own, so
+  all 45 known accounts, the company's own account and the 92 run lines were re-minted into the plaza
+  of the municipality that banks there, ids and amounts untouched. The hero line is the case this was
+  built for: `INS-2026-09-07-047` now pays `012180102091764611` against the `012580100091764611` that
+  supplier has been paid on 52 times, two digits apart with a valid check digit as before, except one
+  of the two digits is the plaza, so the money would leave Nuevo Leon. `bun run demo` asserts that
+  line carries `plaza_changed` with both places named and that the seeded line contradicts the
+  `LugarExpedicion` of its own invoices, and a same-plaza account change still raises no plaza signal
+  at all, which is the half that keeps the control usable: 91 of the 92 lines are in `580` or `598`
+  and exactly one is not. Every peso figure in `docs/10-demo-script.md` is unchanged, because the
+  plaza adds a sentence and a chip and never a severity.
 - Where the software actually plugs into somebody else's stack, researched with a source and an
   unverified column per surface (issue #205). Six of them in `docs/05`, ranked by what they cost and
   by whether anybody has to agree to anything: the dispersal layout the ERP already exports and the
@@ -269,6 +319,55 @@ then the screens, then the narrative, then the plumbing.
   provider in front of the API to per-company tenancy, none of which is in this repository. The
   clerk's identity is personal data about an employee and is treated under the obligations of 4.2
   like everything else on that page.
+
+- The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
+  `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
+  level and their state, "Enviar corrida" behind a second press and a name, the progress line by line
+  as the rail answers, the receipt of every payment that left, the run constancia and the bank layout
+  export. The lines the run does not take sit in their own table with the sentence that says why,
+  because a payment that disappears quietly is a payment somebody believes they made.
+
+  The part worth reading is `apps/web/src/lib/payments.ts`, which answers two different questions with
+  two different fields instead of collapsing them into one. Whether the run TAKES a line is the
+  decision, because `POST /api/v1/run/:id/execute` hands the rail every released line and nothing
+  else; whether a line the run took will be PAID is `transactionStateOf`, because a released line
+  whose beneficiary came back blocked, or whose supplier is definitively listed with nobody's
+  signature over it, reads `cancelado` and comes back off the rail as a `cancelled` line carrying a
+  reason. Collapsing the two is how a screen either hides a payment that was refused or offers one the
+  API was never going to send, and the generated run has one line of each kind, so both cases are on
+  screen rather than in a comment. Neither the level nor the state is computed here: `confidenceOf`
+  and `transactionStateOf` in `packages/core` answer both, the API's own `confidence` and `state` are
+  used when the payload carries them, and the module adds only the Spanish sentence under a state,
+  quoting the engine's own `explanation` or the rail's own `reason` rather than composing a second
+  account of one event.
+
+  Nothing leaves without a person and the screen is built so that is visible rather than claimed. The
+  name of whoever sends the run is a field on the page, it travels on `X-Actor`, the ledger records it
+  per line, and the button refuses to work without it. The confirmation press names the count and the
+  pesos and says that a SPEI does not come back. `GET /api/v1/rails` is what lets the screen say which
+  rail is live without reading an environment file: on the Nessie mirror it states that the sandbox
+  registers the outflow, moves no pesos and produces no CEP, which is why the receipt reads "sello no
+  verificado", and on STP it says the rail has never run live from this repository. A server with no
+  rail repeats the sentence `packages/rail` wrote instead of a paraphrase.
+
+  The layout export is the no-API path a small company actually uses: a CSV in SentryOne's own
+  columns, one row per line, and the screen says out loud that every bank publishes its own template
+  so the file is adjusted to the portal before it is uploaded. It carries only a line that may be paid
+  and that no rail is holding, which are the same two refusals the execute endpoint follows: a file
+  with a held payment in it would be the control being bypassed by the export, and a file repeating a
+  transfer already on the rail is how a supplier gets paid twice.
+
+  The stream rides `streamSse` and `sse.ts`, which the assistant panel landed for the same reason
+  this needed them: `EventSource` issues a bare GET and the execute stream starts with `confirm: true`
+  and an actor header. `executeRun` adds only what a frame means, a `line` per payment and a `done`
+  carrying the whole `PaymentExecution`, and it never retries, because a retried execute is a second
+  request to move money and the endpoint is idempotent per instruction precisely so a person decides
+  that rather than a client. The screen also listens on `GET /api/v1/events` and re-reads the
+  execution on any `payment_*` event, so a second screen watching the run moves with the first, and
+  folding a line is idempotent per instruction so the two channels delivering the same payment cannot
+  double it. Under `?data=mock` nothing opens at all: the generated execution is replayed line by line
+  in the browser, so the review, the progress, the receipts and the export are demonstrable on a phone
+  in a corridor.
 
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now

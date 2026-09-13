@@ -26,6 +26,11 @@ import type {
   Confidence,
   ConfidenceRule,
   Decision,
+  PaymentExecution as DomainPaymentExecution,
+  PaymentExecutionLine as DomainPaymentExecutionLine,
+  PaymentExecutionTotals as DomainPaymentExecutionTotals,
+  PaymentLineState as DomainPaymentLineState,
+  PaymentReceipt as DomainPaymentReceipt,
   VerificationState as DomainVerificationState,
   VerificationStateName as DomainVerificationStateName,
   EvidenceValue,
@@ -115,7 +120,17 @@ export interface PaymentRunTotals {
   liberado: number;
 }
 
-/** One row of the payment-run table. */
+/**
+ * One row of the payment-run table.
+ *
+ * `confidence` and `state` are the two fields ADR-0009 puts on every line, and
+ * `docs/09-api.md` shows them being read straight off an item of this payload.
+ * They are optional here for one reason and it is not laziness: they are derived
+ * and never stored, so a server that has not shipped them yet is still answering
+ * the documented shape for everything else, and `payments.ts` falls back to the
+ * same two pure functions in `@hackmty/core` the API itself calls. What a screen
+ * may never do is compute a third answer of its own.
+ */
 export interface PaymentRunItem {
   instruction: PaymentInstruction;
   supplier: Supplier;
@@ -128,17 +143,22 @@ export interface PaymentRunItem {
    * whole vocabulary and ADR-0009 forbids a probability on any screen.
    *
    * Optional on this mirror, and that is deliberate rather than sloppy. The API
-   * always answers them; offline, `RUN_ITEMS` in `mock.ts` is assembled by hand and
-   * `LEVELS_BY_INSTRUCTION` in the generated `mock-data.ts` is where the offline
-   * level and state already live, keyed by instruction id, derived from the mock
+   * always answers all five; offline, `RUN_ITEMS` in `mock.ts` is assembled by hand
+   * and `LEVELS_BY_INSTRUCTION` in the generated `mock-data.ts` is where the offline
+   * level and state already live, keyed by instruction id and derived from the mock
    * verifications and the mock execution as well as the decision. Writing them onto
    * the row too would be two offline copies of one pair, which is the failure this
-   * whole vocabulary exists to prevent. Issue 208 is where the chips pick one.
+   * whole vocabulary exists to prevent.
    */
+  /** `confiable`, `precaucion` or `alerta`, from `confidenceOf`. Never a number. */
   confidence?: Confidence;
+  /** Which rule of the ADR-0009 table produced that level. */
   confidenceRule?: ConfidenceRule;
+  /** The findings behind the level, so a chip is never shown without evidence. */
   confidenceFindingIds?: string[];
+  /** Where the line stands, from `transactionStateOf`. */
   state?: TransactionState;
+  /** Which state rule produced it. */
   stateRule?: TransactionStateRule;
 }
 
@@ -377,6 +397,82 @@ export interface VerifyCallScript {
 /** The same 422 body, plus the script, when the voice integration is absent. */
 export interface VerifyCallUnavailable extends ApiErrorBody {
   script: VerificationScriptText;
+}
+
+/* ------------------------------------------------------------- the payments */
+
+/**
+ * Where one line of an executed run stands on the rail, and the five states are
+ * the domain's: `queued`, `sent`, `settled`, `failed`, `cancelled`.
+ *
+ * `sent` and `settled` are never collapsed on a screen of this product. ADR-0008
+ * is explicit about why: a transfer is acknowledged when the rail says so and not
+ * when we asked, and a receipt is only complete on the second claim.
+ */
+export type PaymentLineState = DomainPaymentLineState;
+
+/** One payment of an executed run, as the rail left it. */
+export type PaymentExecutionLine = DomainPaymentExecutionLine;
+
+/** Line counts and pesos of one execution, one bucket per line state. */
+export type PaymentExecutionTotals = DomainPaymentExecutionTotals;
+
+/**
+ * `GET /api/v1/run/:id/execution`, and the `done` event of the execute stream.
+ *
+ * A run nobody has executed answers `200` with no lines and zeroed totals rather
+ * than a `404`, because "nothing has been sent" is an answer. The screen renders
+ * that as the review before the run leaves, which is the state it opens in.
+ */
+export type PaymentExecution = DomainPaymentExecution;
+
+/**
+ * `GET /api/v1/payments/:id/receipt`, the same object as JSON and as the PDF.
+ *
+ * Two honesty rules travel in the type rather than in a reviewer's memory:
+ * `sealState` is a `SealState` and never a boolean, so a receipt from a rail that
+ * produces no CEP reads "sello no verificado"; and the beneficiary account is four
+ * digits, because a document that leaves the building does not need the other
+ * fourteen.
+ */
+export type PaymentReceipt = DomainPaymentReceipt;
+
+/**
+ * `POST /api/v1/run/:id/execute`.
+ *
+ * `confirm` is literally `true` in the type, so a caller cannot reach the endpoint
+ * without writing the word: nothing in this product sends money on a default.
+ * `instructionIds` can only narrow the set the decisions already allow, never
+ * widen it, and a request that names a line something stops is refused with a
+ * `409` that says which one.
+ */
+export interface ExecuteRunBody {
+  instructionIds?: string[];
+  confirm: true;
+}
+
+/** One row of `GET /api/v1/rails`: what this build has, never what it holds. */
+export interface RailRow {
+  id: RailId;
+  /** Whether the variables exist. Never a key, an account or a fingerprint. */
+  configured: boolean;
+  producesCep: boolean;
+  /** Whether that rail has ever actually moved money from this repository. */
+  live: boolean;
+  detail: string;
+}
+
+/**
+ * `GET /api/v1/rails`, which exists so a screen can say which rail is live
+ * without reading an environment file it cannot see.
+ *
+ * `active` is null on a server with no rail, and `message` is then the sentence
+ * `packages/rail` wrote. No secret is ever in this payload.
+ */
+export interface RailsStatus {
+  active: RailId | null;
+  rails: RailRow[];
+  message?: string;
 }
 
 /** `POST /api/v1/seed`, development only, guarded by ALLOW_SEED=1. */

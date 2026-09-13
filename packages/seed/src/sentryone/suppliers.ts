@@ -127,7 +127,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 90000, max: 320000 },
     termsDays: 30,
     tenureMonths: 64,
-    clabe: "072180100000000007",
+    clabe: "072580100000000005",
   },
   {
     rfc: "SYN990202S02",
@@ -138,7 +138,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 9000, max: 52000 },
     termsDays: 30,
     tenureMonths: 58,
-    clabe: "012180100091764613",
+    clabe: "012580100091764611",
   },
   {
     rfc: "SYN000303S03",
@@ -149,7 +149,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2800, max: 14000 },
     termsDays: 45,
     tenureMonths: 41,
-    clabe: "058180100183529225",
+    clabe: "058598100183529228",
   },
   {
     rfc: "SYN010404S04",
@@ -160,7 +160,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 55000, max: 190000 },
     termsDays: 45,
     tenureMonths: 72,
-    clabe: "072180100275293830",
+    clabe: "072580100275293838",
   },
   {
     rfc: "SYN020505S05",
@@ -171,7 +171,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1800, max: 9500 },
     termsDays: 15,
     tenureMonths: 36,
-    clabe: "014180100367058446",
+    clabe: "014580100367058444",
   },
   {
     rfc: "SYN030606S06",
@@ -182,7 +182,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1400, max: 7200 },
     termsDays: 30,
     tenureMonths: 29,
-    clabe: "002180100458823055",
+    clabe: "002580100458823053",
   },
   {
     rfc: "SYN040707S07",
@@ -193,7 +193,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 480, max: 3200 },
     termsDays: 15,
     tenureMonths: 81,
-    clabe: "012180100550587661",
+    clabe: "012580100550587669",
   },
   {
     rfc: "SYN050808S08",
@@ -204,7 +204,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 15000, max: 78000 },
     termsDays: 30,
     tenureMonths: 67,
-    clabe: "072180100642352278",
+    clabe: "072580100642352276",
   },
   {
     rfc: "SYN060909S09",
@@ -215,7 +215,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 9000, max: 48000 },
     termsDays: 60,
     tenureMonths: 52,
-    clabe: "058180100734116883",
+    clabe: "058580100734116881",
   },
   {
     rfc: "SYN071010S10",
@@ -226,7 +226,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 11000, max: 56000 },
     termsDays: 30,
     tenureMonths: 47,
-    clabe: "014180100825881498",
+    clabe: "014580100825881496",
   },
   {
     rfc: "SYN081111S11",
@@ -237,7 +237,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 950, max: 5200 },
     termsDays: 15,
     tenureMonths: 55,
-    clabe: "127180100917646108",
+    clabe: "127580100917646106",
   },
   {
     rfc: "SYN091212S12",
@@ -248,7 +248,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 620, max: 3400 },
     termsDays: 15,
     tenureMonths: 44,
-    clabe: "002180101009410719",
+    clabe: "002580101009410717",
   },
   {
     rfc: "SYN100113S13",
@@ -259,7 +259,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2100, max: 11000 },
     termsDays: 30,
     tenureMonths: 38,
-    clabe: "012180101101175324",
+    clabe: "012580101101175322",
   },
   {
     rfc: "SYN110214S14",
@@ -270,7 +270,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 740, max: 4100 },
     termsDays: 30,
     tenureMonths: 33,
-    clabe: "044180101192939932",
+    clabe: "044580101192939930",
   },
   {
     rfc: "SYN120315S15",
@@ -281,7 +281,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1100, max: 5800 },
     termsDays: 15,
     tenureMonths: 76,
-    clabe: "072180101284704542",
+    clabe: "072580101284704540",
   },
   {
     rfc: "SYN130416S16",
@@ -292,7 +292,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2400, max: 12500 },
     termsDays: 30,
     tenureMonths: 26,
-    clabe: "058180101376469159",
+    clabe: "058580101376469157",
   },
   {
     rfc: "SYN140517S17",
@@ -303,7 +303,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 5000, max: 31000 },
     termsDays: 30,
     tenureMonths: 31,
-    clabe: "012180101468233763",
+    clabe: "012580101468233761",
   },
   {
     rfc: "SYN150618S18",
@@ -314,7 +314,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 70000, max: 240000 },
     termsDays: 45,
     tenureMonths: 49,
-    clabe: "014180101559998371",
+    clabe: "014580101559998379",
   },
   {
     rfc: "SYN160719S19",
@@ -325,7 +325,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 3600, max: 18000 },
     termsDays: 45,
     tenureMonths: 22,
-    clabe: "002180101651762983",
+    clabe: "002598101651762986",
   },
   {
     rfc: "SYN170820S20",
@@ -336,7 +336,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2900, max: 15000 },
     termsDays: 30,
     tenureMonths: 40,
-    clabe: "072180101743527590",
+    clabe: "072580101743527598",
   },
   {
     rfc: "SYN180921S21",
@@ -347,7 +347,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 860, max: 4700 },
     termsDays: 15,
     tenureMonths: 61,
-    clabe: "012180101835292201",
+    clabe: "012580101835292209",
   },
   {
     rfc: "SYN191022S22",
@@ -358,7 +358,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 80000, max: 300000 },
     termsDays: 60,
     tenureMonths: 57,
-    clabe: "058180101927056814",
+    clabe: "058580101927056812",
   },
   {
     rfc: "SYN201123S23",
@@ -369,7 +369,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2200, max: 11500 },
     termsDays: 30,
     tenureMonths: 35,
-    clabe: "014180102018821425",
+    clabe: "014580102018821423",
   },
   {
     rfc: "SYN211224S24",
@@ -380,7 +380,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1150, max: 6200 },
     termsDays: 15,
     tenureMonths: 28,
-    clabe: "044180102110586036",
+    clabe: "044580102110586034",
   },
   {
     rfc: "SYN220125S25",
@@ -391,7 +391,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 75000, max: 260000 },
     termsDays: 60,
     tenureMonths: 69,
-    clabe: "072180102202350647",
+    clabe: "072580102202350645",
   },
   {
     rfc: "SYN980226S26",
@@ -402,7 +402,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 32000, max: 130000 },
     termsDays: 45,
     tenureMonths: 24,
-    clabe: "012180102294115258",
+    clabe: "012580102294115256",
   },
   {
     rfc: "SYN990327S27",
@@ -413,7 +413,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1700, max: 9000 },
     termsDays: 30,
     tenureMonths: 50,
-    clabe: "002180102385879866",
+    clabe: "002580102385879864",
   },
   {
     rfc: "SYN000428S28",
@@ -424,7 +424,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1600, max: 8400 },
     termsDays: 30,
     tenureMonths: 19,
-    clabe: "127180102477644473",
+    clabe: "127580102477644471",
   },
   {
     rfc: "SYN010501S29",
@@ -435,7 +435,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 530, max: 2900 },
     termsDays: 15,
     tenureMonths: 63,
-    clabe: "058180102569409080",
+    clabe: "058580102569409088",
   },
   {
     rfc: "SYN020602S30",
@@ -446,7 +446,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 4800, max: 24000 },
     termsDays: 30,
     tenureMonths: 43,
-    clabe: "014180102661173698",
+    clabe: "014580102661173696",
   },
   {
     rfc: "SYN030703S31",
@@ -457,7 +457,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2600, max: 13500 },
     termsDays: 15,
     tenureMonths: 37,
-    clabe: "072180102752938302",
+    clabe: "072580102752938300",
   },
   {
     rfc: "SYN040804S32",
@@ -468,7 +468,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 2300, max: 12000 },
     termsDays: 30,
     tenureMonths: 32,
-    clabe: "012180102844702914",
+    clabe: "012580102844702912",
   },
   {
     rfc: "SYN050905S33",
@@ -479,7 +479,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 3100, max: 16000 },
     termsDays: 30,
     tenureMonths: 21,
-    clabe: "002180102936467520",
+    clabe: "002598102936467523",
   },
   {
     rfc: "SYN061006S34",
@@ -490,7 +490,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 13000, max: 62000 },
     termsDays: 45,
     tenureMonths: 54,
-    clabe: "044180103028232138",
+    clabe: "044580103028232136",
   },
   {
     rfc: "SYN071107S35",
@@ -501,7 +501,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1300, max: 6800 },
     termsDays: 15,
     tenureMonths: 46,
-    clabe: "058180103119996748",
+    clabe: "058580103119996746",
   },
   {
     rfc: "SYN081208S36",
@@ -512,7 +512,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 410, max: 2600 },
     termsDays: 15,
     tenureMonths: 70,
-    clabe: "012180103211761354",
+    clabe: "012580103211761352",
   },
   {
     rfc: "SYN090109S37",
@@ -523,7 +523,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 780, max: 4300 },
     termsDays: 15,
     tenureMonths: 27,
-    clabe: "127180103303525966",
+    clabe: "127580103303525964",
   },
   {
     rfc: "SYN100210S38",
@@ -534,7 +534,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 1900, max: 9800 },
     termsDays: 30,
     tenureMonths: 59,
-    clabe: "072180103395290574",
+    clabe: "072580103395290572",
   },
   {
     rfc: "SYN110311S39",
@@ -545,7 +545,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 20000, max: 95000 },
     termsDays: 45,
     tenureMonths: 30,
-    clabe: "014180103487055180",
+    clabe: "014580103487055188",
   },
   {
     rfc: "SYN120412S40",
@@ -556,7 +556,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 24000, max: 110000 },
     termsDays: 45,
     tenureMonths: 23,
-    clabe: "002180103578819797",
+    clabe: "002580103578819795",
   },
   {
     rfc: "SYN130513S41",
@@ -567,7 +567,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 5500, max: 33000 },
     termsDays: 30,
     tenureMonths: 42,
-    clabe: "058180103670584408",
+    clabe: "058580103670584406",
   },
   {
     rfc: "SYN140614S42",
@@ -578,7 +578,7 @@ export const SENTRYONE_SUPPLIERS: readonly SentryOneSupplierSpec[] = [
     ticket: { min: 670, max: 3700 },
     termsDays: 15,
     tenureMonths: 34,
-    clabe: "012180103762349018",
+    clabe: "012580103762349016",
   },
 ];
 
