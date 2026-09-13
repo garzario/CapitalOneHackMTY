@@ -24,7 +24,9 @@
  * a demo where the control still works, slower.
  *
  * **The account is never spoken in full.** The script carries four digits. The
- * ledger event carries four digits. Neither carries the CLABE.
+ * ledger event carries four digits. Neither carries the CLABE, and neither does
+ * the agent the provider stores: the per-call words travel as dynamic variables
+ * and the account the supplier was paid on before is never read out at all.
  *
  * **A hand-recorded call carries the name of whoever recorded it.** `recordedBy`
  * travels from the request onto the `verification_call` event, because the
@@ -294,6 +296,11 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
             agentId: config.agentId,
             agentPhoneNumberId: config.phoneNumberId,
             toNumber: body.toNumber,
+            /* This instruction's own words, per call. The agent the provider
+               stores carries the rules and empty slots, so the supplier, the
+               amount and the four digits never sit in somebody else's
+               dashboard. */
+            dynamicVariables: script.variables,
           })
           .catch(asVoiceError);
 
