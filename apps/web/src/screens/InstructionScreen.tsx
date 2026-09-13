@@ -7,6 +7,7 @@
  */
 
 import type { Action } from "@hackmty/core";
+import { AnimatePresence } from "motion/react";
 import { useCallback, useState } from "react";
 import { ActionBar } from "../components/Decision";
 import { FindingPanel } from "../components/Findings";
@@ -246,12 +247,17 @@ export function InstructionScreen({ id }: { id: string }) {
             )}
           </section>
 
-          {drawerOpen ? (
-            <SupplierDrawer
-              rfc={resource.data.supplier.rfc}
-              onClose={() => setDrawerOpen(false)}
-            />
-          ) : null}
+          {/* Mounted through AnimatePresence so the drawer leaves the way it
+              arrived. The condition stays inside it: a closed drawer is still
+              absent from the tree. */}
+          <AnimatePresence>
+            {drawerOpen ? (
+              <SupplierDrawer
+                rfc={resource.data.supplier.rfc}
+                onClose={() => setDrawerOpen(false)}
+              />
+            ) : null}
+          </AnimatePresence>
         </>
       ) : null}
     </>

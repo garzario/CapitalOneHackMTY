@@ -80,8 +80,12 @@ export function StatusCard() {
         <h2 id="api-status-heading" className="eyebrow">
           Estado de la API
         </h2>
+        {/* The dot breathes only while a request is actually in flight, so the
+            movement is the answer to "is it doing something", not decoration
+            that runs forever. */}
         <span
           aria-hidden="true"
+          data-checking={isChecking ? "true" : "false"}
           className="status-dot mt-1"
           style={{ backgroundColor: DOT_COLOR[status.kind] }}
         />

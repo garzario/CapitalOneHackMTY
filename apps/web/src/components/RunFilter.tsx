@@ -13,6 +13,7 @@
  * of that reimplemented by hand is a version that gets it slightly wrong.
  */
 
+import { motion, useReducedMotion } from "motion/react";
 import { formatCount } from "../lib/format";
 import type { RunCounts, RunFilter } from "../lib/run-view";
 
@@ -35,6 +36,8 @@ export function RunFilterControl({
   counts: RunCounts;
   onChange: (next: RunFilter) => void;
 }) {
+  const reduceMotion = useReducedMotion();
+
   return (
     <div
       className="segmented"
@@ -50,6 +53,22 @@ export function RunFilterControl({
             checked={value === option.value}
             onChange={() => onChange(option.value)}
           />
+          {/* The pill the selected option sits on, rendered only under the
+              option that owns it. Sharing one layoutId across the three makes
+              a filter change a move rather than a disappearance and a birth,
+              so the thumb travels to the word you picked and the eye follows
+              it instead of looking for it. */}
+          {value === option.value ? (
+            <motion.span
+              aria-hidden="true"
+              layoutId="run-filter-thumb"
+              className="segment-thumb"
+              transition={{
+                duration: reduceMotion ? 0 : 0.16,
+                ease: [0.2, 0.8, 0.2, 1],
+              }}
+            />
+          ) : null}
           <span className="segment-face">
             {option.label}
             <span className="segment-count">

@@ -357,6 +357,11 @@ const CONTRAST_PROBE = `(() => {
     ["--c-ink", "--c-accent-tint", 4.5, "the run figure on its tinted card"],
     ["--c-ink-muted", "--c-accent-tint", 4.5, "supporting text on the tint"],
     ["--c-ink-subtle", "--c-accent-tint", 4.5, "the totals' labels on the tint"],
+    // The run bar is three non-text indicators on that same tint, which is the
+    // only ground in the app where they are not measured against white.
+    ["--c-hold", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
+    ["--c-verify", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
+    ["--c-release", "--c-accent-tint", 3, "run bar segment on the tinted figure"],
     ["--c-border-strong", "--c-surface", 3, "a strong border"],
     // The rail is a navy brand panel with its own small palette. None of the
     // pairs above touch it, and it is the one surface on every screen.

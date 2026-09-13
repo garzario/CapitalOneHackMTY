@@ -162,6 +162,42 @@ describe("runVerdict", () => {
     expect(verdict.releasedAmount).toBe(100_000);
   });
 
+  test("splits the stopped figure into held and to verify", () => {
+    /* The bar under the figure paints these two next to the released amount,
+       so a split that does not add back up to `stoppedAmount` would draw a
+       bar that contradicts the number above it. */
+    const verdict = runVerdict(
+      run([
+        item("h", "hold", 500_000),
+        item("v", "verify", 231_910.5),
+        item("r", "release", 100_000),
+      ]),
+    );
+
+    expect(verdict.heldAmount).toBe(500_000);
+    expect(verdict.toVerifyAmount).toBe(231_910.5);
+    expect(verdict.heldAmount + verdict.toVerifyAmount).toBe(
+      verdict.stoppedAmount,
+    );
+  });
+
+  test("leaves the verify half at zero when nothing is awaiting a call", () => {
+    /* A run of holds alone must not leave an amber segment in the bar, and
+       the empty segment is the one that is easy to leave behind when the
+       amounts are accumulated in the same loop. */
+    const verdict = runVerdict(
+      run([
+        item("a", "hold", 40),
+        item("b", "hold", 2),
+        item("c", "release", 9),
+      ]),
+    );
+
+    expect(verdict.toVerifyAmount).toBe(0);
+    expect(verdict.heldAmount).toBe(42);
+    expect(verdict.stoppedAmount).toBe(42);
+  });
+
   test("reads the items and never the totals", () => {
     /* The bug this pins: offline, pressing Retener rewrites one item and
        leaves `run.totals` untouched. A headline computed from the totals then

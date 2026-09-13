@@ -18,6 +18,7 @@ import { DETECTOR_LABEL } from "../lib/labels";
 import { instructionPath, Link } from "../lib/router";
 import type { RunVerdict as Verdict } from "../lib/run-view";
 import { Amount } from "./Primitives";
+import { RunBar } from "./RunBar";
 
 /** The breakdown under the figure, only for the states that are present. */
 function stoppedBreakdown(verdict: Verdict): string {
@@ -45,16 +46,42 @@ export function RunVerdict({ verdict }: { verdict: Verdict }) {
 
   return (
     <section aria-label="Resumen de la corrida" className="figure-block">
-      <div className="figure-main">
-        <span className={tone.klass}>
-          <span className="decision-dot" />
-          {tone.label}
-        </span>
+      <span className={`${tone.klass} figure-tone`}>
+        <span className="decision-dot" />
+        {tone.label}
+      </span>
 
-        <span className="figure-value">
-          <Amount value={verdict.stoppedAmount} size="inherit" />
-        </span>
+      <span className="figure-value">
+        <Amount value={verdict.stoppedAmount} size="inherit" />
+      </span>
 
+      {/* The two totals the deleted cards used to carry. They sit here rather
+          than in the sentence below because the card is 1400px wide on a laptop
+          and a figure alone in the left third of it leaves the other two thirds
+          saying nothing. Secondary by size and weight, not by being hidden, and
+          set on the hero's own baseline so the three numbers read as one row
+          rather than as a figure with a footnote floating beside it. */}
+      <dl className="figure-side">
+        <div>
+          <dt className="subtle t-xs">Liberado</dt>
+          <dd className="figure-side-value">
+            <Amount value={verdict.releasedAmount} size="inherit" />
+          </dd>
+        </div>
+        <div>
+          <dt className="subtle t-xs">Total de la corrida</dt>
+          <dd className="figure-side-value">
+            <Amount value={verdict.totalAmount} size="inherit" />
+          </dd>
+        </div>
+      </dl>
+
+      {/* The same split the sentence below states in words, drawn across the
+          full width of the block so it reads as the composition of the total
+          rather than as an ornament under the hero. */}
+      <RunBar verdict={verdict} />
+
+      <div className="figure-foot">
         <p className="muted m-0 t-sm">
           {stopped ? (
             <>
@@ -86,25 +113,6 @@ export function RunVerdict({ verdict }: { verdict: Verdict }) {
           </p>
         ) : null}
       </div>
-
-      {/* The two totals the deleted cards used to carry. They sit here rather
-          than in the sentence above because the card is 1400px wide on a laptop
-          and a figure alone in the left third of it leaves the other two thirds
-          saying nothing. Secondary by size and weight, not by being hidden. */}
-      <dl className="figure-side">
-        <div>
-          <dt className="subtle t-xs">Liberado</dt>
-          <dd className="figure-side-value">
-            <Amount value={verdict.releasedAmount} size="inherit" />
-          </dd>
-        </div>
-        <div>
-          <dt className="subtle t-xs">Total de la corrida</dt>
-          <dd className="figure-side-value">
-            <Amount value={verdict.totalAmount} size="inherit" />
-          </dd>
-        </div>
-      </dl>
     </section>
   );
 }

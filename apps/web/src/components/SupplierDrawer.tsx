@@ -63,11 +63,18 @@ export function SupplierDrawer({ rfc, onClose }: Props) {
     <>
       {/* A button, not a div with a click handler, so closing by pointer and
           closing by keyboard are the same control. */}
-      <button
+      <motion.button
         type="button"
         className="scrim"
         aria-label="Cerrar el panel del proveedor"
         onClick={onClose}
+        initial={reduceMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{
+          duration: reduceMotion ? 0 : 0.16,
+          ease: [0.4, 0, 1, 1],
+        }}
       />
       <motion.div
         ref={panelRef}
@@ -78,6 +85,18 @@ export function SupplierDrawer({ rfc, onClose }: Props) {
         className="drawer"
         initial={reduceMotion ? false : { x: 32, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
+        /* Out faster than in, and on the exit curve rather than the entrance
+           one. Arriving is an introduction and is worth 240ms; leaving is a
+           decision already made, and a panel that takes as long to go as it
+           took to come reads as hesitation. */
+        exit={{
+          x: 16,
+          opacity: 0,
+          transition: {
+            duration: reduceMotion ? 0 : 0.16,
+            ease: [0.4, 0, 1, 1],
+          },
+        }}
         transition={{
           duration: reduceMotion ? 0 : 0.24,
           ease: [0.2, 0.8, 0.2, 1],

@@ -8,7 +8,6 @@
  */
 
 import type { Finding } from "@hackmty/core";
-import { motion, useReducedMotion } from "motion/react";
 import { readEvidence } from "../lib/evidence";
 import { formatDateTime } from "../lib/format";
 import {
@@ -16,7 +15,6 @@ import {
   FINDING_STATE_HELP,
   FINDING_STATE_LABEL,
 } from "../lib/labels";
-import { instructionPath, Link } from "../lib/router";
 import {
   BankChangeBlock,
   ClabeDiff,

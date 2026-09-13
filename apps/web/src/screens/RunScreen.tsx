@@ -29,7 +29,7 @@
  */
 
 import type { Rfc } from "@hackmty/core";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useMemo, useState } from "react";
 import { ControlsPanel } from "../components/Controls";
 import { IntakeQr } from "../components/IntakeQr";
@@ -41,6 +41,7 @@ import {
   ErrorBlock,
   LoadingBlock,
   SourceNotice,
+  StreamStatus,
 } from "../components/States";
 import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
@@ -112,43 +113,6 @@ export function RunScreen() {
 
   return (
     <>
-      {/* The week, the count and the one artifact this screen produces. The
-          screen's name is in the top bar and is not repeated here. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="subtle m-0 t-sm">
-          {run
-            ? `Semana del ${formatDate(run.weekOf)} · ${formatCount(verdict?.totalCount ?? 0)} instrucciones`
-            : "Semana en curso"}
-          {stream.status === "closed" ? (
-            <>
-              {" · Sin flujo de eventos. "}
-              <button
-                type="button"
-                className="underline"
-                onClick={stream.reconnect}
-              >
-                Reconectar
-              </button>
-            </>
-          ) : null}
-        </p>
-
-        {/* The retention artifact for this run: what was checked, what was
-            decided, and a digest of the ledger range behind it. Offered only
-            against the engine, because a constancia of a run the browser made
-            up would be a document about nothing. */}
-        {run && source !== "mock" ? (
-          <a
-            className="btn"
-            href={runConstanciaHref(run.id)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Constancia (PDF)
-          </a>
-        ) : null}
-      </div>
-
       {resource.status === "loading" ? (
         <div className="panel">
           <LoadingBlock label="Cargando la corrida" rows={6} />
@@ -163,11 +127,50 @@ export function RunScreen() {
 
       {run && verdict ? (
         <>
-          <SourceNotice
-            notice={resource.status === "ready" ? resource.notice : null}
-          />
+          {/* The header and the figure are one group, tied together with a gap
+              tighter than the screen's own: everything in the row above is
+              about the figure under it -- which week, how many instructions,
+              where the numbers came from -- and reading them as two separate
+              strips was the screen opening with three bars before the number
+              it exists for. */}
+          <div className="flex flex-col gap-4">
+            <div className="run-head">
+              {/* The week and the count. The screen's name is in the top bar
+                  and is not repeated here. */}
+              <p className="subtle m-0 t-sm">
+                {`Semana del ${formatDate(run.weekOf)} · ${formatCount(verdict.totalCount)} instrucciones`}
+              </p>
 
-          <RunVerdict verdict={verdict} />
+              <div className="run-head-status">
+                <SourceNotice
+                  notice={resource.status === "ready" ? resource.notice : null}
+                  compact
+                />
+                <StreamStatus
+                  status={stream.status}
+                  onReconnect={stream.reconnect}
+                />
+
+                {/* The retention artifact for this run: what was checked, what
+                    was decided, and a digest of the ledger range behind it.
+                    Offered only against the engine, because a constancia of a
+                    run the browser made up would be a document about
+                    nothing. */}
+                {source !== "mock" ? (
+                  <a
+                    className="btn"
+                    href={runConstanciaHref(run.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Constancia (PDF)
+                  </a>
+                ) : null}
+              </div>
+            </div>
+
+            <RunVerdict verdict={verdict} />
+          </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <section
@@ -285,7 +288,15 @@ export function RunScreen() {
                               </div>
                             </td>
                             <td className="align-end">
-                              <Amount value={item.instruction.amount} />
+                              {/* The amount carries the same weight as the
+                                  legal name above it. The name is the link;
+                                  the amount is what the clerk is deciding
+                                  about, and it should not be the lighter of
+                                  the two things in the row. */}
+                              <Amount
+                                value={item.instruction.amount}
+                                className="font-medium"
+                              />
                             </td>
                             <td>
                               <span className="code code-nowrap">
@@ -363,9 +374,14 @@ export function RunScreen() {
         </>
       ) : null}
 
-      {drawerRfc ? (
-        <SupplierDrawer rfc={drawerRfc} onClose={() => setDrawerRfc(null)} />
-      ) : null}
+      {/* AnimatePresence keeps the drawer mounted long enough to leave the
+          way it arrived. The condition stays inside it, so the drawer is still
+          absent from the tree when it is closed. */}
+      <AnimatePresence>
+        {drawerRfc ? (
+          <SupplierDrawer rfc={drawerRfc} onClose={() => setDrawerRfc(null)} />
+        ) : null}
+      </AnimatePresence>
     </>
   );
 }

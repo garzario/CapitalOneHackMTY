@@ -165,14 +165,27 @@
     font-weight: var(--weight-medium);
     cursor: pointer;
     text-decoration: none;
+    /* `filter` is in the list because the accent's hover is a brightness and
+       without it that one variant snapped while every other part of the same
+       button eased. */
     transition:
       background-color var(--motion-fast) var(--ease-standard),
       border-color var(--motion-fast) var(--ease-standard),
-      color var(--motion-fast) var(--ease-standard);
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard),
+      filter var(--motion-fast) var(--ease-standard);
   }
 
   .btn:hover:not(:disabled) {
     background-color: var(--c-surface-sunken);
+  }
+
+  /* The whole of the press feedback: three per cent, for as long as the finger
+     is down. A button that does not move under a press is a button a person
+     presses twice, and on this screen the second press is on a control that
+     decides whether money leaves. */
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .btn:disabled,
@@ -336,6 +349,14 @@
     flex: none;
   }
 
+  /* Breathing while a request is in flight, and only then. The card already
+     says "Consultando la API" in words; this is the same claim in the corner
+     of the eye, and it stops the moment the answer arrives so that a dot at
+     rest means the reading on screen is current. */
+  .status-dot[data-checking="true"] {
+    animation: pulse 1.4s var(--ease-standard) infinite;
+  }
+
   /* ------------------------------------------------------------------ table */
 
   .data-table {
@@ -487,6 +508,41 @@
     background-color: var(--c-verify);
   }
 
+  /* Dot plus a short phrase, the same grammar as `.watermark` above and
+     `.decision` below: one small coloured mark carrying the state and the
+     words carrying the meaning, so colour is never the only signal. It is the
+     header row's unit of measure -- everything in that row that is a fact
+     rather than a control is one of these. */
+  .status-line {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--c-ink-subtle);
+    white-space: nowrap;
+  }
+
+  .status-line::before {
+    content: "";
+    flex: none;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-ink-subtle);
+  }
+
+  .status-line-ok::before {
+    background-color: var(--c-release);
+  }
+
+  .status-line-warn::before {
+    background-color: var(--c-verify);
+  }
+
+  .status-line-off::before {
+    background-color: var(--c-hold);
+  }
+
   .watermark-tile {
     position: relative;
     isolation: isolate;
@@ -542,11 +598,35 @@
     }
   }
 
-  /* The one animation in this layer that cannot read a motion token, switched
+  /* The two animations in this layer that cannot read a motion token, switched
      off for anyone who asked the system for less movement. */
   @media (prefers-reduced-motion: reduce) {
-    .skeleton {
+    .skeleton,
+    .status-dot {
       animation: none;
+    }
+  }
+
+  /* An empty state and an error state arrive after a decision or a failed
+     request, never on the first paint of a screen, so they are the one place
+     where something is allowed to settle into view: four pixels and a fade,
+     which is enough to say "this is new" and not enough to make a person wait
+     for it. `@starting-style` rather than a keyframe, so the entrance belongs
+     to the element instead of to a class somebody has to remember to remove,
+     and so reduced motion switches it off through the duration token like
+     every other transition in the file. */
+  .state-block {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity var(--motion-base) var(--ease-standard),
+      transform var(--motion-base) var(--ease-standard);
+  }
+
+  @starting-style {
+    .state-block {
+      opacity: 0;
+      transform: translateY(4px);
     }
   }
 }
@@ -692,6 +772,9 @@
     background-color: transparent;
     color: var(--c-rail-ink-muted);
     cursor: pointer;
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
   }
 
   .rail-toggle:hover {
@@ -718,6 +801,12 @@
     gap: var(--space-3);
     height: 2.25rem;
     padding: 0 var(--space-2);
+    /* The navy panel is the one surface where a hover has to arrive rather
+       than appear: the active row and the hovered row are two shades of the
+       same blue, and switched instantly they read as a flicker. */
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
     border-radius: var(--radius-md);
     color: var(--c-rail-ink-muted);
     font-size: var(--text-nav);
@@ -938,6 +1027,9 @@
 
   .rail-open {
     display: none;
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
   }
 
   @media (max-width: 60rem) {
@@ -1002,6 +1094,10 @@
     white-space: nowrap;
   }
 
+  .card-link {
+    transition: color var(--motion-fast) var(--ease-standard);
+  }
+
   /* The note is a hint about the card, not information the card is missing
      without it. On a phone it is the widest thing in the header and it pushed
      past the card's own edge, so below this width it goes. A link in the same
@@ -1017,17 +1113,46 @@
     text-decoration: underline;
   }
 
+  /* ---------------------------------------------------------- the run head */
+
+  /* One row above the figure instead of three strips before it. The week, the
+     provenance of the numbers and the run's one artifact are all captions on
+     the figure underneath, and stacking them made the screen open with three
+     bars before the number it exists for. Everything in it is allowed to wrap,
+     because on a phone it is four objects in 390px. */
+  .run-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-4);
+  }
+
+  .run-head-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
   /* ------------------------------------------------------- the one figure */
 
   /* The headline of the run. There is exactly one, because there is exactly
      one number that decides whether the clerk can go home: the money that is
-     not leaving yet. Everything else is a line of text under it. */
+     not leaving yet.
+
+     It is a two-column grid rather than a row of two blocks. The left column
+     is the tone label and the hero; the right is the pair of side totals, set
+     on the hero's own baseline so the three numbers read as one row instead of
+     as a figure with a footnote floating beside it. Under both, spanning the
+     full width: the bar that shows how the run's money splits, and then the
+     two sentences that say the same thing in words. Below 40rem the whole
+     thing is one column and the totals drop under the hero. */
   .figure-block {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-6);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3) var(--space-8);
+    align-items: end;
     padding: var(--space-6);
     border-radius: var(--radius-xl);
     /* The one tinted surface on the screen, and it is under the one number the
@@ -1040,33 +1165,89 @@
     border: var(--border-width) solid var(--c-accent-tint-line);
   }
 
-  .figure-main {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    min-width: 0;
+  /* The tone label sits on the first row of the left column, directly over the
+     hero it describes. */
+  .figure-tone {
+    grid-column: 1;
   }
 
   .figure-side {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: end;
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-6) var(--space-10);
     margin: 0;
-    padding-top: var(--space-1);
   }
 
-  /* Two peso totals at 24px with a 40px gutter is 340px of unbreakable line,
-     which is wider than the card holding them on a 375px phone: the second
-     total was clipped at the card's right edge. Here they step down a size and
-     the row is allowed to wrap, so on a phone they stack under each other and
-     on anything wider they stay the pair they read as. */
-  @media (max-width: 30rem) {
-    .figure-side {
-      gap: var(--space-4) var(--space-6);
+  /*
+   * How the run's money splits between held, awaiting verification and
+   * released, spanning the whole block because it is the composition of the
+   * total and not a caption on the left column.
+   *
+   * It is the one object on this screen that could not belong to any other
+   * product, and it is not decoration: the sentence below it states the same
+   * split in words, and this says it in the channel the eye reads first. Six
+   * pixels tall and unlabelled, so it stays under the figure rather than
+   * competing with it. The track is the tint's own hairline, so a run with a
+   * rounding gap between segments shows the card it sits on and not a hole.
+   */
+  .run-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 2px;
+    height: 0.375rem;
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    background-color: var(--c-accent-tint-line);
+  }
+
+  /* The one transition in the app that moves something other than opacity or
+     transform. It is allowed because it never runs on the first paint -- the
+     widths are correct in the first frame and only change when a decision
+     changes the split under them -- and because the thing being laid out is a
+     6px bar with nothing inside it to reflow. */
+  .run-bar-seg {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  .run-bar-hold {
+    background-color: var(--c-hold);
+  }
+
+  .run-bar-verify {
+    background-color: var(--c-verify);
+  }
+
+  .run-bar-release {
+    background-color: var(--c-release);
+  }
+
+  /* The sentence under the figure and the line naming the worst risk are one
+     wrapping row: they are two clauses of the same caption, and stacked they
+     read as two separate claims. */
+  .figure-foot {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-6);
+  }
+
+  /* Under 40rem there is no second column to put anything in: the totals drop
+     under the hero and start at the top of their own stack rather than being
+     pushed to the bottom of a row they no longer share. */
+  @media (max-width: 40rem) {
+    .figure-block {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .figure-side-value {
-      font-size: var(--text-md);
+    .figure-side {
+      grid-column: 1;
+      grid-row: auto;
+      align-self: start;
     }
   }
 
@@ -1085,6 +1266,21 @@
     font-variant-numeric: var(--numeric-tabular);
   }
 
+  /* Two peso totals at 24px with a 40px gutter is 340px of unbreakable line,
+     which is wider than the card holding them on a 375px phone: the second
+     total was clipped at the card's right edge. Here they step down a size and
+     the row is allowed to wrap, so on a phone they stack under each other and
+     on anything wider they stay the pair they read as. */
+  @media (max-width: 30rem) {
+    .figure-side {
+      gap: var(--space-4) var(--space-6);
+    }
+
+    .figure-side-value {
+      font-size: var(--text-md);
+    }
+  }
+
   .figure-label {
     display: flex;
     align-items: center;
@@ -1095,6 +1291,7 @@
   }
 
   .figure-value {
+    grid-column: 1;
     font-size: var(--text-4xl);
     /* Light, not thin. Capital One sets display copy at 100, but these are
        digits a person is about to act on: at 100 the strokes of a 5 and a 6
@@ -1216,10 +1413,15 @@
    * The segmented filter above the payment run.
    *
    * Real radio inputs, visually replaced. The input keeps the keyboard
-   * behaviour and the accessible role; `.segment-face` is the pill you see.
-   * `input:checked + .segment-face` is the whole state machine, so there is no
-   * class to keep in sync with the React state and no way for the two to
-   * disagree.
+   * behaviour and the accessible role; `.segment-face` is the word you see and
+   * `.segment-thumb` is the pill under it.
+   *
+   * The state machine is still the input's own `:checked`, so there is no class
+   * to keep in sync with the React state and no way for the two to disagree.
+   * It reads through `:has()` rather than through the sibling combinator now,
+   * because the thumb is mounted between the input and the face when an option
+   * is selected and `input:checked + .segment-face` stopped matching the
+   * element it names.
    */
 
   .segmented {
@@ -1232,6 +1434,7 @@
   }
 
   .segment {
+    position: relative;
     display: inline-flex;
     cursor: pointer;
   }
@@ -1249,7 +1452,22 @@
     white-space: nowrap;
   }
 
+  /* The selected pill, and the only element in the control that carries the
+     selection's surface. It is one shared-layout element moved between the
+     three options rather than three pills switched on and off, so changing the
+     filter slides it to the word you picked instead of teleporting it. */
+  .segment-thumb {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: var(--radius-sm);
+    background-color: var(--c-surface);
+    box-shadow: var(--shadow-2);
+  }
+
   .segment-face {
+    position: relative;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
@@ -1261,21 +1479,26 @@
     white-space: nowrap;
     transition:
       background-color var(--motion-fast) var(--ease-standard),
-      color var(--motion-fast) var(--ease-standard);
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard);
   }
 
   .segment:hover .segment-face {
     color: var(--c-ink);
   }
 
-  .segment input:checked + .segment-face {
-    background-color: var(--c-surface);
+  /* The same press feedback as `.btn`, on the word rather than on the thumb:
+     scaling the thumb would fight the layout animation that is moving it. */
+  .segment:active .segment-face {
+    transform: scale(0.97);
+  }
+
+  .segment:has(input:checked) .segment-face {
     color: var(--c-ink);
-    box-shadow: var(--shadow-2);
   }
 
   /* The input is off-screen, so the ring has to be drawn on what you can see. */
-  .segment input:focus-visible + .segment-face {
+  .segment:has(input:focus-visible) .segment-face {
     outline: 2px solid var(--c-accent);
     outline-offset: 2px;
   }
@@ -1289,7 +1512,7 @@
     color: var(--c-ink-subtle);
   }
 
-  .segment input:checked + .segment-face .segment-count {
+  .segment:has(input:checked) .segment-count {
     color: var(--c-ink-muted);
   }
 
