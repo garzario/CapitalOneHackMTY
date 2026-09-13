@@ -35,14 +35,29 @@
  *
  * Two links, two destinations, on purpose: the supplier's name opens the
  * payment, the RFC under it opens the supplier's history.
+ *
+ * What the screen gained with issue 208 is the vocabulary of ADR-0009 and the
+ * fact that the table moves on its own. Every line carries its level and its
+ * state as words, both from `lineLevels`, which reads the field the API attaches
+ * and falls back to the same two functions in `packages/core` rather than to a
+ * guess of its own. The three facets filter by those two and by the control that
+ * fired, and they live in the route query so a filtered table is a link. And a
+ * ledger event no longer reloads the screen: it re-reads the run in place, so the
+ * counters count up instead of the whole page dropping back to its skeleton
+ * while a judge is looking at it.
  */
 
 import { motion, useReducedMotion } from "motion/react";
-import { useCallback, useMemo, useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlsPanel } from "../components/Controls";
 import { SourceIcon } from "../components/Icons";
 import { IntakeQr } from "../components/IntakeQr";
-import { Amount } from "../components/Primitives";
+import {
+  Amount,
+  ConfidenceBadge,
+  TransactionStateBadge,
+} from "../components/Primitives";
 import { RunDonut } from "../components/RunDonut";
 import { RunFilterControl } from "../components/RunFilter";
 import { RunVerdict } from "../components/RunVerdict";
@@ -64,24 +79,75 @@ import {
   formatClabe,
   formatCount,
   formatDate,
+  formatMoney,
   formatPlural,
 } from "../lib/format";
+import { nextRowIndex } from "../lib/keyboard";
 import {
   ACTION_BADGE,
   ACTION_LABEL,
+  CONFIDENCE_LABEL,
+  CONFIDENCE_ORDER,
+  DETECTOR_LABEL,
+  DETECTOR_ORDER,
   SOURCE_ICON,
   SOURCE_LABEL,
+  STATE_LABEL,
+  STATE_ORDER,
 } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { reachesApi, useResource } from "../lib/resource";
-import { instructionPath, Link, supplierPath } from "../lib/router";
+import {
+  instructionPath,
+  Link,
+  navigate,
+  runPath,
+  supplierPath,
+  useRouteQuery,
+} from "../lib/router";
 import {
   countsFor,
+  diffRuns,
+  levelCounts,
+  lineLevels,
+  matchesFacets,
   matchesFilter,
+  NO_CONTROL,
   orderItems,
+  parseRunFacets,
+  type RunFacets,
   type RunFilter,
+  runChangeSentence,
+  runFacetsQuery,
   runVerdict,
+  verdictDelta,
 } from "../lib/run-view";
+import { useToken } from "../lib/tokens";
+
+/**
+ * How long the screen waits before re-reading the run after a ledger event.
+ *
+ * A publication is not one event. `POST /api/v1/sat/publish` appends
+ * `sat_list_published` and then one `decision_made` per re-scored line, in the
+ * same request, and every one of them arrives on the stream inside a few
+ * milliseconds. Fetching the run once per event would be a dozen requests for
+ * one answer, and the last one to come back would win whatever order they
+ * returned in. One timer, restarted by nothing and cleared when it fires, turns
+ * the burst into a single read.
+ */
+const REFRESH_COALESCE_MS = 250;
+
+/**
+ * How long a moved row stays marked, as the multiple of `--motion-slow` the
+ * `row-moved` keyframe in `primitives.css` fades over. The class has to come
+ * off when the tint is gone, and the two have to agree on when that is.
+ */
+const HIGHLIGHT_SLOW_MULTIPLE = 3;
+
+/** What the last refresh moved: the sentence to say and the rows to mark. */
+type LastChange = { sentence: string; ids: readonly string[] };
+
+const NOTHING_CHANGED: LastChange = { sentence: "", ids: [] };
 
 /**
  * What the screen says about the event stream, in one place.
@@ -120,7 +186,9 @@ export function RunScreen() {
     (signal: AbortSignal) => getCurrentRun({ signal }),
     [],
   );
-  const { resource, reload } = useResource(load, { fallback: mockRun });
+  const { resource, reload, replace } = useResource(load, {
+    fallback: mockRun,
+  });
   /* The exceptions are the default view. See the note on RunFilter in
      lib/run-view.ts for why a run of 92 opens on 7 rows and not on 92. */
   const [filter, setFilter] = useState<RunFilter>("stopped");
@@ -130,6 +198,7 @@ export function RunScreen() {
      `brand/shoot.ts` happens to take during it. It arms on the first filter
      change and stays armed. */
   const [filterTouched, setFilterTouched] = useState(false);
+  const [change, setChange] = useState<LastChange>(NOTHING_CHANGED);
 
   const changeFilter = useCallback((next: RunFilter) => {
     setFilterTouched(true);
@@ -137,12 +206,133 @@ export function RunScreen() {
   }, []);
   const reduceMotion = useReducedMotion();
 
-  /* Every appended ledger event is a reason to re-read the run. The stream
-     carries the event; the run stays the single source of truth for the table,
-     so there is no second copy of the state to keep in sync. */
+  const run = resource.status === "ready" ? resource.data : null;
+  const source = resource.status === "ready" ? resource.source : null;
+
+  /* The run as it was before the last refresh, which is the only way to say
+     what moved. A ref and not state: nothing renders it, and putting it in
+     state would render the screen twice per event. */
+  const previousRun = useRef(run);
+
+  useEffect(() => {
+    previousRun.current = run;
+  }, [run]);
+
+  /** The fetch a refresh has in flight, so the next one and the unmount stop it. */
+  const inFlight = useRef<AbortController | null>(null);
+
+  /**
+   * Re-read the run in place.
+   *
+   * `replace` and never `reload`: `reload` puts the resource back into
+   * `loading`, which unmounts this whole screen into the skeleton for as long as
+   * the request takes. On the beat this exists for, a judge is watching the
+   * figures, and a page that blinks white and comes back with new numbers has
+   * shown them nothing. A failed refresh keeps what is on screen for the same
+   * reason: the answer already rendered is still the best one we have.
+   *
+   * The controller in the ref is what keeps a late answer from talking to a
+   * screen that is gone. A refresh is started by an event and not by a render,
+   * so nothing else cancels it: an answer that arrives after the clerk pressed
+   * a row would call `replace` and `setChange` on an unmounted component, and
+   * two overlapping refreshes would land in whatever order the network chose.
+   * Aborting the previous one on both edges makes the last request the only one
+   * that can write.
+   */
+  const refresh = useCallback(() => {
+    inFlight.current?.abort();
+
+    const controller = new AbortController();
+    inFlight.current = controller;
+
+    void getCurrentRun({ signal: controller.signal }).then((result) => {
+      if (controller.signal.aborted || !result.ok) {
+        return;
+      }
+
+      const before = previousRun.current;
+      const next = result.data;
+
+      previousRun.current = next;
+      replace(next);
+
+      if (before === null) {
+        return;
+      }
+
+      const changes = diffRuns(before, next);
+      const sentence = runChangeSentence(
+        verdictDelta(runVerdict(before), runVerdict(next)),
+        changes,
+        new Date(),
+      );
+
+      if (sentence === "") {
+        return;
+      }
+
+      setChange({
+        sentence,
+        ids: changes.map((line) => line.instructionId),
+      });
+    });
+  }, [replace]);
+
+  const coalesce = useRef<number | null>(null);
+
+  /* Every appended ledger event is a reason to re-read the run, and a
+     publication appends a dozen of them at once. The stream carries the event;
+     the run stays the single source of truth for the table, so there is no
+     second copy of the state to keep in sync. */
   const onLedgerEvent = useCallback(() => {
-    reload();
-  }, [reload]);
+    if (coalesce.current !== null) {
+      return;
+    }
+
+    coalesce.current = window.setTimeout(() => {
+      coalesce.current = null;
+      refresh();
+    }, REFRESH_COALESCE_MS);
+  }, [refresh]);
+
+  useEffect(
+    () => () => {
+      if (coalesce.current !== null) {
+        window.clearTimeout(coalesce.current);
+      }
+
+      inFlight.current?.abort();
+    },
+    [],
+  );
+
+  /* The tint on a moved row is a moment, not a property of the row, so the ids
+     are dropped once it has faded.
+
+     Two failures come from leaving them: the key of every row carries the
+     filter and the facets, so a row still holding `row-moved` remounts on the
+     next segmented or facet click and the browser starts the keyframe over,
+     which flashes a line that moved during the publication minutes later on an
+     unrelated click; and a line that moves twice in a row keeps the same class
+     on the same element and never animates the second time, which is the one
+     case the mark exists for. Clearing fixes both, because the class then goes
+     off and comes back. */
+  const highlightMs = useToken("--motion-slow", 360) * HIGHLIGHT_SLOW_MULTIPLE;
+
+  useEffect(() => {
+    if (change.ids.length === 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setChange((current) => ({ ...current, ids: [] }));
+    }, highlightMs);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [change.ids, highlightMs]);
+
   /* `?data=mock` promises that no request leaves the browser, and the stream is
      a request. Held closed there rather than opened and reported, which is what
      it used to do: the screen said "solo datos sinteticos" and "flujo de eventos
@@ -150,20 +340,117 @@ export function RunScreen() {
   const streamAllowed = reachesApi();
   const stream = useEvents({ enabled: streamAllowed, onEvent: onLedgerEvent });
 
-  const run = resource.status === "ready" ? resource.data : null;
-  const source = resource.status === "ready" ? resource.source : null;
+  /* The facets are the route's, not the screen's: a filtered table is a link
+     somebody can send, and a reload lands on the same rows. */
+  const query = useRouteQuery();
+  const facets = useMemo(() => parseRunFacets(query), [query]);
+  const facetsQuery = runFacetsQuery(facets);
+  const anyFacet = facetsQuery !== "";
+
+  const changeFacets = useCallback((next: RunFacets) => {
+    setFilterTouched(true);
+    navigate(runPath(next), { replace: true });
+  }, []);
+
+  /* What a select just produced, read through the same parser the URL goes
+     through instead of through a cast: one function decides what these three
+     strings may be, and an empty option clears the facet because it parses to
+     nothing. */
+  const pickState = useCallback(
+    (value: string) =>
+      changeFacets({
+        ...facets,
+        state: parseRunFacets(new URLSearchParams([["state", value]])).state,
+      }),
+    [facets, changeFacets],
+  );
+  const pickLevel = useCallback(
+    (value: string) =>
+      changeFacets({
+        ...facets,
+        level: parseRunFacets(new URLSearchParams([["level", value]])).level,
+      }),
+    [facets, changeFacets],
+  );
+  const pickControl = useCallback(
+    (value: string) =>
+      changeFacets({
+        ...facets,
+        control: parseRunFacets(new URLSearchParams([["control", value]]))
+          .control,
+      }),
+    [facets, changeFacets],
+  );
 
   /* Both read the items rather than `run.totals`, so the headline and the
      table stay consistent with each other after a decision applied with no
      API behind the page. See lib/run-view.test.ts. */
   const verdict = useMemo(() => (run ? runVerdict(run) : null), [run]);
   const counts = useMemo(() => countsFor(run ? run.items : []), [run]);
+  /* The lines the segmented control is showing, before the facets narrow them
+     further. The facet counts are taken over these and not over the whole run:
+     the number beside an option has to be the number of rows picking it
+     produces, and a count over the run promised 86 lines on a slice that by
+     construction holds none of them. */
+  const sliced = useMemo(
+    () => (run ? run.items.filter((item) => matchesFilter(item, filter)) : []),
+    [run, filter],
+  );
+  const perLevel = useMemo(() => levelCounts(sliced), [sliced]);
   const rows = useMemo(
     () =>
       run
-        ? orderItems(run.items).filter((item) => matchesFilter(item, filter))
+        ? orderItems(run.items)
+            .filter((item) => matchesFilter(item, filter))
+            .filter((item) => matchesFacets(item, facets))
         : [],
-    [run, filter],
+    [run, filter, facets],
+  );
+
+  /* The same facets over the whole run. It is what tells the empty block which
+     of the two controls emptied the table: a link that arrives with a facet the
+     current slice cannot hold leaves rows behind, and telling that clerk to
+     clear the facets sends them away from the lines they came for. */
+  const facetMatchesInRun = useMemo(
+    () =>
+      run ? run.items.filter((item) => matchesFacets(item, facets)).length : 0,
+    [run, facets],
+  );
+
+  /* One entry per visible row, so a key press can move focus to the next one
+     without the table knowing anything about the DOM. */
+  const rowRefs = useRef<Array<HTMLTableRowElement | null>>([]);
+
+  const onRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
+      if (event.key === "Enter") {
+        /* Only when the row itself has focus. Enter on the supplier link inside
+           it is the link's, and swallowing it would break the one navigation a
+           keyboard user expects to work. */
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+
+        const id = rows[index]?.instruction.id;
+
+        if (id !== undefined) {
+          event.preventDefault();
+          navigate(instructionPath(id));
+        }
+
+        return;
+      }
+
+      const next = nextRowIndex(event.key, index, rows.length);
+
+      if (next === null) {
+        return;
+      }
+
+      event.preventDefault();
+      rowRefs.current[next]?.focus();
+    },
+    [rows],
   );
 
   return (
@@ -177,7 +464,7 @@ export function RunScreen() {
       ) : null}
 
       {run && verdict ? (
-        /* One column: the greeting, the three figures, the two charts, the
+        /* One column: the greeting, the five figures, the two charts, the
            list, and the two asides. Every one of them after the greeting is a
            well, so the grouping is drawn rather than implied, and 24px of air
            is enough between containers that already have edges. */
@@ -223,7 +510,7 @@ export function RunScreen() {
             </div>
           </header>
 
-          <RunVerdict verdict={verdict} />
+          <RunVerdict verdict={verdict} change={change.sentence} />
 
           {/* The two charts. The donut gets the wider column because its
               legend is four columns of text; the controls get the narrower one
@@ -269,9 +556,17 @@ export function RunScreen() {
 
           <section aria-labelledby="run-table-heading" className="well min-w-0">
             <div className="well-head">
-              <h2 id="run-table-heading" className="t-lg">
-                Instrucciones
-              </h2>
+              <div className="flex min-w-0 flex-col gap-1">
+                <h2 id="run-table-heading" className="t-lg">
+                  Instrucciones
+                </h2>
+                {/* The keyboard is not discoverable by looking, so it is
+                    written down where the table starts. */}
+                <span className="subtle t-xs">
+                  Flechas para moverse entre lineas, Enter para abrir
+                </span>
+              </div>
+
               {/* The filter replaced the line that used to sit here saying
                   "first what is not leaving, then by amount". The control
                   says the same thing and does it as well. */}
@@ -280,6 +575,98 @@ export function RunScreen() {
                 counts={counts}
                 onChange={changeFilter}
               />
+            </div>
+
+            {/* The three facets, under the slice they narrow. They are selects
+                and not more segmented controls because a segmented control is
+                for two or three options a person picks between and these are
+                five, three and seven, most of which are empty on any given
+                week. */}
+            <div className="run-facets">
+              <div className="run-facet">
+                <label className="label" htmlFor="run-facet-state">
+                  Estado
+                </label>
+                <select
+                  id="run-facet-state"
+                  className="input input-inline"
+                  value={facets.state ?? ""}
+                  onChange={(event) => pickState(event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {STATE_ORDER.map((state) => (
+                    <option
+                      key={state}
+                      value={state}
+                      /* An option worth zero rows in this slice is not an
+                         option. The one it is still worth offering is the one
+                         already selected, which a link can set before the slice
+                         is narrowed: hiding it from the control that holds it
+                         would leave the select displaying "Todos" over a
+                         filtered table. */
+                      disabled={perLevel[state] === 0 && facets.state !== state}
+                    >
+                      {`${STATE_LABEL[state]} · ${formatCount(perLevel[state])}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="run-facet">
+                <label className="label" htmlFor="run-facet-level">
+                  Nivel
+                </label>
+                <select
+                  id="run-facet-level"
+                  className="input input-inline"
+                  value={facets.level ?? ""}
+                  onChange={(event) => pickLevel(event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {CONFIDENCE_ORDER.map((level) => (
+                    <option
+                      key={level}
+                      value={level}
+                      disabled={perLevel[level] === 0 && facets.level !== level}
+                    >
+                      {`${CONFIDENCE_LABEL[level]} · ${formatCount(perLevel[level])}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="run-facet">
+                <label className="label" htmlFor="run-facet-control">
+                  Control
+                </label>
+                <select
+                  id="run-facet-control"
+                  className="input input-inline"
+                  value={facets.control ?? ""}
+                  onChange={(event) => pickControl(event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {DETECTOR_ORDER.map((detector) => (
+                    <option key={detector} value={detector}>
+                      {DETECTOR_LABEL[detector]}
+                    </option>
+                  ))}
+                  <option value={NO_CONTROL}>Sin hallazgos</option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-pill btn-sm"
+                onClick={() => changeFacets({})}
+                disabled={!anyFacet}
+              >
+                Limpiar
+              </button>
+
+              <span className="subtle t-xs">
+                {`${formatCount(rows.length)} de ${formatPlural(counts.all, "linea")}`}
+              </span>
             </div>
 
             {run.items.length === 0 ? (
@@ -303,8 +690,8 @@ export function RunScreen() {
                 <div className="table-scroll">
                   <table className="data-table">
                     <caption className="sr-only">
-                      Instrucciones de pago de la semana, con su cuenta y su
-                      decision.
+                      Instrucciones de pago de la semana, con su nivel, su
+                      estado, su cuenta y su decision.
                     </caption>
                     <thead>
                       <tr>
@@ -313,6 +700,8 @@ export function RunScreen() {
                           Importe
                         </th>
                         <th scope="col">Cuenta destino</th>
+                        <th scope="col">Nivel</th>
+                        <th scope="col">Estado</th>
                         <th scope="col">Decision</th>
                       </tr>
                     </thead>
@@ -322,17 +711,17 @@ export function RunScreen() {
                        * and lifts into place with a stagger capped so that even
                        * ninety-two rows have settled inside a fifth of a second.
                        *
-                       * The key carries the filter, which is the whole trick.
-                       * React then treats a filter change as a new set of rows
-                       * rather than an edit to the old one, so every visible row
-                       * mounts fresh and animates. The first attempt used
-                       * `AnimatePresence` with an `exit` so leaving rows could
-                       * fade out too, and it did not work: exiting `<tr>`s were
-                       * never unmounted, so switching back to "No salen" left
-                       * all ninety-two rows on screen with the filter claiming
-                       * seven. Animating only the entrance costs nothing you can
-                       * see -- the outgoing rows are replaced under an incoming
-                       * animation -- and it cannot strand a row.
+                       * The key carries the filter and the facets, which is the
+                       * whole trick. React then treats a change of either as a
+                       * new set of rows rather than an edit to the old one, so
+                       * every visible row mounts fresh and animates. The first
+                       * attempt used `AnimatePresence` with an `exit` so leaving
+                       * rows could fade out too, and it did not work: exiting
+                       * `<tr>`s were never unmounted, so switching back to "No
+                       * salen" left all ninety-two rows on screen with the filter
+                       * claiming seven. Animating only the entrance costs nothing
+                       * you can see -- the outgoing rows are replaced under an
+                       * incoming animation -- and it cannot strand a row.
                        *
                        * Only opacity and transform move, never height or layout,
                        * so the column widths hold still and the table does not
@@ -340,10 +729,28 @@ export function RunScreen() {
                        */}
                       {rows.map((item, index) => {
                         const { action } = item.decision;
+                        const levels = lineLevels(item);
+                        const moved = change.ids.includes(item.instruction.id);
 
                         return (
                           <motion.tr
-                            key={`${filter}-${item.instruction.id}`}
+                            key={`${filter}-${facetsQuery}-${item.instruction.id}`}
+                            /* Focusable, so the arrows have somewhere to land,
+                               and named, because a row a screen reader reaches
+                               is six cells of context otherwise. */
+                            tabIndex={0}
+                            aria-label={`${item.supplier.legalName}, ${formatMoney(item.instruction.amount)}, nivel ${CONFIDENCE_LABEL[levels.confidence]}, estado ${STATE_LABEL[levels.state]}`}
+                            ref={(element) => {
+                              rowRefs.current[index] = element;
+                            }}
+                            onKeyDown={(event) => onRowKeyDown(event, index)}
+                            /* The row the last refresh moved, lit for as long
+                               as the fade takes. The colour and the duration are
+                               tokens and the fade is a keyframe in
+                               primitives.css, so reduced motion switches it off
+                               where every other duration in the app is switched
+                               off. */
+                            className={moved ? "row-moved" : undefined}
                             initial={
                               filterTouched ? { opacity: 0, y: -4 } : false
                             }
@@ -421,6 +828,18 @@ export function RunScreen() {
                               </span>
                             </td>
                             <td>
+                              {/* The level and the state, both derived and
+                                never stored, both from `lineLevels`. Two
+                                columns and not one, because they answer
+                                different questions: how much the evidence
+                                supports this line, and where the line
+                                stands. ADR-0009. */}
+                              <ConfidenceBadge level={levels.confidence} />
+                            </td>
+                            <td>
+                              <TransactionStateBadge state={levels.state} />
+                            </td>
+                            <td>
                               {/* The soft chip the rest of the app uses for a
                                 decision. On a white panel a tinted pill is
                                 legible at a glance where a 7px dot beside a
@@ -449,11 +868,50 @@ export function RunScreen() {
                   </table>
                 </div>
 
-                {/* A filter that matches nothing has to say so. The common
-                    case is the good one: a week where nothing was stopped
-                    opens on an empty "No salen", and that is a result worth
-                    a sentence rather than a blank panel. */}
-                {rows.length === 0 ? (
+                {/* A filter that matches nothing has to say so, and it has to
+                    name the right filter. The common case is the good one: a
+                    week where nothing was stopped opens on an empty "No salen",
+                    and that is a result worth a sentence rather than a blank
+                    panel. When a facet is set there are two cases and they have
+                    opposite exits: the facets match nothing anywhere, and the
+                    way out is to drop them; or they match lines the segmented
+                    control is not showing, and the way out is to widen the
+                    slice. Saying "ninguna instruccion tiene ese estado" over a
+                    run where 86 of them do is the one thing this block must not
+                    do. */}
+                {rows.length === 0 && anyFacet && facetMatchesInRun > 0 ? (
+                  <EmptyBlock
+                    title="Ese filtro no cae en este corte"
+                    description={`El filtro alcanza a ${formatPlural(facetMatchesInRun, "instruccion")} de la corrida, pero ninguna esta en el corte que muestra el control de arriba.`}
+                    action={
+                      <button
+                        type="button"
+                        className="btn btn-pill"
+                        onClick={() => changeFilter("all")}
+                      >
+                        Ver las {formatCount(facetMatchesInRun)}
+                      </button>
+                    }
+                  />
+                ) : null}
+
+                {rows.length === 0 && anyFacet && facetMatchesInRun === 0 ? (
+                  <EmptyBlock
+                    title="Ninguna linea con ese filtro"
+                    description="Ninguna instruccion de esta corrida tiene a la vez el estado, el nivel y el control que estan seleccionados."
+                    action={
+                      <button
+                        type="button"
+                        className="btn btn-pill"
+                        onClick={() => changeFacets({})}
+                      >
+                        Limpiar los filtros
+                      </button>
+                    }
+                  />
+                ) : null}
+
+                {rows.length === 0 && !anyFacet ? (
                   <EmptyBlock
                     title={
                       filter === "stopped"

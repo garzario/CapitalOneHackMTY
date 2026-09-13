@@ -18,6 +18,30 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The payment run in pesos, with the level and the state on every line and an exposure counter that
+  climbs while nobody touches the keyboard (issue #208). The screen opens on four figures beside the
+  dark card, all of them from `runMoney` in `packages/core`, which is the arithmetic behind
+  `totals` on `GET /api/v1/run/current`: what was released, the pesos this run puts at risk, the
+  retroactive Article 69-B exposure over the base it was deducted on, and the total. They are read
+  off the items and not off the totals, so they stay true after a decision applied with no API
+  behind the page, and each one counts up when it changes instead of being replaced between two
+  frames. `Nivel` and `Estado` are now columns, through `lineLevels` in
+  `apps/web/src/lib/run-view.ts`, which reads the two fields the API attaches to each item and falls
+  back to `confidenceOf` and `transactionStateOf` for a payload that has neither, the same two
+  functions the API itself calls rather than a second answer of the web's own: ADR-0009. Three
+  facets narrow the table by state, by level and by the control that fired, and they live in the
+  route query, so `#/run?state=cancelado&level=alerta&control=sat_69b` is a link a clerk can send
+  and a value the domain does not have is ignored rather than shown as an empty table. Every row is
+  focusable, the arrows move between rows without wrapping, `Home` and `End` reach the ends and
+  `Enter` opens the instruction. A ledger event no longer reloads the screen: it re-reads the run in
+  place, coalescing the burst a publication emits into one request, so the second beat of
+  `docs/10-demo-script.md` happens in front of a judge with no blink and no reload, with the rows
+  that moved lit for a moment and what moved written out in a live region. `run-view.test.ts` covers
+  the level fallback, the eight counts, the facets and their round trip through the URL, the diff of
+  two reads and the delta of two verdicts; `keyboard.test.ts` has one test per edge of the arrow
+  navigation; and `labels.test.ts` reads every dictionary in the file and fails on the word this
+  product may not say and on a digit inside a level or a state.
+
 - The payment run leaves, on a rail, with a receipt per line (issue #198, ADR-0008). This is the half
   of the product that did not exist: SentryOne stopped payments and the SPEI left from the company's
   own banking portal, which left the honest answer to "why would Lupita upload the screenshot" at
