@@ -18,6 +18,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ActionProposal, Actor } from "@hackmty/core";
+import { maskClabesInText } from "@hackmty/core";
 import {
   decodeAssistantEvent,
   decodeProposal,
@@ -399,7 +400,14 @@ describe("the panel with no API", () => {
     const message = doneOf(events);
 
     expect(item).not.toBeNull();
-    expect(message.text).toContain(item?.findings[0]?.explanation ?? "never");
+    /* The engine's own sentence, with the account in it masked the way the API masks
+       it: control 2 names the known account in full, the model it reaches only ever
+       saw four digits of it, and an offline panel that printed eighteen would answer
+       something the online one structurally cannot. */
+    expect(message.text).toContain(
+      maskClabesInText(item?.findings[0]?.explanation ?? "never"),
+    );
+    expect(message.text).not.toMatch(/\d{18}/);
     expect(message.instructionId).toBe(id);
 
     /* The level and the state are in the sentence, and they are the words of

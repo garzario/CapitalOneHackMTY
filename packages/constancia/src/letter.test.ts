@@ -331,4 +331,33 @@ describe("evidenceLetter", () => {
       "carta-INS-2026-09-07-047.pdf",
     );
   });
+
+  it("masks the account control 2 writes into its own sentence", () => {
+    /* The page takes `last4` for the account row and prints "cuenta terminada en
+       4611", and then printed `Finding.explanation` verbatim. Control 2's real
+       sentence names the known account in full, so this letter was redacting the
+       account in one paragraph and spelling it out in the next. The fix is
+       `maskClabesInText` in @hackmty/core, shared with the run constancia and the
+       assistant, and this is the case that asserts it. */
+    const pdf = text(
+      evidenceLetter(
+        letterInput({
+          findings: [
+            {
+              ...definitiveFinding(),
+              id: "clabe-9",
+              detector: "clabe_forensics",
+              severity: "critical",
+              state: "requiere_verificacion",
+              explanation:
+                "Difiere en 2 digitos de la cuenta 012580100091764611, que ya se pago 52 veces.",
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(pdf).not.toContain("012580100091764611");
+    expect(pdf).toContain("cuenta ****4611");
+  });
 });

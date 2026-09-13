@@ -658,9 +658,18 @@ The last one is worth stating because it is narrower than ADR-0007 requires: the
 image to be sent to the panel's model and this implementation does not send it, because
 everything the turn needs from a screenshot is what `packages/extract` already read off it, and
 `decidedBy` on a proposal is filled in from the `X-Actor` header on our side rather than by the
-model. `DROPPED_KEYS` in `mask.ts` is the list, matched on the key and not on the value, and
-`apps/api/src/assistant/mask.test.ts` asserts over a whole serialised request body that no
-eighteen-digit run survives.
+model. `DROPPED_KEYS` in `mask.ts` is the list, matched on the key and not on the value.
+
+Two tests hold that claim up and it is worth saying which does what, because for a while only the
+first existed and the rule was broken anyway. `apps/api/src/assistant/mask.test.ts` asserts that
+`maskDeep` leaves no eighteen-digit run in what it returns, which is the function.
+`apps/api/src/assistant/tools.test.ts` asserts it over the projections a real turn sends, on the
+generated company rather than on the hand-written fixture, which is the path: control 2 writes the
+known account into its own Spanish `explanation`, so a projection that masked `evidence.clabe` and
+passed the sentence through sent the whole account anyway, and the fixture happened to carry a
+sentence with no account in it. `maskClabesInText` now lives in `packages/core/src/clabe.ts` next to
+every other CLABE rule, and the panel, the evidence letter, both constancias and the offline mock
+call that one function, because the second implementation is where the first leak lives.
 
 **Prices, as of 2026-09-12**, read from the Gemini API pricing page for the model
 `.env.example` actually configures, `gemini-3.6-flash`, paid tier: **USD 0.75 per 1M input

@@ -93,6 +93,7 @@ import type {
   Cfdi,
   Confidence,
   Decision,
+  EvidenceValue,
   Finding,
   Metrics,
   NetworkSignal,
@@ -109,11 +110,13 @@ import type {
   VerificationStateName,
 } from "../packages/core/src/index.ts";
 import {
+  carriesFullClabe,
   confidenceOf,
   decide,
   executionLineOf,
   formatAmount,
   lookupInstitution,
+  maskClabesInText,
   sumAmounts,
   supplierModelOf,
   transactionStateOf,
@@ -938,7 +941,7 @@ function assistantSessionFor(
     id: `${sessionId}-2`,
     sessionId,
     author: "assistant",
-    text: `${finding.explanation} El nivel de esta linea es ${levels.confidence} y su estado es ${levels.state}.`,
+    text: `${maskClabesInText(finding.explanation)} El nivel de esta linea es ${levels.confidence} y su estado es ${levels.state}.`,
     at: answeredAt,
     instructionId: instruction.id,
     toolCalls: [
@@ -946,7 +949,7 @@ function assistantSessionFor(
         id: `${sessionId}-tool-1`,
         tool: "get_instruction",
         arguments: { instructionId: instruction.id },
-        result: { ...finding.evidence },
+        result: maskedEvidence(finding.evidence),
         at: answeredAt,
         readOnly: true,
       },
@@ -978,8 +981,56 @@ function assistantSessionFor(
   };
 
   assertNoVerdict(session);
+  assertNoFullAccount(session);
 
   return session;
+}
+
+/** Every string of an evidence map, with any account in it down to four digits. */
+function maskedEvidence(
+  evidence: Readonly<Record<string, EvidenceValue>>,
+): Record<string, EvidenceValue> {
+  return Object.fromEntries(
+    Object.entries(evidence).map(([key, value]) => [
+      key,
+      typeof value === "string" ? maskClabesInText(value) : value,
+    ]),
+  );
+}
+
+/**
+ * Fails the generator when the conversation carries a whole account number.
+ *
+ * The panel online is answered by a model that only ever saw four digits, so a
+ * sentence or a chip with eighteen in it is something the API structurally cannot
+ * produce, and the offline fallback would then be showing a judge a payload the
+ * live one never sends. It was exactly that for a while: control 2 writes the known
+ * account into its own `explanation`, so masking `evidence.clabe` and passing the
+ * prose through leaked the account in both the answer and the chips.
+ *
+ * The proposal payload is exempt and that is deliberate: it is field for field the
+ * body of the request the button sends, and `POST /api/v1/instructions` needs the
+ * whole CLABE. ADR-0007 says the payload is the request, so masking it would make
+ * the card lie about what it is about to do.
+ */
+function assertNoFullAccount(session: AssistantSession): void {
+  const strings = session.messages.flatMap((message) => [
+    message.text,
+    message.proposal?.summary ?? "",
+    ...(message.toolCalls ?? []).flatMap((call) =>
+      Object.values(call.result ?? {}).filter(
+        (value): value is string => typeof value === "string",
+      ),
+    ),
+  ]);
+
+  for (const value of strings) {
+    if (carriesFullClabe(value)) {
+      throw new Error(
+        `the offline assistant session carries a whole account number, which the API masks to four digits before it leaves: ${value}`,
+      );
+    }
+  }
 }
 
 /**
