@@ -14,6 +14,7 @@
 
 import type {
   Action,
+  ActorRole,
   AssistantTool,
   Confidence,
   ConfidenceRule,
@@ -32,6 +33,21 @@ import type {
   VerificationRail,
   VerificationStateName,
 } from "./contract";
+
+/**
+ * The two people of this company, as a screen of this app writes them.
+ *
+ * `ACTOR_ROLE_LABEL` in `packages/core` is the same pair for a printed document
+ * and carries its accents, because a constancia is typeset Spanish. The screens
+ * are written without them, so the word is here rather than imported and
+ * mangled, and it is in the dictionary rather than in the two components that
+ * show it so the entry screen and the assistant panel cannot call one person two
+ * things.
+ */
+export const ROLE_LABEL: Record<ActorRole, string> = {
+  clerk: "capturista",
+  owner: "dueno",
+};
 
 export const ACTION_LABEL: Record<Action, string> = {
   hold: "Retener",
