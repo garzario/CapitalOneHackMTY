@@ -2,21 +2,31 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { assistantRoutes } from "./assistant/routes";
+import type { ApiCaller } from "./assistant/tools";
 import { type ApiDeps, createDeps } from "./deps";
 import { errorBody, rejectInvalid, UNKNOWN_REQUEST_ID } from "./http";
+import { createRequestLog } from "./middleware/log";
+import { createRateLimit, WRITE_LIMIT } from "./middleware/rate-limit";
 import { requestId } from "./middleware/request-id";
 import { beneficiaryRoutes } from "./routes/beneficiaries";
+import { cartaRoutes } from "./routes/carta";
 import { cepRoutes } from "./routes/cep";
+import { consortiumRoutes } from "./routes/consortium";
 import { constanciaRoutes } from "./routes/constancia";
 import { eventRoutes } from "./routes/events";
-import { health } from "./routes/health";
+import { executeRoutes } from "./routes/execute";
+import { healthRoutes } from "./routes/health";
 import { instructionRoutes } from "./routes/instructions";
 import { ledgerRoutes } from "./routes/ledger";
 import { metricsRoutes } from "./routes/metrics";
+import { railRoutes } from "./routes/rails";
+import { receiptRoutes } from "./routes/receipts";
 import { runRoutes } from "./routes/run";
 import { satRoutes } from "./routes/sat";
 import { seedRoutes } from "./routes/seed";
 import { supplierRoutes } from "./routes/suppliers";
+import { verifyAccountRoutes } from "./routes/verify-account";
 import { type VoiceDeps, verifyCallRoutes } from "./routes/verify-call";
 
 /**
@@ -46,38 +56,77 @@ export function createApp(deps: ApiDeps = createDeps(), voice: VoiceDeps = {}) {
   const app = new Hono();
 
   app.use("*", requestId);
+  /* After the id and before everything else, so every line carries the id the
+     response carries and no route can be added that logs nothing. */
+  app.use("*", createRequestLog(deps.log));
 
-  app.route("/health", health);
+  app.route("/health", healthRoutes(deps));
 
-  const v1 = new Hono().get(
-    "/ping",
-    zValidator("query", pingQuery, rejectInvalid),
-    (c) => {
-      const { echo } = c.req.valid("query");
+  const v1 = new Hono();
 
-      return c.json({
-        pong: true,
-        echo: echo ?? null,
-        requestId: c.get("requestId"),
-        at: new Date().toISOString(),
-      });
-    },
+  /**
+   * Every write in `docs/09-api.md`, rate limited per client, in one line.
+   *
+   * It is mounted here rather than on ten route files because the thing being
+   * protected is the ledger and not any one endpoint: a write appends an event, and
+   * three of them cost real money. Mounted at the tree, a write endpoint somebody
+   * adds next week is covered by default, which is the opposite of the usual
+   * outcome. `writesOnly` is what keeps a screen reading the run for free, and the
+   * assistant panel keeps its own tighter bucket on top of this one because a turn
+   * costs tokens rather than a row.
+   */
+  v1.use(
+    "*",
+    createRateLimit({ limit: WRITE_LIMIT, label: "writes", writesOnly: true }),
   );
 
+  v1.get("/ping", zValidator("query", pingQuery, rejectInvalid), (c) => {
+    const { echo } = c.req.valid("query");
+
+    return c.json({
+      pong: true,
+      echo: echo ?? null,
+      requestId: c.get("requestId"),
+      at: new Date().toISOString(),
+    });
+  });
+
   v1.route("/run", runRoutes(deps));
+  /* A second router on `/run`, for the reason `/instructions` has three: the payment
+     execution is the rail, the ledger and the bank mirror in one pipeline, and it
+     stays one file that can be reverted in one commit. */
+  v1.route("/run", executeRoutes(deps));
   v1.route("/instructions", instructionRoutes(deps));
   /* A second router on the same base path. `/:id/verify-call` cannot collide
      with `/:id` or `/:id/decide`, and keeping the voice integration in its own
      file means it is one revert rather than a diff inside a shared handler. */
   v1.route("/instructions", verifyCallRoutes(deps, voice));
+  /* And a third, for the same reason: the one-cent verification is the rail, the
+     CEP and the engine in one pipeline, and it stays one file. */
+  v1.route("/instructions", verifyAccountRoutes(deps));
+  /* And a fourth. The evidence letter is the only PDF under this base path and it
+     gathers seven signals to print one page, which is a different job from intake
+     and from the human decision. Keeping it apart is one revert rather than a diff
+     inside a handler somebody is demoing. */
+  v1.route("/instructions", cartaRoutes(deps));
   v1.route("/suppliers", supplierRoutes(deps));
   v1.route("/sat", satRoutes(deps));
   v1.route("/cep", cepRoutes(deps));
+  v1.route("/consortium", consortiumRoutes(deps));
   v1.route("/beneficiaries", beneficiaryRoutes(deps));
+  v1.route("/payments", receiptRoutes(deps));
+  v1.route("/rails", railRoutes(deps));
   v1.route("/metrics", metricsRoutes(deps));
   v1.route("/ledger", ledgerRoutes(deps));
   v1.route("/events", eventRoutes(deps));
   v1.route("/seed", seedRoutes(deps));
+  /* The assistant reads this API through this API. `callApi` is bound to the app
+     being built and is only ever invoked at request time, by which point the route
+     tree is complete, so a tool answers out of the very handler the web app calls
+     over the wire. One code path, one payload, and a panel that cannot tell a clerk
+     something the screen next to it does not show. */
+  const callApi: ApiCaller = async (path, init) => app.request(path, init);
+  v1.route("/assistant", assistantRoutes(deps, callApi));
   /* The constancias sit on two different base paths, `/sat/constancia` and
      `/run/:id/constancia`, so they mount at the root of v1 rather than under
      either group. Keeping them in one file is what makes the two documents

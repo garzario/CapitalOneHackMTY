@@ -14,7 +14,12 @@
 
 import { describe, expect, test } from "bun:test";
 import type { Finding } from "@hackmty/core";
-import { EVIDENCE_ALIASES, EVIDENCE_LABELS, readEvidence } from "./evidence";
+import {
+  EVIDENCE_ALIASES,
+  EVIDENCE_LABELS,
+  readEvidence,
+  readLegalName,
+} from "./evidence";
 
 function finding(evidence: Finding["evidence"]): Finding {
   return {
@@ -152,8 +157,13 @@ describe("the bank change", () => {
       finding({ previousBankCode: "012", bankCode: "014" }),
     );
 
-    expect(view.bankChange?.from).toBe("BBVA Mexico");
-    expect(view.bankChange?.to).toBe("Santander");
+    /* The casing is the catalogue's own, because the catalogue IS the one in
+       `@hackmty/core` that the CLABE control names an institution from. A
+       hand-written table in `mock.ts` used to answer this, it held five banks,
+       and the run table read "Banco 044" for an account the seeded company pays
+       every week. */
+    expect(view.bankChange?.from).toBe("BBVA MEXICO");
+    expect(view.bankChange?.to).toBe("SANTANDER");
   });
 
   test("is not claimed when there is no previous bank to compare", () => {
@@ -222,6 +232,107 @@ describe("the invoice a duplicate copies", () => {
   });
 });
 
+describe("the SentryOne network line", () => {
+  const pulled = "2026-09-11T06:00:00-06:00";
+
+  test("reads the corroborated case as the headline the brief asks for", () => {
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "snapshot",
+          tenants: 37,
+          firstSeen: "2024-03-04",
+          lastSeen: "2026-09-02",
+          fraudReports: 0,
+          otherAccounts: 1,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.network).toEqual({
+      label: "pagada por 37 empresas desde mar 2024",
+      verdict: "corroborated",
+      pulledAt: pulled,
+    });
+  });
+
+  test("renders a network nobody consulted rather than hiding it", () => {
+    /* The bug this pins: a missing line and a line that says "no consultada"
+       look the same to a reader, and only one of them is true. */
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "not_consulted",
+          tenants: 0,
+          fraudReports: 0,
+          otherAccounts: 0,
+        },
+      }),
+    );
+
+    expect(view.network?.label).toBe("no consultada");
+    expect(view.network?.pulledAt).toBeNull();
+  });
+
+  test("separates an account the network never saw from one it never read", () => {
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "snapshot",
+          tenants: 0,
+          fraudReports: 0,
+          otherAccounts: 23,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.network?.verdict).toBe("other_accounts_only");
+    expect(view.network?.label).toContain("23 otras cuentas del proveedor");
+  });
+
+  test("leads with the fraud report when the network holds one", () => {
+    const view = readEvidence(
+      finding({
+        network: {
+          source: "snapshot",
+          tenants: 3,
+          fraudReports: 1,
+          otherAccounts: 0,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.network?.verdict).toBe("fraud_reported");
+    expect(view.network?.label).toBe("1 reporte de fraude");
+  });
+
+  test("is null on a finding that carries no network at all", () => {
+    expect(readEvidence(finding({ checkDigit: "valid" })).network).toBeNull();
+  });
+
+  test("never renders the signal as a chip as well", () => {
+    /* An object in the chip list prints as "[object Object]" at a clerk, which is
+       the failure this filter exists to make impossible. */
+    const view = readEvidence(
+      finding({
+        canal: "whatsapp",
+        network: {
+          source: "snapshot",
+          tenants: 4,
+          fraudReports: 0,
+          otherAccounts: 0,
+          pulledAt: pulled,
+        },
+      }),
+    );
+
+    expect(view.chips.map((chip) => chip.key)).toEqual(["canal"]);
+  });
+});
+
 describe("the chips", () => {
   test("never repeat a fact that was rendered on its own", () => {
     /* The bug this pins: the CLABE shown twice, once in the comparison and
@@ -265,6 +376,40 @@ describe("the chips", () => {
   });
 });
 
+describe("the CFDI legal name", () => {
+  test("reads the key packages/engine writes", () => {
+    /* The CEP screen was reading only the Spanish key, which the offline run
+       writes and the engine does not, so the comparison that is the whole point
+       of the screen showed "no disponible" in front of the running API. */
+    expect(
+      readLegalName(
+        finding({ legalName: "Herramentales y Moldes del Norte SA de CV" }),
+      ),
+    ).toBe("Herramentales y Moldes del Norte SA de CV");
+  });
+
+  test("still reads the key the offline synthetic run writes", () => {
+    expect(
+      readLegalName(
+        finding({ razon_social_cfdi: "Aceros del Golfo SA de CV" }),
+      ),
+    ).toBe("Aceros del Golfo SA de CV");
+  });
+
+  test("prefers the engine's key when a finding carries both", () => {
+    expect(
+      readLegalName(
+        finding({ legalName: "del motor", razon_social_cfdi: "del mock" }),
+      ),
+    ).toBe("del motor");
+  });
+
+  test("answers nothing when there is no finding and when there is no name", () => {
+    expect(readLegalName(null)).toBeNull();
+    expect(readLegalName(finding({ nameMatch: "match" }))).toBeNull();
+  });
+});
+
 describe("the label dictionary", () => {
   /*
    * Every key the six detectors emit today, read off the evidence literals in
@@ -303,6 +448,12 @@ describe("the label dictionary", () => {
     "previousInstitutionCodes",
     "previousInstitutionNames",
     "previousPlazaCodes",
+    "previousPlazaPlaces",
+    "plazaCity",
+    "plazaState",
+    "plazaComparison",
+    "invoicePostalCode",
+    "invoiceState",
     "institutionCatalogue",
     "ocrChannel",
     "ocrConfidence",
@@ -370,6 +521,14 @@ describe("the label dictionary", () => {
     "sentAt",
     "sentDay",
     "outflowsNearby",
+    // the consortium, packages/engine/src/beneficiary.ts. `network` itself is
+    // rendered on its own line and is in EVIDENCE_ALIASES rather than here.
+    "networkVerdict",
+    "networkAdjustment",
+    "networkTenants",
+    "networkMonths",
+    "networkFraudReports",
+    "networkOtherAccounts",
     // the API's in-memory repository, apps/api/src/synthetic.ts
     "knownClabe",
     "proposedClabe",

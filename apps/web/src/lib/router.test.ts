@@ -6,19 +6,27 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  cepPath,
   DEFAULT_PATH,
   href,
   instructionPath,
   parsePath,
   pathOf,
   queryOf,
+  runPath,
+  satPath,
+  supplierPath,
   targetFromHash,
+  verifyAccountPath,
   verifyCallPath,
 } from "./router";
+import { parseRunFacets } from "./run-view";
 
 describe("parsePath", () => {
   test("maps each known path to its route", () => {
+    expect(parsePath("/entrada")).toEqual({ name: "entry" });
     expect(parsePath("/run")).toEqual({ name: "run" });
+    expect(parsePath("/payments")).toEqual({ name: "payments" });
     expect(parsePath("/intake")).toEqual({ name: "intake" });
     expect(parsePath("/sat")).toEqual({ name: "sat" });
     expect(parsePath("/cep")).toEqual({ name: "cep" });
@@ -30,6 +38,13 @@ describe("parsePath", () => {
     expect(parsePath("/instructions/ins-2026w37-002")).toEqual({
       name: "instruction",
       id: "ins-2026w37-002",
+    });
+  });
+
+  test("reads the RFC out of the supplier path", () => {
+    expect(parsePath("/suppliers/SYN990202S02")).toEqual({
+      name: "supplier",
+      rfc: "SYN990202S02",
     });
   });
 
@@ -66,6 +81,62 @@ describe("parsePath", () => {
   });
 });
 
+describe("supplierPath", () => {
+  test("round trips the RFC the expediente is about", () => {
+    expect(parsePath(supplierPath("SYN990202S02"))).toEqual({
+      name: "supplier",
+      rfc: "SYN990202S02",
+    });
+  });
+
+  /* An RFC typed with spaces is exactly what arrives from a form, and a bare
+     slash in the segment would parse as a third path segment and 404. */
+  test("encodes a value a path segment could not carry", () => {
+    expect(parsePath(supplierPath("SYN 990202/S02"))).toEqual({
+      name: "supplier",
+      rfc: "SYN 990202/S02",
+    });
+  });
+
+  test("is not the instruction path", () => {
+    expect(parsePath("/suppliers")).toEqual({
+      name: "notFound",
+      path: "/suppliers",
+    });
+  });
+});
+
+describe("runPath", () => {
+  test("is the bare run route when nothing is filtered", () => {
+    /* No trailing `?`: `/run?` and `/run` are two spellings of one screen, and
+       the second one is the one that goes in the rail. */
+    expect(runPath()).toBe("/run");
+    expect(runPath({})).toBe("/run");
+  });
+
+  test("carries the facets it was given", () => {
+    expect(runPath({ level: "alerta" })).toBe("/run?level=alerta");
+    expect(
+      runPath({ state: "cancelado", level: "alerta", control: "sat_69b" }),
+    ).toBe("/run?state=cancelado&level=alerta&control=sat_69b");
+  });
+
+  test("is still the run route, because the matcher ignores the query", () => {
+    /* Same as the intake, which reads `rfc` and `amount` out of its own query:
+       the query is the screen's, not the router's. */
+    expect(parsePath(runPath({ state: "rojo" }))).toEqual({ name: "run" });
+    expect(
+      parsePath(runPath({ state: "rojo", level: "alerta", control: "none" })),
+    ).toEqual({ name: "run" });
+  });
+
+  test("round trips through the parser the screen reads it with", () => {
+    const facets = { state: "enviado", level: "confiable" } as const;
+
+    expect(parseRunFacets(queryOf(runPath(facets)))).toEqual(facets);
+  });
+});
+
 describe("verifyCallPath", () => {
   test("carries the instruction the call is about", () => {
     const path = verifyCallPath("ins-2026w37-01");
@@ -78,6 +149,42 @@ describe("verifyCallPath", () => {
     const path = verifyCallPath("ins 2026w37/01");
 
     expect(queryOf(path).get("instruction")).toBe("ins 2026w37/01");
+  });
+});
+
+describe("satPath and cepPath", () => {
+  test("carry the supplier the evidence link is about", () => {
+    expect(parsePath(satPath("SYN010101AAA"))).toEqual({ name: "sat" });
+    expect(queryOf(satPath("SYN010101AAA")).get("rfc")).toBe("SYN010101AAA");
+
+    expect(parsePath(cepPath("SYN070707GGG"))).toEqual({ name: "cep" });
+    expect(queryOf(cepPath("SYN070707GGG")).get("rfc")).toBe("SYN070707GGG");
+  });
+
+  /* A space is the character that would silently end the query, and a typed
+     RFC is exactly where one arrives from. */
+  test("encode a value with a space and round trip through queryOf", () => {
+    expect(queryOf(satPath("SYN 010101 AAA")).get("rfc")).toBe(
+      "SYN 010101 AAA",
+    );
+    expect(queryOf(cepPath("SYN 070707 GGG")).get("rfc")).toBe(
+      "SYN 070707 GGG",
+    );
+  });
+});
+
+describe("verifyAccountPath", () => {
+  test("lands on the CEP screen with the instruction selected", () => {
+    const path = verifyAccountPath("ins-2026w37-002");
+
+    expect(parsePath(path)).toEqual({ name: "cep" });
+    expect(queryOf(path).get("instruction")).toBe("ins-2026w37-002");
+  });
+
+  test("encodes an id that would otherwise break the query", () => {
+    const path = verifyAccountPath("ins 2026w37/02");
+
+    expect(queryOf(path).get("instruction")).toBe("ins 2026w37/02");
   });
 });
 

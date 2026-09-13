@@ -1,5 +1,6 @@
 /**
- * The two constancias.
+ * The two constancias, and the header and digest the receipt in `./receipt.ts`
+ * shares with them.
  *
  * A constancia is the retention artifact: the accountant files it, and eighteen
  * months later, when the SAT asks why a deduction was taken or why a payment
@@ -24,14 +25,24 @@
 
 import type {
   Action,
+  Actor,
   Decision,
   Finding,
   LedgerEvent,
+  PaymentExecution,
   PaymentInstruction,
+  PaymentLineState,
   Supplier,
   SweepResult,
 } from "@hackmty/core";
-import { formatAmount, sumAmounts } from "@hackmty/core";
+import {
+  ACTOR_ROLE_LABEL,
+  describeActor,
+  formatAmount,
+  maskClabesInText,
+  SYSTEM_DECIDER,
+  sumAmounts,
+} from "@hackmty/core";
 import { fingerprintLedger, groupDigest, type LedgerRange } from "./hash";
 import { type Column, Sheet } from "./layout";
 import { PdfDocument } from "./pdf";
@@ -65,6 +76,16 @@ export interface SweepConstanciaInput extends ConstanciaCommon {
   source: string;
   /** How many supplier RFCs were matched against the version. */
   suppliersChecked: number;
+  /**
+   * Who loaded the version into this instance, off the `sat_list_published`
+   * event.
+   *
+   * Absent for a version that was never posted through the API, which is the
+   * committed official snapshot: nobody in this company published that one, and
+   * printing a name there would be the document inventing a signature. The page
+   * then says so in those words rather than leaving the line blank.
+   */
+  publishedBy?: Actor;
 }
 
 export interface RunConstanciaItem {
@@ -79,15 +100,27 @@ export interface RunConstanciaInput extends ConstanciaCommon {
   /** Monday of the payment run, `YYYY-MM-DD`. */
   weekOf: string;
   items: readonly RunConstanciaItem[];
+  /**
+   * What the run did on the payment rail, when it has been executed.
+   *
+   * Absent on a run nothing has sent, and then the document says so in one sentence
+   * rather than printing an empty table: "nothing has left yet" is a statement an
+   * accountant needs, and a missing section would read as a document that forgot to
+   * ask. Since ADR-0008 a constancia that listed what was decided and not what left
+   * would be half the answer to the only question the SAT asks about a payment.
+   */
+  execution?: PaymentExecution;
 }
 
-const ACTION_LABEL: Readonly<Record<Action, string>> = {
+/** How a proposed action is written on any document of this package. */
+export const ACTION_LABEL: Readonly<Record<Action, string>> = {
   hold: "Detenido",
   verify: "Por verificar",
   release: "Liberado",
 };
 
-const STATUS_LABEL: Readonly<Record<string, string>> = {
+/** How a 69-B situation is written on any document of this package. */
+export const STATUS_LABEL: Readonly<Record<string, string>> = {
   presunto: "Presunto",
   desvirtuado: "Desvirtuado",
   definitivo: "Definitivo",
@@ -105,7 +138,13 @@ const SYNTHETIC_BAND =
  */
 const MONTERREY_OFFSET_MINUTES = -360;
 
-function localStamp(iso: string): string {
+/**
+ * One instant, as the person reading the document sees their own clock.
+ *
+ * Exported because all four documents of this package print instants and a second
+ * implementation would put two timezones on one desk.
+ */
+export function localStamp(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) {
     return iso;
@@ -122,8 +161,15 @@ const NOT_A_SIGNATURE =
   "La huella es un resumen SHA-256 del contenido del rango de eventos citado, no una firma electronica. " +
   "Sirve para comprobar que dos impresiones del mismo rango describen los mismos hechos. No acredita quien emitio el documento.";
 
-/** Draws the header every constancia shares, and returns the sheet to continue on. */
-function open(
+/**
+ * Draws the header every document of this package shares, and returns the sheet to
+ * continue on.
+ *
+ * Exported because `./letter.ts` and `./receipt.ts` are the third and fourth
+ * documents and both are the same heading: the synthetic band, the title, the company
+ * and the instant. A second header would be a second document standard on one desk.
+ */
+export function openSheet(
   doc: PdfDocument,
   input: ConstanciaCommon,
   title: string,
@@ -145,8 +191,15 @@ function open(
   return sheet;
 }
 
-/** The digest block, identical on both documents so it reads the same way. */
-function closeWithFingerprint(sheet: Sheet, input: ConstanciaCommon): void {
+/**
+ * The digest block, identical on both constancias and on the receipt so it reads the
+ * same way. The letter compresses the same digest into two fields, because it is one
+ * page by contract, and `./letter.ts` says so where it does it.
+ */
+export function closeWithFingerprint(
+  sheet: Sheet,
+  input: ConstanciaCommon,
+): void {
   const fingerprint = fingerprintLedger(input.ledger, input.range ?? {});
 
   sheet.gap(8);
@@ -181,7 +234,7 @@ export function sweepConstancia(input: SweepConstanciaInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Constancia de revision, articulo 69-B",
@@ -192,6 +245,15 @@ export function sweepConstancia(input: SweepConstanciaInput): Uint8Array {
   sheet.field("Version de la lista", input.sweep.listVersion);
   sheet.field("Publicacion en el DOF", input.publishedAt);
   sheet.field("Origen", input.source);
+  /* Who put this list in front of the ledger. It is on the page because an
+     auditor reading a constancia eighteen months later asks who ran the cross
+     before they ask what it found. */
+  sheet.field(
+    "Cargada por",
+    input.publishedBy === undefined
+      ? "No se cargo desde esta instancia"
+      : describeActor(input.publishedBy),
+  );
   sheet.field("Proveedores cotejados", String(input.suppliersChecked));
   sheet.field(
     "Proveedores en la lista",
@@ -252,7 +314,7 @@ export function runConstancia(input: RunConstanciaInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Constancia de corrida de pagos",
@@ -309,11 +371,187 @@ export function runConstancia(input: RunConstanciaInput): Uint8Array {
   }
 
   sheet.gap(12);
+  writeExecution(sheet, input);
+
+  sheet.gap(12);
+  sheet.heading("Quien resolvio cada instruccion");
+  writeSignatures(sheet, input.items);
+
+  sheet.gap(12);
   sheet.heading("Hallazgos con detalle");
   writeFindings(sheet, input.items);
 
   closeWithFingerprint(sheet, input);
   return doc.toBytes();
+}
+
+/**
+ * Who signed each decision of the run, with the capacity and the argument.
+ *
+ * It is its own section rather than a seventh column, because the thing an
+ * auditor is looking for here is not a name next to a row: it is the short list
+ * of exceptions, and a release with a written reason on it is exactly that. The
+ * engine's own decisions are printed too and say `el motor`, so the page never
+ * implies a person looked at a line nobody looked at.
+ */
+function writeSignatures(
+  sheet: Sheet,
+  items: readonly RunConstanciaItem[],
+): void {
+  const decided = items.filter(
+    (item) =>
+      item.decision !== undefined && item.decision.decidedBy !== undefined,
+  );
+
+  if (decided.length === 0) {
+    sheet.paragraph(
+      "Ninguna instruccion de esta corrida lleva una resolucion firmada todavia. " +
+        "Lo que aparece arriba es la propuesta del motor, que nadie ha confirmado.",
+    );
+    return;
+  }
+
+  const columns: Column[] = [
+    { header: "Proveedor", share: 0.26 },
+    { header: "Resolucion", share: 0.14 },
+    { header: "Firma", share: 0.26 },
+    { header: "Motivo", share: 0.34 },
+  ];
+
+  sheet.tableHead(columns);
+  for (const item of decided) {
+    const decision = item.decision as Decision;
+    sheet.row(columns, [
+      item.supplier?.legalName ?? item.instruction.supplierRfc,
+      ACTION_LABEL[decision.action],
+      signatureOf(decision),
+      decision.reason ?? "sin motivo escrito",
+    ]);
+  }
+}
+
+/**
+ * The name and the capacity on one decision.
+ *
+ * `SYSTEM_DECIDER` is not a person, so it reads `el motor` rather than being
+ * dressed up as a signature, and a name with no role is printed as the name: a
+ * decision taken before the `X-Actor` header existed has one and inventing a
+ * capacity for it would be worse than leaving it out.
+ */
+function signatureOf(decision: Decision): string {
+  const by = decision.decidedBy;
+  if (by === undefined) {
+    return "sin firma";
+  }
+  if (by === SYSTEM_DECIDER) {
+    return "el motor (automatico)";
+  }
+  return decision.decidedByRole === undefined
+    ? by
+    : `${by} (${ACTOR_ROLE_LABEL[decision.decidedByRole]})`;
+}
+
+/** What a line of the execution reads as on the page. */
+const LINE_STATE_LABEL: Readonly<Record<PaymentLineState, string>> = {
+  queued: "En archivo",
+  sent: "Enviado",
+  settled: "Confirmado",
+  failed: "Rechazado",
+  cancelled: "Cancelado",
+};
+
+/**
+ * What left on the rail, line by line.
+ *
+ * The clave de rastreo is the column that makes this page worth filing: it is the
+ * string the CEP is filed under at Banxico, so an auditor holding this document can
+ * ask the central bank about any line on it. `Enviado` and `Confirmado` are two
+ * claims collapsed into one word each, and the note below says which is which,
+ * because "we asked" and "the rail says it happened" are not the same thing.
+ */
+function writeExecution(sheet: Sheet, input: RunConstanciaInput): void {
+  sheet.heading("Lo que salio del banco");
+
+  const execution = input.execution;
+  if (execution === undefined || execution.lines.length === 0) {
+    sheet.paragraph(
+      "Todavia no sale nada de esta corrida. Las instrucciones estan revisadas y " +
+        "resueltas, y ninguna linea se ha enviado por el riel de pagos.",
+    );
+    return;
+  }
+
+  const names = new Map(
+    input.items.map((item) => [
+      item.instruction.id,
+      item.supplier?.legalName ?? item.instruction.supplierRfc,
+    ]),
+  );
+
+  sheet.field(
+    "Ejecutada por",
+    execution.startedBy === undefined
+      ? "sin registro en la bitacora"
+      : `${execution.startedBy.name} (${ACTOR_ROLE_LABEL[execution.startedBy.role]})`,
+  );
+  sheet.field(
+    "Inicio",
+    execution.startedAt === undefined
+      ? "sin registro"
+      : localStamp(execution.startedAt),
+  );
+  sheet.field(
+    "Resultado",
+    `${execution.totals.settled} confirmadas, ${execution.totals.sent} enviadas, ${execution.totals.failed} rechazadas, ${execution.totals.cancelled} canceladas`,
+  );
+  sheet.field(
+    "Importe que salio (MXN)",
+    formatAmount(
+      sumAmounts([execution.totals.sentAmount, execution.totals.settledAmount]),
+    ),
+  );
+  sheet.gap(8);
+
+  const columns: Column[] = [
+    { header: "Proveedor", share: 0.28 },
+    { header: "Importe", share: 0.15, align: "right" },
+    { header: "Estado", share: 0.13 },
+    { header: "Clave de rastreo", share: 0.26 },
+    { header: "Riel", share: 0.18 },
+  ];
+
+  sheet.tableHead(columns);
+  for (const line of execution.lines) {
+    sheet.row(columns, [
+      names.get(line.instructionId) ?? line.instructionId,
+      formatAmount(line.amount),
+      LINE_STATE_LABEL[line.state],
+      line.claveRastreo ?? "sin clave",
+      line.rail ?? "sin riel",
+    ]);
+  }
+
+  const withReason = execution.lines.filter(
+    (line) => (line.reason ?? "") !== "",
+  );
+  if (withReason.length > 0) {
+    sheet.gap(8);
+    sheet.heading("Lineas que no salieron");
+    for (const line of withReason) {
+      sheet.paragraph(
+        `${names.get(line.instructionId) ?? line.instructionId}, ${formatAmount(line.amount)} MXN, ${LINE_STATE_LABEL[line.state]}: ${line.reason}`,
+        { grey: 0.3 },
+      );
+    }
+  }
+
+  sheet.gap(8);
+  sheet.paragraph(
+    "Enviado quiere decir que el riel acepto la transferencia. Confirmado quiere decir que el riel " +
+      "ya responde por el movimiento. Son dos cosas distintas y este documento no las junta. La clave " +
+      "de rastreo es con la que se localiza el CEP de cada transferencia.",
+    { grey: 0.3 },
+  );
 }
 
 /** `sat_69b, clabe_forensics` or a dash. The detail is in the section below. */
@@ -345,8 +583,12 @@ function writeFindings(
         `${formatAmount(item.instruction.amount)} MXN`,
     );
     for (const finding of item.findings) {
+      /* Masked for the reason the evidence letter masks it: control 2 names the
+         known account inside its own sentence, so a constancia that printed the
+         explanation verbatim would put eighteen digits on a document the accountant
+         files and hands to the SAT. */
       sheet.paragraph(
-        `${finding.detector}, ${finding.severity}, ${state(finding)}: ${finding.explanation}`,
+        `${finding.detector}, ${finding.severity}, ${state(finding)}: ${maskClabesInText(finding.explanation)}`,
         { grey: 0.3 },
       );
     }
@@ -360,7 +602,12 @@ function state(finding: Finding): string {
 }
 
 /** Suggested filename, so a browser saves something a person can find again. */
-export function constanciaFilename(kind: "sweep" | "run", id: string): string {
+export function constanciaFilename(
+  kind: "sweep" | "run" | "carta",
+  id: string,
+): string {
   const safe = id.replace(/[^A-Za-z0-9._-]+/g, "-");
-  return `constancia-${kind}-${safe}.pdf`;
+  return kind === "carta"
+    ? `carta-${safe}.pdf`
+    : `constancia-${kind}-${safe}.pdf`;
 }

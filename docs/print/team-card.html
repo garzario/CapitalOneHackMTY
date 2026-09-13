@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SentryOne tarjeta del equipo</title>
+    <link rel="stylesheet" href="./print.css" />
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      /* The only styles this card adds. Everything else is print.css, so the
+         team card, the judge card and the one-pager stay one visual system. */
+      .team-card .page {
+        padding-bottom: 16mm;
+      }
+
+      .two-up {
+        display: grid;
+        grid-template-columns: 1.02fr 1fr;
+        gap: 5mm;
+        margin-bottom: 3.4mm;
+      }
+
+      .block-title {
+        margin-bottom: 1.5mm;
+      }
+
+      /* The hook is the one block on this card that is read verbatim, so it is
+         the only place where legibility beats density. */
+      .hook {
+        margin-bottom: 2.6mm;
+        border-left: 0.7mm solid var(--accent);
+        padding-left: 2.6mm;
+        font-size: 8.6pt;
+        line-height: 1.31;
+      }
+
+      .never {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .never li {
+        border-left: 0.6mm solid var(--hold);
+        padding-left: 2mm;
+        color: var(--hold);
+        font-size: 7pt;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      /* Eleven beats on the same A4 that used to carry six objections. The
+         objections moved to the Q&A cards of docs/12, which live on a phone.
+         Re-measure after any edit: the page clips silently. */
+      .beat-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .beat-list li {
+        display: grid;
+        grid-template-columns: 13mm 1fr;
+        gap: 2mm;
+        border-top: 0.25mm solid var(--line);
+        padding: 1.05mm 0;
+      }
+
+      .beat-list .clock {
+        color: var(--subtle);
+        font-family: var(--font-mono);
+        font-size: 6.4pt;
+        line-height: 1.25;
+      }
+
+      .beat-list .what {
+        font-size: 7pt;
+        line-height: 1.25;
+      }
+
+      .beat-list .who {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .numbers {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 2mm;
+        margin-bottom: 3.4mm;
+      }
+
+      .numbers div {
+        border-top: 0.7mm solid var(--accent);
+        padding-top: 1.2mm;
+      }
+
+      .numbers strong {
+        display: block;
+        font-size: 9.4pt;
+        line-height: 1.05;
+      }
+
+      .numbers span {
+        color: var(--muted);
+        font-size: 6.2pt;
+        line-height: 1.16;
+      }
+
+      .bottom-up {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: 5mm;
+      }
+
+      .rival-list {
+        margin: 0 0 1.8mm;
+        padding: 0;
+        list-style: none;
+      }
+
+      .rival-list li {
+        border-top: 0.25mm solid var(--line);
+        padding: 1mm 0;
+        font-size: 6.7pt;
+        line-height: 1.2;
+      }
+
+      .rival-list strong {
+        display: inline;
+        font-size: 7pt;
+      }
+
+      .rival-list span {
+        color: var(--muted);
+      }
+
+      .claim {
+        margin-bottom: 0;
+        font-size: 7.1pt;
+        line-height: 1.24;
+      }
+
+      .layers {
+        margin: 0 0 1.8mm;
+        padding: 0;
+        list-style: none;
+        counter-reset: layers;
+      }
+
+      .layers li {
+        position: relative;
+        padding-left: 5.2mm;
+        font-size: 6.9pt;
+        line-height: 1.22;
+        counter-increment: layers;
+      }
+
+      .layers li::before {
+        position: absolute;
+        top: 0.15mm;
+        left: 0;
+        display: grid;
+        width: 3.7mm;
+        height: 3.7mm;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--ink);
+        color: white;
+        content: counter(layers);
+        font-size: 5.6pt;
+        font-weight: 700;
+      }
+
+      .slot {
+        margin-bottom: 0;
+        border: 0.55mm dashed var(--hold);
+        border-radius: 2mm;
+        padding: 2mm 2.4mm;
+        background: var(--hold-soft);
+        color: #7f1a15;
+        font-size: 6.8pt;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      .lead p {
+        font-size: 7.6pt;
+        line-height: 1.28;
+      }
+
+      .lead p:last-child {
+        margin-bottom: 0;
+      }
+
+      /* Every rule above matches a bare `li`. These four refine one and are
+         therefore more specific, so they sit together at the end in ascending
+         specificity: a sheet that descends is what
+         `lint/style/noDescendingSpecificity` flags, and the alternative is four
+         components that cannot be read in one block each. */
+      .never li + li {
+        margin-top: 1.1mm;
+      }
+
+      .layers li + li {
+        margin-top: 0.9mm;
+      }
+
+      .beat-list li:first-child,
+      .rival-list li:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+    </style>
+  </head>
+  <body class="a4 team-card">
+    <section class="page" aria-label="SentryOne tarjeta del equipo">
+      <header class="brand-line">
+        <div class="wordmark">SENTRYONE</div>
+        <span class="tag">Para los cuatro. No se entrega a un juez</span>
+      </header>
+
+      <p class="eyebrow">El orden del pitch de banca, tres a cinco minutos</p>
+      <h1 class="thesis">
+        La pantalla primero. A los cuarenta y cuatro segundos la historia la cuenta el producto.
+      </h1>
+
+      <div class="two-up">
+        <div>
+          <h2 class="block-title">El gancho, palabra por palabra. La laptop cerrada</h2>
+          <p class="hook">
+            Dos perdidas, y ninguna se deshace. Si el SAT publica a tu proveedor en la lista del
+            articulo 69-B, las deducciones que ya tomaste se anulan hacia atras, y tienes treinta dias
+            para responder. Desde enero el articulo 49 Bis arranca ese mismo reloj contra el comprador,
+            y el sello digital que se restringe es el tuyo. Y una vez que sale el SPEI, es firme e
+            irrevocable. De un subtotal rechazado se revierte el cuarenta y seis por ciento entre ISR e
+            IVA. La exposicion la crea la publicacion, no el pago: revisar al proveedor cuando lo diste
+            de alta no protege nada. Esto no necesita que nadie te defraude.
+          </p>
+          <ul class="never">
+            <li>
+              Jamas "nadie hace esto" ni "inventamos la prueba del centavo". Se dice "no encontramos a
+              nadie que venda las dos mitades juntas".
+            </li>
+            <li>
+              Jamas ocho minutos, jamas 25.4, jamas un porcentaje de riesgo sobre un pago, jamas
+              "seguro", jamas "IA decide".
+            </li>
+            <li>
+              Jamas "cancelado" ni la plaza en la linea heroe hasta que la pantalla lo diga. Jamas un
+              numero que no este en pantalla o en esta tarjeta.
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="block-title">Los once beats, y quien los dice</h2>
+          <ul class="beat-list">
+            <li>
+              <span class="clock">0:00</span>
+              <span class="what">
+                <span class="who">Patricio</span> Las dos perdidas, sin pantalla. Manos a la vista
+              </span>
+            </li>
+            <li>
+              <span class="clock">0:44</span>
+              <span class="what">
+                <span class="who">Fabricio</span> La corrida en pesos. Lupita, lo sintetico, los niveles
+              </span>
+            </li>
+            <li>
+              <span class="clock">1:12</span>
+              <span class="what">
+                <span class="who">Fabian</span> La foto de WhatsApp al chat, y la propuesta que confirma
+                una persona
+              </span>
+            </li>
+            <li>
+              <span class="clock">1:55</span>
+              <span class="what">
+                <span class="who">Adan</span> El SAT publica, la linea se vuelve a decidir, teclea un RFC
+                real
+              </span>
+            </li>
+            <li>
+              <span class="clock">2:20</span>
+              <span class="what">
+                <span class="who">Adan</span> El centavo y el CEP en un clic. Nessie es sandbox, el sello
+                no verificado
+              </span>
+            </li>
+            <li>
+              <span class="clock">2:52</span>
+              <span class="what">
+                <span class="who">Fabian</span> La corrida sale con nombre, clave y recibo
+              </span>
+            </li>
+            <li>
+              <span class="clock">3:08</span>
+              <span class="what">
+                <span class="who">Patricio</span> Como decide: seis controles, perdida esperada,
+                funciones puras
+              </span>
+            </li>
+            <li>
+              <span class="clock">3:37</span>
+              <span class="what">
+                <span class="who">Fabricio</span> La competencia, nombrada por nosotros
+              </span>
+            </li>
+            <li>
+              <span class="clock">4:00</span>
+              <span class="what">
+                <span class="who">Fabricio</span> Mercado, precio, punto de equilibrio y canal
+              </span>
+            </li>
+            <li>
+              <span class="clock">4:30</span>
+              <span class="what">
+                <span class="who">Fabricio</span> Cuando nos equivocamos, cuatro capas
+              </span>
+            </li>
+            <li>
+              <span class="clock">4:45</span>
+              <span class="what">
+                <span class="who">Patricio</span> La peticion, la condicion de paro y el cierre
+              </span>
+            </li>
+          </ul>
+          <p class="claim muted" style="margin-top: 1.8mm">
+            Dos en la laptop, dos un paso atras. Contesta el dueno del area, no quien oyo la pregunta.
+            Si el reloj se pasa de 5:00, sale el beat 10 y luego el 6, en ese orden y decidido antes.
+          </p>
+        </div>
+      </div>
+
+      <h2 class="block-title">Los numeros que si se dicen, y nada mas</h2>
+      <div class="numbers">
+        <div>
+          <strong>785,289.86</strong>
+          <span>Pesos que no salen de la corrida. La cifra grande nunca es el total</span>
+        </div>
+        <div>
+          <strong>46%</strong>
+          <span>Del subtotal rechazado se revierte entre ISR e IVA</span>
+        </div>
+        <div>
+          <strong>404,152.59</strong>
+          <span>Exposicion del barrido, sobre 878,592.59 de base ya deducida</span>
+        </div>
+        <div>
+          <strong>14,234</strong>
+          <span>Renglones de la lista oficial del 69-B, descargada el 12-09</span>
+        </div>
+        <div>
+          <strong>33 y 30</strong>
+          <span>Publicaciones en doce meses, y dias para responder</span>
+        </div>
+        <div>
+          <strong>6,476</strong>
+          <span>Empresas de 11 a 250 en Nuevo Leon. 246,000 es el total nacional</span>
+        </div>
+        <div>
+          <strong>899 / 3,900</strong>
+          <span>Al mes la empresa y el despacho de veinte. 1,999 el plan que ya se publica</span>
+        </div>
+        <div>
+          <strong>23,452</strong>
+          <span>Una factura detenida al ano paga la suscripcion completa</span>
+        </div>
+        <div>
+          <strong>143</strong>
+          <span>Despachos de 11 personas o mas en el estado, contados</span>
+        </div>
+        <div>
+          <strong>87.0 / 1.6</strong>
+          <span>Precision y falsos positivos sobre 35 casos. 12 de 12 confiables</span>
+        </div>
+      </div>
+
+      <div class="bottom-up">
+        <div>
+          <h2 class="block-title">La competencia. Cuatro nombres primero, siete si preguntan</h2>
+          <ul class="rival-list">
+            <li>
+              <strong>ValidX</strong>
+              <span>
+                "antes de pagar: si no cumple, se retiene y se notifica a Compras", sobre cuatro listas
+                del SAT. Retiene el pago y nunca ve la cuenta.
+              </span>
+            </li>
+            <li>
+              <strong>Portal de Proveedores</strong>
+              <span>
+                de Monterrey: barre 69 y 69-B a diario y detiene el pago cuando vence un documento. Un
+                portal al que entran 14,000 proveedores, cero capa bancaria.
+              </span>
+            </li>
+            <li>
+              <strong>Clara</strong>
+              <span>
+                dispersa cientos de SPEI desde un .xlsx que sube el pagador. Su pagina no nombra ninguna
+                verificacion de quien recibe. Xepelin, igual en tres pasos.
+              </span>
+            </li>
+            <li>
+              <strong>CONTPAQi</strong>
+              <span>
+                tiene las dos mitades, tablero fiscal y dispersion masiva, y su propio changelog muestra
+                que no se cruzan en el momento del pago.
+              </span>
+            </li>
+            <li>
+              <strong>Si preguntan</strong>
+              <span>
+                69b.mx y Tesio corren sobre la lista; Bind avisa y "no restringira"; HSBCnet valida
+                nombres solo de cuentas HSBC; Verificamex vende el centavo de 9 a 18 pesos y Banxico lo
+                manda en la regla 51a Bis; Trustpair, nsKnox y Eftsure verifican cuentas afuera.
+              </span>
+            </li>
+          </ul>
+          <p class="claim">
+            <strong>Lo nuestro es la union:</strong> las dos mitades en una decision con evidencia, antes
+            de la transferencia. Mas dos filos: la cuenta nueva contra las cuentas en las que si le hemos
+            pagado, y la senal convertida en decision con pesos en riesgo. Leemos 69-B y 49 Bis, y del 49
+            Bis decimos que no hay lista: son 14 oficios del DOF.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="block-title">Cuando nos equivocamos. Cuatro capas</h2>
+          <ul class="layers">
+            <li>
+              <strong>Existe hoy.</strong> El expediente: seis controles con su evidencia, el nombre de
+              quien decidio y su razon, en una bitacora que solo crece. Eso va al banco, a una
+              aseguradora o al SAT dentro de los treinta dias.
+            </li>
+            <li>
+              <strong>Propuesta.</strong> Cuatro semanas en modo sombra sin cobrar, credito de servicio,
+              y devolucion con tope de doce meses, 10,788 pesos. No hace entero un SPEI de 100,000: es el
+              10.8 por ciento de el, y lo decimos nosotros.
+            </li>
+            <li>
+              <strong>Propuesta.</strong> La poliza solo la escribe una aseguradora autorizada: el
+              articulo 20 nos la prohibe, el 24 anula el contrato, el 495 le pone prision y el 102 es el
+              unico canal licito. Eftsure publica un millon de dolares con la misma condicion, que su
+              propio motor haya aprobado el pago.
+            </li>
+            <li>
+              <strong>Existe hoy.</strong> El error contrario: retencion de tres dias, verificacion de
+              uno, el dueno libera con su nombre y su razon, y el dia ya esta valuado por proveedor, de
+              101.98 a 4,611.27 pesos.
+            </li>
+          </ul>
+          <p class="slot">
+            Hueco de la garantia: la letra del menu A a H la escoge el equipo antes de la primera pasada.
+            Si no hay letra, el beat 10 se dice sin la frase y no se promete ningun tope nuevo. Jamas se
+            improvisa una aqui: A y B custodian dinero, D contradice el articulo 11 que citamos en el
+            gancho.
+          </p>
+        </div>
+      </div>
+
+      <div class="footer-line">
+        <span>Todos los numeros de esta tarjeta salen de docs/04, docs/05 y docs/11</span>
+        <span>Las veintidos tarjetas de respuesta, bajo sesenta palabras: docs/12-judge-qa.md</span>
+      </div>
+    </section>
+  </body>
+</html>

@@ -20,21 +20,55 @@
  */
 
 import type {
+  ActionProposal,
+  Actor,
+  ActorRole,
+  AssistantAuthor,
+  AssistantMessage,
+  AssistantSession,
+  AssistantTool,
+  AssistantToolCall,
+  AssistantUsage,
   Cep,
   Cfdi,
+  Confidence,
+  ConfidenceRule,
   Decision,
+  EvidenceValue,
   Finding,
+  HoldWindow,
   KnownAccount,
   LedgerEvent,
   Metrics,
+  NameMatch,
+  NetworkSignal,
   PaymentComplement,
+  PaymentExecution,
+  PaymentExecutionLine,
+  PaymentExecutionTotals,
   PaymentInstruction,
+  PaymentLineState,
+  PaymentReceipt,
+  ProposalKind,
+  ProposalValue,
+  RailId,
   SatListEntry,
+  SealState,
   Supplier,
   SweepResult,
+  TransactionState,
+  TransactionStateRule,
   VerificationOutcome,
+  VerificationState,
+  VerificationStateName,
   VerificationTurn,
 } from "@hackmty/core";
+import { ACTOR_NAME_MAX_LENGTH, ACTOR_ROLES } from "@hackmty/core";
+import {
+  CENT_AMOUNT,
+  CLAVE_RASTREO_MAX_LENGTH,
+  CLAVE_RASTREO_PATTERN,
+} from "@hackmty/rail";
 import { normalizeRfc } from "@hackmty/sat";
 import { z } from "zod";
 
@@ -54,6 +88,16 @@ export const rfcSchema = z.string().regex(RFC_PATTERN, "RFC shape");
 /** 18 digits. The check digit itself is verified by the detector, not here. */
 export const CLABE_PATTERN = /^\d{18}$/;
 export const clabeSchema = z.string().regex(CLABE_PATTERN, "18-digit CLABE");
+
+/**
+ * A clave de rastreo, the SPEI field the CEP is filed under: letters and digits,
+ * up to 30. The pattern is `@hackmty/rail`'s, so the shape the rails mint and the
+ * shape the API accepts are one definition.
+ */
+export const claveRastreoSchema = z
+  .string()
+  .max(CLAVE_RASTREO_MAX_LENGTH)
+  .regex(CLAVE_RASTREO_PATTERN, "clave de rastreo");
 
 /** CFDI folios fiscales are UUIDs, written uppercase by the PAC. */
 export const UUID_PATTERN =
@@ -106,6 +150,16 @@ export const cfdiSchema = z.object({
   total: amountSchema,
   paymentMethod: z.enum(["PUE", "PPD"]),
   paymentForm: z.string().min(1).optional(),
+  /**
+   * CFDI 4.0 LugarExpedicion, five digits. Validated as a postal code here and
+   * not just as a string, because control 2 maps it to a state and a place that
+   * cannot be read has to be refused at the edge rather than silently ignored
+   * inside the engine.
+   */
+  issuePlace: z
+    .string()
+    .regex(/^\d{5}$/, "issuePlace is a five-digit postal code")
+    .optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cfdi>;
 
@@ -184,6 +238,44 @@ export const cepSchema = z.object({
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cep>;
 
+/** How close the CEP holder name is to the legal name on the CFDI. */
+export const nameMatchSchema = z.enum([
+  "match",
+  "partial",
+  "mismatch",
+]) satisfies z.ZodType<NameMatch>;
+
+/** The rails the cent can leave on. Nessie is the mirror, STP is production. */
+export const railIdSchema = z.enum([
+  "nessie",
+  "stp",
+]) satisfies z.ZodType<RailId>;
+
+/**
+ * Where one line of an executed run stands on the rail.
+ *
+ * Five states and `sent` and `settled` are never collapsed: a transfer is
+ * acknowledged when the rail says so, not when we asked.
+ */
+export const paymentLineStateSchema = z.enum([
+  "queued",
+  "sent",
+  "settled",
+  "failed",
+  "cancelled",
+]) satisfies z.ZodType<PaymentLineState>;
+
+/**
+ * What can be proven about the Banxico seal. `valid` is only ever the answer when
+ * a configured certificate verified it; `not_checked` is the UI's "firma no
+ * verificada" and is never rendered or described as valid.
+ */
+export const sealStateSchema = z.enum([
+  "valid",
+  "not_checked",
+  "invalid",
+]) satisfies z.ZodType<SealState>;
+
 export const detectorSchema = z.enum([
   "sat_69b",
   "clabe_forensics",
@@ -194,6 +286,42 @@ export const detectorSchema = z.enum([
 ]);
 
 export const severitySchema = z.enum(["info", "warning", "critical"]);
+
+/**
+ * What the consortium holds for the account an instruction pays, from the local
+ * snapshot. Issue #164, and `packages/consortium/README.md` says what is and is
+ * not in it.
+ *
+ * `source` is the field the rest of the product branches on, so it is an enum and
+ * not a string: `not_consulted` means the network was not read at all and the
+ * decision is the pre-consortium one, and `snapshot` with `tenants: 0` means the
+ * network was read and has never seen this account. Nothing in this object could
+ * identify a company, a supplier, a person or an amount.
+ */
+export const networkSignalSchema = z.object({
+  source: z.enum(["snapshot", "not_consulted"]),
+  tenants: z.number().int().nonnegative(),
+  firstSeen: daySchema.optional(),
+  lastSeen: daySchema.optional(),
+  fraudReports: z.number().int().nonnegative(),
+  otherAccounts: z.number().int().nonnegative(),
+  pulledAt: instantSchema.optional(),
+}) satisfies z.ZodType<NetworkSignal>;
+
+/**
+ * A value a finding carries as evidence: a primitive, or the one compound value
+ * the product has.
+ *
+ * The network signal travels as an object rather than as seven sibling keys
+ * because `source` is what keeps a network nobody read from rendering as a clean
+ * one, and splitting it would let a screen show the counts without it.
+ */
+export const evidenceValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  networkSignalSchema,
+]) satisfies z.ZodType<EvidenceValue>;
 
 /** Never an accusation: a finding is provable, or it needs a human check. */
 export const findingStateSchema = z.enum([
@@ -213,14 +341,41 @@ export const findingSchema = z.object({
   }),
   amountAtRisk: z.number().nonnegative(),
   explanation: z.string().min(1),
-  evidence: z.record(
-    z.string(),
-    z.union([z.string(), z.number(), z.boolean()]),
-  ),
+  evidence: z.record(z.string(), evidenceValueSchema),
   createdAt: instantSchema,
 }) satisfies z.ZodType<Finding>;
 
 export const actionSchema = z.enum(["hold", "verify", "release"]);
+
+/**
+ * Who is acting, the shape the `X-Actor` header parses into and the shape the
+ * ledger stores.
+ *
+ * The roles come from `ACTOR_ROLES` in @hackmty/core rather than from a literal
+ * here, so a third role would be a compile error in this file instead of an
+ * endpoint that silently refuses it. Same reason the name cap is the constant:
+ * the header parser, this schema and `decisions.decided_by` have to agree, or a
+ * name the API accepts is a name the ledger truncates.
+ */
+export const actorRoleSchema = z.enum(
+  ACTOR_ROLES as readonly [ActorRole, ...ActorRole[]],
+);
+
+export const actorSchema = z.object({
+  name: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
+  role: actorRoleSchema,
+}) satisfies z.ZodType<Actor>;
+
+/**
+ * Longest reason a person may write on a decision.
+ *
+ * Long enough for the sentence an auditor needs ("el proveedor confirmo por
+ * telefono y la nomina sale hoy"), short enough that the field cannot become a
+ * place to paste a document. It is one constant because the request body and the
+ * stored decision have to agree: a reason the API accepts and the ledger refuses
+ * would be a decision recorded without its argument.
+ */
+export const REASON_MAX = 400;
 
 export const decisionSchema = z.object({
   instructionId: z.string().min(1),
@@ -230,7 +385,93 @@ export const decisionSchema = z.object({
   findings: z.array(findingSchema),
   decidedAt: instantSchema,
   decidedBy: z.string().min(1).optional(),
+  /** The role that name was acting in. Absent on the engine's own decision. */
+  decidedByRole: actorRoleSchema.optional(),
+  /** Why the person chose it. Absent on the engine's own proposal. */
+  reason: z.string().min(1).max(REASON_MAX).optional(),
 }) satisfies z.ZodType<Decision>;
+
+/* -------------------------------------------------------------------------- */
+/* The level and the state, which travel with every line                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The level one payment is read at, and never a number.
+ *
+ * `metricsSchema` reads it too, because `Metrics.perLevel` of issue #201 reports
+ * the blind evaluation the way a clerk reads the screen. One enum for both, so a
+ * fourth word could not be added to one of them alone.
+ *
+ * Three words. ADR-0009 is binding on this and docs/09-api.md says it twice: the
+ * expected-loss arithmetic is an upper bound on the evidence and says so in its
+ * own comment, so a figure next to a supplier's name would be a precision nobody
+ * earned, and the word "seguro" would be a guarantee nobody can give about a
+ * transfer that cannot be recalled.
+ */
+export const confidenceSchema = z.enum([
+  "confiable",
+  "precaucion",
+  "alerta",
+]) satisfies z.ZodType<Confidence>;
+
+/** Which rule produced the level, so a panel can show the level with its reason. */
+export const confidenceRuleSchema = z.enum([
+  "sat_definitive",
+  "critical_finding",
+  "new_account_without_history",
+  "pending_verification",
+  "warning_finding",
+  "no_open_signal",
+]) satisfies z.ZodType<ConfidenceRule>;
+
+/**
+ * Where one payment stands. The three the screens show plus the two the run has
+ * always counted internally, which is what stops an honest answer being rounded
+ * to a colour.
+ */
+export const transactionStateSchema = z.enum([
+  "rojo",
+  "cancelado",
+  "enviado",
+  "pendiente",
+  "liberado",
+]) satisfies z.ZodType<TransactionState>;
+
+/** Which rule produced the state, in the vocabulary of the ADR-0009 table. */
+export const transactionStateRuleSchema = z.enum([
+  "executed",
+  "execution_cancelled",
+  "verification_blocked",
+  "sat_definitive",
+  "stopped_for_a_person",
+  "execution_failed",
+  "released",
+  "undecided",
+]) satisfies z.ZodType<TransactionStateRule>;
+
+/**
+ * The five keys the level and the state travel as, on a run line and on the
+ * instruction detail.
+ *
+ * Flat and not nested, because `jq '{confidence, state}'` is the shape
+ * docs/09-api.md promises a judge can paste. Every one of them is derived by
+ * `assessLine` in `@hackmty/core` and none of them is stored:
+ * `0012_assistant_and_payment_events.sql` deliberately adds no column for either,
+ * because a stored level can disagree with the findings it was computed from and a
+ * derived one cannot.
+ *
+ * `confidenceFindingIds` is what makes the level showable. A level with no
+ * evidence under it is not a thing this product puts on a screen, so the findings
+ * that produced it travel with it and the panel renders their evidence chips next
+ * to the word.
+ */
+export const lineLevelsSchema = z.object({
+  confidence: confidenceSchema,
+  confidenceRule: confidenceRuleSchema,
+  confidenceFindingIds: z.array(z.string().min(1)),
+  state: transactionStateSchema,
+  stateRule: transactionStateRuleSchema,
+});
 
 /** One turn of a verification call, as the voice provider reported it. */
 export const verificationTurnSchema = z.object({
@@ -247,6 +488,144 @@ export const verificationOutcomeSchema = z.enum([
   "unclear",
 ]) satisfies z.ZodType<VerificationOutcome>;
 
+/* -------------------------------------------------------------------------- */
+/* The assistant panel                                                         */
+/* -------------------------------------------------------------------------- */
+
+/* `actorRoleSchema` and `actorSchema` are above, with the `X-Actor` parser they
+   belong to. The panel reuses them rather than declaring a second pair. */
+
+export const assistantAuthorSchema = z.enum([
+  "clerk",
+  "assistant",
+]) satisfies z.ZodType<AssistantAuthor>;
+
+/**
+ * The whole list of reads the panel may perform. It is an enum and not a string
+ * for the reason ADR-0007 gives: a tool that writes has to be unrepresentable, and
+ * the closed list plus `readOnly: true` is what makes it so.
+ */
+export const assistantToolSchema = z.enum([
+  "get_run",
+  "get_instruction",
+  "get_supplier",
+  "get_verification",
+  "get_execution",
+  "get_receipt",
+  "sat_lookup",
+  "consortium_signal",
+  "get_metrics",
+]) satisfies z.ZodType<AssistantTool>;
+
+export const assistantToolCallSchema = z.object({
+  id: z.string().min(1),
+  tool: assistantToolSchema,
+  arguments: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean()]),
+  ),
+  /** The engine's own evidence, the same chips the finding panel renders. */
+  result: z.record(z.string(), evidenceValueSchema).optional(),
+  at: instantSchema,
+  /** The literal true. A tool call that writes cannot be expressed. */
+  readOnly: z.literal(true),
+  error: z.string().min(1).max(1000).optional(),
+}) satisfies z.ZodType<AssistantToolCall>;
+
+export const proposalKindSchema = z.enum([
+  "verify_account",
+  "verify_call",
+  "decide",
+  "execute_run",
+  "intake",
+]) satisfies z.ZodType<ProposalKind>;
+
+export const proposalValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+]) satisfies z.ZodType<ProposalValue>;
+
+/**
+ * An action the panel offers and a person executes.
+ *
+ * `payload` is the body of the endpoint that would run it, field for field, which
+ * is what lets the panel show what is about to happen in the words of the request
+ * itself. Primitives only, so it can be rendered without a second viewer.
+ */
+export const actionProposalSchema = z.object({
+  kind: proposalKindSchema,
+  instructionId: z.string().min(1).optional(),
+  payload: z.record(z.string(), proposalValueSchema),
+  requiresRole: actorRoleSchema,
+  summary: z.string().min(1).max(600),
+}) satisfies z.ZodType<ActionProposal>;
+
+export const assistantMessageSchema = z.object({
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
+  author: assistantAuthorSchema,
+  text: z.string().max(8000),
+  at: instantSchema,
+  actor: actorSchema.optional(),
+  instructionId: z.string().min(1).optional(),
+  /** References, never bytes. The image itself is on no stored object. */
+  imageRefs: z.array(z.string().min(1)).max(10).optional(),
+  toolCalls: z.array(assistantToolCallSchema).max(40).optional(),
+  proposal: actionProposalSchema.optional(),
+}) satisfies z.ZodType<AssistantMessage>;
+
+/**
+ * What one turn cost. The rate and its date are in docs/06 section 6.4 and the
+ * arithmetic is in `src/assistant/cost.ts`, which is unit tested: a cost on an
+ * append-only row has to be reproducible, so it is computed from stamped
+ * constants and never read back from the provider.
+ */
+export const assistantUsageSchema = z.object({
+  promptTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  costMxn: z.number().nonnegative(),
+  model: z.string().min(1).max(120),
+  rounds: z.number().int().nonnegative(),
+}) satisfies z.ZodType<AssistantUsage>;
+
+export const assistantSessionSchema = z.object({
+  id: z.string().min(1),
+  actor: actorSchema,
+  startedAt: instantSchema,
+  runId: z.string().min(1).optional(),
+  messages: z.array(assistantMessageSchema),
+}) satisfies z.ZodType<AssistantSession>;
+
+/** Largest base64 image one turn may carry, matching the intake contract. */
+export const ASSISTANT_IMAGE_MAX = 4_000_000;
+
+/** How many images one turn may carry. A clerk drops one screenshot, sometimes two. */
+export const ASSISTANT_IMAGES_MAX = 4;
+
+/**
+ * `POST /api/v1/assistant/messages`, as JSON. The same fields arrive as
+ * `multipart/form-data` from the panel, which is the form a browser sends a file
+ * in; `src/assistant/routes.ts` normalises the two into this shape.
+ *
+ * An empty `text` with no image is `400`: there is no turn to take. A `text` with
+ * no image is ordinary, and an image with no text is the whole point of the panel.
+ */
+export const assistantMessageBodySchema = z
+  .object({
+    sessionId: z.string().min(1).max(200).optional(),
+    text: z.string().max(4000).default(""),
+    images: z
+      .array(z.base64().max(ASSISTANT_IMAGE_MAX))
+      .max(ASSISTANT_IMAGES_MAX)
+      .optional(),
+  })
+  .refine((body) => body.text.trim() !== "" || (body.images?.length ?? 0) > 0, {
+    message: "Send text, or an image to read, or both.",
+    path: ["text"],
+  });
+
 export const ledgerEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("cfdi_received"),
@@ -262,24 +641,81 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     type: z.literal("instruction_received"),
     at: instantSchema,
     instruction: paymentInstructionSchema,
+    /** Who posted it. Absent on the rows the generator wrote. */
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("payment_sent"),
     at: instantSchema,
     instructionId: z.string().min(1),
     claveRastreo: z.string().min(1).optional(),
+    /* The three fields ADR-0008 added, all optional so every writer that predates
+       the execution keeps working: the seed records a SPEI the company sent from its
+       own banking portal and there was no run, no rail and nobody at a button. */
+    runId: z.string().min(1).optional(),
+    rail: railIdSchema.optional(),
+    actor: actorSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("payment_settled"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    claveRastreo: claveRastreoSchema,
+    receiptId: z.string().min(1),
+    runId: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("payment_failed"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    /** Required: a failure nobody can read is a line that quietly disappears. */
+    reason: z.string().min(1).max(1000),
+    claveRastreo: z.string().min(1).optional(),
+    runId: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("payment_cancelled"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    reason: z.string().min(1).max(1000),
+    runId: z.string().min(1).optional(),
+    /** Absent exactly when nobody dropped the line by hand: the evidence did. */
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("sat_list_published"),
     at: instantSchema,
     listVersion: z.string().min(1),
     entries: z.array(satListEntrySchema),
+    actor: actorSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("cent_sent"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    rail: railIdSchema,
+    claveRastreo: claveRastreoSchema,
+    /** The probe and nothing else. An amount is the one field nobody takes back. */
+    amount: z.literal(CENT_AMOUNT),
+    clabeLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+    simulated: z.boolean(),
+    actor: actorSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("cep_awaited"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    claveRastreo: claveRastreoSchema,
+    attempts: z.number().int().positive(),
+    waitedMs: z.number().nonnegative(),
+    reason: z.string().min(1).max(1000),
   }),
   z.object({
     type: z.literal("cep_verified"),
     at: instantSchema,
     cep: cepSchema,
     supplierRfc: rfcSchema,
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("verification_call"),
@@ -293,11 +729,36 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     transcript: z.array(verificationTurnSchema).max(200),
     conversationId: z.string().min(1).max(200).optional(),
     manual: z.boolean(),
+    /** Who typed the outcome in, on a hand-recorded call. */
+    recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH).optional(),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("decision_made"),
     at: instantSchema,
     decision: decisionSchema,
+  }),
+  /* One turn of the assistant panel. The conversation is on the same append-only
+     ledger as the payments because a proposal somebody acted on is part of the
+     history of that payment, and `AssistantSession` is projected from these rows
+     rather than stored twice. */
+  z.object({
+    type: z.literal("assistant_message"),
+    at: instantSchema,
+    sessionId: z.string().min(1),
+    message: assistantMessageSchema,
+    usage: assistantUsageSchema.optional(),
+  }),
+  /* A screenshot reached the product: the reference, who dropped it, and the
+     instruction it became. Never the bytes. */
+  z.object({
+    type: z.literal("intake_image"),
+    at: instantSchema,
+    imageRef: z.string().min(1),
+    actor: actorSchema,
+    mediaType: z.string().min(1).max(120).optional(),
+    sessionId: z.string().min(1).optional(),
+    instructionId: z.string().min(1).optional(),
   }),
 ]) satisfies z.ZodType<LedgerEvent>;
 
@@ -316,6 +777,40 @@ export const sweepResultSchema = z.object({
   totalExposure: z.number().nonnegative(),
 }) satisfies z.ZodType<SweepResult>;
 
+/**
+ * What `POST /api/v1/sat/publish` answers: the sweep, plus the lines of the
+ * current run the publication re-scored.
+ *
+ * `rescored` is issue #175 made visible to a judge with `curl`. A publication
+ * prices the whole ledger, and the lines of this week's run the engine scored
+ * before the list existed have to be scored again, or the run totals keep
+ * reporting zero retroactive exposure in the same minute `totalExposure` reports
+ * hundreds of thousands of pesos. So the publication states what it moved: one
+ * row per line, with the action that stood on it before and the decision the
+ * engine reached after.
+ *
+ * It carries no pesos of its own, on purpose. The retroactive exposure is priced
+ * per supplier and one supplier can sit on several lines of the same run, so a
+ * figure per line is an invitation to add the same voided deductions twice.
+ * `totals.retroactive69bBase` and `totals.retroactive69bExposure` on
+ * `GET /api/v1/run/current` are the run-level pair, counted once per RFC by
+ * `runMoney`, and `totalExposure` here is the whole-ledger one.
+ *
+ * An empty array is an ordinary answer and not a failure: a list that names
+ * suppliers this week's run does not pay changes nothing about this week's run.
+ */
+export const satPublishResponseSchema = sweepResultSchema.extend({
+  rescored: z.array(
+    z.object({
+      instructionId: z.string().min(1),
+      supplierRfc: rfcSchema,
+      /** Null when nothing had decided the line yet. */
+      before: actionSchema.nullable(),
+      decision: decisionSchema,
+    }),
+  ),
+});
+
 export const metricsSchema = z.object({
   cases: z.number().int().nonnegative(),
   truePositives: z.number().int().nonnegative(),
@@ -332,26 +827,84 @@ export const metricsSchema = z.object({
       fn: z.number().int().nonnegative(),
     }),
   ),
+  /** The same evaluation read the way a clerk reads the screen, per level. */
+  perLevel: z.record(
+    confidenceSchema,
+    z.object({
+      expected: z.number().int().nonnegative(),
+      predicted: z.number().int().nonnegative(),
+      agreed: z.number().int().nonnegative(),
+      precision: z.number().min(0).max(1),
+      recall: z.number().min(0).max(1),
+    }),
+  ),
 }) satisfies z.ZodType<Metrics>;
 
 /* -------------------------------------------------------------------------- */
 /* Compositions named by docs/09-api.md                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The run in counts and in pesos.
+ *
+ * The five original fields are counts, which answer "how many lines". The six
+ * that follow answer "how much money", which is the question the product is
+ * actually about: its value is the loss it prevents and not the minutes it
+ * saves. They come from `runMoney` in `@hackmty/core`, so the screen, the
+ * constancia and a judge with `curl` read one arithmetic.
+ */
 export const paymentRunTotalsSchema = z.object({
   instructions: z.number().int().nonnegative(),
   amount: z.number().nonnegative(),
   held: z.number().int().nonnegative(),
   toVerify: z.number().int().nonnegative(),
   released: z.number().int().nonnegative(),
+  heldAmount: z.number().nonnegative(),
+  toVerifyAmount: z.number().nonnegative(),
+  releasedAmount: z.number().nonnegative(),
+  /** `heldAmount` plus `toVerifyAmount`: the pesos that have not left. */
+  stoppedAmount: z.number().nonnegative(),
+  /** The largest single amount at risk on each line, added across lines. */
+  amountAtRisk: z.number().nonnegative(),
+  /** Subtotal already deducted to the suppliers a 69-B finding names. */
+  retroactive69bBase: z.number().nonnegative(),
+  /** ISR plus IVA that reverses on that subtotal. No fraud is needed for it. */
+  retroactive69bExposure: z.number().nonnegative(),
+  /* The run summarised by level and by state, from `runLevels` in
+     `@hackmty/core`. Counts and never an average, for the reason `runMoney` gives
+     for never summing an amount at risk inside a line: the mean of three words is
+     not a word, and a run reported as `precaucion` as a whole would hide the one
+     `alerta` line the clerk opened the screen for. The three levels add up to
+     `instructions` and so do the five states, because every line has one of each. */
+  confiable: z.number().int().nonnegative(),
+  precaucion: z.number().int().nonnegative(),
+  alerta: z.number().int().nonnegative(),
+  rojo: z.number().int().nonnegative(),
+  cancelado: z.number().int().nonnegative(),
+  enviado: z.number().int().nonnegative(),
+  pendiente: z.number().int().nonnegative(),
+  liberado: z.number().int().nonnegative(),
 });
 
-export const paymentRunItemSchema = z.object({
+/**
+ * One line of the run as a repository joins it: the four objects and no
+ * derivation.
+ *
+ * Split out from `paymentRunItemSchema` so each repository builds the join and
+ * hands it to `levelled` in `src/levels.ts`, which is the one place the level and
+ * the state are attached. A repository that attached them itself would be the
+ * second implementation ADR-0009 exists to remove.
+ */
+export const paymentRunLineSchema = z.object({
   instruction: paymentInstructionSchema,
   supplier: supplierSchema,
   decision: decisionSchema.nullable(),
   findings: z.array(findingSchema),
 });
+
+export const paymentRunItemSchema = paymentRunLineSchema.extend(
+  lineLevelsSchema.shape,
+);
 
 export const paymentRunSchema = z.object({
   id: z.string().min(1),
@@ -367,11 +920,198 @@ export const instructionDetailSchema = z.object({
   supplier: supplierSchema.nullable(),
 });
 
+/**
+ * How long a payment stays stopped, and what a person does next.
+ *
+ * `holdWindow` in `@hackmty/core` computes it from the decision and the clock,
+ * so it is never stored: a deadline in a column could disagree with the delay
+ * the expected-loss arithmetic charged for, and this one cannot.
+ */
+export const holdWindowSchema = z.object({
+  action: z.enum(["hold", "verify"]),
+  days: z.number().int().positive(),
+  deadline: instantSchema,
+  hoursLeft: z.number().int().nonnegative(),
+  /** Nothing is released or refused when it passes. A person answers instead. */
+  expired: z.boolean(),
+  outcome: verificationOutcomeSchema.optional(),
+  nextSteps: z
+    .array(
+      z.enum([
+        "call_supplier",
+        "retry_call",
+        "one_cent_cep",
+        "release_with_reason",
+        "keep_held",
+      ]),
+    )
+    .min(1)
+    .readonly(),
+}) satisfies z.ZodType<HoldWindow>;
+
+/**
+ * The detail panel, plus the hold window.
+ *
+ * A separate schema rather than a field on `instructionDetailSchema`, because the
+ * repository builds the detail and owns no clock, and the window is a function of
+ * the instant it is asked for.
+ */
+export const instructionDetailResponseSchema = instructionDetailSchema.extend({
+  hold: holdWindowSchema.nullable(),
+  ...lineLevelsSchema.shape,
+});
+
 export const verifiedBeneficiarySchema = z.object({
   supplierRfc: rfcSchema,
   clabe: clabeSchema,
   cep: cepSchema,
   verifiedAt: instantSchema,
+});
+
+/** The states of the one-cent verification, in the order they happen. */
+export const verificationStateNameSchema = z.enum([
+  "not_started",
+  "cent_sent",
+  "awaiting_cep",
+  "cep_signed",
+  "released",
+  "blocked",
+]) satisfies z.ZodType<VerificationStateName>;
+
+/**
+ * `GET /api/v1/instructions/:id/verification`, and the body of the `202` the
+ * verify-account endpoint answers with.
+ *
+ * Every field is folded out of the event ledger, so this payload is a view of a
+ * history and not a row somebody could update. `sealState` is the one field that
+ * carries a claim, and it is `valid` only when a certificate verified the sello.
+ */
+export const verificationStateSchema = z.object({
+  instructionId: z.string().min(1),
+  state: verificationStateNameSchema,
+  rail: railIdSchema.nullable(),
+  claveRastreo: claveRastreoSchema.nullable(),
+  centSentAt: instantSchema.nullable(),
+  cepAt: instantSchema.nullable(),
+  sealState: sealStateSchema.nullable(),
+  holderName: z.string().min(1).nullable(),
+  legalName: z.string().min(1).nullable(),
+  nameMatch: nameMatchSchema.nullable(),
+  decision: decisionSchema.nullable(),
+  updatedAt: instantSchema,
+}) satisfies z.ZodType<VerificationState>;
+
+/* -------------------------------------------------------------------------- */
+/* The payment execution                                                       */
+/* -------------------------------------------------------------------------- */
+
+export const paymentExecutionLineSchema = z.object({
+  instructionId: z.string().min(1),
+  state: paymentLineStateSchema,
+  /** Pesos of this line, so the execution adds up without a join back. */
+  amount: amountSchema,
+  claveRastreo: claveRastreoSchema.optional(),
+  rail: railIdSchema.optional(),
+  sentAt: instantSchema.optional(),
+  receiptId: z.string().min(1).optional(),
+  /** Why a failed or cancelled line did not go out, in one sentence. */
+  reason: z.string().min(1).max(1000).optional(),
+}) satisfies z.ZodType<PaymentExecutionLine>;
+
+/**
+ * Counts and pesos, never one of them.
+ *
+ * The five peso buckets are disjoint and add up to `amount` exactly, which is an
+ * identity a judge can check against the rows underneath.
+ */
+export const paymentExecutionTotalsSchema = z.object({
+  lines: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  sent: z.number().int().nonnegative(),
+  settled: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  amount: z.number().nonnegative(),
+  queuedAmount: z.number().nonnegative(),
+  sentAmount: z.number().nonnegative(),
+  settledAmount: z.number().nonnegative(),
+  failedAmount: z.number().nonnegative(),
+  cancelledAmount: z.number().nonnegative(),
+}) satisfies z.ZodType<PaymentExecutionTotals>;
+
+export const paymentExecutionSchema = z.object({
+  runId: z.string().min(1),
+  lines: z.array(paymentExecutionLineSchema),
+  totals: paymentExecutionTotalsSchema,
+  startedBy: actorSchema.optional(),
+  startedAt: instantSchema.optional(),
+  updatedAt: instantSchema,
+}) satisfies z.ZodType<PaymentExecution>;
+
+/**
+ * The receipt of one payment.
+ *
+ * `sealState` is a state and never a boolean, and the account is four digits. Both
+ * are honesty rules in the shape rather than in a comment: a receipt printed for a
+ * rail that produces no CEP reads "firma no verificada", and a document that leaves
+ * the building does not need the other fourteen digits.
+ */
+export const paymentReceiptSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string(),
+  instructionId: z.string().min(1),
+  claveRastreo: claveRastreoSchema,
+  rail: railIdSchema,
+  amount: amountSchema,
+  sentAt: instantSchema,
+  settledAt: instantSchema.optional(),
+  supplierRfc: rfcSchema,
+  beneficiaryName: z.string().min(1),
+  beneficiaryAccountLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
+  beneficiaryBank: z.string().min(1),
+  cfdiUuids: z.array(uuidSchema),
+  sealState: sealStateSchema,
+  cepAt: instantSchema.optional(),
+  executedBy: actorSchema,
+  synthetic: z.boolean(),
+}) satisfies z.ZodType<PaymentReceipt>;
+
+/**
+ * One line the run did not send, with the row of the ADR-0009 state table that
+ * decided it.
+ *
+ * It is on the stream and not in `PaymentExecution`, because a line nobody released
+ * was never part of what the run did on the rail: it is on the run screen, `rojo`,
+ * in front of a person. What a clerk watching the execution needs is to see that it
+ * was left out on purpose rather than lost, and that is exactly this event.
+ */
+export const skippedLineSchema = z.object({
+  instructionId: z.string().min(1),
+  amount: amountSchema,
+  state: z.enum(["rojo", "cancelado", "enviado", "pendiente", "liberado"]),
+  rule: z.string().min(1),
+  reason: z.string().min(1).max(1000).optional(),
+});
+
+/**
+ * `GET /api/v1/rails`. No key, no account, no fingerprint.
+ *
+ * `configured` is whether the variables exist and never what they contain, and
+ * `live` is whether that rail has ever actually moved money from this repository,
+ * so a screen cannot claim the production path has run when it has not.
+ */
+export const railRowSchema = z.object({
+  id: railIdSchema,
+  configured: z.boolean(),
+  producesCep: z.boolean(),
+  live: z.boolean(),
+  detail: z.string().min(1),
+});
+
+export const railsResponseSchema = z.object({
+  active: railIdSchema.nullable(),
+  rails: z.array(railRowSchema),
+  message: z.string().min(1).optional(),
 });
 
 export const supplierDetailSchema = z.object({
@@ -418,9 +1158,6 @@ export const ledgerResponseSchema = z.object({
   events: z.array(ledgerEventSchema),
 });
 
-/** How close the CEP holder name is to the legal name on the CFDI. */
-export const nameMatchSchema = z.enum(["match", "partial", "mismatch"]);
-
 export const cepVerifyResponseSchema = z.object({
   cep: cepSchema,
   nameMatch: nameMatchSchema,
@@ -433,9 +1170,20 @@ export const intakeResponseSchema = z.object({
   decision: decisionSchema,
 });
 
+/**
+ * What `POST /api/v1/instructions/:id/decide` answers.
+ *
+ * `amountAtRisk` is stated rather than left to be re-derived from the findings.
+ * The pesos a person accepted responsibility for are the point of the record,
+ * and a number every caller has to compute for itself is a number two callers
+ * compute differently. `hold` says how long the payment stays stopped, and it is
+ * null exactly when the action is `release`.
+ */
 export const decideResponseSchema = z.object({
   instruction: paymentInstructionSchema,
   decision: decisionSchema,
+  amountAtRisk: z.number().nonnegative(),
+  hold: holdWindowSchema.nullable(),
 });
 
 /**
@@ -464,6 +1212,14 @@ export const verifyCallResponseSchema = z.object({
   transcript: z.array(verificationTurnSchema).optional(),
   /** Always present so the UI never has to infer it from the absence of a call. */
   releasesPayment: z.literal(false),
+  /**
+   * The hold window with the next step, present once an outcome was recorded.
+   *
+   * This is the answer to "what happens if nobody picks up": the same response
+   * that reports `no_answer` says how long the payment stays stopped and what
+   * the three ways forward are, one of which needs nobody to answer anything.
+   */
+  hold: holdWindowSchema.nullable().optional(),
 });
 
 /**
@@ -523,9 +1279,19 @@ export const createInstructionBodySchema = z
     },
   );
 
+/**
+ * A person confirms an action.
+ *
+ * `decidedBy` is required, because a decision on money with nobody's name on it
+ * is not a decision anybody can be asked about later. `reason` is optional in
+ * the contract and asked for by the screen on an override, which is the honest
+ * split: an API that refused a release with no prose would be refused by the
+ * clerk instead, outside the product, where nothing is recorded at all.
+ */
 export const decideBodySchema = z.object({
   action: actionSchema,
-  decidedBy: z.string().min(1).max(120),
+  decidedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
+  reason: z.string().min(1).max(REASON_MAX).optional(),
 });
 
 /**
@@ -591,7 +1357,7 @@ export const verifyCallBodySchema = z.union([
     outcome: verificationOutcomeSchema,
     /** What the person heard, quoted. Optional, because silence is an outcome. */
     evidence: z.string().min(1).max(4000).optional(),
-    recordedBy: z.string().min(1).max(120),
+    recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
   }),
 ]);
 
@@ -603,6 +1369,45 @@ export const seedBodySchema = z.object({
     .max(2 ** 31 - 1)
     .optional(),
   reset: z.boolean().optional(),
+});
+
+/**
+ * How many lines one request may name.
+ *
+ * The seeded run holds around ninety, a real weekly run of a company this size holds
+ * a few hundred, and a thousand is past anything a clerk reviews in one sitting. The
+ * cap is here so a body cannot become a denial of service against a rail that charges
+ * per request.
+ */
+export const EXECUTE_LINES_MAX = 1000;
+
+/**
+ * `POST /api/v1/run/:id/execute`.
+ *
+ * `confirm: true` is required and it is the literal `true`, not a boolean: there is no
+ * body shape that means "execute, and no I did not confirm". `instructionIds` narrows
+ * the set of lines and can never widen it past what the decisions allow, which is
+ * enforced by `planRunExecution` and not by this schema.
+ */
+export const executeBodySchema = z.object({
+  instructionIds: z
+    .array(z.string().min(1).max(200))
+    .min(1)
+    .max(EXECUTE_LINES_MAX)
+    .optional(),
+  confirm: z.literal(true),
+});
+
+/**
+ * `POST /api/v1/run/:id/layout/response`, the bank portal's answer to the file.
+ *
+ * The file arrives as text because that is what the portal hands back, and it is
+ * parsed by `readLayoutResponse` in `@hackmty/rail` rather than here: the separator,
+ * the header spelling and the column order are the portal's and a zod schema cannot
+ * hold all of them.
+ */
+export const layoutResponseBodySchema = z.object({
+  file: z.string().min(1).max(1_000_000),
 });
 
 /**
@@ -620,6 +1425,25 @@ export const typedRfcSchema = z
   .pipe(rfcSchema);
 
 export const satLookupQuerySchema = z.object({ rfc: typedRfcSchema });
+
+/**
+ * `GET /api/v1/consortium/signal?rfc=&clabe=`.
+ *
+ * The RFC is normalised the same way the lookup box normalises it, because both
+ * are typed by hand, and the CLABE is validated to eighteen digits here so a
+ * malformed one is a 400 rather than a hash of nothing that answers 404.
+ */
+export const consortiumQuerySchema = z.object({
+  rfc: typedRfcSchema,
+  clabe: clabeSchema,
+});
+
+/** What that endpoint answers with. The signal, and where it came from. */
+export const consortiumSignalResponseSchema = z.object({
+  rfc: rfcSchema,
+  clabe: clabeSchema,
+  network: networkSignalSchema,
+});
 
 export const rfcParamSchema = z.object({ rfc: typedRfcSchema });
 
@@ -640,18 +1464,31 @@ export const ledgerQuerySchema = z.object({
 /* -------------------------------------------------------------------------- */
 
 export type PaymentRunTotals = z.infer<typeof paymentRunTotalsSchema>;
+export type PaymentRunLine = z.infer<typeof paymentRunLineSchema>;
+export type LineLevels = z.infer<typeof lineLevelsSchema>;
 export type PaymentRunItem = z.infer<typeof paymentRunItemSchema>;
 export type PaymentRun = z.infer<typeof paymentRunSchema>;
 export type InstructionDetail = z.infer<typeof instructionDetailSchema>;
+export type InstructionDetailResponse = z.infer<
+  typeof instructionDetailResponseSchema
+>;
+export type DecideResponse = z.infer<typeof decideResponseSchema>;
 export type SupplierDetail = z.infer<typeof supplierDetailSchema>;
 export type VerifiedBeneficiary = z.infer<typeof verifiedBeneficiarySchema>;
 export type SatVersionSummary = z.infer<typeof satVersionSummarySchema>;
-export type NameMatch = z.infer<typeof nameMatchSchema>;
+/**
+ * The name comparison verdict, re-exported from the domain rather than inferred
+ * from the schema above. It moved into `packages/core/src/domain.ts` with
+ * `VerificationState`, which carries one, and three declarations of the same three
+ * words was two too many.
+ */
+export type { NameMatch };
 export type CepVerifyResponse = z.infer<typeof cepVerifyResponseSchema>;
 export type IntakeResponse = z.infer<typeof intakeResponseSchema>;
 export type CreateInstructionBody = z.infer<typeof createInstructionBodySchema>;
 export type DecideBody = z.infer<typeof decideBodySchema>;
 export type SatPublishBody = z.infer<typeof satPublishBodySchema>;
+export type SatPublishResponse = z.infer<typeof satPublishResponseSchema>;
 export type CepVerifyBody = z.infer<typeof cepVerifyBodySchema>;
 export type VerifyCallBody = z.infer<typeof verifyCallBodySchema>;
 export type VerifyCallResponse = z.infer<typeof verifyCallResponseSchema>;
@@ -659,3 +1496,11 @@ export type VerifyCallScriptResponse = z.infer<
   typeof verifyCallScriptResponseSchema
 >;
 export type SeedBody = z.infer<typeof seedBodySchema>;
+export type VerificationStateResponse = z.infer<typeof verificationStateSchema>;
+export type PaymentExecutionResponse = z.infer<typeof paymentExecutionSchema>;
+export type PaymentReceiptResponse = z.infer<typeof paymentReceiptSchema>;
+export type ExecuteBody = z.infer<typeof executeBodySchema>;
+export type SkippedLine = z.infer<typeof skippedLineSchema>;
+export type LayoutResponseBody = z.infer<typeof layoutResponseBodySchema>;
+export type RailsResponse = z.infer<typeof railsResponseSchema>;
+export type AssistantMessageBody = z.infer<typeof assistantMessageBodySchema>;

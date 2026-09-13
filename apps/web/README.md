@@ -1,12 +1,11 @@
 # apps/web
 
-The judge-facing UI. Vite, React, Tailwind, motion. Six screens, one design system,
+The judge-facing UI. Vite, React, Tailwind, motion. Nine screens, one design system,
 no state manager and no router dependency.
 
-This folder is a scaffold: the structure, the types, the states and the synthetic data are
-real, the visual polish and the detector-driven detail are not. Every place where the real
-work goes is marked `TODO(FabriBanda)`, and anything that belongs to another workspace is
-marked with that owner instead.
+The visual design is done and is documented in `docs/design.md`, which is the file to read
+before changing a colour, a size or a weight: the token file is the law and that document is
+why. Anything that belongs to another workspace is marked with that owner in the source.
 
 ## Run it
 
@@ -30,55 +29,359 @@ Read from the page query string, before the hash, by `src/lib/resource.ts`:
 | `?data=api` | API only. A failure renders the error state. This is how a judge proves the deployed backend answers. |
 | `?data=mock` | Synthetic only. No request leaves the browser. |
 
+"No request leaves the browser" is a property somebody checks rather than an intention. It covers
+everything the page opens and not only the screens that load through `useResource`: the run screen's
+event stream and the API status card reach the network on their own, and both ask `reachesApi` in
+`src/lib/resource.ts` first. `src/lib/resource.test.ts` walks every source in `src/` and fails when a
+component calls `useEvents` without an `enabled:` or reads `/health` without consulting the mode.
+
 Two things never fall back, on purpose:
 
 - `GET /sat/lookup`, because the official Article 69-B list does not travel in the bundle
   and inventing an answer for a real RFC is the exact failure mode the challenge warns about.
 - `POST /cep/verify`, because a Banxico signature cannot be validated by a mock.
 
+### The synthetic run is the API's run
+
+`src/lib/mock-data.ts` is generated, not written. `bun run web:mock` builds it from the same seeded
+company the API serves under `SEED=sentryone`, at seed 69 for the week the judged documents cite: 44
+suppliers, 92 instructions, the findings and decisions the six controls in `@hackmty/engine` produce
+over them, and the 156 invoices of the company's 4103 that a screen of this app can reach. Do not
+edit it; edit `scripts/web-mock.ts` and run the command.
+
+This matters because it was not true. The API and this file used to disagree about the legal name of
+every RFC they shared, so a supplier row and the drawer above it could name two different companies
+for one RFC, and an API that dropped mid-demo renamed every company on the projector. That is issue
+#125. `scripts/web-mock.test.ts` now fails when the committed file stops matching the generator, and
+when the two sides stop answering the same legal name, amount, CLABE, action, finding or total.
+
+Three things in the offline copy are deliberately narrower than the API's, all for the same reason and
+all explained where they live in `src/lib/mock.ts`: the invoices are the ones this run settles, the
+retroactive sweep prices or a finding names, the payment complements are the ones that settle those,
+and the verified-beneficiary registry starts empty, which is what the API starts with too. The
+invoices are the one narrowing a screen can see, because the supplier profile counts them, so that
+field is read off the API whenever the API answered and labelled for this run when it was not.
+`docs/07-architecture.md` carries the numbers.
+
 ## Layout
 
 ```
 src/
   design/
-    tokens.css        colour, type scale, spacing, radius, motion, light and dark, tabular numerals
+    fonts.css         Hanken Grotesk, self-hosted, one variable file per subset
+    tokens.css        colour, type scale, weights, spacing, radius, motion, light and dark
     base.css          element rules, in Tailwind's base layer
-    primitives.css    .panel .btn .chip .badge .data-table .watermark, in Tailwind's components layer
+    primitives.css    .well .well-panel .card-dark .btn-pill .segmented .decision .badge
+                      .level .state .data-table .toast .btn .chip .watermark, in the
+                      components layer
+    tokens.test.ts    the enforcement: no colour outside tokens.css, no token without a dark pair
+    TokenSheet.tsx    every token and every base component on one page, at #/design
   lib/
-    api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE)
+    actor.ts          who the screens are acting as, the store the selector writes to,
+                      and why a name and a role are not authentication
+    api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE),
+                      streamSse (a POST that answers a stream), executeRun and the
+                      X-Actor header
+    api-status.ts     one shared answer to "is the backend answering", for the status
+                      card and the offline banner
+    entry.ts          the entry screen's own rules: what each person may do, asked of
+                      packages/core, and the thresholds with the file each one lives in
     contract.ts       the HTTP shapes, composed from packages/core/src/domain.ts
     mock.ts           the synthetic payment run, with every object flagged synthetic
+    mock-data.ts      GENERATED by bun run web:mock: the API's own company, rows only
     resource.ts       useResource: loading, ready, error, and the API-or-mock decision
     router.tsx        hash router, ~120 lines, no dependency
+    run-view.ts       how the run screen reads the run: order, verdict, the level and
+                      the state per line, the facets and what the last refresh moved
+    keyboard.ts       arrow-key movement over a list of rows, as arithmetic
+    count-up.ts       a figure that travels to its new value when the run re-scores itself
+    payments.ts       which lines leave, which do not and why, and the bank layout
+    supplier-profile.ts  the expediente: the weekly buckets, the accounts with their
+                      plazas, both SAT lists and the consortium line
     format.ts         money, dates, CLABE blocks, digit diffs
     labels.ts         every Spanish word the clerk reads, in one dictionary
-  components/         AppShell, States, Primitives, Evidence, Decision, Findings,
-                      SupplierDrawer, StatusCard
-  screens/            RunScreen, InstructionScreen, IntakeScreen, SatScreen, CepScreen,
-                      MetricsScreen
+    sse.ts            the event-stream decoder, chunk boundaries included
+    assistant.ts      the assistant contract: what a frame may say and what a click sends
+    assistant-mock.ts the panel with no API, answered out of the synthetic run
+    dictation.ts      voice input through the browser's own recogniser
+  components/         AppShell (the rail and the top bar), Wordmark,
+                      Icons (Rune Icons, Apache-2.0, vendored as paths; the active one draws
+                      once per section change),
+                      RunVerdict (the one figure), RunDonut (how the run splits),
+                      RunFilter, Controls (the six controls),
+                      States, Primitives, Evidence, Decision, Findings,
+                      BehaviourChart (what a supplier invoiced, week by week),
+                      StatusCard, OfflineBanner, IntakeQr, QrCode, Receipt,
+                      AssistantDock, AssistantPanel, AssistantCards
+  screens/            EntryScreen, RunScreen, PaymentsScreen, InstructionScreen, SupplierScreen,
+                      IntakeScreen, SatScreen, CepScreen, MetricsScreen, VerifyCallScreen
 ```
 
+The base components, which every screen is built from: `Button`, the `ConfidenceBadge` and
+`TransactionStateBadge` of `Primitives.tsx` (the two vocabularies of ADR-0009), `DataTable`,
+`Drawer`, `Toast`, and the `LoadingBlock`, `EmptyBlock` and `ErrorBlock` of `States.tsx`.
+`docs/design.md` says what each one is responsible for. If a second screen needs the same
+object, it belongs there rather than inside one screen.
+
 Routes, all hash based so the static build needs no rewrite rule and the QR code survives a
-change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`.
+change of host: `#/entrada`, `#/run?state=&level=&control=`, `#/payments`, `#/instructions/:id`,
+`#/suppliers/:rfc`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`, `#/verify-call`.
+
+`#/design` is the token sheet: every token and every base component on one page. It is a
+reference rather than a screen, so it is not in the rail and nothing in the product links
+to it.
+
+The rail holds seven of them, in four groups: the run, the payments and the intake, then
+`Evidencia` with the 69-B list and the CEP, then the metrics, then `Entrada` on its own at the
+foot, because who is acting and how this instance is configured is not a section of the run.
+`#/verify-call` and `#/suppliers/:rfc` are not in it and are reached from the line they are about,
+because a call is a step in a decision and an expediente is opened from a payment, and neither is a
+place you go; the rail keeps `Corrida` lit while you are on either.
+
+A finding links to the screen that proves it: a 69-B finding to `#/sat?rfc=...` with the lookup box
+filled but not run, a beneficiary finding to `#/cep?rfc=...`, a CLABE or behaviour finding to the
+call. The map is `EVIDENCE_ACTION` in `src/lib/labels.ts`. Nothing a link carries is submitted on
+arrival: the official list is queried only when a person presses the button.
+
+## The entry screen
+
+`#/entrada` answers two questions the rest of the app assumes: who is acting, and what this
+instance was configured with.
+
+The person selector writes `src/lib/actor.ts`, which is the identity `X-Actor` carries on every
+write, so the ledger records the name that is on screen. It is **not** authentication and the
+screen says so where a judge reads it rather than only in
+`docs/06-regulatory-privacy.md#44-the-identity-selector-is-a-demo-affordance-not-authentication`:
+there is no password, no session and no check, the header is caller-controlled, and a deployment
+that needs real identity puts authentication in front of the API.
+
+Switching the person changes what the app lets you do, and the list that says so is not prose:
+each row carries the `DecideRequest` it is about and `decideRequirement` in
+`packages/core/src/actor.ts` answers it, the same function `apps/api` enforces. So the clerk sees
+two rows she may not do, the owner sees three she may, and the screen cannot offer a button the
+API would answer `403` to. The assistant panel reads the same selection, which is what decides
+whether its proposal card asks for a second signature.
+
+The settings are read-only and every number names the file and the constant it came from.
+`entry.test.ts` opens those files and fails when one of them no longer exports what a row claims,
+which is this repository's rule about numbers applied to a screen. The rail comes from
+`GET /api/v1/rails` and is asked only of a server: under `?data=mock` the panel says nothing was
+asked rather than inventing a configuration.
+
+The offline banner is in the shell rather than on this screen, because it is true of the whole
+page load: one line above every screen when the API was asked and did not answer, and nothing at
+all when it answers or when `?data=mock` never asked. It and the status card read one shared
+answer from `src/lib/api-status.ts`, so the two can never disagree and a page load asks `/health`
+once.
+
+## The payment run
+
+`#/run` opens on the money, in pesos, and the four figures beside the dark card are the ones a
+Capital One judge asked for: what was released, what this run puts at risk, what an Article 69-B
+publication has already exposed retroactively over the base it was deducted on, and the total.
+All four come from `runMoney` in `packages/core`, which is the same arithmetic behind
+`totals` on `GET /api/v1/run/current`, so the tile and a judge's `curl` cannot disagree, and it is
+read over the items rather than off the totals so it stays true after a decision applied with no
+API behind the page. Each one counts up when it changes rather than being replaced between two
+frames, and the same change is written out as a sentence in a live region under them, because a
+figure that climbs is only visible to whoever happened to be looking at it.
+
+Every line of the table carries its level and its state as words, `Nivel` and `Estado`, from
+`lineLevels` in `src/lib/run-view.ts`: it reads the two fields the API attaches to each item and
+falls back to `confidenceOf` and `transactionStateOf` from `packages/core` when a payload does not
+carry them, which is the offline run and any server older than that field. The fallback is the same
+function the API calls and never a second implementation, which is the whole of ADR-0009, and it is
+narrower in exactly one way that is written down where it lives: the run payload carries no
+verification, so a line the CEP blocked reads its decision here and reads `cancelado` on the server.
+
+Three facets narrow the table under the segmented slice, `Estado`, `Nivel` and `Control`, plus
+`Limpiar` and the count of what is visible. They live in the route query rather than in the
+screen's own state, so a filtered table is a link somebody can send and a reload lands on the same
+rows: `#/run?state=cancelado&level=alerta&control=sat_69b`. A value the domain does not have is
+ignored rather than rendered as an empty table.
+
+The number beside an option is counted over the slice the segmented control is showing and not over
+the whole run, so an option offering a number yields that many rows, and one worth none in this
+slice cannot be picked. A link that arrives with a facet the slice does not hold is the case that
+survives: the table is empty, and the block under it says how many lines of the run do match and
+offers the wider slice rather than telling a clerk to drop the filter they came with.
+
+The table is navigable from the keyboard. Every row is focusable, the arrow keys move between rows
+and do not wrap at either end, `Home` and `End` go to the first and the last, and `Enter` opens the
+instruction. `nextRowIndex` in `src/lib/keyboard.ts` is that arithmetic with a test per edge. The
+links and the buttons inside a row are still reachable with `Tab`, and `Enter` on one of them is the
+link's.
+
+The screen also moves on its own. A ledger event re-reads the run in place and never through the
+loading state, because a page that blinks back to its skeleton while a judge watches the figures has
+shown them nothing; the burst a publication emits is coalesced into one read. What moved is computed
+by `diffRuns` and `verdictDelta`, the rows that moved are lit for a moment, and the sentence in the
+live region names them.
+
+## The payments screen
+
+`#/payments` is where the run leaves and the one screen of this app that moves money, so the
+rules it follows are written next to the code rather than here. Three are worth knowing before
+reading it.
+
+It answers two different questions with two different fields. Whether the run TAKES a line is
+the decision, which is what `POST /api/v1/run/:id/execute` hands the rail; whether a line the
+run took will be PAID is `transactionStateOf`, because a released line whose beneficiary came
+back blocked reads `cancelado` and comes off the rail as a `cancelled` line with a reason. Both
+tables show their lines with that reason, because a payment that disappears quietly is a payment
+somebody believes they made.
+
+Nothing leaves without a person: the button needs a second press and a name, the name travels on
+`X-Actor`, and the ledger records it per line. The layout export is the no-API path, a CSV of the
+lines that may still be paid and that no rail is holding, in SentryOne's own columns, which the
+screen says out loud because every bank publishes its own template.
+
+Offline it is the whole beat with no connection at all: `?data=mock` replays the generated
+execution line by line, so the review, the progress, the receipts and the export are all
+demonstrable on a phone in a corridor.
+
+TODO(FabriBanda): this screen landed beside the redesign of issue 82 rather than inside it, so it
+still wears the older panel language. The data layer is done and none of it is visual: adopting the
+wells, the dark card and the row tiles is a restyle of `PaymentsScreen.tsx` and nothing under it.
 
 The intake page reads `rfc`, `amount` and `clabe` out of its own query, so the QR code can
-carry a prefilled instruction: `#/intake?rfc=SYN010101AAA&amount=184300`.
+carry a prefilled instruction: `#/intake?rfc=SYN990202S02&amount=38417.48`. That RFC is the
+one the screen's own placeholder shows, read off the run through `EXAMPLE_SUPPLIER_RFC`:
+the example here used to carry `SYN010101AAA`, which belongs to the hand-written fixture in
+`apps/api/src/synthetic.ts` and not to the company this app falls back to, so scanning it
+prefilled a supplier the offline run does not hold and the demo API answers 404 for.
+
+## The assistant drawer
+
+`AssistantDock` mounts beside the shell rather than on a route, because the panel reads the line the
+clerk is already looking at and opening it must not replace the screen underneath. The drawer itself
+is `AssistantPanel`, the cards are `AssistantCards`, and the boundary they implement is ADR-0007: the
+assistant reads and proposes, and a person executes.
+
+Four properties, and each one is a function with a test rather than a paragraph here.
+
+- **A tool call that writes cannot be rendered.** `decodeToolCall` in `lib/assistant.ts` refuses a
+  frame whose `tool` is outside the seven reads of `AssistantTool` and any frame whose `readOnly` is
+  not the literal `true`. The domain makes that shape unrepresentable in TypeScript; this is the half
+  that matters when the bytes come off a socket.
+- **No verdict reaches the screen.** `forbiddenVerdict` reads a sentence for the word "seguro" in
+  either language and for a probability, a percentage or a score, all of which ADR-0009 forbids. A
+  token, a proposal summary or a stored turn carrying one is dropped and counted, and the panel says
+  how many frames it dropped. The same function is run over this folder's own sources by
+  `lib/assistant.test.ts`, because the rule is about what a component renders and not only about what
+  a model sends.
+- **Nothing executes itself.** `ProposalCard` prints the method, the path and the body of the
+  ordinary endpoint that would run, and the write happens in the click handler and nowhere else.
+  `confirmProposal` sends `X-Actor` and puts the name of whoever pressed the button into `decidedBy`
+  or `recordedBy`, because the API refuses a body and a header that disagree about who acted. A
+  release over a finding asks for the owner's name and a written reason before the button enables.
+  `execute_run` is the one proposal the panel does not execute: the run leaves from the payment-run
+  screen, which follows its own stream line by line.
+- **The level and the state are never the model's.** `assessConfidence` and `transactionStateOf` from
+  `packages/core` compute both on the card, so a line in the drawer reads the same as the same line
+  in the table.
+
+Under `?data=mock` the drawer opens on the conversation the generator wrote out of this run's own
+finding and answers every turn from the synthetic run, with no request and no model: `lib/assistant-mock.ts`
+builds the reads out of the findings and the totals, and the header says so in one sentence rather
+than letting a canned answer look like a generated one. Under `?data=api` it posts a turn to
+`POST /api/v1/assistant/messages` and reports a failure as a failure; under `auto` a failure falls
+back to the synthetic answer with the reason printed, exactly like `useResource`.
+
+Voice input is the browser's own dictation (`lib/dictation.ts`), in `es-MX`, and this app uploads no
+audio: the assistant endpoint takes `text` and `images`, so a recording would mean inventing a part
+the contract does not have. The transcription path in `packages/extract` stays where it is documented,
+on the intake, where a voice note arrives with a payment instruction.
+
+## Picking up UI work here
+
+Start the web on its own. It needs no Postgres, no API and no key: with the backend down it
+renders the synthetic run and says on screen that it did.
+
+```
+bun install --frozen-lockfile
+bun run --filter @hackmty/web dev      # http://localhost:5173
+```
+
+Three things are enforced, not requested, and each one fails a test rather than a review:
+
+1. **No colour, radius, duration or font size outside `design/tokens.css`.** A hex, an `rgb(`
+   or an `hsl(` anywhere else under `src/` fails `design/tokens.test.ts`. Add a token named
+   for what it means -- `--c-hold`, never `--c-red`.
+2. **Every colour token needs a dark counterpart.** A token defined only in `:root` keeps its
+   light value on a near-black page, and the person who added it was in light mode. Same test.
+3. **Exactly one `h1` per page**, and it belongs to the shell's top bar. A screen that wants a
+   page-level heading renders at most one `SectionHeader`, which is an `h2`.
+   `screens/states.test.ts` checks it, along with every screen having a loading, an error and
+   an empty state.
+
+Then verify what you changed, in this order:
+
+```
+bun run --filter @hackmty/web typecheck
+bun test apps/web
+bun run lint                           # biome, and it catches CSS specificity inversions
+bun run --filter @hackmty/web build
+bun run --filter @hackmty/web preview --port 4173   # in one terminal
+bun run audit:web                                   # in another
+bun run shoot:web                                   # regenerate assets/screenshots
+```
+
+`bun run audit:web` is the one worth knowing about. It drives a real browser over all six
+screens at 390, 768, 1440 and 1920, and reports anything that pushes the document wider than
+the viewport, anything focusable that Tab cannot reach or that has no name or no focus ring,
+whether reduced motion actually reaches the tokens, and the contrast of every colour pair in
+both themes. It has caught, in this order: a rail that scrolled the page sideways on a phone,
+six invisible links a keyboard user tabbed through, an amber that measured 2.4 where 3.0 was
+needed, and a muted ink that was fine on one ground and under AA on another. It needs a
+preview server on `:4173`, and it exits non-zero on any failure. Add a pair to its `PAIRS`
+list whenever you add a surface: a surface only one screen uses is the one that ships
+unmeasured.
 
 ## Design system
 
 `tokens.css` is the only file allowed to hold a colour, a radius, a duration or a font size.
 A component that needs a new one adds a token there, named for what it means.
 
-- One accent (`--c-accent`), used for focus, links and the primary action, nothing else.
-- Three semantic decision colours, mapped one to one onto the `Action` union in the domain:
-  `--c-hold`, `--c-verify`, `--c-release`. Severity reuses the same three, so one colour
-  always means one thing. Colour is never the only signal: every badge and button also says
-  what it is in words.
-- Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`), so a column of
-  pesos lines up digit over digit.
+Every value in it is taken from Gravity, Capital One's own design system, rather than
+invented. The long version is `docs/design.md`; the short version:
+
+- **One accent** (`--c-accent`), Capital One's brand navy, used for focus, links and the
+  primary action, nothing else.
+- **Three semantic decision colours**, mapped one to one onto the `Action` union in the
+  domain: `--c-hold`, `--c-verify`, `--c-release`. Severity reuses the same three, so one
+  colour always means one thing. Colour is never the only signal: every state also says what
+  it is in words.
+- **Weight does the work a second typeface usually would**, which is the thing that makes
+  Capital One's pages read as two fonts when they are one. Display is `--weight-light` (300),
+  navigation and table data are 400, emphasis is 600. Below 15px nothing goes lighter than
+  400. `--weight-thin` (100) exists for display copy that is not money.
+- **The rail has its own palette** (`--c-rail*`) because it is a navy brand panel and every
+  ink token on the page is dark on dark inside it. That includes the focus ring, which is
+  inverted by `.rail :focus-visible`.
+- **One dark card per screen** (`--c-card-dark`), under the single figure the screen exists
+  for. It is the rail's navy with a dot grain, not a status colour, because the status
+  colours are in the table below it. Everything else sits in a pale well (`--c-well`), with
+  a white panel (`.well-panel`) inside the dense ones.
+- Tabular numerals everywhere money appears (`.num`, `.num-lg`, `.num-xl`),
+  so a column of pesos lines up digit over digit. `<Amount size="inherit">` takes the size of
+  the block around it.
+- **The level and the state** of ADR-0009 have their own named colours (`--c-level-*` and
+  `--c-state-*`). The level aliases the three decision triplets, because a level and an
+  action are two readings of one body of evidence. The state does not: `enviado` is the
+  informational tone and not green, because money that left is a fact and not a verdict.
+  Never a probability and never the word "seguro" in either, which `src/lib/labels.test.ts`
+  enforces over the whole dictionary and then over every source file.
 - Light is the default, dark follows the operating system, and only colour tokens change
-  between them.
-- Reduced motion switches the three duration tokens to 1ms, so CSS transitions stop in one
+  between them. The rail palette is the exception and is identical in both.
+- **Icons come from Rune Icons** (Apache-2.0, copyright Nexvyn) and from nowhere else. No
+  icon library is installed: the paths are vendored into `Icons.tsx`. The active rail icon
+  draws itself once per section change, over `--motion-draw` and on `--ease-draw`.
+- **Charts are Recharts, styled only through the tokens**: `var(--…)` strings for every fill
+  and stroke, and the `useToken` hook in `src/lib/tokens.ts` for the few props that have to be
+  numbers. Two of them ship, both on the run: the donut that splits the week's money and the
+  bars that show the pesos at risk per control.
+- Reduced motion switches every duration token to 1ms, so CSS transitions stop in one
   place. Components that animate in JavaScript read the same preference through
   `useReducedMotion` from `motion/react`.
 
@@ -102,21 +405,26 @@ From ADR-0002, and they are not negotiable:
 
 - **The detectors.** They belong in `packages/core` and land in their own pull request. The
   UI reads `Finding` and `Decision` and renders them; it never computes one.
-- **Screenshots.** `TODO(FabriBanda)`: the three stills and the GIF for the README and
-  Devpost, once the screens have their real polish. Issue #51.
+- **Screenshots by hand.** `assets/screenshots/` is generated: `bun run shoot:web` against a
+  running preview writes all ten, so a UI change is one command away from updated evidence.
+  Never edit those files; re-shoot them.
 - **The replay animation** on the SAT screen. The months are real and the bar moves; walking
   the ledger month by month and lighting up each newly listed supplier is the next step.
 - **A QR image.** Generating one needs a dependency, and the rule is zero new dependencies.
   The intake URL is a plain hash link that any QR generator can take.
-- **`recharts`** is declared and currently unused. It is a vetted pin and the per-detector
-  table is the obvious first chart. If it is still unused at the feature freeze, drop it.
 
 ## Accessibility
 
-Every route is reachable by keyboard: navigation is real anchors, the supplier drawer is a
-`role="dialog"` that takes focus, closes on Escape and gives focus back, and the scrim is a
-button rather than a div with a click handler. Tables have scoped headers and a caption. The
-focus ring is defined once in `base.css`.
+Every route is reachable by keyboard: navigation is real anchors, the drawer is a
+`role="dialog"` that takes focus, traps Tab, closes on Escape and gives focus back, and the
+scrim is a button rather than a div with a click handler. Tables have scoped headers, a
+caption and a row header. The focus ring is defined once in `base.css`, from `--c-focus`,
+`--focus-width` and `--focus-offset`.
 
-`TODO(FabriBanda)`: a full focus trap inside the drawer, and a pass with a screen reader on
-the intake page.
+`bun run audit:web http://localhost:4173` measures it against the built app: overflow at four
+widths, every control named and ringed under a real Tab press, reduced motion, and every
+colour pairing in both themes. It reports clean as of #207. Two environment variables keep it
+from colliding with somebody else's browser on the same machine: `AUDIT_PORT` here and
+`SHOOT_PORT` in `brand/shoot.ts`, each with its own profile directory derived from the port.
+
+`TODO(FabriBanda)`: a pass with a screen reader on the intake page.

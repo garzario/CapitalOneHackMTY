@@ -103,6 +103,123 @@ Serving corporate treasury would pull SentryOne toward long integrations and dup
 already owns. The chosen niche is the SMB with enough supplier volume for a weekly payment run but
 without a treasury system or dedicated risk analyst.
 
+## Target user, buyer, channel and anti-user
+
+Added on 2026-09-12 in the afternoon, after three Capital One judges asked at the table who exactly
+the user is. Everything above this line is a product-design hypothesis about one fictional person.
+Everything in this section is external evidence about the population she is drawn from, and the two
+are kept apart deliberately: the evidence sizes the segment and says where it is, it does not
+validate Lupita. The interview checklist in the next section stays open and unchecked.
+
+Sources are numbered as in `docs/04-market.md#sources` and are not repeated here.
+
+### 1. The primary user, the person who presses send
+
+The single administrative or accounting clerk at a formal firm of 11 to 250 people. She is countable.
+Data México puts the occupation at **403,000 people nationally** in the first quarter of 2026,
+**25,900 of them in Nuevo León**, at MXN 8,640 a month nationally and **MXN 11,900 in Nuevo León**,
+**67.1 percent women**, average age 38 [27]. Three things follow. The user is overwhelmingly a woman,
+which the portrait above already assumed and now has a source for. MXN 899 a month is 7.6 percent of
+one month of her pay in Nuevo León, which bounds what the company will tolerate paying for a tool she
+operates. And there are 25,900 of her in the state where this is being judged. One caveat travels
+with all three: SINCO 2512 bundles accounting clerks with economists, finance staff and stockbrokers,
+so 403,000 is an upper bound by an amount nobody publishes, and the page itself warns that the salary
+breakdowns have low statistical precision [27].
+
+There is no treasurer above her, which is what makes this product necessary rather than redundant.
+This is the weakest evidence in the section and it is labelled as such: on 2026-09-12 OCC listed 101
+openings for `auxiliar contable` in Nuevo León against 3 for `auxiliar de tesorería`, 4 for
+`tesorero` and 4 for `gerente de tesorería`, eleven treasury roles in the whole state, while
+`auxiliar administrativo` returned 2,145 [44]. A job board is a snapshot of hiring and not a
+statistic. The first version of this comparison was also wrong, quoting 146 for `auxiliar
+administrativo` and a ratio of 22 clerks per treasury specialist; the corrected figure makes the
+point harder rather than softer, and the correction is recorded in the source entry so nobody
+rediscovers it.
+
+And the run happens in a browser. ENAFIN 2021 found **60.4 percent** of firms with six or more
+employed persons carried out financial operations through the financial institution's web page,
+second only to the branch at 78.9 percent, with only 35.0 percent through a mobile app [28]. That is
+the surface SentryOne has to sit in front of, and it is also the channel Banxico's December 2026
+user-experience guidelines do not reach, because their scope is mobile applications used by personas
+físicas (`docs/04-market.md#how-much-money-goes-through-the-door-we-are-standing-in`). Two limits:
+the question is multiple response and refers to the moment of the interview, and ENAFIN pools every
+firm from six employees upward, so it does not describe a 28-person metalmecanica specifically [28].
+
+### 2. The buyer, the person who pays and who releases a hold
+
+The owner or director general. ENAFIN 2021 puts the firm's principal decision maker at
+`Director(a) o gerente` in **61.2 percent** of firms, `Socio(a) o fundador(a)` in 19.9 percent and
+`Familiar del propietario(a)` in 10.8 percent [28]. The tempting reading of those three is wrong and
+we do not use it: `Director(a) o gerente` is a managerial title that does not establish ownership, so
+they do not sum to an owner share, and the survey measures decisions in general rather than the
+payment decision. What it does support is the design consequence. In a firm this size the decision
+sits with one named person rather than a committee, which is why the hold screen has to be legible to
+somebody who is not in the ledger all day, why escalation is a phone call and not a ticket, and why
+the sale is one signature rather than a procurement cycle.
+
+**Two functions, and the title is the weaker half of the answer.** Narrowing the channel on 2026-09-12 in
+the evening forced this to be said as functions rather than as a job title, because a function is what
+you can ask for an introduction to (issue #193). The budget and the loss sit with **finance**, which
+files the complementary return inside the thirty days and carries the 46 percent of a disallowed subtotal
+that reverses as ISR plus IVA. The register the controls read sits with **purchasing**, which adds a
+CLABE, changes one when a supplier says its account moved, and telephones that supplier when a payment is
+held. The published evidence that this is the real split is a competitor's own promise and not our
+reading of an org chart: ValidX sells "si no cumple, se retiene y se notifica a Compras" [31]. The clerk
+above is the user and not the buyer, and what the product does to her Thursday is make it slower on the
+lines that carry a finding, which is the reason selling to her would be selling a control to the person it
+constrains. The full buying map is in
+`docs/05-business-model.md#gtm-who-sells-this-to-whom-and-through-which-channel`.
+
+### 3. The channel, the despacho contable
+
+**16,356** accounting and audit units nationally, SCIAN 541211, **737 in Nuevo León**, and 12,130 of
+the 16,356 employ five people or fewer [26]. Narrowed to the firms that could carry twenty client
+companies, **143 of the 737 employ 11 to 250 people and 140 of those 143 are metropolitan** [48], which
+is the denominator the firm-by-firm plan in `docs/05-business-model.md` works against and the reason the
+year-one target of 25 firms reads as 17.5 percent of a state rather than 0.7 percent of a country. Two
+consequences. The 120 firms in the 36-month plan are
+0.7 percent of that denominator, which makes the channel plan in `docs/05-business-model.md` an ask
+instead of an assertion. And three quarters of the channel is a firm of five people, so what it will
+accept is a per-client seat with no implementation, which is the shape of the MXN 195 per company
+price rather than a coincidence.
+
+One boundary inside the channel, because getting it wrong would cost a whole GTM motion. The despacho
+is the distributor and the second pair of eyes, not the operator: the payment run happens inside the
+client's own bank portal, and the despacho holds no credentials for it. Selling a despacho a product
+that assumes it executes payments would be selling a workflow that does not exist.
+
+### 4. The geography and the order of attack
+
+Nuevo León first: about **18,500** economic units at 11 to 250 people, 10.2 percent of the state's
+181,791, and that band employs roughly 685,000 of its 1,925,137 workers [25]. Then, nationally and in
+this order, manufacturing 34,697, wholesale trade 27,786, transport and warehousing 16,531 and
+construction 10,509 establishments in the band, **89,523** in total, of which **54,555 sit at 11 to
+30 people** [26]. Small enough that nobody has an ERP payment module, large enough to have a weekly
+run, which is the same pair of conditions the persona above is built on. The sector order is a
+judgement about supplier-list length and account churn, not a published ranking, and
+`docs/04-market.md#where-the-segment-actually-is` says so. Narrowed to Nuevo León and to the first three
+of those sectors, the segment is **6,476** establishments, **6,114** of them metropolitan [48]. The
+municipality-level count for Apodaca, where Metalicos del Norte sits, is now verified rather than left
+open: **2,511** establishments in the band across all sectors and **857** in those three sectors [48].
+
+### 5. Four anti-users, each for a different reason
+
+The anti-persona above is one of these. The other three are new, and each is excluded for a stated
+reason rather than for being out of fashion.
+
+| Anti-user | The evidence | Why the product does not fit |
+|---|---|---|
+| Micro firms, 0 to 10 employees | 89.3 percent of Nuevo León's units but only 21.7 percent of its employment [25], and 26.0 percent of them use an accounting system or pay an external accountant against 86.3 percent in our band [24] | No weekly payment run, no supplier base worth sweeping, and often no CFDI pipeline to read. The onboarding is not built for them, which is a decision and not an oversight |
+| Large firms, above 250 employees | 0.6 percent of Nuevo León's units, 42.7 percent of its employment and 55.7 percent of its gross census value added [25] | ERP, treasury team and a bank relationship manager. This is the anti-persona above, and it is the band the international payee-verification vendors already sell to (`docs/04-market.md#the-adjacent-international-band-as-analogy-and-labelled-as-such`) |
+| Informal units | 35.7 percent of Mexican economic units are formal [1], so most are not | They neither issue nor receive CFDI and do not run SPEI dispersions. Every control reads a CFDI, a CLABE or a CEP, so they are outside the product by construction rather than by choice |
+| The despacho as operator | It holds no credentials for the client's bank portal, and 60.4 percent of firms carry out financial operations through that portal themselves [28] | It is the channel and the reviewer, never the sender. Point 3 above |
+
+**What this section is not.** None of these figures describes Lupita, her workload, her employer or
+her Thursday. They describe how many people hold her job, where they are, who signs above them and
+who sells to them. The operational numbers in this document still come from the deterministic
+synthetic company in `packages/seed`, and the two conversations below are still the only thing that
+can turn the workflow hypothesis into a finding.
+
 ## Pending human validation
 
 The acceptance criterion for two venue conversations is intentionally unchecked. No interview,
@@ -134,7 +251,7 @@ than averaging it away.
 
 ## Repository links
 
-- Journey and its three branches: `docs/03-user-journey.md`
+- Journey and its four branches: `docs/03-user-journey.md`
 - Domain decisions and evidence: `packages/core/src/domain.ts`
 - Synthetic scenario and generator: `packages/seed/src/sentryone/`
 - API contract: `docs/09-api.md`

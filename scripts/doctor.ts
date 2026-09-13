@@ -5,8 +5,9 @@
  * at the start of a hackathon and four minutes each in front of a judge: am I on
  * the right bun, are my environment variables there, is the SAT list on this
  * disk, does the CEP fixture still parse, which database is live and what is in
- * it, can I reach Nessie, has this laptop been seeded, and if the conference
- * network dies right now can I still run the demo.
+ * it, can I reach Nessie, does this laptop hold a consortium snapshot to decide
+ * from, has it been seeded, and if the conference network dies right now can I
+ * still run the demo.
  *
  * The checks themselves are in `doctor/checks.ts`, with tests. This file is the
  * wiring: it reads the world, calls them in order, prints the table and exits.
@@ -20,7 +21,17 @@
 
 import { resolve } from "node:path";
 import {
+  createDependencySource,
+  type Dependency,
+  railFactsOf,
+  readDependencies,
+} from "../apps/api/src/dependencies.ts";
+import { readConsortiumEnv } from "../packages/consortium/src/index.ts";
+import { closeSql } from "../packages/db/src/index.ts";
+import { resolveRail } from "../packages/rail/src/index.ts";
+import {
   type Check,
+  type ConsortiumSnapshotFacts,
   checkBunVersion,
   checkCepFixture,
   checkDatabase,
@@ -30,6 +41,7 @@ import {
   checkRealCep,
   checkSatSnapshot,
   checkSeedState,
+  checkSnowflake,
   DATABASE_CHECK,
   defaultDatabaseDeps,
   exitCode,
@@ -55,7 +67,8 @@ if (argv.includes("--help") || argv.includes("-h")) {
       "",
       "Checks the bun version, the environment variables, the committed SAT list",
       "snapshot, the CEP fixture, the live database path and its migrations, Nessie",
-      "reachability, the seed state, and whether this laptop can demo offline.",
+      "reachability, the consortium snapshot, the seed state, and whether this laptop",
+      "can demo offline.",
       "",
       "  --strict   exit 1 on any warning, for the release gate and for CI.",
       "             Without it only a bun version mismatch fails.",
@@ -68,6 +81,46 @@ if (argv.includes("--help") || argv.includes("-h")) {
 async function readText(path: string): Promise<string | undefined> {
   const file = Bun.file(path);
   return (await file.exists()) ? file.text() : undefined;
+}
+
+/** True when `SNOWFLAKE_PRIVATE_KEY_PATH` points at a file this laptop can read. */
+async function keyFileReadable(path: string): Promise<boolean> {
+  if (path.trim() === "") {
+    return false;
+  }
+  try {
+    return await Bun.file(path.trim()).exists();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The one row of `consortium_pull`, or undefined.
+ *
+ * Every failure is undefined on purpose: no database, an unmigrated schema and an
+ * empty snapshot all mean "the engine has no network to read", and the check says
+ * which one in its own sentence rather than throwing here.
+ */
+async function consortiumSnapshotFacts(
+  url?: string,
+): Promise<ConsortiumSnapshotFacts | undefined> {
+  if (url === undefined || url === "") {
+    return undefined;
+  }
+  const db = await import("../packages/db/src/index.ts");
+  const queries = await import("../packages/db/src/queries.ts");
+  const sql = db.createSql(url);
+  try {
+    const pull = await queries.getConsortiumPull(sql);
+    return pull === undefined
+      ? undefined
+      : { pulledAt: pull.pulledAt, source: pull.source, rows: pull.rows };
+  } catch {
+    return undefined;
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
 }
 
 /** A state file that is missing, or that somebody edited by hand, is not a failure. */
@@ -105,6 +158,22 @@ async function satSnapshotFacts(): Promise<{
   } catch (cause) {
     return { error: cause instanceof Error ? cause.message : String(cause) };
   }
+}
+
+/**
+ * One `/health` dependency row as a line of this table.
+ *
+ * The sentence is the endpoint's own, word for word, so the two outputs cannot drift.
+ * Only `down` warns: `not_configured` is a statement about this laptop rather than a
+ * fault, which is the same distinction the endpoint draws and the same one
+ * `503 service_unavailable` draws against a `403`.
+ */
+function dependencyCheck(dependency: Dependency): Check {
+  return {
+    name: `dep ${dependency.name}`,
+    status: dependency.state === "down" ? "warn" : "ok",
+    detail: `${dependency.state}, ${dependency.detail}`,
+  };
 }
 
 const checks: Check[] = [];
@@ -149,6 +218,17 @@ const databaseChecks: Check[] =
     : await checkDatabase(databaseUrl, await defaultDatabaseDeps());
 checks.push(...databaseChecks);
 
+/**
+ * What the local consortium snapshot holds, read through the same database the
+ * section above just probed.
+ *
+ * Undefined when there is no database, when the migration has not run, or when
+ * nothing has ever been pulled, and the check below says which of those it is. A
+ * failure here is never an error: a teammate with no database has no snapshot, and
+ * that is a warning and not a broken laptop.
+ */
+const consortiumSnapshot = await consortiumSnapshotFacts(databaseUrl);
+
 // 6. Nessie: a read for reachability, and the mirror state for the key. The
 // write that validates the key belongs to `bun run nessie:mirror`, so the
 // doctor reads what it recorded and stays side-effect free.
@@ -161,6 +241,49 @@ checks.push(
     ...(mirrorState === undefined ? {} : { mirror: mirrorState }),
   }),
 );
+
+// 6b. the consortium: is it on, is there an account, and is there a snapshot this
+// laptop can decide from. The snapshot read is folded into the database section's
+// connection so the doctor still opens exactly one, and it is skipped with the
+// rest when DATABASE_URL is empty.
+checks.push(
+  checkSnowflake({
+    ...readConsortiumEnv(Bun.env),
+    keyPresent: await keyFileReadable(Bun.env.SNOWFLAKE_PRIVATE_KEY_PATH ?? ""),
+    ...(consortiumSnapshot === undefined
+      ? {}
+      : { snapshot: consortiumSnapshot }),
+  }),
+);
+
+/**
+ * 6c. the dependency lines `GET /health` answers, out of the same function.
+ *
+ * The point is the comparison. A judge, or whoever is awake at 04:00, can read this
+ * table next to `curl https://<api>/health` and the two say the same thing about the
+ * same seven capabilities, because both call `dependencyReport` in
+ * `apps/api/src/dependencies.ts` and neither has a second opinion to offer. The rows
+ * above answer "is this variable set"; these answer "what would the deployed API say
+ * about it", which is a different question and the one that matters when the screen
+ * is empty and nobody knows why.
+ *
+ * `resolveRail()` is called with no company here, which the Nessie rail does not need
+ * and the STP rail does: on a laptop configured for STP this line reports what a
+ * process that could not read the company would report, and the API's own row is the
+ * authority because it passes the company in. `--strict` is unaffected, because only
+ * `down` warns: an empty variable is already one row in the env section above and
+ * warning for it twice would move an exit code rather than tell anybody anything.
+ */
+const dependencies = await readDependencies({
+  source: createDependencySource(Bun.env),
+  rail: railFactsOf(resolveRail()),
+  checkedAt: new Date().toISOString(),
+});
+checks.push(...dependencies.map(dependencyCheck));
+
+/* The probe opens the shared client, so the command closes it rather than leaving a
+   pool open behind a process that is about to exit on its own. */
+await closeSql().catch(() => {});
 
 // 7. seed state, so nobody rehearses against an empty screen.
 checks.push(...(await checkSeedState({ root: ROOT })));

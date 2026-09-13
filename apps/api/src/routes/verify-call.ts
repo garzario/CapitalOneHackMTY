@@ -7,13 +7,15 @@
  * voice agent, and later records what was said as a `verification_call` ledger
  * event with the sentence it was read from.
  *
- * Three properties this file is written to keep.
+ * Five properties this file is written to keep.
  *
  * **It never releases a payment.** There is no path here that touches
  * `recordDecision` and none that emits `decision_made`. A `confirmed` outcome is
  * evidence, like a CEP, and the release stays the separate `/decide` call that a
- * person signs. `releasesPayment: false` is on every response so the UI states
- * it rather than implying it.
+ * person signs. `releasesPayment: false` is on every response that reports a
+ * call, so the UI states it rather than implying it: the script, the started
+ * call, the recorded outcome and the 422 with no telephony all carry it. A 404 or
+ * a 400 carries only the error envelope, because there is no call to report.
  *
  * **Without keys it degrades to a script, not to a failure.** If
  * `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is
@@ -22,14 +24,34 @@
  * a demo where the control still works, slower.
  *
  * **The account is never spoken in full.** The script carries four digits. The
- * ledger event carries four digits. Neither carries the CLABE.
+ * ledger event carries four digits. Neither carries the CLABE, and neither does
+ * the agent the provider stores: the per-call words travel as dynamic variables
+ * and the account the supplier was paid on before is never read out at all.
+ *
+ * **A hand-recorded call carries the name of whoever recorded it.** `recordedBy`
+ * travels from the request onto the `verification_call` event, because the
+ * by-hand path is the one the demo falls back to and an unsigned entry on an
+ * append-only ledger is worse than no entry.
+ *
+ * **Nobody answering is an answer, and it says what to do next.** A Capital One
+ * judge asked what happens when the supplier does not pick up. The response that
+ * reports `no_answer` carries `hold`: how long the payment stays stopped, and the
+ * ordered next steps, one of which is the one-cent CEP path that needs nobody to
+ * answer anything at all. The deadline is what bounds the retry loop, and nothing
+ * is released or refused when it passes.
  *
  * It is mounted as a second router on `/instructions` rather than added to
  * `routes/instructions.ts`, so this feature is one file that can be reverted in
  * one commit while three other people edit that one.
  */
 
-import type { VerificationOutcome, VerificationTurn } from "@hackmty/core";
+import type {
+  Actor,
+  Decision,
+  VerificationOutcome,
+  VerificationTurn,
+} from "@hackmty/core";
+import { holdWindow } from "@hackmty/core";
 import {
   parseVerificationOutcome,
   scriptForInstruction,
@@ -41,6 +63,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { errorBody, fail, notFound, rejectInvalid, requestIdOf } from "../http";
+import { actorOf, requireActor } from "../middleware/actor";
 import {
   idParamSchema,
   type VerifyCallResponse,
@@ -158,11 +181,26 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
     )
     .post(
       "/:id/verify-call",
+      requireActor,
       zValidator("param", idParamSchema, rejectInvalid),
       zValidator("json", verifyCallBodySchema, rejectInvalid),
       async (c) => {
+        const actor = actorOf(c);
         const { id } = c.req.valid("param");
         const body = c.req.valid("json");
+
+        /* The hand-recorded variant names a person and so does the header, so
+           they have to be the same person. Neither name is echoed back, for the
+           reason `rejectInvalid` gives about a CLABE: a refusal is the response
+           most likely to be pasted into a chat. */
+        if ("outcome" in body && body.recordedBy !== actor.name) {
+          return fail(
+            c,
+            400,
+            "bad_request",
+            "`recordedBy` and the name on the X-Actor header have to be the same person. A call outcome signed by one name under a header carrying another is a record nobody can rely on later.",
+          );
+        }
 
         const detail = await deps.repo.instructionDetail(id);
         if (detail === undefined) {
@@ -187,6 +225,9 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               evidence: body.evidence,
               transcript: [],
               manual: true,
+              recordedBy: body.recordedBy,
+              actor,
+              decision: detail.decision,
             }),
           );
         }
@@ -241,6 +282,8 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
               transcript: conversation.transcript,
               conversationId: conversation.conversationId,
               manual: false,
+              actor,
+              decision: detail.decision,
             }),
           );
         }
@@ -253,6 +296,11 @@ export function verifyCallRoutes(deps: ApiDeps, voice: VoiceDeps = {}) {
             agentId: config.agentId,
             agentPhoneNumberId: config.phoneNumberId,
             toNumber: body.toNumber,
+            /* This instruction's own words, per call. The agent the provider
+               stores carries the rules and empty slots, so the supplier, the
+               amount and the four digits never sit in somebody else's
+               dashboard. */
+            dynamicVariables: script.variables,
           })
           .catch(asVoiceError);
 
@@ -290,6 +338,25 @@ interface RecordInput {
   transcript: VerificationTurn[];
   conversationId?: string;
   manual: boolean;
+  /**
+   * Who typed the outcome in, on a hand-recorded call.
+   *
+   * Required by the schema for that variant and carried onto the event, so the
+   * by-hand call has a name against it the way `/decide` does. Validating a field
+   * and then dropping it would leave the fallback path as the only human action
+   * in the product that nobody signed.
+   */
+  recordedBy?: string;
+  /**
+   * Who made the request, from the `X-Actor` header.
+   *
+   * Present on both paths, unlike `recordedBy`: a call the agent placed was still
+   * somebody's decision to ring a supplier about a payment, and the role is the
+   * half a bare name cannot carry.
+   */
+  actor: Actor;
+  /** The standing decision, so the answer can say how long the hold lasts. */
+  decision: Decision | null;
 }
 
 /**
@@ -317,6 +384,8 @@ async function record(
       ? {}
       : { conversationId: input.conversationId }),
     manual: input.manual,
+    ...(input.recordedBy === undefined ? {} : { recordedBy: input.recordedBy }),
+    actor: input.actor,
   });
 
   const response: VerifyCallResponse = {
@@ -325,6 +394,12 @@ async function record(
     outcome: input.outcome,
     transcript: input.transcript,
     releasesPayment: false,
+    /* Null when the payment was already released, which is the one case where
+       there is no window to report and no next step to offer. */
+    hold:
+      input.decision === null
+        ? null
+        : holdWindow(input.decision, { now: at, outcome: input.outcome }),
   };
   if (input.evidence !== undefined) {
     response.evidence = input.evidence;

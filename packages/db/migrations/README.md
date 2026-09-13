@@ -11,6 +11,11 @@ between four laptops.
 | `0005_sentryone_drift.sql` | any Postgres 16+ | the columns the domain grew after 0003 (`delay_cost_per_day`, `audio_ref`, `sent_at`, `payment_total`, `operation_number`, the CEP evidence fields), `ledger_tx` as a finding subject and `verification_call` as a ledger event type |
 | `0006_company.sql` | any Postgres 16+ | the one-row `company` table: who we are on the header of a constancia, and the bank account id the mirror hangs off |
 | `0007_supplier_outflow.sql` | any Postgres 16+ | `supplier_weekly_outflow` as a plain view over the CFDI events: the feed the `supplier_behaviour` detector and the supplier drawer read |
+| `0009_consortium_snapshot.sql` | any Postgres 16+ | `consortium_snapshot` and the one-row `consortium_pull`, the local projection of the cross-tenant network |
+| `0010_rail_events.sql` | any Postgres 16+ | `cent_sent` and `cep_awaited` as ledger event types, the two the one-cent verification appends |
+| `0011_decision_reason.sql` | any Postgres 16+ | `decisions.reason`, the argument a person wrote for the action they signed |
+| `0012_assistant_and_payment_events.sql` | any Postgres 16+ | the five ledger event types of the assistant panel and the payment execution |
+| `0013_decision_actor_role.sql` | any Postgres 16+ | `decisions.decided_by_role`, the capacity the signature was given in |
 | `0002_timescale.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_tx` |
 | `0004_timescale_sentryone.sql` | only with `timescaledb` | hypertable and continuous aggregate over `ledger_events` |
 | `0008_timescale_supplier_outflow.sql` | only with `timescaledb` | `supplier_weekly_outflow` again, as a continuous aggregate with the same columns and buckets |

@@ -21,13 +21,23 @@ export type ErrorCode =
   | "bad_request"
   | "forbidden"
   | "not_found"
+  | "conflict"
   | "unprocessable"
   | "rate_limited"
   | "http_error"
-  | "internal_error";
+  | "internal_error"
+  /**
+   * A capability this server was not configured with, rather than a request that
+   * is wrong. Two cases: the consortium with `ALLOW_CONSORTIUM` unset, and the
+   * one-cent verification on a server with no payment rail. In both the route
+   * exists, the request is well formed, and this instance will not answer it, so a
+   * 422 would tell a clerk they got it wrong and a 500 would say it is broken when
+   * it is unconfigured. Distinct from `forbidden`, which is about who is asking.
+   */
+  | "service_unavailable";
 
 /** Statuses this API actually returns. Anything else is a bug, not a choice. */
-export type ErrorStatus = 400 | 403 | 404 | 422 | 429 | 500;
+export type ErrorStatus = 400 | 403 | 404 | 409 | 422 | 429 | 500 | 503;
 
 export type ErrorBody = {
   error: {

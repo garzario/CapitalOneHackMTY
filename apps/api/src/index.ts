@@ -45,7 +45,30 @@ if (notes !== undefined) {
   console.log(`demo rfcs: ${notes.demoRfcs.join(", ")}`);
 }
 
+/**
+ * How long a connection may say nothing before the runtime closes it, in
+ * seconds.
+ *
+ * The default is ten, and this API has two responses that are legitimately
+ * quiet for longer than that, so under the default both were being cut with no
+ * error on either side. `GET /api/v1/events` writes its first heartbeat at
+ * `HEARTBEAT_MS`, fifteen seconds, so the ledger stream died five seconds
+ * before its own keep-alive and every screen stopped moving until somebody
+ * reloaded. And an assistant turn that carries a screenshot says nothing at all
+ * until the extractor has answered: `GEMINI_TIMEOUT_MS` bounds that at twenty
+ * seconds and the model round trip after it at another twenty, so the turn that
+ * is the whole reason the panel exists answered `200 text/event-stream` with an
+ * empty body. Sixty is those two bounds plus margin, and it is still short
+ * enough that a client that has gone away is collected.
+ *
+ * It is a plain property of the exported server object rather than a Bun call,
+ * so this file still imports no `bun:*` module and touches no Bun global, and a
+ * Node adapter that does not know the key ignores it. ADR-0005 is untouched.
+ */
+export const IDLE_TIMEOUT_SECONDS = 60;
+
 export default {
   port,
+  idleTimeout: IDLE_TIMEOUT_SECONDS,
   fetch: app.fetch,
 };

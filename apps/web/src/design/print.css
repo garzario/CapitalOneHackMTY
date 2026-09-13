@@ -1,0 +1,165 @@
+/*
+ * What the screens look like on paper.
+ *
+ * Deliberately last and deliberately unlayered. Every other design system file
+ * declares `@layer`, so a Tailwind utility beats it on the same element; that is
+ * the right default on screen and the wrong one here, because a `sticky` or an
+ * `overflow` utility that survives into print takes content off the page. An
+ * unlayered rule outranks every layer, which is exactly the authority a print
+ * override needs.
+ *
+ * The scope is narrow on purpose. The carta de evidencia and the constancias are
+ * PDFs the API renders from the ledger (`apps/api/src/routes/carta.ts`,
+ * `packages/constancia`), and they arrive as a link rather than a print dialog,
+ * so nothing here is trying to lay them out. What this file is for is the other
+ * half of issue 216: the clerk who has a stopped payment on screen, a supplier
+ * on the phone and a printer, and who needs the evidence on paper before the
+ * conversation rather than after it.
+ *
+ * Three things break a screen when it is printed, and all three are here:
+ * elements that float over the page, a layout that reserves a column for
+ * furniture that is gone, and content parked inside a scroll container that
+ * paper cannot scroll.
+ */
+
+@media print {
+  /*
+   * The palette is not here. `tokens.css` carries a `@media print` block that
+   * turns the surfaces to paper and the ink to black, because that file is the
+   * only one allowed to write a colour, and a rule below that wants a hairline
+   * asks for `--c-border` exactly as it would on screen.
+   */
+  body {
+    background: var(--c-canvas);
+  }
+
+  /*
+   * The furniture. None of it is evidence: the rail is navigation, the top bar
+   * repeats the title the page already carries, a toast is a message about
+   * something that just happened, the scrim is the dimming behind a drawer, and
+   * the action bar is a row of things you press. Every one of them is `fixed` or
+   * `sticky`, so left alone they either float over the first page or repeat on
+   * every one.
+   *
+   * `.form-actions` is here rather than left to the rule that hides buttons,
+   * because hiding its contents leaves the bar itself: an empty strip with a top
+   * border, stuck to the foot of the sheet.
+   */
+  .rail,
+  .topbar,
+  .toast-region,
+  .skip-link,
+  .drawer,
+  .scrim,
+  .form-actions {
+    display: none !important;
+  }
+
+  /*
+   * With the rail gone the grid still reserves its column, which prints as a
+   * blank strip down the left of every page.
+   */
+  .shell {
+    display: block;
+    min-height: 0;
+  }
+
+  /*
+   * A table wider than the paper is the one that matters most: it is the run,
+   * and on screen it lives in a scroll container. Paper does not scroll, so the
+   * container is opened and the table is allowed to wrap rather than be cut off
+   * at the page edge with no sign that anything was lost.
+   */
+  .table-scroll,
+  .chart-scroll,
+  .well-panel-table {
+    overflow: visible !important;
+    max-width: none !important;
+  }
+
+  table.data-table {
+    width: 100%;
+    font-size: 9pt;
+  }
+
+  /*
+   * The run's header row is `sticky` on screen, which is how it stays readable
+   * while a clerk scrolls ninety-two lines. Paper has the same problem and a
+   * different answer: `sticky` means nothing to a printer and leaves the header
+   * on sheet one, so a second page of a payment run arrives as unlabelled
+   * columns of pesos. `table-header-group` is the mechanism that belongs here,
+   * and it reprints the header at the top of every sheet the table spans.
+   */
+  thead {
+    display: table-header-group;
+  }
+
+  th {
+    position: static !important;
+  }
+
+  /*
+   * A row of a payment run split across two sheets is a row somebody misreads,
+   * and a heading alone at the foot of a page is the other half of the same
+   * problem.
+   */
+  tr,
+  .panel,
+  .well-panel,
+  .card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /*
+   * Shadows and heavy fills are screen depth. On paper they are grey boxes that
+   * cost toner and make the text under them harder to read, so panels keep their
+   * boundary as a hairline and lose the rest.
+   */
+  .panel,
+  .well-panel,
+  .card,
+  .card-dark {
+    box-shadow: none !important;
+    border: 1px solid var(--c-border) !important;
+    background: var(--c-surface) !important;
+  }
+
+  /*
+   * A button on paper is an instruction nobody can follow. The exception is a
+   * link, which keeps its underline because the sentence around it still reads.
+   */
+  button,
+  .btn {
+    display: none !important;
+  }
+
+  a {
+    color: var(--c-ink);
+    text-decoration: underline;
+  }
+
+  /*
+   * The level and the state are the two words ADR-0009 says a page must carry,
+   * and they are the most likely thing to be lost: both are printed as a tinted
+   * chip, and a printer set to draft or short of colour drops the tint and
+   * leaves the word floating. A border puts the boundary back in black.
+   */
+  .chip,
+  .badge {
+    border: 1px solid var(--c-ink) !important;
+    background: transparent !important;
+    color: var(--c-ink) !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

@@ -38,6 +38,24 @@ export const READY_EVENT_NAME = "ready";
  */
 export const HEARTBEAT_MS = 15_000;
 
+/**
+ * The first bytes of a stream, written before the work that will fill it.
+ *
+ * A comment line and not an event: SSE clients drop it, it adds no name to the
+ * five in docs/09-api.md, and it is the same mechanism the heartbeat already
+ * uses. What it buys is the flush. A proxy between the browser and this API
+ * decides for itself when to hand the response headers on, and the ones we do
+ * not control hold them until the first body byte: through the Vite dev proxy
+ * an assistant turn with a screenshot delivered its headers only when the
+ * extractor and the model had both answered, twenty-eight seconds later, and
+ * `streamSse` in `apps/web/src/lib/api.ts` had already given up at its six
+ * second header ceiling and printed "The API did not answer within 6000 ms"
+ * over a turn the server went on to complete. Writing this first makes the
+ * headers leave with it, so the ceiling measures the server being alive, which
+ * is what that ceiling is for, rather than how slow the answer is.
+ */
+export const STREAM_OPEN_COMMENT = ": abierto\n\n";
+
 export function createBroadcaster(): LedgerBroadcaster {
   const listeners = new Set<LedgerListener>();
 

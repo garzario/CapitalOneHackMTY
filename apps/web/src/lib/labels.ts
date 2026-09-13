@@ -14,13 +14,42 @@
 
 import type {
   Action,
+  ActorRole,
+  AssistantTool,
+  Confidence,
+  ConfidenceRule,
   Detector,
   FindingState,
+  HoldNextStep,
   InstructionSource,
+  ProposalKind,
   SatListStatus,
   Severity,
+  TransactionState,
+  TransactionStateRule,
 } from "@hackmty/core";
-import type { NameMatch } from "./contract";
+import type {
+  CepSealState,
+  NameMatch,
+  PaymentLineState,
+  VerificationRail,
+  VerificationStateName,
+} from "./contract";
+
+/**
+ * The two people of this company, as a screen of this app writes them.
+ *
+ * `ACTOR_ROLE_LABEL` in `packages/core` is the same pair for a printed document
+ * and carries its accents, because a constancia is typeset Spanish. The screens
+ * are written without them, so the word is here rather than imported and
+ * mangled, and it is in the dictionary rather than in the two components that
+ * show it so the entry screen and the assistant panel cannot call one person two
+ * things.
+ */
+export const ROLE_LABEL: Record<ActorRole, string> = {
+  clerk: "capturista",
+  owner: "dueno",
+};
 
 export const ACTION_LABEL: Record<Action, string> = {
   hold: "Retener",
@@ -54,6 +83,24 @@ export const DETECTOR_LABEL: Record<Detector, string> = {
   supplier_behaviour: "Cambio de comportamiento",
   beneficiary_cep: "Beneficiario verificado con CEP",
   bank_reconciliation: "Conciliacion bancaria",
+};
+
+/**
+ * The screen that proves a finding, per detector, and the words on the link.
+ *
+ * Two detectors are missing on purpose rather than by omission. A duplicate
+ * invoice already carries its own origin inside the panel, and a bank
+ * reconciliation already carries the bank row it failed against: the proof is
+ * the block the reader is looking at, and there is no screen in the app that
+ * shows more of it than that. A link to nowhere new is furniture.
+ */
+export const EVIDENCE_ACTION: Partial<
+  Record<Detector, { label: string; kind: "sat" | "cep" | "call" }>
+> = {
+  sat_69b: { label: "Consultar en la lista 69-B", kind: "sat" },
+  beneficiary_cep: { label: "Verificar con el CEP", kind: "cep" },
+  clabe_forensics: { label: "Llamar al proveedor", kind: "call" },
+  supplier_behaviour: { label: "Llamar al proveedor", kind: "call" },
 };
 
 export const DETECTOR_ORDER: Detector[] = [
@@ -104,6 +151,26 @@ export const SOURCE_LABEL: Record<InstructionSource, string> = {
   manual: "Captura manual",
 };
 
+/** Which Rune glyph draws a channel. The drawings are in `Icons.tsx`. */
+export type SourceGlyph = "mail" | "message" | "file-text" | "globe" | "pencil";
+
+/**
+ * The channel an instruction arrived by, as a shape.
+ *
+ * It sits next to `SOURCE_LABEL` because it is the same fact in the other
+ * channel, and a run row shows both: the tile says where it came from at a
+ * glance and the word under it says the same thing for anyone who cannot use
+ * the shape. A key rather than a component, so this file stays a dictionary of
+ * words with no view in it.
+ */
+export const SOURCE_ICON: Record<InstructionSource, SourceGlyph> = {
+  email: "mail",
+  whatsapp: "message",
+  pdf: "file-text",
+  portal: "globe",
+  manual: "pencil",
+};
+
 export const SAT_STATUS_LABEL: Record<SatListStatus, string> = {
   presunto: "Presunto",
   desvirtuado: "Desvirtuado",
@@ -123,6 +190,70 @@ export const SAT_STATUS_BADGE: Record<SatListStatus, string> = {
   sentencia_favorable: "badge badge-release",
 };
 
+export const SAT_ARTICLE_LABEL = {
+  "69-B": "Articulo 69-B",
+  "49 Bis": "Articulo 49 Bis",
+} as const;
+
+export const SAT_COPY = {
+  answered: "Consulta completada",
+  unavailable: "Cobertura no disponible",
+  notListed69B: "No aparece en la lista 69-B",
+  notListed49Bis: "No aparece en la lista 49 Bis",
+  source: "Fuente oficial",
+  viewPublication: "Ver publicacion",
+  reviewDof: "Revisar en el DOF",
+  history: "Historial de publicaciones",
+  publicationReview: "Oficios revisados",
+  taxpayersNamed: "Contribuyentes publicados",
+  surveyedAt: "Revision al",
+  publishedResolution: "Resolucion publicada",
+  runLines: "Lineas de la corrida afectadas",
+  runLoading: "Cargando las lineas de la corrida",
+  runBefore:
+    "El estado se deriva de la decision y los hallazgos que ya tiene cada linea.",
+  runAfter: "La publicacion ya se incorporo a los hallazgos de estas lineas.",
+  noRunLines: "Esta publicacion no alcanza una linea de la corrida actual.",
+  noAffectedLines: "Sin lineas afectadas",
+  refreshFailed:
+    "La publicacion llego, pero no se pudo actualizar la corrida desde la API.",
+  lookupOffline:
+    "La consulta oficial esta desactivada en modo sintetico. Cambia a datos de API para consultar un RFC real.",
+  lookupNeedsApi:
+    "Esta consulta necesita la API: la lista oficial no viaja en el navegador y no se inventa.",
+} as const;
+
+export const SAT_SENTENCE = {
+  source(
+    version: string,
+    retrievedAt: string,
+    taxpayers: string,
+    rows: string,
+  ): string {
+    return `${SAT_COPY.source}: version ${version}, recuperada el ${retrievedAt}, ${taxpayers} contribuyentes y ${rows} registros.`;
+  },
+  notListed69B(rfc: string): string {
+    return `${rfc} no tiene publicaciones en las versiones 69-B cargadas. La respuesta solo cubre esta lista y esta fuente.`;
+  },
+  notListed49Bis(rfc: string): string {
+    return `${rfc} no tiene una resolucion en la fuente cargada para 49 Bis.`;
+  },
+  publishedOn(date: string): string {
+    return `Publicado el ${date}`;
+  },
+  publicationRange(first: string, last: string): string {
+    return `Publicaciones del ${first} al ${last}.`;
+  },
+  lookupEcho(rfc: string): string {
+    return `RFC consultado: ${rfc}`;
+  },
+  rateLimited(wait?: number): string {
+    return wait === undefined
+      ? "Se alcanzo el limite de consultas. Espera antes de intentar de nuevo."
+      : `Se alcanzo el limite de consultas. Espera ${String(wait)} segundos antes de intentar de nuevo.`;
+  },
+} as const;
+
 export const NAME_MATCH_LABEL: Record<NameMatch, string> = {
   match: "Coincide",
   partial: "Coincide parcialmente",
@@ -135,6 +266,345 @@ export const NAME_MATCH_BADGE: Record<NameMatch, string> = {
   mismatch: "badge badge-hold",
 };
 
+/**
+ * The one-cent verification, state by state.
+ *
+ * Every label is what happened and not what it means, because the meaning is
+ * the decision underneath and that is a separate line on screen. "Pago
+ * liberado" and "pago bloqueado" name the large payment, never the cent: the
+ * cent always goes out, and confusing the two is how a clerk reads "liberado"
+ * as "the centavo left".
+ */
+export const VERIFICATION_LABEL: Record<VerificationStateName, string> = {
+  not_started: "Sin verificar",
+  cent_sent: "Centavo enviado",
+  awaiting_cep: "Esperando el CEP",
+  cep_signed: "CEP firmado por Banxico",
+  released: "Pago liberado",
+  blocked: "Pago bloqueado",
+};
+
+export const VERIFICATION_BADGE: Record<VerificationStateName, string> = {
+  not_started: "badge badge-neutral",
+  cent_sent: "badge badge-verify",
+  awaiting_cep: "badge badge-verify",
+  cep_signed: "badge badge-neutral",
+  released: "badge badge-release",
+  blocked: "badge badge-hold",
+};
+
+export const VERIFICATION_HELP: Record<VerificationStateName, string> = {
+  not_started:
+    "Nadie ha probado esta cuenta todavia. La verificacion manda un SPEI de un centavo dentro de la misma corrida.",
+  cent_sent:
+    "El centavo salio de la cuenta de la empresa y el banco devolvio la clave de rastreo. Nadie la escribio.",
+  awaiting_cep:
+    "Banxico publica el CEP cuando la transferencia liquida. En cuanto llega, el control se arma solo.",
+  cep_signed:
+    "El CEP ya esta y trae el titular de la cuenta. Se compara con la razon social del CFDI y se revisa el sello.",
+  released:
+    "El pago grande salio porque el titular coincide y la evidencia se sostiene.",
+  blocked:
+    "El pago grande no sale. La evidencia del CEP no sostiene que la cuenta sea del proveedor.",
+};
+
+export const VERIFICATION_TRACK_TITLE = "Recorrido del centavo";
+
+export const VERIFICATION_TRACK_HELP =
+  "Los primeros cuatro pasos son comunes. El CEP termina en una de las dos rutas del pago.";
+
+export const VERIFICATION_STEP_STATUS_LABEL = {
+  complete: "Completado",
+  current: "Ahora",
+  pending: "Por recorrer",
+  alternate: "Ruta alternativa",
+} as const;
+
+export const VERIFICATION_PAYMENT_STATE_LABEL = "Estado final del pago";
+
+export const SEAL_PARSER_STATE_LABEL = "Estado reportado por el parser";
+
+export const SEAL_CONFIGURATION_NOTE =
+  "Este resultado describe la configuracion de esta instancia. Sin BANXICO_CEP_CERT_PEM, el parser reporta not_checked; eso no afirma que el documento sea invalido.";
+
+/**
+ * The cent is ours and the CEP is Banxico's, so the rail is named out loud.
+ * In the demo the outflow is recorded on the company's Nessie mirror; STP is
+ * the production path and says so rather than pretending to be live.
+ */
+export const RAIL_LABEL: Record<VerificationRail, string> = {
+  nessie: "espejo Nessie",
+  stp: "STP",
+};
+
+/**
+ * The seal, in the only three words this screen may use. `not_checked` is
+ * "no verificado" and never "valido": see `sealVerdictOf` in ./verification.ts,
+ * which is the only place that maps it.
+ */
+export const SEAL_STATE_LABEL: Record<CepSealState, string> = {
+  valid: "sello valido",
+  not_checked: "sello no verificado",
+  invalid: "sello invalido",
+};
+
+export const SEAL_STATE_BADGE: Record<CepSealState, string> = {
+  valid: "badge badge-release",
+  not_checked: "badge badge-verify",
+  invalid: "badge badge-hold",
+};
+
+/**
+ * The three levels, in the only three words this product uses for them.
+ *
+ * `confiable` is a statement about the evidence we hold and nothing more. It is
+ * not "seguro": a SPEI cannot be recalled, so nobody can promise one is safe, and
+ * ADR-0009 forbids the word as a verdict in any language along with every
+ * probability, percentage and score. The level always arrives on screen with the
+ * findings that produced it, which is why `CONFIDENCE_RULE_LABEL` exists: the rule
+ * that fired is shown next to the level rather than left in a function.
+ */
+export const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confiable: "Confiable",
+  precaucion: "Precaucion",
+  alerta: "Alerta",
+};
+
+/**
+ * Worst first, which is the order a clerk scans a column in and the order the
+ * token sheet lists them in.
+ */
+export const CONFIDENCE_ORDER: Confidence[] = [
+  "alerta",
+  "precaucion",
+  "confiable",
+];
+
+/**
+ * The chip reads the level palette in `design/tokens.css`, which aliases the
+ * three decision triplets: the level and the action are two readings of one body
+ * of evidence, so one colour still means one thing.
+ */
+export const CONFIDENCE_BADGE: Record<Confidence, string> = {
+  confiable: "level level-confiable",
+  precaucion: "level level-precaucion",
+  alerta: "level level-alerta",
+};
+
+/**
+ * How many of the three bars the meter fills beside the word.
+ *
+ * An ordinal over the same three values the word already carries, which is why
+ * it is allowed: it adds a channel and not a digit, and red against amber is the
+ * pair roughly one man in twelve cannot separate. It is not a score and must
+ * never become one. See the note on `.level` in `design/primitives.css`.
+ */
+export const CONFIDENCE_BARS: Record<Confidence, number> = {
+  alerta: 3,
+  precaucion: 2,
+  confiable: 1,
+};
+
+export const CONFIDENCE_HELP: Record<Confidence, string> = {
+  confiable:
+    "Los documentos que tenemos coinciden y no hay nada abierto en esta linea.",
+  precaucion: "Falta una comprobacion humana o la cuenta no tiene historial.",
+  alerta: "Los documentos ya prueban un problema en esta linea.",
+};
+
+/** Which rule gave the level, in the words of the table in ADR-0009. */
+export const CONFIDENCE_RULE_LABEL: Record<ConfidenceRule, string> = {
+  sat_definitive: "el proveedor esta listado en definitiva por el SAT",
+  critical_finding: "hay un hallazgo critico",
+  new_account_without_history: "la cuenta no tiene historial de pago detras",
+  pending_verification: "falta una verificacion",
+  warning_finding: "hay un hallazgo de atencion",
+  no_open_signal: "no hay ninguna senal abierta",
+};
+
+/**
+ * The state of one line, and the three public ones are not the whole set.
+ *
+ * `pendiente` and `liberado` are the two the run has always counted internally,
+ * and they are labelled here rather than folded into the other three because a
+ * line nobody has looked at is not green and a release on Wednesday is not
+ * `enviado` until the money leaves on Thursday. ADR-0009 argues both.
+ */
+export const STATE_LABEL: Record<TransactionState, string> = {
+  rojo: "En rojo",
+  cancelado: "Cancelado",
+  enviado: "Enviado",
+  pendiente: "Pendiente",
+  liberado: "Liberado",
+};
+
+/** In the order money moves through them, for the sheet and for a legend. */
+export const STATE_ORDER: TransactionState[] = [
+  "pendiente",
+  "liberado",
+  "rojo",
+  "cancelado",
+  "enviado",
+];
+
+/**
+ * The chip reads the state palette, which is deliberately not the decision one
+ * repeated, because a state is a fact about money and not a verdict about risk.
+ *
+ * `cancelado` is neutral on purpose: a line that did not go out is the product
+ * working, not an alarm. `rojo` is the one that carries the hold palette.
+ * `enviado` is the informational tone and not green, because money that left is
+ * a fact and a green chip would say the payment was fine, which nobody can say
+ * about a transfer that cannot be recalled and that a list published on Friday
+ * can still poison. `pendiente` is dashed and fills with the surface it sits on,
+ * because nothing has decided that line yet. ADR-0009 and `docs/design.md`.
+ */
+export const STATE_BADGE: Record<TransactionState, string> = {
+  rojo: "state state-rojo",
+  cancelado: "state state-cancelado",
+  enviado: "state state-enviado",
+  pendiente: "state state-pendiente",
+  liberado: "state state-liberado",
+};
+
+/**
+ * Why the state is the state, one sentence per rule of `assessTransactionState`.
+ *
+ * The state arrives with its rule for the same reason the level does: a word a
+ * clerk cannot explain to the supplier on the telephone is a word that gets
+ * overridden blindly. `sat_definitive` is the one worth wording carefully. It is
+ * not a hold somebody can wait out, because the comprobantes have no fiscal
+ * effect at all, and a release a named person signed still wins over it, since
+ * ADR-0002 forbids the product overruling a person in either direction.
+ */
+export const STATE_RULE_LABEL: Record<TransactionStateRule, string> = {
+  executed: "el riel ya mando este pago",
+  execution_cancelled: "la corrida cancelo la linea antes de mandarla",
+  verification_blocked: "el CEP contradice a los documentos",
+  sat_definitive: "el SAT publico a este proveedor en definitiva",
+  stopped_for_a_person:
+    "el motor propuso detenerlo y la decision es de una persona",
+  execution_failed: "el riel rechazo la linea",
+  released: "una persona lo libero y todavia no sale",
+  undecided: "nadie ha decidido esta linea",
+};
+
+/**
+ * What a person can do next with a payment that has not left.
+ *
+ * `one_cent_cep` is the one worth naming out loud, because it needs nobody to
+ * answer a telephone, and it is why a hold in this product has a way out that
+ * does not depend on the supplier picking up.
+ */
+export const HOLD_STEP_LABEL: Record<HoldNextStep, string> = {
+  call_supplier: "Llamar al proveedor",
+  retry_call: "Volver a llamar",
+  one_cent_cep: "Verificar la cuenta con un centavo",
+  release_with_reason: "Liberar con nombre y razon escrita",
+  keep_held: "Mantenerlo retenido",
+};
+
+export const HOLD_STEP_HELP: Record<HoldNextStep, string> = {
+  call_supplier:
+    "La llamada lee cuatro digitos de la cuenta, nunca los dieciocho, y no libera nada.",
+  retry_call:
+    "El reintento se acota con la fecha limite, no con un contador que nadie mira.",
+  one_cent_cep:
+    "Un SPEI de un centavo sale en la misma corrida y Banxico firma el CEP que dice a nombre de quien esta la cuenta. No necesita que nadie conteste.",
+  release_with_reason:
+    "Sale con el nombre de quien lo decide y la razon escrita. Queda en la bitacora, que solo crece.",
+  keep_held:
+    "El proveedor dijo que la cuenta no es suya. Proponer una liberacion al lado de eso seria el producto discutiendo con su propio hallazgo.",
+};
+
+/**
+ * What each state means, for the one question the words alone do not answer:
+ * whether anybody still has to do something about this line.
+ */
+export const STATE_HELP: Record<TransactionState, string> = {
+  pendiente: "Nadie ha decidido esta linea todavia.",
+  rojo: "Esta detenida y enfrente de una persona.",
+  cancelado: "No sale en esta corrida, y el motivo va junto al estado.",
+  liberado: "Nada la detiene y todavia no sale. Entra en la corrida.",
+  enviado: "El dinero salio. Es lo unico aqui que no se puede deshacer.",
+};
+
+/**
+ * What the rail did with one line, and the five states are never four.
+ *
+ * This is a different question from `STATE_LABEL` and that is why it is a second
+ * dictionary rather than a merge: the state is where the payment stands for the
+ * company, and this is what the rail said about it. `sent` and `settled` keep
+ * different words and different colours because they are two different claims,
+ * the first that we asked and the second that the rail says it happened, and
+ * ADR-0008 calls collapsing them the one thing the demo must not do, since the CEP
+ * exists to prove exactly that difference.
+ */
+export const PAYMENT_LINE_LABEL: Record<PaymentLineState, string> = {
+  queued: "En cola",
+  sent: "Enviado",
+  settled: "Liquidado",
+  failed: "Rechazado",
+  cancelled: "Cancelado",
+};
+
+export const PAYMENT_LINE_BADGE: Record<PaymentLineState, string> = {
+  queued: "badge badge-info",
+  sent: "badge badge-verify",
+  settled: "badge badge-release",
+  failed: "badge badge-hold",
+  cancelled: "badge badge-neutral",
+};
+
+export const PAYMENT_LINE_HELP: Record<PaymentLineState, string> = {
+  queued: "El riel la acepto y todavia no sale.",
+  sent: "Salio. El riel aun no la reconoce, y eso es otra afirmacion.",
+  settled:
+    "El riel reconocio la transferencia. Hasta aqui el recibo esta completo.",
+  failed: "El riel la rechazo. El motivo va en la misma linea.",
+  cancelled:
+    "Se quedo fuera antes de enviar nada. El motivo va en la misma linea.",
+};
+
+/**
+ * The nine reads the assistant may perform, named for the clerk.
+ *
+ * Every one of them is a read of something this product already computed, and the
+ * list is closed: `AssistantTool` in the domain has no member that writes, which
+ * is ADR-0007 enforced in the type rather than in a sentence. It grew from seven
+ * to nine when the assistant panel landed, and the two that arrived are a supplier
+ * drawer and the blind evaluation, so the sentence above still holds.
+ */
+export const ASSISTANT_TOOL_LABEL: Record<AssistantTool, string> = {
+  get_run: "Leer la corrida",
+  get_instruction: "Leer la instruccion y sus hallazgos",
+  get_supplier: "Leer el historial del proveedor",
+  get_verification: "Leer la verificacion de la cuenta",
+  get_execution: "Leer lo que hizo la corrida en el riel",
+  get_receipt: "Leer el comprobante del pago",
+  sat_lookup: "Consultar las listas del SAT",
+  consortium_signal: "Consultar la red SentryOne",
+  get_metrics: "Leer la evaluacion a ciegas de los controles",
+};
+
+/** The five things the panel can offer, and there is no sixth. */
+export const PROPOSAL_KIND_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Verificar la cuenta con un centavo",
+  verify_call: "Llamar al proveedor para verificar",
+  decide: "Registrar una decision",
+  execute_run: "Enviar la corrida de pagos",
+  intake: "Dar de alta la instruccion",
+};
+
+/** The button each proposal puts in front of a person, in their words. */
+export const PROPOSAL_CONFIRM_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Enviar el centavo",
+  verify_call: "Hacer la llamada",
+  decide: "Firmar la decision",
+  execute_run: "Abrir la corrida para enviarla",
+  intake: "Dar de alta el pago",
+};
+
 export const ESTABLISHED_BY_LABEL: Record<string, string> = {
   payment_complement: "Complemento de pago",
   instruction: "Instruccion previa",
@@ -142,4 +612,4 @@ export const ESTABLISHED_BY_LABEL: Record<string, string> = {
 };
 
 /** The watermark text ADR-0002 requires on anything generated. */
-export const SYNTHETIC_LABEL = "datos sinteticos";
+export const SYNTHETIC_LABEL = "Datos sinteticos";

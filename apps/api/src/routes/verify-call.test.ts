@@ -7,13 +7,13 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import type { LedgerEvent } from "@hackmty/core";
+import type { Actor, LedgerEvent } from "@hackmty/core";
 import { CONVERSATION_PAYLOAD, TRANSCRIPT_DENIED } from "@hackmty/voice";
 import {
   verifyCallResponseSchema,
   verifyCallScriptResponseSchema,
 } from "../schemas";
-import { createTestApp, TEST_NOW } from "../test-app";
+import { createTestApp, TEST_CLERK, TEST_NOW, writeHeaders } from "../test-app";
 import type { VoiceDeps } from "./verify-call";
 
 /** Instruction 1 of the synthetic run: the CLABE one digit off a known one. */
@@ -58,10 +58,17 @@ function voice(answer: { status?: number; body: unknown }): {
   };
 }
 
-function json(body: unknown): RequestInit {
+/**
+ * A JSON write, with the actor every write endpoint requires.
+ *
+ * The header is the default clerk unless a test names somebody else, so a test
+ * about a role says which role it is about and every other test reads as it did
+ * before the header existed.
+ */
+function json(body: unknown, actor: Actor = TEST_CLERK): RequestInit {
   return {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: writeHeaders(actor),
     body: JSON.stringify(body),
   };
 }
@@ -88,7 +95,10 @@ describe("GET /api/v1/instructions/:id/verify-call", () => {
     const body = verifyCallScriptResponseSchema.parse(await res.json());
 
     expect(body.script.clabeLast4).toBe("6812");
-    expect(body.script.question).toContain("184,300.00");
+    expect(body.script.question).toContain("6 8 1 2");
+    /* The amount is in the purpose line, which is the second of the three the
+       clerk reads: this is your payment, and this is the one thing I need. */
+    expect(body.script.spoken[1]).toContain("184,300.00");
     expect(body.voiceConfigured).toBe(true);
     expect(body.releasesPayment).toBe(false);
     /* Side effect free: no request to the provider and nothing on the ledger. */
@@ -121,7 +131,8 @@ describe("POST /api/v1/instructions/:id/verify-call, without keys", () => {
 
     expect(body.error.code).toBe("unprocessable");
     expect(body.error.message).toContain("ELEVENLABS_API_KEY");
-    expect(body.script?.question).toContain("6812");
+    expect(body.script?.clabeLast4).toBe("6812");
+    expect(body.script?.question).toContain("6 8 1 2");
     expect(body.script?.firstMessage).toContain(
       "Aceros y Perfiles del Norte SA de CV",
     );
@@ -162,11 +173,39 @@ describe("POST /api/v1/instructions/:id/verify-call, placing the call", () => {
     expect(body.conversationId).toBe("conv-1");
     expect(body.releasesPayment).toBe(false);
     expect(seen[0]?.url).toContain("/v1/convai/twilio/outbound-call");
-    expect(seen[0]?.body).toEqual({
-      agent_id: "agent-1",
-      agent_phone_number_id: "phnum-1",
-      to_number: "+528112345678",
+
+    const sent = seen[0]?.body as Record<string, unknown>;
+
+    expect(sent.agent_id).toBe("agent-1");
+    expect(sent.agent_phone_number_id).toBe("phnum-1");
+    expect(sent.to_number).toBe("+528112345678");
+  });
+
+  /**
+   * Issue #206. The agent stored at the provider holds the rules and empty
+   * slots; this instruction's own words travel per call, so the four digits that
+   * reach the telephone are the four digits of this account and never a sample.
+   */
+  it("sends this instruction's words as dynamic variables, with no CLABE", async () => {
+    const { deps: voiceDeps, seen } = voice({
+      body: { success: true, message: "ok", conversation_id: "conv-1" },
     });
+    const { app } = createTestApp({}, voiceDeps);
+
+    await app.request(path(), json({ toNumber: "+528112345678" }));
+
+    const sent = seen[0]?.body as Record<string, unknown>;
+    const client = sent.conversation_initiation_client_data as Record<
+      string,
+      unknown
+    >;
+    const variables = client.dynamic_variables as Record<string, string>;
+
+    expect(variables.account_last4).toBe("6 8 1 2");
+    expect(variables.question).toContain("6 8 1 2");
+    expect(variables.question).toContain("ustedes cambiaron su cuenta");
+    expect(JSON.stringify(sent)).not.toContain(CLABE);
+    expect(JSON.stringify(sent)).not.toMatch(/\d{18}/);
   });
 
   /**
@@ -379,7 +418,7 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
       json({
         outcome: "denied",
         evidence: "Me dijo que esa cuenta no es de ellos",
-        recordedBy: "clerk@sintetica.mx",
+        recordedBy: TEST_CLERK.name,
       }),
     );
 
@@ -396,13 +435,58 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     expect(event.manual).toBe(true);
     expect(event.transcript).toEqual([]);
     expect(event.evidence).toBe("Me dijo que esa cuenta no es de ellos");
+    /* The name is why the schema requires it. A hand-recorded call with nobody
+       against it would be the only human action in this product that the ledger
+       cannot attribute, on the exact path the demo falls back to. */
+    expect(event.recordedBy).toBe(TEST_CLERK.name);
+    /* And the actor next to it, which carries the role a bare name cannot. */
+    expect(event.actor).toEqual(TEST_CLERK);
+  });
+
+  it("refuses a hand-recorded outcome signed by somebody other than the header", async () => {
+    const { app, deps } = createTestApp();
+    const events: LedgerEvent[] = [];
+    deps.events.subscribe((event) => events.push(event));
+
+    const res = await app.request(
+      path(),
+      json({ outcome: "confirmed", recordedBy: "Alguien Mas" }),
+    );
+
+    expect(res.status).toBe(400);
+    /* Nothing is appended. A call outcome signed by one name under a header
+       carrying another is a record nobody could rely on later. */
+    expect(events).toEqual([]);
+  });
+
+  it("leaves recordedBy off a call the agent placed, because there the conversation id is the provenance", async () => {
+    const { deps: voiceDeps } = voice({ body: CONVERSATION_PAYLOAD });
+    const { app, deps } = createTestApp({}, voiceDeps);
+    const events: LedgerEvent[] = [];
+    deps.events.subscribe((event) => events.push(event));
+
+    const res = await app.request(
+      path(),
+      json({ conversationId: "conv_synthetic_0001" }),
+    );
+
+    expect(res.status).toBe(200);
+    const event = events[0];
+    if (event?.type !== "verification_call") {
+      throw new Error("expected a verification_call event");
+    }
+    expect(event.manual).toBe(false);
+    expect(event.recordedBy).toBeUndefined();
+    /* The actor is still there: somebody chose to ring a supplier about a payment,
+       and that is a human action whoever placed the call. */
+    expect(event.actor).toEqual(TEST_CLERK);
   });
 
   it("accepts no_answer with no sentence, because silence is an outcome", async () => {
     const { app } = createTestApp();
     const res = await app.request(
       path(),
-      json({ outcome: "no_answer", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "no_answer", recordedBy: TEST_CLERK.name }),
     );
     const body = verifyCallResponseSchema.parse(await res.json());
 
@@ -410,11 +494,72 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     expect(body.evidence).toBeUndefined();
   });
 
+  it("answers an unanswered call with the deadline and the way out", async () => {
+    /* The judges asked on 2026-09-12 what happens when nobody picks up. The same
+       response that reports `no_answer` says how long the payment stays stopped
+       and offers the one-cent CEP, which needs nobody to answer anything. */
+    const { app } = createTestApp();
+    const res = await app.request(
+      path(),
+      json({ outcome: "no_answer", recordedBy: TEST_CLERK.name }),
+    );
+    const body = verifyCallResponseSchema.parse(await res.json());
+
+    expect(body.hold?.action).toBe("hold");
+    /* Three days from when the payment was stopped, which is the decision's own
+       instant and not the instant of the call: the window is the delay the
+       expected-loss arithmetic already charged for, and the call does not reset
+       it. Confirming the hold does, because then a person looked at it. */
+    expect(body.hold?.deadline).toBe("2026-09-14T16:30:00.000Z");
+    expect(body.hold?.expired).toBe(false);
+    expect(body.hold?.outcome).toBe("no_answer");
+    expect(body.hold?.nextSteps).toEqual([
+      "retry_call",
+      "one_cent_cep",
+      "release_with_reason",
+    ]);
+    /* And it still releases nothing, which is the older promise of this file. */
+    expect(body.releasesPayment).toBe(false);
+  });
+
+  /**
+   * The window on a verification is ONE day, not three.
+   *
+   * `HOLD_WINDOW_DAYS` is `EXPECTED_DELAY_DAYS`, and a verification call is placed
+   * on a payment the engine put in `verify`, so this is the number a judge who
+   * curls the endpoint actually sees. `docs/12-judge-qa.md` said three days for
+   * both and that was wrong; this test is what keeps the sheet honest, because the
+   * instruction the tests above use happens to be on `hold`.
+   */
+  it("reports one day on a payment the engine put in verify, not three", async () => {
+    const { app } = createTestApp();
+    const res = await app.request(
+      path("ins-2026w37-04"),
+      json({ outcome: "no_answer", recordedBy: TEST_CLERK.name }),
+    );
+    const body = verifyCallResponseSchema.parse(await res.json());
+
+    expect(body.hold?.action).toBe("verify");
+    expect(body.hold?.days).toBe(1);
+    expect(body.releasesPayment).toBe(false);
+  });
+
+  it("offers no release after the supplier denied the account", async () => {
+    const { app } = createTestApp();
+    const res = await app.request(
+      path(),
+      json({ outcome: "denied", recordedBy: TEST_CLERK.name }),
+    );
+    const body = verifyCallResponseSchema.parse(await res.json());
+
+    expect(body.hold?.nextSteps).toEqual(["keep_held"]);
+  });
+
   it("rejects an outcome that is not one of the four", async () => {
     const { app } = createTestApp();
     const res = await app.request(
       path(),
-      json({ outcome: "maybe", recordedBy: "clerk@sintetica.mx" }),
+      json({ outcome: "maybe", recordedBy: TEST_CLERK.name }),
     );
 
     expect(res.status).toBe(400);
@@ -450,7 +595,7 @@ describe("POST /api/v1/instructions/:id/verify-call, the basics", () => {
       (
         await app.request(
           `/api/v1/instructions/${INSTRUCTION}/decide`,
-          json({ action: "hold", decidedBy: "clerk@sintetica.mx" }),
+          json({ action: "hold", decidedBy: TEST_CLERK.name }),
         )
       ).status,
     ).toBe(200);

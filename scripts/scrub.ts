@@ -14,7 +14,10 @@
  * A history hit is reported as `dev/main` or as `branch`, because that is what
  * decides the remediation: a branch nobody merged is fixed with an amend and a
  * force-push by its author, and `dev` or `main` is the "If a key leaks" path in
- * SECURITY.md.
+ * SECURITY.md. A `branch` hit has one trap worth knowing before acting on it,
+ * printed with the finding: `git rev-list --all` walks remote-tracking refs, so a
+ * branch that was merged and deleted on the remote keeps answering out of a clone
+ * that has not run `git fetch --prune`, and there is no branch left to amend.
  *
  * It reads blobs through `git cat-file --batch` rather than `git log -p` on
  * purpose. `git log -p` calls the committed SAT list binary, because the file
@@ -126,7 +129,7 @@ const RULES: Rule[] = [
   {
     id: "attribution",
     what: "AI attribution, which this repository does not carry anywhere",
-    pattern: /co-authored-by:|generated with \[|\bco-authored-by\b/gi,
+    pattern: /^[ \t]*co-authored-by:.*(claude|anthropic|openai|chatgpt|codex|copilot|cursor|gemini|devin|\[bot\]|noreply@anthropic)|generated with \[/gim,
   },
 ];
 
@@ -154,6 +157,15 @@ const ALLOW: Allow[] = [
     rule: "attribution",
     path: /^(?:\.githooks\/commit-msg|scripts\/scrub\.ts|SECURITY\.md|AGENTS\.md|CONTRIBUTING\.md|docs\/playbooks\/[a-z-]+\.md|\.claude\/skills\/[a-z-]+\/SKILL\.md)$/,
     why: "the files that state and enforce the no-attribution rule have to name the trailer they block, including the playbook copies that PR #61 moved out of .claude",
+  },
+  {
+    rule: "hex32",
+    /* Spelled with a trailing character class rather than as the literal id, for the
+       reason the rules above are: an allow entry written out in full is 32 hex digits
+       in this file, and the rule would then flag its own allow list. */
+    match: /^056f69366b5345a386bb8149f1700c1[0-9a-f]$/,
+    path: /^docs\/05-business-model\.md$/,
+    why: "the document id of the SAP Business One Service Layer API Reference on help.sap.com, inside the citation URL of source 97 of docs/05. A public documentation address anybody can open, and the rule fires on it only because a Nessie key is also 32 hex digits",
   },
   {
     rule: "assigned-secret",
@@ -382,7 +394,13 @@ for (const record of messages) {
   const [sha, body] = record.replace(/^\n/, "").split("\x1f");
   if (sha === undefined || body === undefined || sha === "") continue;
   commits++;
-  scan("commit", sha.slice(0, 8), "", body);
+  /* The sha is passed where a file scan passes a path, so an allow entry can name
+     one commit. A message already on `dev` cannot be amended and rewriting shared
+     history during the build night is the wrong trade, so the only way to record a
+     finding nobody can fix is to key it on the commit it is in. It keys on the whole
+     sha and not on the short one: an allow list that forgave a prefix would forgive
+     whatever else collided with it later. */
+  scan("commit", sha.slice(0, 8), sha, body);
 }
 
 // ---------------------------------------------------------------------------
@@ -542,12 +560,32 @@ if (hits.some((hit) => hit.surface === "tree")) {
 }
 if (onBranch) {
   console.log(
-    "  branch    only on an unmerged branch. Its author amends and force-pushes that branch. No history rewrite.",
+    "  branch    on a side branch, not on dev or main. Its author amends and force-pushes that branch. No history rewrite.",
+  );
+  console.log(
+    "            Check the branch still exists first. `git rev-list --all` walks remote-tracking refs, so a branch that was",
+  );
+  console.log(
+    "            merged and deleted on the remote keeps answering here until somebody prunes, and then there is nothing to amend:",
+  );
+  console.log(
+    "            `git branch -r --contains <sha>` names it, `git ls-remote --heads origin <branch>` says whether it is still there,",
+  );
+  console.log(
+    "            and `git fetch --prune` is the fix, in every clone. It happened on 2026-09-12, which is why it is printed here.",
   );
 }
 if (onMainline) {
   console.log(
     "  dev/main  reachable from a long-lived branch. Rotating the value is the fix. Rewriting history is a separate decision, and during the event it is usually the wrong one.",
+  );
+}
+if (hits.some((hit) => hit.surface === "commit")) {
+  console.log(
+    "  commit    in a commit message, which no diff scan reads and no file edit removes. `git log -1 <sha>` shows it. A message",
+  );
+  console.log(
+    "            already on dev or main cannot be amended, so rotate the value; one on a side branch is amended with that branch.",
   );
 }
 process.exit(1);

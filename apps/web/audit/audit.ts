@@ -23,23 +23,74 @@
  */
 
 import { spawn } from "node:child_process";
+import {
+  HERO_INSTRUCTION_IDS,
+  LISTED_SUPPLIER_RFC,
+} from "../src/lib/mock-data";
 
 const CHROME =
   process.env.CHROME_PATH ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-const PORT = 9334;
+/**
+ * Overridable for the reason `../brand/shoot.ts` states at its own constant, and
+ * named the same way: two Chromes launched with one `--user-data-dir` are one
+ * Chrome, and the second caller ends up driving the first caller's page. On a
+ * build night with four people on one machine that turns an audit of this branch
+ * into an audit of somebody else's, with no error anywhere.
+ */
+const PORT = Number(process.env.AUDIT_PORT ?? 9334);
+
+/**
+ * The line the audit opens, read off the synthetic run rather than written down.
+ *
+ * A hardcoded folio here is a route that renders the error state the day the seed
+ * moves, and an audit that passes on an error state has audited nothing.
+ */
+const DETAIL_PATH = `/instructions/${HERO_INSTRUCTION_IDS[0] ?? ""}`;
+
+/**
+ * The supplier expediente, read off the mock for the same reason the folio above
+ * is: it is the one RFC the generated company guarantees has a listing, a plaza
+ * and a week of invoices behind it, so the route renders its full self rather
+ * than four empty blocks that pass every check by having nothing in them.
+ */
+const SUPPLIER_PATH = `/suppliers/${LISTED_SUPPLIER_RFC}`;
 
 /** The widths issue #96 names: a small phone, a tablet, a laptop, a projector. */
 const WIDTHS = [390, 768, 1440, 1920];
 
+/**
+ * The paths carry their `#`, and that is load bearing, for the reason
+ * `../brand/shoot.ts` gives about the screenshots.
+ *
+ * `apps/web` is a hash router and `App.tsx` rewrites an empty hash to the payment
+ * run on the first paint. So navigating to `/metrics` serves index.html, the app
+ * finds no hash, replaces it with `#/run`, and the audit measures the run screen
+ * inside a row labelled "metrics". That is what happened: every row of this
+ * report was the same screen, which is why all seven of them answered with the
+ * same focusable count to the digit.
+ */
 const ROUTES = [
-  { path: "/run", name: "payment run" },
-  { path: "/instructions/ins-2026w37-002", name: "instruction detail" },
-  { path: "/intake", name: "QR intake" },
-  { path: "/sat", name: "Article 69-B" },
-  { path: "/cep", name: "CEP viewer" },
-  { path: "/metrics", name: "metrics" },
+  { path: "#/run", name: "payment run" },
+  { path: `#${DETAIL_PATH}`, name: "instruction detail" },
+  { path: "#/intake", name: "QR intake" },
+  { path: "#/sat", name: "Article 69-B" },
+  { path: "#/cep", name: "CEP viewer" },
+  { path: "#/metrics", name: "metrics" },
+  { path: "#/payments", name: "payments" },
+  /* Both of these were added after this audit was written and neither had ever
+     been measured: the entry screen in issue #215 and the supplier expediente in
+     issue #213. The expediente is the one that most needed it, because it is the
+     widest screen in the product: a plaza table and a weekly chart side by side,
+     which is exactly the shape that breaks first at 390. */
+  { path: "#/entrada", name: "entry and settings" },
+  { path: `#${SUPPLIER_PATH}`, name: "supplier profile" },
+  /* The token sheet, which is not in the navigation. It is audited because it
+     is the one route where every chip, button and state is on screen at once,
+     so a component that overflows at 390 or a control nobody named is caught
+     here before it reaches a screen. */
+  { path: "#/design", name: "token sheet" },
 ];
 
 const SCHEMES = ["light", "dark"] as const;
@@ -194,12 +245,27 @@ async function pageSocket(): Promise<string> {
  */
 const OVERFLOW_PROBE = `(() => {
   const limit = document.documentElement.clientWidth;
+  // A position:fixed box is laid out against the initial containing block, and
+  // under device emulation that block follows window.innerWidth rather than the
+  // layout viewport: at a 390 override with a 751 px window, a bar anchored with
+  // left and right measures 719 and reports a break that does not exist on a
+  // phone, where the two numbers are the same. It cannot scroll the document
+  // either, being out of flow. So a fixed subtree is measured against its own
+  // containing block, which still catches one that is genuinely too wide.
+  const fixedLimit = Math.max(limit, window.innerWidth);
   const guilty = [];
 
   for (const el of document.querySelectorAll("body *")) {
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
-    if (rect.right <= limit + 1 && rect.left >= -1) continue;
+
+    let fixed = false;
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      if (getComputedStyle(node).position === "fixed") { fixed = true; break; }
+    }
+    const bound = fixed ? fixedLimit : limit;
+
+    if (rect.right <= bound + 1 && rect.left >= -1) continue;
 
     // Off-screen to the left is the skip-link pattern, not a break. It is
     // pulled back on focus and it never makes the page scroll.
@@ -351,7 +417,101 @@ const CONTRAST_PROBE = `(() => {
     ["--c-verify-ink", "--c-surface", 4.5, "verify figure as text"],
     ["--c-release-ink", "--c-surface", 4.5, "release figure as text"],
     ["--c-watermark-ink", "--c-surface", 4.5, "the synthetic watermark"],
+    // The marked row on the 69-B sweep: the supplier an evidence link arrived
+    // at, tinted so it is found without reading the list. Its subtle ink is
+    // lifted to muted by primitives.css, which is why muted is what is
+    // measured here.
+    ["--c-ink", "--c-accent-soft", 4.5, "the marked sweep row on its tint"],
+    ["--c-ink-muted", "--c-accent-soft", 4.5, "the RFC on the marked sweep row"],
     ["--c-border-strong", "--c-surface", 3, "a strong border"],
+    // The pill button's boundary is the hairline and not the strong border.
+    // WCAG 1.4.11 asks 3.0 of the boundary of an input, where the box is the
+    // only thing saying the control exists; a secondary button whose own word
+    // carries the affordance is not that case. Recorded at 1.0 so the number
+    // is on the report rather than in an argument, and so the day somebody
+    // puts this border on an input the pair is already here to be raised.
+    ["--c-border", "--c-canvas", 1, "the pill button's boundary, and the bar of a control with no hits"],
+    // The well: the ground every block on the run stands on, and the third
+    // surface in the app after the page and the panel. All three inks are worn
+    // on it -- a label, a caption and a count in the same cell.
+    ["--c-ink", "--c-well", 4.5, "text on a well"],
+    ["--c-ink-muted", "--c-well", 4.5, "a well's label"],
+    ["--c-ink-subtle", "--c-well", 4.5, "a well's caption and glyph"],
+    // The one dark card, which carries its own two inks the way the rail does.
+    // Nothing else in the app is set on this ground.
+    ["--c-card-dark-ink", "--c-card-dark", 4.5, "the figure on the dark card"],
+    ["--c-card-dark-ink-muted", "--c-card-dark", 4.5, "the sentence and the link under it"],
+    // The line around a well is a boundary between two surfaces and never the
+    // edge of a control, so WCAG 1.4.11 does not reach it -- the same argument
+    // as the pill button's border below. Recorded at 1.0 so the number is on
+    // the report instead of in an argument.
+    ["--c-well-line", "--c-canvas", 1, "the well's own boundary, a non-text edge"],
+    // The chart sits straight on the page: the bar of a control with hits is
+    // a non-text indicator on the canvas, and the label at the end of a quiet
+    // bar is the sentence that says nothing was found.
+    ["--c-hold", "--c-canvas", 3, "a control's bar in the chart"],
+    ["--c-ink-subtle", "--c-canvas", 4.5, "the Sin hallazgos label on the chart"],
+    // The rail is a navy brand panel with its own small palette. None of the
+    // pairs above touch it, and it is the one surface on every screen.
+    ["--c-rail-ink", "--c-rail", 4.5, "a rail item"],
+    ["--c-rail-ink-muted", "--c-rail", 4.5, "a rail item at rest"],
+    ["--c-rail-active-ink", "--c-rail-active", 4.5, "the current rail item"],
+    ["--c-rail-ink", "--c-rail-active", 4.5, "a rail item on hover"],
+    ["--c-rail-ink-muted", "--c-rail-active", 4.5, "muted ink on the active row"],
+    // The level chip of ADR-0009, which aliases the decision triplets. Measured
+    // anyway: an alias that is repointed at a new colour has to be caught here
+    // and not on the projector.
+    ["--c-level-alerta-ink", "--c-level-alerta-soft", 4.5, "alerta chip"],
+    [
+      "--c-level-precaucion-ink",
+      "--c-level-precaucion-soft",
+      4.5,
+      "precaucion chip",
+    ],
+    [
+      "--c-level-confiable-ink",
+      "--c-level-confiable-soft",
+      4.5,
+      "confiable chip",
+    ],
+    ["--c-level-alerta", "--c-level-alerta-soft", 3, "alerta chip border"],
+    [
+      "--c-level-precaucion",
+      "--c-level-precaucion-soft",
+      3,
+      "precaucion chip border",
+    ],
+    [
+      "--c-level-confiable",
+      "--c-level-confiable-soft",
+      3,
+      "confiable chip border",
+    ],
+    // The state chip. The cancelado and pendiente pairings are the two new ones
+    // in the palette: muted ink on a sunken panel and on a plain surface.
+    ["--c-state-rojo-ink", "--c-state-rojo-soft", 4.5, "rojo chip"],
+    ["--c-state-cancelado-ink", "--c-state-cancelado-soft", 4.5, "cancelado chip"],
+    ["--c-state-enviado-ink", "--c-state-enviado-soft", 4.5, "enviado chip"],
+    ["--c-state-liberado-ink", "--c-state-liberado-soft", 4.5, "liberado chip"],
+    ["--c-state-pendiente-ink", "--c-state-pendiente-soft", 4.5, "pendiente chip"],
+    [
+      "--c-state-cancelado",
+      "--c-state-cancelado-soft",
+      3,
+      "cancelado chip border",
+    ],
+    [
+      "--c-state-pendiente",
+      "--c-state-pendiente-soft",
+      3,
+      "pendiente dashed border",
+    ],
+    ["--c-state-enviado", "--c-state-enviado-soft", 3, "enviado chip border"],
+    // The focus ring, which is the same colour as the accent and has to clear
+    // 3:1 against every ground a control sits on.
+    ["--c-focus", "--c-surface", 3, "the focus ring on a panel"],
+    ["--c-focus", "--c-canvas", 3, "the focus ring on the page"],
+    ["--c-focus", "--c-surface-sunken", 3, "the focus ring on a sunken panel"],
   ];
 
   const results = PAIRS.map(([fgToken, bgToken, need, what]) => {
@@ -385,7 +545,7 @@ async function main(): Promise<void> {
       "--disable-gpu",
       "--hide-scrollbars",
       `--remote-debugging-port=${PORT}`,
-      "--user-data-dir=/tmp/sentryone-audit",
+      `--user-data-dir=/tmp/sentryone-audit-${PORT}`,
       "about:blank",
     ],
     { stdio: "ignore" },
@@ -411,7 +571,7 @@ async function main(): Promise<void> {
         await devtools.send("Emulation.setEmulatedMedia", {
           features: [{ name: "prefers-reduced-motion", value: "reduce" }],
         });
-        await devtools.send("Page.navigate", { url: `${base}${route.path}` });
+        await devtools.send("Page.navigate", { url: `${base}/${route.path}` });
         await wait(1800);
 
         const probe = await devtools.evaluate<{
@@ -451,7 +611,7 @@ async function main(): Promise<void> {
     });
 
     for (const route of ROUTES) {
-      await devtools.send("Page.navigate", { url: `${base}${route.path}` });
+      await devtools.send("Page.navigate", { url: `${base}/${route.path}` });
       await wait(1800);
 
       const probe = await devtools.evaluate<{
@@ -536,7 +696,7 @@ async function main(): Promise<void> {
     await devtools.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: "reduce" }],
     });
-    await devtools.send("Page.navigate", { url: `${base}/run` });
+    await devtools.send("Page.navigate", { url: `${base}#/run` });
     await wait(1800);
 
     const motion = await devtools.evaluate<{
@@ -598,7 +758,7 @@ async function main(): Promise<void> {
           { name: "prefers-reduced-motion", value: "reduce" },
         ],
       });
-      await devtools.send("Page.navigate", { url: `${base}/run` });
+      await devtools.send("Page.navigate", { url: `${base}#/run` });
       await wait(1800);
 
       const pairs =

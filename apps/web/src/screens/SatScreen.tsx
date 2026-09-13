@@ -14,13 +14,18 @@
 
 import type { SweepResult } from "@hackmty/core";
 import { motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Amount, SectionHeader, SyntheticMark } from "../components/Primitives";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Amount,
+  SyntheticMark,
+  TransactionStateBadge,
+} from "../components/Primitives";
 import {
   EmptyBlock,
   ErrorBlock,
   LoadingBlock,
   SourceNotice,
+  StreamStatus,
 } from "../components/States";
 import {
   getCurrentRun,
@@ -29,18 +34,42 @@ import {
   lookupSatRfc,
   publishSatList,
   sweepConstanciaHref,
+  useEvents,
 } from "../lib/api";
-import type { SatLookup } from "../lib/contract";
+import type {
+  SatLookup,
+  SatLookupBlock,
+  SatLookupSource,
+} from "../lib/contract";
 import { formatCount, formatDate, formatRfc } from "../lib/format";
-import { SAT_STATUS_BADGE, SAT_STATUS_LABEL } from "../lib/labels";
-import { mockSweep, SAT_VERSIONS } from "../lib/mock";
+import {
+  SAT_ARTICLE_LABEL,
+  SAT_COPY,
+  SAT_SENTENCE,
+  SAT_STATUS_BADGE,
+  SAT_STATUS_LABEL,
+} from "../lib/labels";
+import {
+  LISTED_SUPPLIER_RFC,
+  mockRun,
+  mockSweep,
+  SAT_VERSIONS,
+} from "../lib/mock";
 import {
   buildReplay,
   type Replay,
   type ReplayFrame,
   stepDurationMs,
 } from "../lib/replay";
-import { useResource } from "../lib/resource";
+import { reachesApi, useResource } from "../lib/resource";
+import { useRouteQuery } from "../lib/router";
+import {
+  definitiveSimulationSweep,
+  satEventChangesRun,
+  satLineState,
+  satLookupFailure,
+  satRunLines,
+} from "../lib/sat-view";
 
 /** Short month names, so eight ticks fit across a panel on a laptop. */
 const MONTH_LABEL = [
@@ -58,8 +87,14 @@ const MONTH_LABEL = [
   "dic",
 ];
 
-/** The synthetic supplier the offline sweep is about. Never sent to the API. */
-const OFFLINE_RFCS = ["SYN010101AAA"];
+/**
+ * The synthetic supplier the offline sweep is about. Never sent to the API.
+ *
+ * Read off the synthetic run rather than written down here, so it cannot drift
+ * from the company the API serves: it is the RFC the `sat_69b` finding of that
+ * run names. See the note on `rfcsToSimulate` below for what a constant cost.
+ */
+const OFFLINE_RFCS = [LISTED_SUPPLIER_RFC];
 
 function monthTick(month: string): string {
   const index = Number(month.slice(5, 7)) - 1;
@@ -70,32 +105,146 @@ function versionsFallback() {
   return { versions: SAT_VERSIONS };
 }
 
-/**
- * Which supplier the simulated publication names.
- *
- * It is read off the payment run rather than written down here. A constant was
- * an RFC from a different dataset, so against the seeded company the sweep came
- * back with nothing listed and the screen showed a confident zero. The supplier
- * whose line already carries a 69-B finding is the one the demo turns
- * definitivo, and it is synthetic by construction because every supplier in the
- * run is.
- */
-async function rfcsToSimulate(): Promise<string[]> {
-  const run = await getCurrentRun();
+function LookupSource({ source }: { source: SatLookupSource }) {
+  return (
+    <p className="subtle t-xs">
+      {SAT_SENTENCE.source(
+        source.listVersion,
+        formatDate(source.retrievedAt),
+        formatCount(source.taxpayers),
+        formatCount(source.rows),
+      )}{" "}
+      <a href={source.url} target="_blank" rel="noreferrer">
+        {SAT_COPY.viewPublication}
+      </a>
+    </p>
+  );
+}
 
-  if (!run.ok) {
-    return OFFLINE_RFCS;
+function LookupArticle({ block, rfc }: { block: SatLookupBlock; rfc: string }) {
+  if (block.article === "69-B") {
+    return (
+      <article className="panel-sunken flex flex-col gap-3 p-4">
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="t-md">{SAT_ARTICLE_LABEL[block.article]}</h3>
+          <span className="badge badge-neutral">{SAT_COPY.answered}</span>
+        </header>
+        <LookupSource source={block.source} />
+        {block.entries.length === 0 ? (
+          <EmptyBlock
+            title={SAT_COPY.notListed69B}
+            description={SAT_SENTENCE.notListed69B(rfc)}
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            <span className="eyebrow">{SAT_COPY.history}</span>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {block.entries.map((entry) => (
+                <li
+                  key={`${entry.listVersion}-${entry.status}`}
+                  className="panel flex flex-col gap-1 p-3"
+                >
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className={SAT_STATUS_BADGE[entry.status]}>
+                      {SAT_STATUS_LABEL[entry.status]}
+                    </span>
+                    <span className="muted t-xs">
+                      {SAT_SENTENCE.publishedOn(formatDate(entry.publishedAt))}
+                    </span>
+                  </span>
+                  <span className="t-sm">{entry.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </article>
+    );
   }
 
-  const listed = run.data.items.find((item) =>
-    item.findings.some((finding) => finding.detector === "sat_69b"),
-  );
+  if (!block.answered) {
+    return (
+      <article className="panel-sunken flex flex-col gap-3 p-4">
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="t-md">{SAT_ARTICLE_LABEL[block.article]}</h3>
+          <span className="badge badge-verify">{SAT_COPY.unavailable}</span>
+        </header>
+        <p className="muted t-sm">{block.note}</p>
+        <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <dt className="eyebrow">{SAT_COPY.publicationReview}</dt>
+            <dd className="m-0 mt-1 num">
+              {formatCount(block.publications.oficios)}
+            </dd>
+          </div>
+          <div>
+            <dt className="eyebrow">{SAT_COPY.taxpayersNamed}</dt>
+            <dd className="m-0 mt-1 num">
+              {formatCount(block.publications.taxpayers)}
+            </dd>
+          </div>
+          <div>
+            <dt className="eyebrow">{SAT_COPY.surveyedAt}</dt>
+            <dd className="m-0 mt-1">
+              {formatDate(block.publications.surveyedAt)}
+            </dd>
+          </div>
+        </dl>
+        <p className="subtle t-xs">
+          {SAT_SENTENCE.publicationRange(
+            formatDate(block.publications.firstPublishedAt),
+            formatDate(block.publications.lastPublishedAt),
+          )}{" "}
+          <a href={block.publications.url} target="_blank" rel="noreferrer">
+            {SAT_COPY.reviewDof}
+          </a>
+        </p>
+      </article>
+    );
+  }
 
-  return listed === undefined ? OFFLINE_RFCS : [listed.instruction.supplierRfc];
+  return (
+    <article className="panel-sunken flex flex-col gap-3 p-4">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="t-md">{SAT_ARTICLE_LABEL[block.article]}</h3>
+        <span className="badge badge-neutral">{SAT_COPY.answered}</span>
+      </header>
+      <LookupSource source={block.source} />
+      {block.entries.length === 0 ? (
+        <EmptyBlock
+          title={SAT_COPY.notListed49Bis}
+          description={SAT_SENTENCE.notListed49Bis(rfc)}
+        />
+      ) : (
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {block.entries.map((entry) => (
+            <li key={entry.oficio} className="panel flex flex-col gap-1 p-3">
+              <span className="badge badge-hold">
+                {SAT_COPY.publishedResolution}
+              </span>
+              <span className="t-sm">{entry.name}</span>
+              <span className="code subtle t-xs">{entry.oficio}</span>
+              <span className="muted t-xs">
+                {SAT_SENTENCE.publishedOn(formatDate(entry.publishedAt))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  );
 }
 
 export function SatScreen() {
   const reduceMotion = useReducedMotion();
+  const query = useRouteQuery();
+  const apiAllowed = reachesApi();
+
+  /* A finding can hand this screen the RFC it is about. It fills the box and
+     stops there: ADR-0002 keeps the official list behind a press, so a link
+     that queried the SAT on arrival would put a real lookup one stray click
+     away from whoever opened it. */
+  const prefilledRfc = query.get("rfc") ?? "";
   const loadVersions = useCallback(
     (signal: AbortSignal) => getSatVersions({ signal }),
     [],
@@ -104,11 +253,41 @@ export function SatScreen() {
     loadVersions,
     { fallback: versionsFallback },
   );
+  const loadRun = useCallback(
+    (signal: AbortSignal) => getCurrentRun({ signal }),
+    [],
+  );
+  const {
+    resource: currentRun,
+    reload: reloadRun,
+    replace: replaceRun,
+  } = useResource(loadRun, { fallback: mockRun });
 
   const [sweep, setSweep] = useState<SweepResult | null>(null);
   const [sweepSource, setSweepSource] = useState<"api" | "mock" | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [isSweeping, setIsSweeping] = useState(false);
+  const [runRefreshError, setRunRefreshError] = useState<string | null>(null);
+
+  const refreshRun = useCallback(async () => {
+    const result = await getCurrentRun();
+    if (result.ok) {
+      replaceRun(result.data);
+      setRunRefreshError(null);
+      return;
+    }
+    setRunRefreshError(SAT_COPY.refreshFailed);
+  }, [replaceRun]);
+
+  const onLedgerEvent = useCallback(
+    (event: Parameters<typeof satEventChangesRun>[0]) => {
+      if (satEventChangesRun(event)) {
+        void refreshRun();
+      }
+    },
+    [refreshRun],
+  );
+  const stream = useEvents({ enabled: apiAllowed, onEvent: onLedgerEvent });
 
   /* The replay is derived from the sweep and played by an index into its
      frames. Keeping the frames in state rather than recomputing them per
@@ -154,10 +333,28 @@ export function SatScreen() {
     };
   }, [replay, frameIndex, reduceMotion]);
 
-  const [rfc, setRfc] = useState("");
+  const [rfc, setRfc] = useState(prefilledRfc);
   const [lookup, setLookup] = useState<SatLookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isLooking, setIsLooking] = useState(false);
+
+  const targetRfcs = useMemo(() => {
+    if (currentRun.status !== "ready") {
+      return OFFLINE_RFCS;
+    }
+    const rfcs = satRunLines(currentRun.data.items).map(
+      (item) => item.instruction.supplierRfc,
+    );
+    return rfcs.length === 0 ? OFFLINE_RFCS : [...new Set(rfcs)];
+  }, [currentRun]);
+
+  const affectedLines = useMemo(
+    () =>
+      currentRun.status === "ready"
+        ? satRunLines(currentRun.data.items, sweep)
+        : [],
+    [currentRun, sweep],
+  );
 
   /**
    * The months the ledger itself covers, so the replay walks the whole window
@@ -179,12 +376,23 @@ export function SatScreen() {
 
   const runSimulation = useCallback(async () => {
     setSweepError(null);
+    setRunRefreshError(null);
     setIsSweeping(true);
+
+    if (!apiAllowed) {
+      const offline = definitiveSimulationSweep(mockSweep());
+      setSweep(offline);
+      setSweepSource("mock");
+      setReplay(buildReplay(offline));
+      setFrameIndex(0);
+      setIsSweeping(false);
+      return;
+    }
 
     const [result, window] = await Promise.all([
       publishSatList({
         simulate: true,
-        rfcs: await rfcsToSimulate(),
+        rfcs: targetRfcs,
         // The heading above promises a supplier that passes to definitivo,
         // which is the status that voids the deductions retroactively. The
         // endpoint publishes presunto when nobody says, and a screen that says
@@ -203,6 +411,7 @@ export function SatScreen() {
         buildReplay(result.data, window === undefined ? {} : { window }),
       );
       setFrameIndex(0);
+      await refreshRun();
 
       return;
     }
@@ -210,7 +419,7 @@ export function SatScreen() {
     /* Offline the sweep is computed from the synthetic CFDIs in the browser, and
        the panel says so. The arithmetic is the same shape as SweepResult, which
        is why the counters below never need to know where it came from. */
-    const offline = mockSweep();
+    const offline = definitiveSimulationSweep(mockSweep());
     setSweep(offline);
     setSweepSource("mock");
     setReplay(buildReplay(offline));
@@ -218,7 +427,7 @@ export function SatScreen() {
     setSweepError(
       `Sin API (${result.error.message}). El barrido se calculo sobre la corrida sintetica.`,
     );
-  }, [readLedgerWindow]);
+  }, [apiAllowed, readLedgerWindow, refreshRun, targetRfcs]);
 
   const runLookup = useCallback(async () => {
     const cleaned = formatRfc(rfc);
@@ -234,6 +443,12 @@ export function SatScreen() {
     setIsLooking(true);
     setLookup(null);
 
+    if (!apiAllowed) {
+      setIsLooking(false);
+      setLookupError(SAT_COPY.lookupOffline);
+      return;
+    }
+
     const result = await lookupSatRfc(cleaned);
 
     setIsLooking(false);
@@ -244,17 +459,15 @@ export function SatScreen() {
       return;
     }
 
-    setLookupError(
-      `${result.error.message} Esta consulta necesita la API: la lista oficial no viaja en el navegador y no se inventa.`,
-    );
-  }, [rfc]);
+    setLookupError(satLookupFailure(result.error));
+  }, [apiAllowed, rfc]);
 
   return (
     <>
-      <SectionHeader
-        title="Lista del articulo 69-B"
-        description="Un proveedor que pasa a definitivo vuelve no deducible todo lo que ya le pagamos. El barrido retroactivo cuantifica esa exposicion; la consulta oficial es otra cosa y esta separada a proposito."
-      />
+      <p className="muted max-w-prose t-sm">
+        Un proveedor que pasa a definitivo vuelve no deducible todo lo que ya le
+        pagamos. El barrido retroactivo cuantifica esa exposicion.
+      </p>
 
       <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         <section
@@ -269,8 +482,8 @@ export function SatScreen() {
           </div>
           <p className="muted t-sm">
             Publica una version de la lista sobre proveedores sinteticos y
-            vuelve a recorrer el ledger desde febrero. Nada de lo que aparece
-            aqui es un RFC real.
+            vuelve a recorrer el ledger desde su primer evento. Nada de lo que
+            aparece aqui es un RFC real.
           </p>
 
           <button
@@ -284,6 +497,80 @@ export function SatScreen() {
           >
             {isSweeping ? "Recorriendo el ledger" : "Simular publicacion 69-B"}
           </button>
+
+          <section
+            className="flex flex-col gap-3"
+            aria-labelledby="affected-heading"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="affected-heading" className="eyebrow">
+                {SAT_COPY.runLines}
+              </h3>
+              <StreamStatus
+                status={stream.status}
+                allowed={apiAllowed}
+                onReconnect={stream.reconnect}
+              />
+            </div>
+            <p className="subtle t-xs">
+              {sweep === null ? SAT_COPY.runBefore : SAT_COPY.runAfter}
+            </p>
+
+            {currentRun.status === "loading" ? (
+              <LoadingBlock label={SAT_COPY.runLoading} rows={1} />
+            ) : null}
+
+            {currentRun.status === "error" ? (
+              <ErrorBlock message={currentRun.message} onRetry={reloadRun} />
+            ) : null}
+
+            {runRefreshError ? (
+              <p role="status" className="panel-sunken muted px-4 py-2 t-sm">
+                {runRefreshError}
+              </p>
+            ) : null}
+
+            {currentRun.status === "ready" ? (
+              <>
+                <SourceNotice notice={currentRun.notice} />
+                {affectedLines.length === 0 ? (
+                  <EmptyBlock
+                    title={SAT_COPY.noAffectedLines}
+                    description={SAT_COPY.noRunLines}
+                  />
+                ) : (
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {affectedLines.map((item) => {
+                      const state = satLineState(item, sweep);
+                      return (
+                        <motion.li
+                          key={`${item.instruction.id}-${state}`}
+                          className="panel-sunken flex flex-wrap items-center justify-between gap-3 p-3"
+                          initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                        >
+                          <span className="flex min-w-0 flex-col gap-1">
+                            <span className="font-medium">
+                              {item.supplier.legalName}
+                            </span>
+                            <span className="code subtle t-xs">
+                              {item.instruction.id} -{" "}
+                              {item.instruction.supplierRfc}
+                            </span>
+                          </span>
+                          <span className="flex flex-wrap items-center gap-3">
+                            <Amount value={item.instruction.amount} />
+                            <TransactionStateBadge state={state} />
+                          </span>
+                        </motion.li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
+            ) : null}
+          </section>
 
           {/* The replay. Every tick is a month the ledger actually holds and
               every figure below is the sweep's own arithmetic, apportioned
@@ -466,11 +753,17 @@ export function SatScreen() {
                   const lit =
                     frame === null ||
                     frame.litSoFar.includes(entry.supplier.rfc);
+                  /* The row the finding came from, marked so whoever followed
+                     the link lands on it instead of reading the list for it. */
+                  const isSubject =
+                    prefilledRfc !== "" && entry.supplier.rfc === prefilledRfc;
 
                   return (
                     <motion.li
                       key={entry.supplier.rfc}
                       className="panel-sunken flex flex-col gap-1 p-3"
+                      aria-current={isSubject ? "true" : undefined}
+                      data-highlight={isSubject ? "true" : undefined}
                       initial={false}
                       animate={{ opacity: lit ? 1 : 0.35 }}
                       transition={{ duration: reduceMotion ? 0 : 0.25 }}
@@ -554,32 +847,19 @@ export function SatScreen() {
               />
             ) : null}
 
-            {lookup && lookup.entries.length === 0 ? (
-              <EmptyBlock
-                title="No aparece en la lista"
-                description={`${lookup.rfc} no tiene ninguna publicacion en las versiones cargadas. Eso no es un certificado de nada, solo que no esta.`}
-              />
-            ) : null}
-
-            {lookup && lookup.entries.length > 0 ? (
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {lookup.entries.map((entry) => (
-                  <li
-                    key={`${entry.listVersion}-${entry.status}`}
-                    className="panel-sunken flex flex-col gap-1 p-3"
-                  >
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className={SAT_STATUS_BADGE[entry.status]}>
-                        {SAT_STATUS_LABEL[entry.status]}
-                      </span>
-                      <span className="muted t-xs">
-                        publicado el {formatDate(entry.publishedAt)}
-                      </span>
-                    </span>
-                    <span className="t-sm">{entry.name}</span>
-                  </li>
+            {lookup ? (
+              <div className="flex flex-col gap-3">
+                <p className="code t-sm">
+                  {SAT_SENTENCE.lookupEcho(lookup.rfc)}
+                </p>
+                {lookup.lists.map((block) => (
+                  <LookupArticle
+                    key={block.article}
+                    block={block}
+                    rfc={lookup.rfc}
+                  />
                 ))}
-              </ul>
+              </div>
             ) : null}
           </section>
 

@@ -264,5 +264,6 @@
       "because": "The amount is far outside the supplier's own distribution and the baseline is long enough to say so, which is a question about this invoice and not about the supplier."
     }
   ],
-  "expectedAction": "verify"
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
 }

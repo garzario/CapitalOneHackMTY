@@ -14,7 +14,17 @@
  *    and it is the only one that is `comprobable`.
  * 2. **Catalogue.** Digits 1 to 3 are a Banxico participant and digits 4 to 6 are
  *    a plaza. The participant table in `clabe-institutions.ts` is a dated
- *    snapshot, so a code it does not know only ever raises a question.
+ *    snapshot, so a code it does not know only ever raises a question. The plaza
+ *    table in `plazas.ts` is weaker still and is allowed less: it only ever puts a
+ *    name on three digits the history has already disagreed about, and a code it
+ *    does not know produces no name and no signal. `snapshot/README.md` says why.
+ * 2b. **Geography.** The plaza lives in the account number and the postal code of
+ *    `LugarExpedicion` lives in the invoice, so the two can be compared and the
+ *    ledger cannot do it on its own: an account whose plaza sits in another state
+ *    than the state the supplier invoices from is one sentence worth asking about.
+ *    It is raised only for an account with no payment history, because a supplier
+ *    that has been paid sixty times on an account in another state has answered
+ *    the question already.
  * 3. **History.** Everything else is relational: this account against the
  *    accounts this supplier has actually been paid on. A CLABE two digits away
  *    from an account paid seven times is the interesting case, and it is the one
@@ -41,6 +51,12 @@ import type {
   Severity,
   Supplier,
 } from "./domain";
+import {
+  lookupPlaza,
+  plazaLabel,
+  plazaLabels,
+  stateOfPostalCode,
+} from "./plazas";
 
 export * from "./clabe-institutions";
 
@@ -209,6 +225,49 @@ export function parseClabeParts(clabe: string): ClabeParts {
     account: clabe.slice(plazaEnd, plazaEnd + CLABE_ACCOUNT_LENGTH),
     checkDigit: clabe.slice(CLABE_LENGTH - 1),
   };
+}
+
+/** How many trailing digits of an account survive a mask. */
+export const CLABE_VISIBLE_DIGITS = 4;
+
+/** The last four digits, which is how every surface of this product names an account. */
+export function clabeLast4(clabe: string): string {
+  return clabe.slice(-CLABE_VISIBLE_DIGITS);
+}
+
+/**
+ * `012580100091764611` becomes `****4611`, anywhere inside a sentence.
+ *
+ * It is here, in the file that owns every CLABE rule, because three surfaces need
+ * the same answer and two of them had already got it wrong by writing their own.
+ * `Finding.explanation` is the reason: control 2 writes the Spanish sentence a
+ * person reads, and that sentence names the account the supplier has been paid into
+ * ("difiere en 2 digitos de la cuenta 012...611, que ya se pago 52 veces"). Every
+ * surface that carries a finding therefore carries a full account in prose unless it
+ * masks the prose too, and masking the structured evidence next to it is not enough:
+ * the assistant was sending eighteen digits to a third party while its own
+ * `evidence.clabe` read `****4611`, and the evidence letter printed "cuenta terminada
+ * en 4611" three lines above the whole number.
+ *
+ * Pure, and deliberately a replace over any eighteen-digit run rather than a
+ * per-field projection: a detector that writes a new sentence tomorrow gets the mask
+ * for free, and the alternative, which is each surface remembering, is the shape of
+ * both leaks this function exists to close.
+ */
+export function maskClabesInText(value: string): string {
+  return value.replace(/\d{18}/g, (digits) => `****${clabeLast4(digits)}`);
+}
+
+/**
+ * True when this text still carries a full account number.
+ *
+ * The predicate a test asserts with, so a surface added later that forgets the mask
+ * fails the suite instead of failing at a judge's table. Asserted per string value
+ * and never over a serialised payload: a float such as a false-positive rate of
+ * 0.015873015873015872 carries eighteen digits and is not an account.
+ */
+export function carriesFullClabe(value: string): boolean {
+  return /\d{18}/.test(value);
 }
 
 /**
@@ -501,6 +560,20 @@ export const CLABE_NEAR_MISS_MAX_OPERATIONS = 3;
  */
 export const CLABE_CRITICAL_MAX_OPERATIONS = 2;
 
+/**
+ * What the evidence says when there is no history to compare a plaza against.
+ *
+ * Exported because it is a sentence the product promises rather than a detail:
+ * issue #203 asks that a brand-new account with no history raise the level for
+ * lack of information and that the evidence say so in those words, and a test
+ * asserts this exact string reaches the finding.
+ */
+export const NO_PLAZA_HISTORY =
+  "No hay plazas previas de este proveedor con las que comparar esta cuenta, asi que el nivel sube por falta de informacion y no por una senal en contra.";
+
+/** The opening of the evidence line when the plaza did not move. */
+const PLAZA_UNCHANGED = "Misma plaza que las cuentas ya pagadas:";
+
 /** Every reason this detector can raise, most severe first. */
 export type ClabeSignal =
   | "malformed"
@@ -508,6 +581,7 @@ export type ClabeSignal =
   | "near_miss"
   | "bank_changed"
   | "plaza_changed"
+  | "plaza_off_invoice"
   | "unknown_institution"
   | "first_time_seen"
   | "new_supplier";
@@ -518,6 +592,7 @@ const SIGNAL_ORDER: readonly ClabeSignal[] = [
   "near_miss",
   "bank_changed",
   "plaza_changed",
+  "plaza_off_invoice",
   "unknown_institution",
   "first_time_seen",
   "new_supplier",
@@ -531,6 +606,20 @@ export interface DetectClabeOptions {
   now?: string;
   /** Finding id. Defaults to `clabe-<instruction id>`, which is idempotent. */
   findingId?: string;
+  /**
+   * `LugarExpedicion` of the CFDIs this instruction settles: the postal codes the
+   * supplier issued those invoices from.
+   *
+   * Passed in rather than read off the instruction because `packages/core` holds
+   * no repository and an instruction carries uuids, not documents.
+   * `@hackmty/engine` resolves them. Absent means no geographic comparison, which
+   * is the right default: a missing place must never become a finding.
+   *
+   * Several codes are allowed and they are folded to the states they point at. If
+   * they point at more than one state the comparison is skipped, because a
+   * supplier that invoices from two states has not contradicted anything.
+   */
+  invoicePostalCodes?: readonly string[];
 }
 
 /** The known account a candidate is closest to, with the distance to it. */
@@ -606,9 +695,19 @@ export function detectClabe(
     evidence.expectedCheckDigit = validation.expectedCheckDigit ?? -1;
   }
 
+  const invoiceState = singleInvoiceState(options.invoicePostalCodes);
+
   if (knownAccounts.length === 0) {
     signals.add("new_supplier");
     evidence.knownAccounts = 0;
+    /* The plaza control has nothing to compare against here, and saying so is the
+       point: the level rises because we are missing information, not because a
+       rule fired. `confidenceOf` answers `precaucion` on this finding under the
+       rule `new_account_without_history`, and this sentence is the reason a clerk
+       reads next to it. */
+    evidence.plazaComparison = NO_PLAZA_HISTORY;
+    describePlaza(evidence, parts.plaza);
+    compareWithInvoice(signals, evidence, parts.plaza, invoiceState);
     return buildFinding(instruction, supplier, signals, evidence, {
       validation,
       options,
@@ -662,11 +761,20 @@ export function detectClabe(
         .filter((account) => institutionOf(account.clabe) === parts.institution)
         .map((account) => plazaOf(account.clabe)),
     );
-    if (!knownPlazas.includes(parts.plaza)) {
+    if (knownPlazas.includes(parts.plaza)) {
+      /* Same plaza as the accounts we have paid. Recorded rather than inferred
+         from the absence of the signal, because "the geography did not move" is
+         the sentence that makes a changed account read as a typo. */
+      evidence.plazaComparison = `${PLAZA_UNCHANGED} ${plazaLabel(parts.plaza)}.`;
+    } else {
       signals.add("plaza_changed");
       evidence.previousPlazaCodes = knownPlazas.join(",");
+      evidence.previousPlazaPlaces = plazaLabels(knownPlazas);
     }
   }
+
+  describePlaza(evidence, parts.plaza);
+  compareWithInvoice(signals, evidence, parts.plaza, invoiceState);
 
   return buildFinding(instruction, supplier, signals, evidence, {
     validation,
@@ -797,8 +905,11 @@ function explain(
         );
         break;
       case "plaza_changed":
+        sentences.push(explainPlazaChanged(evidence));
+        break;
+      case "plaza_off_invoice":
         sentences.push(
-          `Cambió la plaza dentro del mismo banco: las cuentas conocidas usan la plaza ${String(evidence.previousPlazaCodes)} y esta usa la ${String(evidence.plazaCode)}.`,
+          explainPlazaOffInvoice(evidence, signals.includes("plaza_changed")),
         );
         break;
       case "unknown_institution":
@@ -811,7 +922,7 @@ function explain(
         break;
       case "new_supplier":
         sentences.push(
-          "Proveedor sin cuentas previas: no hay historial contra el cual comparar esta CLABE.",
+          `Proveedor sin cuentas previas: no hay historial contra el cual comparar esta CLABE. ${NO_PLAZA_HISTORY}`,
         );
         break;
     }
@@ -845,6 +956,50 @@ function explainNearMiss(evidence: Finding["evidence"]): string {
   return `Difiere en ${operations} ${digits} (${label} ${joinSpanish(positions)}) de la cuenta ${String(evidence.nearestKnownAccount)}, que ya se pagó ${timesPaid} ${payments}.${ocrNote}`;
 }
 
+/**
+ * Both places, named, which is the whole point of the plaza control.
+ *
+ * The three digits are printed beside each name so a reader can check the name
+ * against `snapshot/plazas-2026-09-13.csv` without trusting the table, and a code
+ * the snapshot does not carry degrades to the bare digits rather than to silence:
+ * "la plaza 999" still says the geography moved.
+ */
+function explainPlazaChanged(evidence: Finding["evidence"]): string {
+  const codes = String(evidence.previousPlazaCodes ?? "").split(",");
+  const previous =
+    evidence.previousPlazaPlaces === undefined
+      ? plazaLabels(codes)
+      : String(evidence.previousPlazaPlaces);
+  const mine = plazaLabel(String(evidence.plazaCode ?? ""));
+  const known =
+    codes.length === 1
+      ? "la cuenta conocida está"
+      : "las cuentas conocidas están";
+  return `Cambió la plaza dentro del mismo banco: ${known} en la plaza ${previous} y esta en la plaza ${mine}.`;
+}
+
+/**
+ * The account's plaza against the state the invoice was issued from.
+ *
+ * Never says somebody moved money: it says the two documents point at two states,
+ * which is a question for the supplier and is exactly how ADR-0002 requires this
+ * product to speak.
+ *
+ * `plazaNamed` is true when the sentence before this one already said where this
+ * account's plaza is, which is the common case because a plaza that contradicts the
+ * invoice usually also contradicts the history. Naming it twice in four sentences
+ * reads like a template rather than like a person, so it is named once.
+ */
+function explainPlazaOffInvoice(
+  evidence: Finding["evidence"],
+  plazaNamed: boolean,
+): string {
+  const where = plazaNamed
+    ? "Esa plaza"
+    : `La plaza de esta cuenta, ${plazaLabel(String(evidence.plazaCode ?? ""))},`;
+  return `${where} no coincide con el lugar de expedición de la factura: el código postal ${String(evidence.invoicePostalCode)} queda en ${String(evidence.invoiceState)}, así que la cuenta y la factura apuntan a estados distintos.`;
+}
+
 function explainFirstTimeSeen(supplier: Supplier | undefined): string {
   const count = supplier?.knownAccounts.length ?? 0;
   const accounts =
@@ -862,6 +1017,75 @@ function joinSpanish(values: readonly string[]): string {
 
 function institutionOf(clabe: Clabe): string {
   return normalizeClabe(clabe).slice(0, CLABE_INSTITUTION_LENGTH);
+}
+
+/**
+ * The one state a set of `LugarExpedicion` postal codes points at, or nothing.
+ *
+ * Nothing is the answer in three cases and all three are deliberate: no codes
+ * were passed, none of them resolves (`stateOfPostalCode` covers the states the
+ * synthetic dataset uses and no more), or they resolve to more than one state. A
+ * supplier that invoices from two states has contradicted nothing, so the
+ * comparison is skipped rather than guessed.
+ */
+function singleInvoiceState(
+  postalCodes: readonly string[] | undefined,
+): { postalCode: string; state: string } | undefined {
+  if (postalCodes === undefined) {
+    return undefined;
+  }
+  let found: { postalCode: string; state: string } | undefined;
+  for (const postalCode of postalCodes) {
+    const state = stateOfPostalCode(postalCode);
+    if (state === undefined) {
+      continue;
+    }
+    if (found === undefined) {
+      found = { postalCode, state };
+      continue;
+    }
+    if (found.state !== state) {
+      return undefined;
+    }
+  }
+  return found;
+}
+
+/** Puts the plaza's place on the evidence, when the snapshot knows the code. */
+function describePlaza(evidence: Finding["evidence"], code: string): void {
+  const plaza = lookupPlaza(code);
+  if (plaza === undefined) {
+    return;
+  }
+  evidence.plazaCity = plaza.city;
+  evidence.plazaState = plaza.state;
+}
+
+/**
+ * Raises `plaza_off_invoice` when the account's plaza and the invoice's postal
+ * code sit in different states.
+ *
+ * Only ever reached for an account this supplier has no payment history on, so a
+ * supplier legitimately banking in another state is asked once and never again.
+ * A plaza the snapshot does not know raises nothing: the comparison needs both
+ * sides, and the side that can go stale is not allowed to accuse on its own.
+ */
+function compareWithInvoice(
+  signals: Set<ClabeSignal>,
+  evidence: Finding["evidence"],
+  code: string,
+  invoice: { postalCode: string; state: string } | undefined,
+): void {
+  if (invoice === undefined) {
+    return;
+  }
+  evidence.invoicePostalCode = invoice.postalCode;
+  evidence.invoiceState = invoice.state;
+  const plaza = lookupPlaza(code);
+  if (plaza === undefined || plaza.state === invoice.state) {
+    return;
+  }
+  signals.add("plaza_off_invoice");
 }
 
 function plazaOf(clabe: Clabe): string {

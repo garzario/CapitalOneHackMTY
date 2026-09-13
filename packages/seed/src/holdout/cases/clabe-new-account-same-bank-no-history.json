@@ -1,0 +1,59 @@
+{
+  "$schema": "../case.schema.json",
+  "id": "clabe-new-account-same-bank-no-history",
+  "title": "A brand-new account at the same bank and the same plaza, with nothing behind it yet",
+  "kind": "positive",
+  "notes": "The quietest version of the account change, and the reason the level rule reads the signal rather than the severity. Nothing here is arithmetically wrong, the bank does not change, the plaza does not change, and the account number is not close enough to the old one to be a typo. The only fact is that we have never paid this account and no complement or CEP establishes it. A product that needs a second red flag before it asks has already sent the money.",
+  "input": {
+    "instruction": {
+      "id": "INS-HOLDOUT-130",
+      "supplierRfc": "SYN313333S33",
+      "cfdiUuids": ["000000cd-0000-4d00-8a00-0000000000cd"],
+      "clabe": "012180100076543215",
+      "amount": 58000.0,
+      "source": "portal",
+      "receivedAt": "2026-09-10T15:30:00.000Z",
+      "synthetic": true
+    },
+    "supplier": {
+      "rfc": "SYN313333S33",
+      "legalName": "Servicios Logisticos Apodaca SA de CV",
+      "firstInvoiceAt": "2023-01-16T15:30:00.000Z",
+      "knownAccounts": [
+        {
+          "clabe": "012180100091764613",
+          "establishedBy": "payment_complement",
+          "establishedAt": "2023-02-06T15:30:00.000Z",
+          "timesPaid": 39
+        }
+      ],
+      "synthetic": true
+    },
+    "cfdis": [
+      {
+        "uuid": "000000cd-0000-4d00-8a00-0000000000cd",
+        "serie": "A",
+        "folio": "281",
+        "issuedAt": "2026-09-01T15:30:00.000Z",
+        "issuerRfc": "SYN313333S33",
+        "issuerName": "Servicios Logisticos Apodaca SA de CV",
+        "receiverRfc": "SYN090615C01",
+        "subtotal": 50000.0,
+        "iva": 8000.0,
+        "total": 58000.0,
+        "paymentMethod": "PPD",
+        "paymentForm": "03",
+        "synthetic": true
+      }
+    ]
+  },
+  "expectedFindings": [
+    {
+      "detector": "clabe_forensics",
+      "state": "requiere_verificacion",
+      "because": "The company has never paid this account and no payment complement or CEP establishes it. That single fact is the shape of the fraud this product exists to stop, and it is enough to ask."
+    }
+  ],
+  "expectedAction": "verify",
+  "expectedLevel": "precaucion"
+}

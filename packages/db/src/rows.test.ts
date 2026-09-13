@@ -181,6 +181,7 @@ describe("cfdi and complement rows", () => {
     total: 184300,
     paymentMethod: "PPD",
     paymentForm: "03",
+    issuePlace: "64000",
     synthetic: true,
   };
 
@@ -207,6 +208,29 @@ describe("cfdi and complement rows", () => {
     expect("serie" in back).toBe(false);
     expect("folio" in back).toBe(false);
     expect(back).toEqual(bare);
+  });
+
+  it("keeps LugarExpedicion through the round trip, and absent when there is none", () => {
+    /* This pair is the only thing standing between control 2 and a geographic
+       comparison that works in the in-memory run and silently does not on the
+       deployed API. The column is 0013; `issuePlace` lost here would not fail a
+       test anywhere else, it would just stop producing a finding. */
+    const row = cfdiToRow(cfdi);
+    expect(row.issue_place).toBe("64000");
+    expect(
+      cfdiFromRow({ ...row, issued_at: new Date(row.issued_at) }).issuePlace,
+    ).toBe("64000");
+
+    const { issuePlace: _place, ...noPlace } = cfdi;
+    const bareRow = cfdiToRow(noPlace);
+    expect(bareRow.issue_place).toBeNull();
+    /* Absent and not the empty string: an empty place would be a place that
+       agrees with no state at all, which is a finding on every invoice. */
+    const back = cfdiFromRow({
+      ...bareRow,
+      issued_at: new Date(bareRow.issued_at),
+    });
+    expect("issuePlace" in back).toBe(false);
   });
 
   it("round trips a complement including the fields 0005 added", () => {
@@ -344,6 +368,28 @@ describe("finding and decision rows", () => {
     expect(subjectIdForStorage("instruction", "INS-Abc")).toBe("INS-Abc");
   });
 
+  it("carries the name and the role of whoever signed the decision", () => {
+    /* Both or neither: the engine's own decision is signed `system` and has no
+       role, and a person's carries the capacity the header said they were acting
+       in, which is what a constancia prints next to the name. */
+    const signed = decisionFromRow({
+      id: "43",
+      instruction_id: "ins-2026w37-08",
+      action: "release",
+      expected_loss: "0.00",
+      delay_cost_per_day: "665.00",
+      decided_at: new Date("2026-09-11T17:00:00.000Z"),
+      decided_by: "Gerardo Villarreal",
+      decided_by_role: "owner",
+      reason:
+        "El proveedor confirmo la cuenta por telefono y la nomina sale hoy.",
+      findings: null,
+    });
+
+    expect(signed.decidedBy).toBe("Gerardo Villarreal");
+    expect(signed.decidedByRole).toBe("owner");
+  });
+
   it("rehydrates a decision with the findings json_agg attached to it", () => {
     const decision = decisionFromRow({
       id: "42",
@@ -353,6 +399,8 @@ describe("finding and decision rows", () => {
       delay_cost_per_day: "665.00",
       decided_at: new Date("2026-09-11T16:30:00.000Z"),
       decided_by: null,
+      decided_by_role: null,
+      reason: null,
       findings: [
         {
           id: finding.id,

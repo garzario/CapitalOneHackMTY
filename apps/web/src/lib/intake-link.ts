@@ -42,7 +42,7 @@ export function intakeLink(origin: string): IntakeLink {
       reachable: false,
       url,
       reason:
-        "Esta pantalla corre en localhost, que en el telefono del juez es su propio telefono. Publica la app o usa la IP de esta maquina en la red del evento.",
+        "En localhost el QR apunta al telefono que lo escanea. Usa la IP de esta maquina en la red del evento.",
     };
   }
 

@@ -12,7 +12,7 @@
  */
 
 import type { EvidenceView } from "../lib/evidence";
-import { shortUuid, splitClabe } from "../lib/format";
+import { formatDateTime, shortUuid, splitClabe } from "../lib/format";
 import { SAT_STATUS_BADGE, SAT_STATUS_LABEL } from "../lib/labels";
 
 export function EvidenceChips({ chips }: { chips: EvidenceView["chips"] }) {
@@ -112,7 +112,7 @@ export function BankChangeBlock({
       <span className="t-base">
         <span className="muted">{change.from}</span>
         <span className="subtle"> a </span>
-        <span style={{ color: "var(--c-hold-ink)" }}>{change.to}</span>
+        <span className="ink-hold">{change.to}</span>
       </span>
     </div>
   );
@@ -144,6 +144,48 @@ export function SatStatusBlock({
       ) : null}
       {sat.listVersion ? (
         <span className="subtle t-xs">Version {sat.listVersion}</span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * What the SentryOne consortium says about this account, in one line.
+ *
+ * One line and not a panel on purpose. The network is corroboration and never
+ * proof, so it sits below the CEP and the account comparison and reads as
+ * context; giving it a large block would make the weakest evidence on the screen
+ * look like the strongest, which is the mistake this file's header warns about.
+ *
+ * "no consultada" is rendered rather than hidden. A clerk has to be able to tell
+ * a network that answered nothing from a network nobody asked, and a missing line
+ * says neither.
+ */
+export function NetworkBlock({
+  network,
+}: {
+  network: NonNullable<EvidenceView["network"]>;
+}) {
+  const ink =
+    network.verdict === "fraud_reported"
+      ? "var(--c-hold-ink)"
+      : network.verdict === "corroborated"
+        ? undefined
+        : "var(--c-ink-muted)";
+
+  return (
+    <div className="panel-sunken flex flex-wrap items-baseline gap-x-3 gap-y-1 p-4">
+      <span className="eyebrow">Red SentryOne</span>
+      <span
+        className="t-base"
+        style={ink === undefined ? undefined : { color: ink }}
+      >
+        {network.label}
+      </span>
+      {network.pulledAt ? (
+        <span className="subtle t-xs">
+          Consultada {formatDateTime(network.pulledAt)}
+        </span>
       ) : null}
     </div>
   );

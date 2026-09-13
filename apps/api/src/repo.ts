@@ -15,7 +15,11 @@
  */
 
 import type {
+  Actor,
+  AssistantMessage,
   Cfdi,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   LedgerEvent,
@@ -26,8 +30,10 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runLevels, runMoney, sumAmounts } from "@hackmty/core";
 import { computeMetrics, HOLDOUT_CASES, runEngine } from "@hackmty/seed";
+import { assistantMessagesFrom } from "./assistant/session";
+import { levelled } from "./levels";
 import type {
   InstructionDetail,
   PaymentRun,
@@ -83,11 +89,69 @@ export interface LedgerQuery {
   limit?: number;
 }
 
+/** What the run said when it dropped a line, which is all a reopening needs. */
+export interface Cancellation {
+  at: string;
+  reason: string;
+  /** Who dropped it by hand. Absent when the evidence dropped it. */
+  actor?: Actor;
+}
+
+/**
+ * Which payment events to read: the ones of one run, or the ones of one clave de
+ * rastreo.
+ *
+ * Exactly one of the two is set by every caller this product has, and both are here
+ * rather than in two methods because the answer is the same four event kinds folded
+ * the same way. A query with neither answers nothing rather than the whole ledger: a
+ * filter that silently became "everything" is how a read of one receipt turns into a
+ * scan of every payment the company ever made.
+ */
+export interface PaymentEventQuery {
+  runId?: string;
+  claveRastreo?: string;
+  /**
+   * Payments of these instructions, whatever run they belong to.
+   *
+   * It answers one question the run filter cannot: has this instruction EVER been
+   * paid. Every SPEI before ADR-0008 left from the company's own banking portal and
+   * the seed records those with no run on them, so the execution has to ask this
+   * before it offers a line to a rail. An empty array answers nothing, like a query
+   * with no filter at all.
+   */
+  instructionIds?: readonly string[];
+}
+
+/** The four event kinds a `PaymentExecution` is folded out of. */
+export const PAYMENT_EVENT_TYPES = [
+  "payment_sent",
+  "payment_settled",
+  "payment_failed",
+  "payment_cancelled",
+] as const;
+
 export interface ResetSummary {
   seed: number;
   suppliers: number;
   instructions: number;
   events: number;
+}
+
+/**
+ * What the local consortium snapshot answers about one hashed pair.
+ *
+ * Three fields and not one, because three states have to be told apart and
+ * collapsing any two of them would make the product claim something it cannot.
+ * `pull` absent is "the network was never consulted here". `pull` present with
+ * `pair` absent is "the network WAS consulted and has never seen this account",
+ * which is a much stronger statement. `accountsForRfc` is what makes the
+ * impersonation case visible: the supplier is in the network, on other accounts.
+ */
+export interface ConsortiumLookup {
+  pull?: ConsortiumPull;
+  pair?: ConsortiumSnapshotRow;
+  /** Accounts the network holds for this RFC, the looked-up one included. */
+  accountsForRfc: number;
 }
 
 export interface Repository {
@@ -127,28 +191,175 @@ export interface Repository {
   satLookup(rfc: string): Promise<SatListEntry[]>;
   satVersions(): Promise<SatVersionSummary[]>;
   beneficiaries(): Promise<VerifiedBeneficiary[]>;
+  /**
+   * The local consortium snapshot for one HASHED pair. The repository never sees
+   * an RFC or a CLABE here: `src/consortium.ts` hashes them before it asks, which
+   * is what keeps the privacy boundary in one file.
+   */
+  consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup>;
   metrics(): Promise<Metrics>;
   ledger(query: LedgerQuery): Promise<LedgerEvent[]>;
+  /**
+   * Every event the verification of one instruction is folded out of, in append
+   * order: its `cent_sent`, `cep_awaited`, `verification_call` and
+   * `decision_made`, plus the `cep_verified` of the account it pays to.
+   *
+   * `verification_call` is on the list because the call to the supplier is part of
+   * verifying who holds the account, and the evidence letter of issue #204 names it
+   * as one of its seven signals. `foldVerification` ignores it: the state machine
+   * turns on the CEP and a call is not a document, which is the distinction
+   * `docs/09-api.md` draws between the two.
+   *
+   * A targeted read rather than a slice of `ledger`, because the seeded company's
+   * ledger is thousands of events long and that one answers the oldest 500: the
+   * cent that left a minute ago would never be in the page. `beneficiaryAccount`
+   * is the instruction's CLABE, because a `cep_verified` names an account and no
+   * instruction, which is the honest shape for evidence about who holds an
+   * account.
+   */
+  verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]>;
+  /**
+   * The `payment_cancelled` the run appended for one instruction, newest first,
+   * or undefined when nothing dropped the line.
+   *
+   * A targeted read and not a slice of `ledger`, for the reason
+   * `verificationEvents` gives: the seeded company's ledger is thousands of events
+   * long and that one answers the oldest 500, so a cancellation appended a minute
+   * ago would never be in the page. It exists because reopening a cancelled line
+   * is the owner's call (`decideRequirement` in @hackmty/core) and the route has to
+   * know which lines those are without a stored status column that could disagree
+   * with the ledger.
+   */
+  cancellation(instructionId: string): Promise<Cancellation | undefined>;
+  /**
+   * Who posted one SAT list version into this instance, or undefined when nobody
+   * did.
+   *
+   * The sweep constancia prints it, and undefined is a real answer rather than a
+   * gap: the committed official snapshot arrives with the repository and not
+   * through a request, so the page says the version was not loaded here instead of
+   * printing a name nobody signed.
+   */
+  publisher(listVersion: string): Promise<Actor | undefined>;
+  /**
+   * Every turn of one assistant conversation, in append order, so the panel's
+   * memory is the ledger and not a second table.
+   *
+   * A targeted read for the same reason `verificationEvents` is one: `ledger`
+   * answers the oldest 500 events and the seeded company's ledger is thousands
+   * long, so a conversation that started a minute ago would never be in the page.
+   * An empty array is "nobody holds this session", which is what the route answers
+   * `404` for.
+   */
+  assistantMessages(sessionId: string): Promise<AssistantMessage[]>;
+  /**
+   * The four payment events a `PaymentExecution` is folded out of, in append order,
+   * for one run or for one clave de rastreo.
+   *
+   * A targeted read for the same reason `verificationEvents` is one: the seeded
+   * company's ledger is thousands of events long and `ledger` answers the oldest 500,
+   * so a payment that left a minute ago would never be in the page.
+   *
+   * The `runId` filter is what keeps an executed run apart from the company's own
+   * history. Every SPEI before ADR-0008 left from the company's banking portal and
+   * the seed records those as `payment_sent` with no run on them, so a filter on the
+   * run answers what THIS run did and nothing else. The clave filter is the receipt
+   * lookup, which holds no run id of its own.
+   */
+  paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]>;
 
   /* Writes. Each one is append-only from the ledger's point of view. */
   appendEvent(event: LedgerEvent): Promise<void>;
+  /**
+   * Adds one outflow to the company's bank mirror.
+   *
+   * It exists because of control 6. `bank_reconciliation` compares what the bank
+   * posted against the company's own documents, so a run that left through
+   * `packages/rail` with nothing on the statement would have every line reported as
+   * `payment_not_in_mirror`, which is true of a real bank for about a day and false
+   * the moment we are the ones who posted the movement. The row is the mirror of what
+   * the rail wrote and it names no payee, exactly like the rail's own row.
+   *
+   * The account is the repository's to fill in and not the caller's: the Postgres
+   * store reads it off the company row and the memory store off the statement it
+   * already holds, and a caller that guessed it would write the outflow into an
+   * account `bankMirror` does not read.
+   */
+  recordBankOutflow(tx: Omit<LedgerTx, "accountId">): Promise<void>;
   saveIntake(record: IntakeRecord): Promise<void>;
+  /**
+   * A person confirms an action. `reason` is what they wrote about it, and it
+   * travels with the decision so the `decision_made` event carries the argument
+   * and not only the verdict.
+   *
+   * `actor` and not a bare name: `decidedBy` answers who and `decidedByRole`
+   * answers in what capacity, and an auditor reading the second one is what tells
+   * an approved exception from a clerk exceeding theirs. The route has already
+   * checked that the role is allowed to ask for this action; a repository
+   * records, it never decides.
+   */
   recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined>;
+  /**
+   * A decision the engine reached itself on new evidence, with the findings it
+   * weighed.
+   *
+   * Separate from `recordDecision` because that one is a person changing the
+   * action and nothing else, and says so: it carries the pesos and the evidence
+   * over unchanged. Here the evidence is what changed, so the findings are stored
+   * first and the decision is the engine's whole arithmetic. `decidedBy` is the
+   * caller's to set and is `SYSTEM_DECIDER` on the only path that uses this.
+   *
+   * Findings are added and never removed. A finding is evidence about a moment,
+   * and the decision names the ones it weighed, so a control that stopped firing
+   * (a CEP turning a new account into a known one) leaves its earlier finding on
+   * the record instead of rewriting what the clerk was shown yesterday.
+   */
+  recordEngineDecision(decision: Decision): Promise<void>;
   /** Stores a list version and returns what it touches. It does not price it. */
   publishSatList(
     listVersion: string,
     entries: SatListEntry[],
   ): Promise<SweepSubject[]>;
   saveVerifiedBeneficiary(row: VerifiedBeneficiary): Promise<void>;
+  /**
+   * Replaces the whole local snapshot and records the pull that produced it.
+   *
+   * Replaces and never merges: a pair the network has stopped corroborating must
+   * not stay in the snapshot, because a stale corroboration is the one way this
+   * signal turns into a false release. `bun run consortium:pull` is the caller on
+   * the Postgres path and a route test is the caller on the memory one.
+   */
+  replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number>;
   reset(seed: number): Promise<ResetSummary>;
 }
 
 const DEFAULT_LEDGER_LIMIT = 500;
+
+/**
+ * The account an executed outflow lands on when this store holds no statement yet.
+ *
+ * It is the id `buildBankMirror` in `./synthetic.ts` stamps on every row, so the
+ * first executed line of an empty store is in the same account as the seeded ones
+ * would have been. `bank_reconciliation` never filters on it; it is here so two rows
+ * of one statement cannot end up in two accounts.
+ */
+const FALLBACK_BANK_ACCOUNT = "acc-synthetic-mtx";
 
 /**
  * Handed out on every read so a handler cannot mutate the store by accident.
@@ -166,6 +377,19 @@ export class MemoryRepository implements Repository {
   private data: SyntheticDataset;
   private seed: number;
   private readonly build: DatasetFactory;
+  /**
+   * The local consortium snapshot, empty until something fills it.
+   *
+   * It sits beside the dataset rather than inside it on purpose: the network is
+   * not company data, it survives a `reset` the way the Postgres table survives a
+   * re-seed, and a store that wiped it when the company was regenerated would
+   * report "not consulted" after a rehearsal reset and quietly change every
+   * decision on the screen.
+   */
+  private consortium: {
+    pull?: ConsortiumPull;
+    rows: ConsortiumSnapshotRow[];
+  } = { rows: [] };
 
   /**
    * `build` defaults to the hand-written fixture in `./synthetic.ts`, which ignores
@@ -245,12 +469,17 @@ export class MemoryRepository implements Repository {
         // An instruction always has a supplier row by the time it is stored.
         continue;
       }
-      items.push({
-        instruction: copy(instruction),
-        supplier: copy(supplier),
-        decision: copy(this.decisionRow(instruction.id) ?? null),
-        findings: copy(this.findingsFor(instruction.id)),
-      });
+      /* `levelled` attaches the level and the state through `assessLine` in
+         `@hackmty/core`, which is the one place either is derived. This store does
+         not know the ADR-0009 table and must not learn it. */
+      items.push(
+        levelled({
+          instruction: copy(instruction),
+          supplier: copy(supplier),
+          decision: copy(this.decisionRow(instruction.id) ?? null),
+          findings: copy(this.findingsFor(instruction.id)),
+        }),
+      );
     }
 
     const actions = items.map((item) => item.decision?.action);
@@ -264,6 +493,12 @@ export class MemoryRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        /* The pesos, from the same pure function the Postgres store calls. Two
+           implementations of "how much did this run stop" is how a screen and a
+           constancia end up disagreeing in front of a judge. */
+        ...runMoney(items),
+        // And the run by level and by state, from the same file as the per-line pair.
+        ...runLevels(items),
       },
       items,
     };
@@ -378,6 +613,35 @@ export class MemoryRepository implements Repository {
   }
 
   /**
+   * The same three-state answer the Postgres path gives, over an in-memory map.
+   *
+   * A fresh store holds no pull, so the network reads as `not_consulted` and this
+   * repository decides exactly what it decided before the consortium existed.
+   * That is deliberate: every route test that predates issue #164 has to keep
+   * passing without being told about a network.
+   */
+  async consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup> {
+    const result: ConsortiumLookup = {
+      accountsForRfc: this.consortium.rows.filter(
+        (row) => row.rfcHash === rfcHash,
+      ).length,
+    };
+    if (this.consortium.pull !== undefined) {
+      result.pull = copy(this.consortium.pull);
+    }
+    const pair = this.consortium.rows.find(
+      (row) => row.rfcHash === rfcHash && row.clabeHash === clabeHash,
+    );
+    if (pair !== undefined) {
+      result.pair = copy(pair);
+    }
+    return result;
+  }
+
+  /**
    * The blind evaluation, recomputed on demand.
    *
    * The numbers come from `@hackmty/seed`: the labelled cases in
@@ -407,11 +671,162 @@ export class MemoryRepository implements Repository {
     return copy(events.slice(0, limit));
   }
 
+  /**
+   * The verification events of one instruction, with the same matching rules as
+   * `readVerificationEvents` in `packages/db`: the instruction id on the three
+   * kinds that carry one, and the beneficiary account on `cep_verified`.
+   *
+   * The accounts are compared as the two stores hold them, character for
+   * character, rather than digits-only. Normalising here and not in SQL is how the
+   * two repositories would start answering different things for the same ledger,
+   * and the parity suite would not catch it because it would ask both through this
+   * method.
+   */
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return copy(
+      this.data.ledger.filter((event) => {
+        if (
+          event.type === "cent_sent" ||
+          event.type === "cep_awaited" ||
+          event.type === "verification_call"
+        ) {
+          return event.instructionId === instructionId;
+        }
+        if (event.type === "decision_made") {
+          return event.decision.instructionId === instructionId;
+        }
+        if (event.type === "cep_verified") {
+          return event.cep.beneficiaryAccount === beneficiaryAccount;
+        }
+        return false;
+      }),
+    );
+  }
+
+  /**
+   * The newest `payment_cancelled` for one instruction.
+   *
+   * The ledger is in append order, so the scan runs backwards and stops at the
+   * first hit: a line cancelled twice is answered with the cancellation that is
+   * standing, and the earlier one is still history.
+   */
+  async cancellation(instructionId: string): Promise<Cancellation | undefined> {
+    for (let index = this.data.ledger.length - 1; index >= 0; index -= 1) {
+      const event = this.data.ledger[index];
+      if (
+        event?.type === "payment_cancelled" &&
+        event.instructionId === instructionId
+      ) {
+        return copy({
+          at: event.at,
+          reason: event.reason,
+          ...(event.actor === undefined ? {} : { actor: event.actor }),
+        });
+      }
+    }
+    return undefined;
+  }
+
+  /** The newest `sat_list_published` for one version, scanned newest first. */
+  async publisher(listVersion: string): Promise<Actor | undefined> {
+    for (let index = this.data.ledger.length - 1; index >= 0; index -= 1) {
+      const event = this.data.ledger[index];
+      if (
+        event?.type === "sat_list_published" &&
+        event.listVersion === listVersion
+      ) {
+        return event.actor === undefined ? undefined : copy(event.actor);
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * The turns of one conversation, with the same matching rule as
+   * `readAssistantMessages` in `packages/db`: the session id off the event, in
+   * append order, with no limit. A conversation is bounded by how much a person
+   * typed, and truncating the middle of one would replay a session that never
+   * happened.
+   */
+  async assistantMessages(sessionId: string): Promise<AssistantMessage[]> {
+    return copy(assistantMessagesFrom(this.data.ledger, sessionId));
+  }
+
+  /**
+   * The payment events of one run, or of one clave de rastreo.
+   *
+   * Same matching rules as `readPaymentEvents` in `packages/db`, and the same reason
+   * for writing them out twice rather than normalising in one place: normalising here
+   * and not in SQL is how the two repositories start answering different things for
+   * the same ledger, and the parity suite would not catch it because it asks both
+   * through this method.
+   */
+  async paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]> {
+    const ids =
+      query.instructionIds === undefined
+        ? undefined
+        : new Set(query.instructionIds);
+    if (
+      query.runId === undefined &&
+      query.claveRastreo === undefined &&
+      ids === undefined
+    ) {
+      return [];
+    }
+    return copy(
+      this.data.ledger.filter((event) => {
+        if (
+          !(PAYMENT_EVENT_TYPES as readonly string[]).includes(event.type) ||
+          !("instructionId" in event)
+        ) {
+          return false;
+        }
+        const row = event as {
+          instructionId: string;
+          runId?: string;
+          claveRastreo?: string;
+        };
+        if (query.runId !== undefined && row.runId !== query.runId) {
+          return false;
+        }
+        if (
+          query.claveRastreo !== undefined &&
+          row.claveRastreo !== query.claveRastreo
+        ) {
+          return false;
+        }
+        return ids === undefined || ids.has(row.instructionId);
+      }),
+    );
+  }
+
   /* --------------------------------------------------------------- writes */
 
+  /**
+   * Appends one event, and projects `payment_sent` onto its instruction.
+   *
+   * The projection is the same one `PostgresRepository` does with
+   * `instructions.sent_at`, and it is what lets the run screen and the execution plan
+   * separate "not paid yet" from "paid and missing from the bank mirror" without
+   * folding the whole ledger on every read. Without it the memory store would offer a
+   * line for a second send after a restart, which is the one bug this endpoint may
+   * not have.
+   */
   async appendEvent(event: LedgerEvent): Promise<void> {
     const stored = copy(event);
     const last = this.data.ledger.at(-1);
+
+    if (stored.type === "payment_sent") {
+      const instruction = this.data.instructions.find(
+        (row) => row.id === stored.instructionId,
+      );
+      if (instruction !== undefined && instruction.sentAt === undefined) {
+        instruction.sentAt = stored.at;
+      }
+    }
 
     if (last !== undefined && Date.parse(stored.at) < Date.parse(last.at)) {
       // A backdated event is legal (a CFDI can arrive late) but rare, so pay
@@ -422,6 +837,25 @@ export class MemoryRepository implements Repository {
     }
 
     this.data.ledger.push(stored);
+  }
+
+  /**
+   * Adds one outflow to the bank mirror, or leaves it alone when it is already there.
+   *
+   * Idempotent on the id, because the id is derived from the clave de rastreo and a
+   * second write of the same transfer would make control 6 report one payment as two
+   * outflows, which is its `cfdi_paid_twice` finding raised by our own bookkeeping.
+   */
+  async recordBankOutflow(tx: Omit<LedgerTx, "accountId">): Promise<void> {
+    if (this.data.bankMirror.some((row) => row.id === tx.id)) {
+      return;
+    }
+    /* The account of the statement this store already holds, so an executed line
+       lands where the seeded outflows are. With an empty mirror there is nothing to
+       read it off, and then the name below is the one the generator uses. */
+    const accountId =
+      this.data.bankMirror[0]?.accountId ?? FALLBACK_BANK_ACCOUNT;
+    this.data.bankMirror.push(copy({ ...tx, accountId }));
   }
 
   async saveIntake(record: IntakeRecord): Promise<void> {
@@ -441,8 +875,9 @@ export class MemoryRepository implements Repository {
   async recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = this.decisionRow(instructionId);
     if (current === undefined) {
@@ -450,10 +885,53 @@ export class MemoryRepository implements Repository {
     }
 
     current.action = action;
-    current.decidedBy = decidedBy;
+    current.decidedBy = actor.name;
+    current.decidedByRole = actor.role;
     current.decidedAt = decidedAt;
+    /* Deleted and not left in place when no reason is given: a release with an
+       argument, followed by a hold with none, must not read as if the second one
+       carried the first one's sentence. */
+    if (reason === undefined) {
+      delete current.reason;
+    } else {
+      current.reason = reason;
+    }
 
     return copy(current);
+  }
+
+  /**
+   * The engine's decision, with its findings.
+   *
+   * The stored decision row is replaced in place rather than appended to, because
+   * `decisionRow` answers the first row for an instruction and a second one would
+   * be invisible; the Postgres store inserts and answers the newest, and the two
+   * agree on what a reader sees. The findings are a union, so the evidence the
+   * clerk saw before this ran is still on the line.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    const stored = copy(decision);
+    const known = new Set(this.data.findings.map((finding) => finding.id));
+
+    for (const finding of stored.findings) {
+      if (!known.has(finding.id)) {
+        this.data.findings.push(copy(finding));
+      }
+    }
+    const attached = new Set([
+      ...(this.data.findingsByInstruction[stored.instructionId] ?? []),
+      ...stored.findings.map((finding) => finding.id),
+    ]);
+    this.data.findingsByInstruction[stored.instructionId] = [...attached];
+
+    const index = this.data.decisions.findIndex(
+      (row) => row.instructionId === stored.instructionId,
+    );
+    if (index === -1) {
+      this.data.decisions.push(stored);
+      return;
+    }
+    this.data.decisions[index] = stored;
   }
 
   async publishSatList(
@@ -503,6 +981,22 @@ export class MemoryRepository implements Repository {
     }
     account.establishedBy = "cep";
     account.establishedAt = stored.verifiedAt;
+  }
+
+  async replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number> {
+    this.consortium = {
+      pull: {
+        pulledAt: input.pulledAt,
+        source: input.source,
+        rows: input.rows.length,
+      },
+      rows: input.rows.map((row) => copy(row)),
+    };
+    return input.rows.length;
   }
 
   /**

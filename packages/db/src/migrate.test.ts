@@ -6,11 +6,17 @@
 
 import { describe, expect, it } from "bun:test";
 import {
+  ASSISTANT_PAYMENT_EVENTS_MIGRATION,
+  CFDI_ISSUE_PLACE_MIGRATION,
   COMPANY_MIGRATION,
+  CONSORTIUM_SNAPSHOT_MIGRATION,
+  DECISION_ACTOR_ROLE_MIGRATION,
+  DECISION_REASON_MIGRATION,
   fingerprint,
   INIT_MIGRATION,
   MIGRATIONS,
   MIGRATIONS_DIR,
+  RAIL_EVENTS_MIGRATION,
   RENAMED_MIGRATIONS,
   SENTRYONE_DRIFT_MIGRATION,
   SENTRYONE_MIGRATION,
@@ -399,6 +405,164 @@ describe("supplier_weekly_outflow, both paths", () => {
   });
 });
 
+describe("0010_rail_events.sql", () => {
+  it("teaches the ledger the two event kinds the cent appends", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${RAIL_EVENTS_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+    const added = statements.find((statement) =>
+      statement.includes("add constraint ledger_events_type_check"),
+    );
+
+    expect(added).toContain("'cent_sent'");
+    expect(added).toContain("'cep_awaited'");
+    // The kinds that were already legal stay legal: this is a widening, and a
+    // set that dropped one would reject history the ledger already holds.
+    for (const kind of [
+      "cfdi_received",
+      "complement_received",
+      "instruction_received",
+      "payment_sent",
+      "sat_list_published",
+      "cep_verified",
+      "verification_call",
+      "decision_made",
+    ]) {
+      expect(added).toContain(`'${kind}'`);
+    }
+  });
+
+  it("is idempotent, and drops the constraint by name before adding it", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${RAIL_EVENTS_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toContain("drop constraint if exists");
+    expect(text).not.toContain("create table");
+  });
+});
+
+describe("0012_assistant_and_payment_events.sql", () => {
+  it("teaches the ledger the five kinds the assistant and the run append", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${ASSISTANT_PAYMENT_EVENTS_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+    const added = statements.find((statement) =>
+      statement.includes("add constraint ledger_events_type_check"),
+    );
+
+    for (const kind of [
+      "payment_settled",
+      "payment_failed",
+      "payment_cancelled",
+      "assistant_message",
+      "intake_image",
+    ]) {
+      expect(added).toContain(`'${kind}'`);
+    }
+  });
+
+  it("keeps every kind the ledger already holds, 0010 included", async () => {
+    /* A widening. A set that dropped one would reject history this ledger already
+       carries, and the two cent events of 0010 are the ones a re-derived list
+       loses first. */
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${ASSISTANT_PAYMENT_EVENTS_MIGRATION}`,
+    ).text();
+    const added = splitSqlStatements(text).find((statement) =>
+      statement.includes("add constraint ledger_events_type_check"),
+    );
+
+    for (const kind of [
+      "cfdi_received",
+      "complement_received",
+      "instruction_received",
+      "payment_sent",
+      "sat_list_published",
+      "cent_sent",
+      "cep_awaited",
+      "cep_verified",
+      "verification_call",
+      "decision_made",
+    ]) {
+      expect(added).toContain(`'${kind}'`);
+    }
+  });
+
+  it("is idempotent, and drops the constraint by name before adding it", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${ASSISTANT_PAYMENT_EVENTS_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toContain("drop constraint if exists");
+    expect(text).not.toContain("create table");
+  });
+
+  it("stores no confidence level and no transaction state", async () => {
+    /* Both are derived by `confidenceOf` and `transactionStateOf` in
+       packages/core/src/levels.ts. A stored level can disagree with the findings it
+       was computed from and a derived one cannot, which is the same argument
+       `holdWindow` made for the deadline it never stores. ADR-0009 carries it. */
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${ASSISTANT_PAYMENT_EVENTS_MIGRATION}`,
+    ).text();
+    const ddl = splitSqlStatements(text).join("\n");
+
+    expect(ddl).not.toContain("add column");
+    expect(ddl).not.toContain("confidence");
+    expect(ddl).not.toContain("transaction_state");
+  });
+});
+
+describe("0013_decision_actor_role.sql", () => {
+  it("adds the role a decision was signed in, and nothing else", async () => {
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${DECISION_ACTOR_ROLE_MIGRATION}`,
+    ).text();
+    const statements = splitSqlStatements(text);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain("alter table decisions");
+    expect(statements[0]).toContain("add column if not exists decided_by_role");
+    /* The two roles of `ActorRole` and no third one, checked in the schema so a
+       typo in a request body cannot become a role nobody defined. */
+    expect(statements[0]).toContain("'clerk'");
+    expect(statements[0]).toContain("'owner'");
+    expect(text).not.toContain("create table");
+  });
+
+  it("keeps the column nullable, because the engine signs decisions too", async () => {
+    /* `SYSTEM_DECIDER` is not a person and has no role, and every decision taken
+       before the `X-Actor` header existed has none either. A not-null column here
+       would have to invent one for both. */
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${DECISION_ACTOR_ROLE_MIGRATION}`,
+    ).text();
+
+    expect(text).toContain("decided_by_role is null");
+    expect(text).not.toContain("not null");
+  });
+
+  it("touches the ledger event table not at all", async () => {
+    /* `actor` on a ledger event lives in `payload` jsonb, because `LedgerEvent`
+       keeps the discriminant in `type` and the rest of the variant in the
+       payload. Only the decision is projected into columns, so only the decision
+       needed DDL. */
+    const text = await Bun.file(
+      `${MIGRATIONS_DIR}/${DECISION_ACTOR_ROLE_MIGRATION}`,
+    ).text();
+    const ddl = splitSqlStatements(text).join("\n");
+
+    expect(ddl).not.toContain("ledger_events");
+  });
+});
+
 describe("MIGRATIONS", () => {
   it("runs the plain files before the ones that need the extension", () => {
     const first = MIGRATIONS.findIndex((spec) => spec.requiresTimescale);
@@ -413,6 +577,12 @@ describe("MIGRATIONS", () => {
       SENTRYONE_DRIFT_MIGRATION,
       COMPANY_MIGRATION,
       SUPPLIER_OUTFLOW_MIGRATION,
+      CONSORTIUM_SNAPSHOT_MIGRATION,
+      RAIL_EVENTS_MIGRATION,
+      DECISION_REASON_MIGRATION,
+      ASSISTANT_PAYMENT_EVENTS_MIGRATION,
+      DECISION_ACTOR_ROLE_MIGRATION,
+      CFDI_ISSUE_PLACE_MIGRATION,
       TIMESCALE_MIGRATION,
       SENTRYONE_TIMESCALE_MIGRATION,
       SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION,

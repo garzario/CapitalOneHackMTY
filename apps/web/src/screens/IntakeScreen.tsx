@@ -14,18 +14,13 @@ import type { InstructionSource } from "@hackmty/core";
 import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { FindingPanel } from "../components/Findings";
-import {
-  Amount,
-  DecisionBadge,
-  SectionHeader,
-  SyntheticMark,
-} from "../components/Primitives";
+import { Amount, DecisionBadge, SyntheticMark } from "../components/Primitives";
 import { EmptyBlock, ErrorBlock } from "../components/States";
 import { createInstruction } from "../lib/api";
 import type { InstructionDetail } from "../lib/contract";
 import { formatMoney } from "../lib/format";
 import { SOURCE_LABEL } from "../lib/labels";
-import { mockInstruction } from "../lib/mock";
+import { EXAMPLE_SUPPLIER_RFC, mockIntakeExample } from "../lib/mock";
 import { useRouteQuery } from "../lib/router";
 
 const SOURCES: InstructionSource[] = [
@@ -73,7 +68,7 @@ export function IntakeScreen() {
   const [showExample, setShowExample] = useState(false);
 
   /** The layout of the answer, for a reviewer working without a backend. */
-  const example = useMemo(() => mockInstruction("ins-2026w37-002"), []);
+  const example = useMemo(() => mockIntakeExample(), []);
 
   const parsedAmount = Number(amount.replace(/[^\d.]/g, ""));
   const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
@@ -139,10 +134,10 @@ export function IntakeScreen() {
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
-      <SectionHeader
-        title="Alta de una instruccion"
-        description="Pega el mensaje que llego o toma una foto de la CLABE. Se corren los seis detectores y la decision aparece aqui y en la pantalla de la corrida."
-      />
+      <p className="muted max-w-prose t-sm">
+        Pega el mensaje que llego o toma la foto de la CLABE. Los seis controles
+        corren y la decision aparece en la corrida.
+      </p>
 
       <form className="panel flex flex-col gap-4 p-5" onSubmit={onSubmit}>
         <div>
@@ -160,9 +155,7 @@ export function IntakeScreen() {
             required
           />
           {amount !== "" && !amountIsValid ? (
-            <p className="t-xs" style={{ color: "var(--c-hold-ink)" }}>
-              Solo numeros y un punto decimal.
-            </p>
+            <p className="ink-hold t-xs">Solo numeros y un punto decimal.</p>
           ) : null}
           {amountIsValid ? (
             <p className="subtle t-xs">{formatMoney(parsedAmount)}</p>
@@ -199,7 +192,7 @@ export function IntakeScreen() {
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
-            placeholder="SYN010101AAA"
+            placeholder={EXAMPLE_SUPPLIER_RFC}
             value={supplierRfc}
             onChange={(event) => setSupplierRfc(event.target.value)}
           />

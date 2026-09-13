@@ -6,9 +6,23 @@
  * transition duration. A component that needs a new colour adds a token here
  * with a name that says what it means, never what it looks like.
  *
- * The visual language is sober and financial: one accent, three semantic
- * decision colours (hold, verify, release), large tabular numbers so columns
- * of pesos line up digit over digit, and no decorative colour anywhere.
+ * Where the colours come from. SentryOne is presented as an extension of
+ * Capital One, so the palette is not invented: every neutral, the accent and
+ * the three decision colours are taken from Gravity, Capital One's own design
+ * system, read from the `--gds-*` custom properties their production
+ * stylesheet ships. Two of those values do most of the work:
+ *
+ *   - the page is white, exactly as `--gds-color-background-page` is, and the
+ *     warm cream of `--gds-color-background-base-02` is used only where a
+ *     surface has to sit *below* the page: hover, a track, a sunken tile;
+ *   - the neutrals are warm. Gravity's darkest ink is `hsl(34 21% 6%)`, a
+ *     brown-black, not the blue-black a default palette reaches for. Warm ink
+ *     on a white page is the thing that makes the app look like it belongs to
+ *     Capital One before a single logo appears.
+ *
+ * The shape of the interface comes from elsewhere: a dense financial product
+ * with a collapsible rail on the left and quiet bordered cards on the right.
+ * Hence small radii, hairline borders and almost no shadow.
  *
  * Light is the default and dark follows the operating system. Only the colour
  * tokens are redefined for dark; type, spacing, radius and motion never change
@@ -18,13 +32,17 @@
 :root {
   color-scheme: light dark;
 
-  /* Type families. The numeric family exists so money can be set in tabular
-     figures without changing the text font. */
+  /* Type families. Capital One sets its interface in Optimist, which is
+     licensed to them. Hanken Grotesk is the closest open face: same humanist
+     grotesque proportions, and near-identical digits, which is what matters in
+     a column of pesos. The numeric family exists so money can be set in
+     tabular figures without changing the text font. */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+    "Hanken Grotesk", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  /* Verbatim from Gravity's --gds-font-family-code. */
   --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    SFMono-Regular, "Fira Code", Consolas, "Liberation Mono", Menlo, Monaco,
+    monospace;
   /* Applied as font-variant-numeric. Tabular so digits share one advance
      width, lining so they sit on the baseline like the rest of the row. */
   --numeric-tabular: tabular-nums lining-nums;
@@ -34,22 +52,46 @@
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;
+  /* Gravity's --gds-font-size-14, and the exact size Capital One sets its own
+     navigation at. It is its own token rather than a step on the scale above
+     because the scale runs 12, 13, 15, 17 and theirs runs 12, 14, 16: the rail
+     borrows one size from their scale and everything else stays on ours. */
+  --text-nav: 0.875rem;
   --text-md: 1.0625rem;
   --text-lg: 1.25rem;
   --text-xl: 1.5rem;
   --text-2xl: 1.875rem;
   --text-3xl: 2.375rem;
+  /* Display size, for the one figure per screen. Capital One sets a headline at
+     48px and this is that size. It exists as its own step because the run's
+     figure is the only thing in the app that needs it, and borrowing `3xl`
+     would have dragged every heading up with it. */
+  --text-4xl: 3rem;
 
   --leading-tight: 1.15;
   --leading-snug: 1.35;
   --leading-normal: 1.55;
 
+  /* Capital One is one typeface at five weights, and the weight does the work
+     the typeface usually does. Measured off capitalone.com: a display headline
+     is Optimist 100 at 48px, a sub-head is 300 at 24-40px, body prose is 300 at
+     16px, navigation and controls are 400, and emphasis is 600. That is why
+     their pages read as two different fonts -- a crisp UI and a soft, round,
+     airy editorial voice -- when they are the same letterforms throughout.
+     Thin strokes expose the humanist round shapes; heavy ones hide them.
+     Hanken Grotesk is variable from 100 to 900, so it can do the same trick. */
+  --weight-thin: 100;
+  --weight-light: 300;
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
 
-  --tracking-wide: 0.06em;
-  --tracking-caps: 0.08em;
+  /* Gravity sets display type on negative tracking and small type on zero.
+     Both are here so a heading never hand-types an em value. */
+  --tracking-display: -0.022em;
+  --tracking-tight: -0.01em;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.07em;
 
   /* Spacing scale, 4px steps. Layout gaps come from here, never from a
      hand-typed rem value. */
@@ -63,25 +105,44 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
 
+  /* Gravity ships two radius scales and this is the rounder one, which is what
+     capitalone.com itself uses: 8px on a control, 12px on a card, 16px on a
+     panel that holds other panels. The scale still steps -- a control is not as
+     round as the card it sits in -- because one radius stamped on every box is
+     what flattens a hierarchy into a pile of identical tiles. 24 is the step
+     above that: a tile that is the only box in its area, on a page with no
+     other borders, and which therefore has to read as soft rather than as one
+     more panel in a stack. */
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
   --radius-pill: 999px;
 
   --border-width: 1px;
 
-  /* Layout. The payment run is a dense financial table with five columns and
-     an alert rail beside it, and it is the screen the product is judged on. At
-     1240 the three decision buttons fell off the right edge and a judge had to
-     scroll sideways to reach them, so the ceiling is set by that screen. */
-  --layout-max: 1440px;
-  --layout-gutter: var(--space-5);
-  --rail-width: 18rem;
+  /* Layout. The rail holds the six sections and collapses to icons, so the
+     content keeps its width on a laptop. The payment run is a dense financial
+     table and it is the screen the product is judged on. */
+  --layout-max: 1600px;
+  --layout-gutter: var(--space-6);
+  --rail-width: 15.25rem;
+  --rail-width-collapsed: 3.75rem;
   --drawer-width: 30rem;
+  /* A toast is read at a glance and dismissed, so it is narrower than the
+     drawer and never as wide as the content it covers. */
+  --toast-width: 22rem;
+
+  /* The keyboard affordance, as tokens, so the ring is one value and not one
+     per component. `base.css` is the only place that draws it. */
+  --focus-width: 2px;
+  --focus-offset: 2px;
 
   /* Elevation */
   --z-header: 20;
+  --z-rail: 30;
   --z-scrim: 40;
   --z-drawer: 50;
   --z-toast: 60;
@@ -94,37 +155,106 @@
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
-  /* Surfaces, from the page backdrop up to the drawer. */
-  --c-canvas: #f4f5f7;
+  /* The rail icon's draw, Rune Icons' own animation. Quick, because it plays
+     every time you arrive at a section; once, and never on hover, collapse or
+     a reload of the same section. */
+  --motion-draw: 1.18s;
+  --ease-draw: var(--ease-standard);
+
+  /* Surfaces. The page is white, like capitalone.com. The cream is Gravity's
+     background-base-02 and appears only under something: a hover, a track, a
+     tile that has to read as recessed. */
+  --c-canvas: #ffffff;
   --c-surface: #ffffff;
   --c-surface-raised: #ffffff;
-  --c-surface-sunken: #eef0f3;
+  --c-surface-sunken: #f7f4ee;
+  /* Wells. The run screen is a set of soft containers on the page: a pale
+     well with a faint line, and inside the dense ones a white panel with the
+     ordinary hairline. The well is one step below the page and the panel one
+     step above the well, so the eye reads a shelf, not a border. */
+  --c-well: #f7f5f1;
+  --c-well-line: #ece8e0;
 
-  /* Text */
-  --c-ink: #14171c;
-  --c-ink-muted: #575e69;
-  /* 4.50 on the sunken panel, which is the darkest ground it ever sits on.
-     It was #7c838f, which measured 3.34 there and 3.82 on a panel, so the
-     timestamps and the helper lines under every field were below AA. */
-  --c-ink-subtle: #676d77;
+  /* The one dark card, and its grain: a dot every --grain-pitch, a few
+     percent of light, so the surface reads as material rather than paint.
+     One card per screen, and on this screen it is the money that is not
+     leaving -- the single thing the clerk opens the run to see. */
+  --c-card-dark: #013d5b;
+  --c-card-dark-ink: #f2f7fa;
+  --c-card-dark-ink-muted: #b7cbd6;
+  --grain-dot: rgba(255, 255, 255, 0.1);
+  --grain-pitch: 4px;
+
+  /* The split bar on the dark card is monochrome so it does not argue with
+     the navy: three opacities of the card's own ink. The three decision
+     colours still say hold, verify and release everywhere else on the screen,
+     and three saturated bars on a navy ground would be the loudest object on
+     a page whose loudest object is supposed to be the figure above them. */
+  --c-bar-dark-1: rgba(242, 247, 250, 0.95);
+  --c-bar-dark-2: rgba(242, 247, 250, 0.55);
+  --c-bar-dark-3: rgba(242, 247, 250, 0.25);
+
+  /* Text. Warm, from Gravity's neutral-emphasis-high. */
+  --c-ink: #14110c;
+  --c-ink-muted: #5c574e;
+  /* 5.0 on the sunken surface, which is the darkest ground it sits on. Every
+     timestamp, bank name and helper line in the app is set in this, so it is
+     the token most likely to quietly fail AA. */
+  --c-ink-subtle: #726b62;
   --c-ink-inverse: #ffffff;
 
-  /* Lines */
-  --c-border: #e0e3e9;
-  /* 3.00 on the sunken panel. This is not decoration: it is the border of
-     .btn and .input, and .btn has the same background as the panel behind it,
-     so the border is the only thing that says a button is there. At the old
-     #c8cdd6 it measured 1.60, which fails WCAG 1.4.11 for a control boundary
-     and reads as nothing at all to anyone with low vision. */
-  --c-border-strong: #878b91;
-  --c-grid: #eceef2;
+  /* Lines. The hairline separates cards without a shadow; the strong one is
+     the boundary of a control and has to clear WCAG 1.4.11 at 3.0. */
+  --c-border: #e8e3da;
+  --c-border-strong: #8c8579;
+  --c-grid: #f0ece4;
 
-  /* The one accent. Used for focus, links and the primary action, nothing
-     else. Anything that needs to stand out for a business reason uses a
-     semantic colour below instead of a second accent. */
-  --c-accent: #1c5fd6;
+  /* The one accent: Capital One's brand navy, Gravity's background-brand.
+     Focus, links, the active rail item and the primary action. Anything that
+     needs to stand out for a business reason uses a semantic colour below
+     instead of a second accent. */
+  --c-accent: #013d5b;
   --c-accent-ink: #ffffff;
-  --c-accent-soft: #e6eefc;
+  --c-accent-soft: #e7f0f4;
+
+  /* Capital One's swoosh red, from their own lockup. It appears in exactly one
+     place -- the attribution in the rail -- and never as a UI colour, because a
+     red that means "Capital One" and a red that means "this payment is held"
+     cannot be the same red on the same screen. */
+  --c-brand-red: #cc2427;
+
+  /*
+   * The rail is a brand panel, so it gets its own small palette rather than
+   * borrowing the page's.
+   *
+   * Its ground is Capital One's brand navy, the same value as `--c-accent`, and
+   * that is the point: the one piece of furniture that is on every screen is
+   * theirs. Everything inside it therefore inverts -- ink, the active state, the
+   * rules, the focus ring -- and none of the page's ink tokens can be used in
+   * there, because every one of them is dark on dark.
+   *
+   * These do not change between themes. A brand colour that shifts with the
+   * operating system is not a brand colour, and the navy holds on both grounds.
+   */
+  --c-rail: #013d5b;
+  --c-rail-ink: #e8f1f5;
+  /* 6.4 on the rail and 4.6 on the active ground it can end up over. It was
+     #9fbccb, which measured 4.2 on that second ground -- under AA, and the
+     kind of miss that only exists on one of two surfaces. Caught by
+     `bun run audit:web`, not by looking at it. */
+  --c-rail-ink-muted: #aac4d2;
+  --c-rail-active: #0a5375;
+  --c-rail-active-ink: #ffffff;
+  --c-rail-line: #0a5375;
+  /* The rule between the rail's groups. `--c-rail-line` is the active ground
+     and vanishes on the navy (1.4:1); the muted ink at full strength reads as
+     a divider. A third of the muted ink is the whisper in between. */
+  --c-rail-rule: rgba(170, 196, 210, 0.35);
+
+  /* The focus ring is the accent, named for its job. A ring that is a
+     different colour per component is a ring a keyboard user has to learn
+     twice, and naming it here is what lets the audit measure one pair. */
+  --c-focus: var(--c-accent);
 
   /* The QR code, and the one pair in this file that is deliberately identical
      in both schemes. A scanner needs contrast in a fixed direction, dark
@@ -136,90 +266,215 @@
   --c-qr-quiet: #ffffff;
 
   /* Semantic decision colours. These map one to one onto the Action union in
-     packages/core/src/domain.ts: hold, verify, release. */
-  --c-hold: #b3261e;
+     packages/core/src/domain.ts: hold, verify, release. The green is Gravity's
+     favorable-emphasis-high, which is an olive rather than the emerald every
+     component kit ships, and it is the single most recognisably Capital One
+     colour in the app. */
+  --c-hold: #9c2124;
   --c-hold-soft: #fceceb;
-  --c-hold-ink: #7f1a15;
+  --c-hold-ink: #8a1e21;
 
-  --c-verify: #9a6300;
-  --c-verify-soft: #fdf2dd;
-  --c-verify-ink: #6d4600;
+  /* Amber is the hard one. Gravity's warning-emphasis-high is a bright
+     `hsl(51 83% 55%)`, which is a background colour there and measures 2.4 on
+     white -- below the 3.0 WCAG 1.4.11 asks of a non-text indicator, and the
+     verify dot and row mark are exactly that. Darkened until it clears at 3.9
+     while staying the same hue, which also puts it in the same muted register
+     as the red and the olive beside it. Caught by `bun run audit:web`. */
+  --c-verify: #a07c06;
+  --c-verify-soft: #fbf3d9;
+  --c-verify-ink: #6e5407;
 
-  --c-release: #146c2e;
-  --c-release-soft: #e6f4ea;
-  --c-release-ink: #0d4a1f;
+  --c-release: #5c7f0b;
+  --c-release-soft: #edf3de;
+  --c-release-ink: #435d08;
 
   /* Neutral informational tone, for findings that carry no decision weight. */
-  --c-info: #2f5d80;
-  --c-info-soft: #e8f0f6;
-  --c-info-ink: #1f4257;
+  --c-info: #427d94;
+  --c-info-soft: #eaf2f5;
+  --c-info-ink: #2a5a6e;
+
+  /* ------------------------------------------------- levels, ADR-0009 */
+
+  /* The level one payment is read at: `confiable`, `precaucion`, `alerta`,
+     derived by `confidenceOf` in packages/core/src/levels.ts and never a
+     number, because the expected-loss arithmetic is an upper bound on the
+     evidence and says so in its own comment.
+
+     These are aliases onto the three decision triplets rather than a fourth
+     palette. The level and the action are two readings of one body of
+     evidence, so a fourth hue on the same row would mean nothing pulls the
+     eye. They carry their own names anyway for two reasons: the mapping is
+     then a line in this file instead of a decision buried in a component, and
+     a level can be recoloured later without touching the decision buttons.
+
+     An alias needs no entry in the dark block: it resolves through the token
+     it points at, which does have one. `tokens.test.ts` knows that rule. */
+  --c-level-confiable: var(--c-release);
+  --c-level-confiable-soft: var(--c-release-soft);
+  --c-level-confiable-ink: var(--c-release-ink);
+
+  --c-level-precaucion: var(--c-verify);
+  --c-level-precaucion-soft: var(--c-verify-soft);
+  --c-level-precaucion-ink: var(--c-verify-ink);
+
+  --c-level-alerta: var(--c-hold);
+  --c-level-alerta-soft: var(--c-hold-soft);
+  --c-level-alerta-ink: var(--c-hold-ink);
+
+  /* ------------------------------------------------- states, ADR-0009 */
+
+  /* Where one payment of the run stands. A state is a fact about money and
+     not a verdict about risk, which is why this is deliberately NOT the
+     decision palette repeated:
+
+     `enviado` is the informational tone and not green. Money that left is a
+     fact, and a green chip would say the payment was fine, which is a claim
+     nobody can make about a transfer that cannot be recalled and that a list
+     published on Friday can still poison.
+
+     `cancelado` is neutral and firm rather than red. It is a closed line, not
+     an alarm: the thing that needs attention now is `rojo`.
+
+     `pendiente` fills with the surface it sits on, so the chip is its dashed
+     border and its word. Nothing has decided that line and the chip should
+     not imply otherwise. */
+  --c-state-rojo: var(--c-hold);
+  --c-state-rojo-soft: var(--c-hold-soft);
+  --c-state-rojo-ink: var(--c-hold-ink);
+
+  /* The border is `--c-ink-subtle` and not `--c-border-strong`, which is the
+     control border and is tuned against a panel. Measured on the sunken fill
+     this chip actually has, `--c-border-strong` comes out at 2.99 in both
+     themes, which is under the 3:1 floor WCAG 1.4.11 sets for the boundary of
+     a non-text element, and this chip's border is the thing that says the line
+     is closed. The audit in apps/web/audit/audit.ts is where that was caught. */
+  --c-state-cancelado: var(--c-ink-subtle);
+  --c-state-cancelado-soft: var(--c-surface-sunken);
+  --c-state-cancelado-ink: var(--c-ink-muted);
+
+  --c-state-enviado: var(--c-info);
+  --c-state-enviado-soft: var(--c-info-soft);
+  --c-state-enviado-ink: var(--c-info-ink);
+
+  --c-state-liberado: var(--c-release);
+  --c-state-liberado-soft: var(--c-release-soft);
+  --c-state-liberado-ink: var(--c-release-ink);
+
+  --c-state-pendiente: var(--c-border-strong);
+  --c-state-pendiente-soft: var(--c-surface);
+  --c-state-pendiente-ink: var(--c-ink-muted);
 
   /* The synthetic-data watermark. Deliberately low contrast: it must be
      legible in a screenshot without competing with the numbers. */
-  --c-watermark: rgba(20, 23, 28, 0.07);
+  --c-watermark: rgba(20, 17, 12, 0.06);
   /* The mark is low contrast by design, but the text on it still has to be
      readable: it is the sentence that says the data is not real. */
-  --c-watermark-ink: #676d77;
+  --c-watermark-ink: #726b62;
 
   /* Behind the drawer. Dark in both themes: the scrim's job is to take the run
      out of the reading order, and a light scrim over a light page does not. */
-  --c-scrim: rgba(10, 12, 16, 0.45);
+  --c-scrim: rgba(20, 17, 12, 0.45);
 
-  --shadow-1: 0 1px 2px rgba(17, 19, 24, 0.06);
-  --shadow-2:
-    0 1px 2px rgba(17, 19, 24, 0.05), 0 10px 28px rgba(17, 19, 24, 0.07);
+  /* Almost nothing. Cards are separated by a hairline, not by elevation; the
+     only real shadow in the app belongs to the drawer, which genuinely floats
+     over the page. */
+  --shadow-1: none;
+  --shadow-2: 0 1px 2px rgba(20, 17, 12, 0.05);
   --shadow-3:
-    0 2px 6px rgba(17, 19, 24, 0.08), 0 24px 60px rgba(17, 19, 24, 0.16);
+    0 2px 6px rgba(20, 17, 12, 0.08), 0 24px 60px rgba(20, 17, 12, 0.16);
+
+  /* A lift for the things that sit proud of a well: pill buttons, the
+     segmented thumb, the current rail item. Two layers, both quiet -- a
+     contact shadow that says the object is not painted on, and a wider one
+     that says how far above the ground it is. It is not `--shadow-2` with
+     more blur: that one separates a tooltip from the page, and this one is
+     the only elevation the resting state of a control is allowed. */
+  --shadow-raised:
+    0 1px 2px rgba(20, 17, 12, 0.06), 0 2px 8px rgba(20, 17, 12, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --c-canvas: #0b0d11;
-    --c-surface: #14171d;
-    --c-surface-raised: #191d24;
-    --c-surface-sunken: #1b1f27;
+    --c-canvas: #14110c;
+    --c-surface: #1c1913;
+    --c-surface-raised: #24201a;
+    --c-surface-sunken: #23201a;
 
-    --c-ink: #edf0f5;
-    --c-ink-muted: #9aa3b0;
-    --c-ink-subtle: #7f8794;
-    --c-ink-inverse: #0b0d11;
+    --c-well: #1a1712;
+    --c-well-line: #2a2620;
 
-    --c-border: #262b34;
-    --c-border-strong: #646973;
-    --c-grid: #1f242d;
+    /* The rail navy one step down, so the card still sits above the dark page
+       rather than merging with the furniture on its left. Its ink and its
+       grain do not move: the card carries its own palette in both themes, the
+       way the rail does. */
+    --c-card-dark: #0b2f45;
+    --c-card-dark-ink: #f2f7fa;
+    --c-card-dark-ink-muted: #b7cbd6;
+    --grain-dot: rgba(255, 255, 255, 0.1);
+    --grain-pitch: 4px;
 
-    --c-accent: #6ea1ff;
-    --c-accent-ink: #0b0d11;
-    --c-accent-soft: #16243c;
+    --c-bar-dark-1: rgba(242, 247, 250, 0.95);
+    --c-bar-dark-2: rgba(242, 247, 250, 0.55);
+    --c-bar-dark-3: rgba(242, 247, 250, 0.25);
 
-    /* Not inverted, on purpose. See the note in the light block. */
+    --c-ink: #f5f1e9;
+    --c-ink-muted: #b3ac9f;
+    --c-ink-subtle: #948c7e;
+    --c-ink-inverse: #14110c;
+
+    --c-border: #312c24;
+    --c-border-strong: #6e675c;
+    --c-grid: #262219;
+
+    /* The brand navy is unreadable on a near-black page, so dark mode takes
+       the light end of the same Gravity blue ramp instead of inventing one. */
+    --c-accent: #7fd4ff;
+    --c-accent-ink: #14110c;
+    --c-accent-soft: #102c3b;
+
+    --c-brand-red: #f07577;
+
+    /* Not inverted, on purpose. See the notes in the light block: the rail is a
+       brand panel and the QR has to stay scannable. */
+    --c-rail: #013d5b;
+    --c-rail-ink: #e8f1f5;
+    --c-rail-ink-muted: #aac4d2;
+    --c-rail-active: #0a5375;
+    --c-rail-active-ink: #ffffff;
+    --c-rail-line: #0a5375;
+    --c-rail-rule: rgba(170, 196, 210, 0.35);
+
     --c-qr-module: #000000;
     --c-qr-quiet: #ffffff;
 
-    --c-hold: #ff8279;
-    --c-hold-soft: #2c1614;
-    --c-hold-ink: #ffb3ad;
+    --c-hold: #f07577;
+    --c-hold-soft: #2e1614;
+    --c-hold-ink: #ffa2a1;
 
-    --c-verify: #e3b45a;
-    --c-verify-soft: #2a2213;
-    --c-verify-ink: #f0d19a;
+    --c-verify: #f9c606;
+    --c-verify-soft: #2c2409;
+    --c-verify-ink: #efd27a;
 
-    --c-release: #5fc87b;
-    --c-release-soft: #12251a;
-    --c-release-ink: #9ce0b0;
+    --c-release: #94c62f;
+    --c-release-soft: #1e2810;
+    --c-release-ink: #bcdd72;
 
     --c-info: #8fb8d8;
-    --c-info-soft: #14222c;
+    --c-info-soft: #15242c;
     --c-info-ink: #bcd6e9;
 
-    --c-watermark: rgba(237, 240, 245, 0.06);
-    --c-watermark-ink: #7f8794;
+    --c-watermark: rgba(245, 241, 233, 0.06);
+    --c-watermark-ink: #948c7e;
 
     --c-scrim: rgba(0, 0, 0, 0.62);
 
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.4);
+    --shadow-1: none;
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.45);
     --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+    /* Deeper than the light pair, because a shadow on a near-black ground has
+       almost no room to darken and a whisper there is nothing at all. */
+    --shadow-raised:
+      0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -232,5 +487,45 @@
     --motion-fast: 1ms;
     --motion-base: 1ms;
     --motion-slow: 1ms;
+    --motion-draw: 1ms;
+  }
+}
+
+
+/* Paper.
+ *
+ * The palette on a sheet, and it lives here for the same reason every other
+ * colour does: `tokens.css` is the only file allowed to write one, so the print
+ * stylesheet next door carries structure and no values at all.
+ *
+ * It redefines names that already exist rather than inventing print-only ones.
+ * That is what keeps `print.css` readable as a stylesheet instead of a second
+ * palette: a panel there still asks for `--c-surface` and a hairline still asks
+ * for `--c-border`, and the only thing that changed is what those are worth once
+ * the medium is paper.
+ *
+ * Dark mode is a screen preference. Carrying it onto paper prints a solid black
+ * page and empties a toner cartridge, so this block overrides both schemes
+ * rather than sitting beside them. */
+@media print {
+  :root {
+    color-scheme: light;
+
+    --c-canvas: #ffffff;
+    --c-surface: #ffffff;
+    --c-surface-raised: #ffffff;
+    --c-surface-sunken: #ffffff;
+    --c-well: #ffffff;
+    --c-well-line: #cccccc;
+    --c-card-dark: #ffffff;
+    --c-card-dark-ink: #000000;
+    --c-card-dark-ink-muted: #333333;
+
+    --c-ink: #000000;
+    --c-ink-muted: #333333;
+    --c-ink-subtle: #555555;
+
+    --c-border: #999999;
+    --c-border-strong: #666666;
   }
 }

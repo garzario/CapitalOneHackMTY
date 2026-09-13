@@ -23,7 +23,13 @@ import { SYNTHETIC_SNAPSHOT_ENTRIES } from "@hackmty/sat";
 import { addDays } from "../dates";
 import type { Rng } from "../rng";
 import { makeInstruction } from "./build";
-import { bankCodeOf, mintBrokenClabe, mintNearMissClabe } from "./clabe";
+import {
+  bankCodeOf,
+  CDMX_PLAZA_CODE,
+  mintBrokenClabe,
+  mintNearMissClabe,
+  plazaCodeOf,
+} from "./clabe";
 import type { SentryOneSupplierSpec } from "./suppliers";
 import {
   cents,
@@ -75,7 +81,7 @@ function listedSupplierSpec(): SentryOneSupplierSpec {
     ticket: { min: 14_000, max: 72_000 },
     termsDays: 30,
     tenureMonths: 26,
-    clabe: "044180080910000083",
+    clabe: "044580080910000081",
   };
 }
 
@@ -143,7 +149,7 @@ const clabeTwoDigitsOff: CaseInjector = {
   name: "clabe_two_digits_off",
   kind: "demo_positive",
   description:
-    "A WhatsApp message asks for the same supplier to be paid on a CLABE that differs from the one we have always used in exactly two digits, and the check digit is correct.",
+    "A WhatsApp message asks for the same supplier to be paid on a CLABE that differs from the one we have always used in exactly two digits, the check digit is correct, and one of those two digits moves the account out of the plaza the supplier has always banked in.",
   apply(draft, rng): CaseResult {
     const candidates = freeLines(draft);
     if (candidates.length === 0) {
@@ -157,8 +163,24 @@ const clabeTwoDigitsOff: CaseInjector = {
         `${instruction.supplierRfc} has no known account`,
       );
     }
+    /* The case needs the account to leave the plaza, so a supplier that already
+       banks in Mexico City cannot carry it. None does in this catalogue, and a
+       future one that did would silently become a plain near miss, so it is a
+       refusal with a reason instead. */
+    if (plazaCodeOf(known) === CDMX_PLAZA_CODE) {
+      return notApplied(
+        this,
+        `${instruction.supplierRfc} already banks in plaza ${CDMX_PLAZA_CODE}`,
+      );
+    }
 
-    const impostor = mintNearMissClabe(known, rng);
+    /* Two digits apart and one of the two is in the plaza: the clerk cannot see
+       eighteen digits move by two, the bank will accept it because it closes its
+       own check digit, and the money would leave Nuevo Leon. That is the whole
+       case in one account number. */
+    const impostor = mintNearMissClabe(known, rng, {
+      plazaCode: CDMX_PLAZA_CODE,
+    });
     instruction.clabe = impostor;
     instruction.source = "whatsapp";
     instruction.text =
@@ -168,14 +190,15 @@ const clabeTwoDigitsOff: CaseInjector = {
     const differing = [...impostor].filter(
       (digit, index) => digit !== known[index],
     ).length;
+    const movedPlaza = plazaCodeOf(impostor) !== plazaCodeOf(known);
 
     return {
       outcome: {
         name: this.name,
         kind: this.kind,
         description: this.description,
-        applied: differing === 2,
-        detail: `${instruction.supplierRfc} is asked to be paid on ${impostor} instead of ${known}, ${differing} digits apart, check digit valid, ${instruction.amount.toFixed(2)} MXN at risk`,
+        applied: differing === 2 && movedPlaza,
+        detail: `${instruction.supplierRfc} is asked to be paid on ${impostor} instead of ${known}, ${differing} digits apart, check digit valid, plaza ${plazaCodeOf(known)} to ${plazaCodeOf(impostor)}, ${instruction.amount.toFixed(2)} MXN at risk`,
         supplierRfc: instruction.supplierRfc,
       },
       instruction,
@@ -205,8 +228,14 @@ const invalidCheckDigit: CaseInjector = {
     }
 
     // Same bank and plaza as the account we know, so the only thing wrong with it is
-    // the arithmetic. A clerk reading eighteen digits off a photograph cannot see it.
-    instruction.clabe = mintBrokenClabe(bankCodeOf(known), rng);
+    // the arithmetic. A clerk reading eighteen digits off a photograph cannot see it,
+    // and keeping the plaza is what makes this case about the check digit alone:
+    // the plaza comparison in control 2 stays quiet and the mod-10 sum does the work.
+    instruction.clabe = mintBrokenClabe(
+      bankCodeOf(known),
+      rng,
+      plazaCodeOf(known),
+    );
     instruction.source = "pdf";
     instruction.imageRef = `intake/${dayOf(instruction.receivedAt)}-${instruction.supplierRfc}.jpg`;
     instruction.ocrConfidence = OCR_CONFIDENCE;
@@ -328,9 +357,14 @@ const listedSupplier: CaseInjector = {
     const theirs = draft.cfdis.filter(
       (cfdi) => cfdi.issuerRfc === LISTED_SUPPLIER_RFC,
     );
-    const deductedBase = theirs
-      .filter((cfdi) => settled.has(cfdi.uuid))
-      .reduce((sum, cfdi) => sum + cents(cfdi.subtotal), 0);
+    /* Only the settled ones. An invoice that has not been paid yet was not
+       deducted yet, so it carries no retroactive exposure, and counting it would
+       put a number on the pitch that the sweep does not agree with. */
+    const deducted = theirs.filter((cfdi) => settled.has(cfdi.uuid));
+    const deductedBase = deducted.reduce(
+      (sum, cfdi) => sum + cents(cfdi.subtotal),
+      0,
+    );
 
     let instruction = draft.instructions.find(
       (row) =>
@@ -379,7 +413,7 @@ const listedSupplier: CaseInjector = {
         kind: this.kind,
         description: this.description,
         applied: true,
-        detail: `${entry.rfc} ${entry.name} is ${entry.status} on list version ${entry.listVersion} published ${entry.publishedAt}; ${(deductedBase / 100).toFixed(2)} MXN of base was already deducted across ${theirs.length} invoices`,
+        detail: `${entry.rfc} ${entry.name} is ${entry.status} on list version ${entry.listVersion} published ${entry.publishedAt}; ${(deductedBase / 100).toFixed(2)} MXN of base was already deducted across ${deducted.length} of their ${theirs.length} invoices`,
         supplierRfc: LISTED_SUPPLIER_RFC,
       },
       instruction,

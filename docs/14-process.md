@@ -124,7 +124,7 @@ The five epics, each with every related issue linked as a sub-issue:
 |---|---|---|
 | [#80](https://github.com/garzario/CapitalOneHackMTY/issues/80) Engine | Patricio | `packages/core`, `packages/cep`, `packages/sat`, `packages/seed`, `packages/engine`, `packages/extract`, `packages/voice` |
 | [#81](https://github.com/garzario/CapitalOneHackMTY/issues/81) Data platform and API | Fabian | `packages/db`, `apps/api`, the ledger, SSE, the Nessie mirror, the evaluation harness |
-| [#82](https://github.com/garzario/CapitalOneHackMTY/issues/82) UI/UX | Fabricio designs, Fabricio and Adan build | `apps/web`, brand and design system, the six screens, persona and journey, the printed judge card |
+| [#82](https://github.com/garzario/CapitalOneHackMTY/issues/82) UI/UX | Fabricio designs, Fabricio and Adan build | `apps/web`, brand and design system, the ten screens, persona and journey, the printed judge card |
 | [#83](https://github.com/garzario/CapitalOneHackMTY/issues/83) Infrastructure and release | Fabian | Vercel, Vultr, Tiger Data, `sentryone.tech`, keys, offline demo mode, the real one-cent CEP, the release to `main` |
 | [#84](https://github.com/garzario/CapitalOneHackMTY/issues/84) Narrative and submission | everyone, Patricio closes | Market, business model, pitch, Devpost, rubric mapping, this file, the video, the rehearsals |
 
@@ -149,33 +149,84 @@ commands rather than off this table if the hour matters.
 |---|---|---|
 | CI run | Run `34690867244` on `dev`, `verify` green in 36 s | Install with `--frozen-lockfile`, advisory lint, typecheck, tests, build. Docs-only changes are skipped by `paths-ignore`, on purpose |
 | Test suite | `bun test`: 1116 pass, 0 fail, 65 files, no network and no key | The number a judge can reproduce on their own laptop in about a second |
-| Blind evaluation | `bun run eval`: 30 labelled cases, 85.0 percent precision, 81.0 percent recall, 1.9 percent false positive rate | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
+| Blind evaluation | `bun run eval`: 35 labelled cases, 87.0 percent precision, 83.3 percent recall, 1.6 percent false positive rate, and 12 of 12 confiable lines right | The number that is worth something because it is not flattering. Four labels disagree with the engine and are left in the table, argued out in `packages/seed/src/holdout/README.md` rather than edited away |
 | Rubric score trend | `docs/01-rubric-mapping.md#self-score` | M1, 2026-09-12 04:54 CST: **85 of 100** under the stated G/Y/R rule. M2, M3 and M4 go here as they are scored |
 | Changelog | `CHANGELOG.md`, `[Unreleased]` | Appended by whoever merges, in the same commit |
 
 ## Live integrations verified
 
-Three parts of this product leave the repository and reach somebody else's production system. Each
-was exercised against the real provider on 2026-09-12, and the ids below are what turns "the code
-path is merged and tested against a stub" into "we ran it". A judge can ask us to open any of them.
+Four parts of this product leave the repository and reach somebody else's production system. Each
+was exercised against the real provider, three of them on 2026-09-12 and the payment run on
+2026-09-13, and the ids below are what turns "the code path is merged and tested against a stub" into
+"we ran it". A judge can ask us to open any of them.
 
 ### The verification call, ElevenLabs over Twilio
 
 | | |
 |---|---|
-| What ran | Two real outbound calls, 2026-09-12 |
+| What ran | Two real outbound calls on 2026-09-12, three more on 2026-09-13 for issue #206, and six more the same day for issue #250 |
 | Agent | `agent_3501m2ah6erkf46rxdmhy4xtsexw` |
 | Dialled from | The team's own imported Twilio number, the imported Twilio number (Monterrey local, kept out of the repository) |
-| Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product |
-| Conversation ids | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
+| Dialled to | A teammate's own mobile, which is the number class issue #60 specifies. No supplier and no real counterparty has ever been called by this product, and the number is in nobody's file here: the 2026-09-13 calls read it back out of the provider's own metadata for the 2026-09-12 ones |
+| Conversation ids, 2026-09-12 | `conv_6401m2ah87gnffctr757c34b5mdg` and `conv_2301m2ah9vnee2h8d14gpf1rb3rz` |
+| Conversation ids, 2026-09-13, issue #206 | `conv_8201m2cnt2fbf949zxnawp7hktfs`, `conv_0901m2cp16q0feht603dbz1t8a5r` and `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` |
+| Conversation ids, 2026-09-13, issue #250 | `conv_4601m2cvy1prf9qswpd8yp3hmwmk`, `conv_7801m2cw1wxve2kv9yf768p3600f`, `conv_0301m2cw4j7jfhran9v90zfhr989`, `conv_8401m2cw6hc5eez9ms8rcpbb21rh`, `conv_8401m2cw8hexfptbwfhm26p1krqd` and `conv_1001m2cwcfftesebf2hqddsq0rw5` |
 | The first call | 18 seconds, ended by the remote party, transcript captured |
-| Cost | USD 0.016, as the provider reports it |
+| Cost | USD 0.016 for the first call, as the provider reports it |
 
 This is the evidence the gate table in `docs/11-pitch.md` was waiting for, so the live-call row there
 is ticked and points at this section: "ya llamamos" is now a sentence about something that happened.
-It ticks nothing else. Both open items on this integration are still in the cut list below, the voice
-id that is not pinned and the `verification_call` event that reaches the ledger and the SSE stream
-without being rendered in the instruction panel.
+It ticks nothing else. One open item on this integration is still in the cut list below, the
+`verification_call` event that reaches the ledger and the SSE stream without being rendered in the
+instruction panel.
+
+#### What the three calls of 2026-09-13 settled, issue #206
+
+All three were placed on the seeded hero line `INS-2026-09-07-047`: Maquinados Industriales Regios SA
+de CV, MXN 38,417.48, an account ending 4611 against the one account that supplier has been paid on.
+`scriptForInstruction` read the change off `knownAccounts` rather than being told, so the wording was
+derived and not typed.
+
+| Call | What happened | What it settled |
+|---|---|---|
+| `conv_8201m2cnt2fbf949zxnawp7hktfs` | 150 seconds, reached a voicemail, 28 turns. `parseVerificationOutcome` read `no_answer` off the greeting | The `no_answer` path works against a real answering machine, and it exposed a defect: the agent asked "sigue ahi" for the whole duration cap instead of hanging up. The prompt now says to end the call on a recording and leave no message |
+| `conv_0901m2cp16q0feht603dbz1t8a5r` | 41 seconds, a person answered and heard the change question | The change question reaches a human and is answerable. It exposed the second defect: given `4611` the voice said "cuatro mil seiscientos once", a quantity. The four digits now go out spaced |
+| `conv_0901m2cp6eh3fy4bn7fcsvvyd9d7` | 68 seconds, a person answered, 15 turns, outcome `unclear` | The call as it ships. The agent said "termina en cuatro seis uno uno", asked "si ustedes cambiaron su cuenta y si esa cuenta es de ustedes", read no other digit of any account, and refused an off-topic request with "Mi funcion es unicamente confirmar los datos de pago" |
+
+The outcome of the third call is `unclear` and that is the honest reading, not a bug: the person
+answered "Si, lo que es" and then went off script, and no clause of that matches a confirmation
+phrase, so the parser falls through to `unclear` with their last sentence as the quote. A bare "si"
+has never been a confirmation in this package and `unclear` releases nothing.
+
+#### What the six calls of 2026-09-13 settled, issue #250
+
+All six were placed with the variables `buildVerificationScript` returns for Aceros y Laminas del
+Norte SA de CV, MXN 184,300.00, an account ending 6812, `accountChanged` true. The agent discloses
+itself in the greeting, which is what made the calls connect at all: the version before these had
+claimed to be a person, and the provider refused every one of them with
+`call_initialization_error 3000` and the word unsafe, at zero seconds.
+
+| Call | What happened | What it settled |
+|---|---|---|
+| `conv_4601m2cvy1prf9qswpd8yp3hmwmk` | 55 s, answered "No creo" to the question. Reply gaps 1 s, 2 s, 2 s. The agent closed on "queda asentado que ese cambio no salio de ustedes", said the goodbye once and called `end_call` | The denial close and the hang up, live. It exposed a defect: asked to repeat, the agent read the whole purpose and question back word for word. The prompt now repeats the question only, shorter, and never the amount |
+| `conv_7801m2cw1wxve2kv9yf768p3600f` | 42 s, "Si, es mia", then the shorter second ask, then "Si". Reply gaps 1 s, 2 s, 1 s. `end_call` | **The clean confirmation.** The four digits spaced, the acknowledgement different on each of three turns, the summary in the supplier's own words, the goodbye once. It exposed the last defect: `parseVerificationOutcome` read "Si, es mia" as `unclear`, so "es mia" and "la cambiamos" joined `CONFIRMATIONS` and the call now reads `confirmed` |
+| `conv_0301m2cw4j7jfhran9v90zfhr989` | 41 s, confirmed again. Reply gaps 1 s, 1 s, 1 s. `end_call` | The fastest of the six, and the call where "Una persona del area le dara seguimiento" landed in the close after the prompt moved it into the closing sequence |
+| `conv_8401m2cw6hc5eez9ms8rcpbb21rh` | 21 s, "No" to the greeting. The agent asked once whether it was the right telephone and closed without asking about the account | The wrong-number path. It never reached the question, which is the point: a wrong number hears no amount and no digits |
+| `conv_8401m2cw8hexfptbwfhm26p1krqd` | 60 s, the supplier asked for a moment and then went quiet | The silence path, and it exposed two defects: a supplier asking for a moment was read as nobody answering, and the summary was said twice after the line stayed open. The prompt now waits through that silence and never repeats a goodbye it has already said |
+| `conv_1001m2cwcfftesebf2hqddsq0rw5` | 16 s, "Deja de marcarme". The agent apologised, said the goodbye once and called `end_call` | Somebody telling the line to stop. It does, in one turn, with an apology and no insistence. This is the call that ends the test series, and it is the behaviour we would want in front of a real supplier |
+
+Every one of the six hung up by itself: `termination_reason` reads "end_call tool was called." on five
+and "Call ended by remote party" on the silence call, where the agent had already called the tool.
+Eighteen reply gaps were measured across the six, as the agent turn minus the supplier turn before it,
+and every one is between **0 and 3 seconds**, fifteen of them at 1 s. The same measurement on the
+calls before this work gave 5 s and 9 s. No call contains "si o no", and
+`packages/voice/src/script.test.ts` pins that against the prompt rather than against a transcript.
+
+What the provider stores for this agent is now the template with its slots empty, which can be
+checked in the ElevenLabs dashboard: `GET /v1/convai/agents/{id}` answers a prompt whose
+`first_message` is "Buen día. Le habla {{caller}}, de la línea automática de pagos a proveedores de
+{{company}}. ¿Hablo con {{supplier}}?" and which carries no two digits in a row anywhere. The supplier, the amount and the four digits travel per call as
+`conversation_initiation_client_data.dynamic_variables`.
 
 ### The extraction, Gemini
 
@@ -198,6 +249,177 @@ because the table there prices two models this product does not configure. Issue
 
 The key is in each local `.env` and in no file here: `.env` and `.env.*` are ignored and
 `.env.example` carries the names with empty values.
+
+### The payment run, Nessie
+
+| | |
+|---|---|
+| What ran | One whole execution of the seeded run through `POST /api/v1/run/:id/execute` with the real `NessieRail`, 2026-09-13 |
+| What left | 86 lines, 1,388,920.90 MXN, one withdrawal per line on the company's bank mirror, each with the clave de rastreo minted from the object id Nessie answered. 0 failed, 0 cancelled |
+| What did not | 6 lines the engine is holding and nobody signed a release over. They were reported per line with the reason and nothing was appended for them |
+| The second press | `409`, and the ledger did not move |
+| What was not created | Nothing. 3 customers and 2 accounts before and after, which is what issue #45 recorded |
+| What it proves and what it does not | The flow end to end on a real API with our own key. Nessie is a sandbox and not a bank: no pesos moved, the balance did not change, an amount reads back as a whole number, and no CEP exists, so every receipt from that run says "firma no verificada". `packages/rail/README.md` carries the counts and the quirk a probe of this issue found, which is that a withdrawal posted with no `status` makes Nessie refuse to list that account's withdrawals at all |
+
+The rail that produces a Banxico-signed CEP is `StpRail` and it has never run: we hold no `empresa`
+contract, so its constructor refuses on every machine. That line is in `packages/rail/README.md`, in
+`GET /api/v1/rails` and in ADR-0008, which is three places on purpose.
+
+## The #75 rehearsal protocol
+
+Issue #75. Two full timed run-throughs of the stand pitch on the real app, with all four present, one
+of them against a teammate playing a hostile judge off the cards in
+`docs/12-judge-qa.md#qa-cards`. A rehearsal with one person is a read-through, and a rehearsal with no
+stopwatch is a reading.
+
+The script is `docs/11-pitch.md#the-stand-pitch-three-to-five-minutes` and the operating sheet is
+`docs/10-demo-script.md#the-stand-pitch-three-to-five-minutes`. **Neither file's per-beat seconds are a
+measurement.** They are arithmetic on a word count at 150 words a minute, 786 words and 5:14, and the
+whole point of this protocol is to replace that arithmetic with two stopwatch readings before anybody
+decides what to cut.
+
+### What happens before either run
+
+| # | Step | Owner | Why it is before and not during |
+|---|---|---|---|
+| 1 | Say out loud which issues are in `dev`, by number, and rewrite the beat sheet to what is merged rather than to what is expected to merge | Fabian | Nine of the eleven beats name a dependency. A beat rehearsed against a branch is a beat that breaks in front of a judge |
+| 2 | `bun run demo` green on the demo laptop, right now, and the pre-demo checklist of `docs/10-demo-script.md#pre-demo-checklist` ticked | Fabian | It is ninety seconds and it is the difference between looking real and looking like a prototype |
+| 3 | `bun run eval`, and card 9 plus the `+2` clause of beat 7 re-read off that output | Adan | The five evaluation figures move with every merge. A number in a mouth that the screen contradicts costs more than the clause was worth |
+| 4 | Open the deployed web on a phone, once | Adan | So that "abrelo en tu telefono" is said as a fact. If it is down, the run uses the local instance and the sentence is not said |
+| 5 | `GET /api/v1/instructions/INS-2026-09-07-047/verification` reads `not_started`, or re-seed | Fabian | The cent is sent once per instruction and a second press answers 409. Beat 5 is unrepeatable if a rehearsal spent it |
+| 6 | Decide the letter or letters for the guarantee slot, or decide out loud that there is none | Fabricio | `docs/11-pitch.md#the-guarantee-beat-the-four-layers-that-exist-and-the-slot` carries the screen for all eight. If nobody decides, beat 10 is said without the sentence. Nothing is improvised into that slot at 09:00 |
+
+### Run 1, clean
+
+Nobody interrupts. One person holds the stopwatch and says nothing until the end.
+
+- Start the clock on the first word of beat 1 and stop it on the last word of beat 11.
+- The stopwatch holder writes one number per beat, not one number for the run, because the cut ladder
+  works on beats and a single total hides which one ran long.
+- Laptop shut for beat 1, hands visible and off the trackpad. If the laptop opens early, the run is
+  restarted: that is the one habit this rehearsal exists to build.
+- Two people at the laptop and two a step back, and the handoffs between the four are part of what is
+  being timed.
+
+### Run 2, hostile
+
+The fourth person plays the judge with the cards in front of them, on a phone.
+
+- They interrupt **twice**, once inside the first ten seconds and once in the middle of a demo beat,
+  because those are the two interruptions that actually happen.
+- The second-five interruption is answered with the one product sentence and then the presenter goes
+  back to the **second** loss. An improvised version of that sentence is what the first Capital One
+  table heard.
+- They then pick four cards at random and two on purpose: **2, 6, 10 and 14**, which are the four that
+  were answered badly the first time.
+- The rule being rehearsed is that **the owner answers**. If the owner is mid-beat, whoever is a step
+  back says "te contesta <nombre> en veinte segundos". Two people answering the same question
+  differently is the failure the card sheet exists to prevent.
+- Anybody may call "eso no lo decimos" mid-answer. A banned sentence caught in rehearsal is free; the
+  same sentence in front of a panel costs the room.
+
+### What gets logged, in this file, under "Judge visits"
+
+One row per run, and the log is the deliverable rather than the feeling afterwards.
+
+| Field | Why it is logged |
+|---|---|
+| Date, time and which run, 1 or 2 | Two runs or it did not happen |
+| Seconds per beat, and the total | This is the measurement the beat sheet does not have |
+| Which rung of the cut ladder the total implies | Read straight off `docs/10-demo-script.md#the-cut-ladder-pre-declared`. The rung is a consequence of a number, not a preference |
+| Which beats fell back, and to what | A fallback used in rehearsal is a dependency that is not ready, which is information for the 07:00 declaration |
+| Which cards were asked | **A card asked after the pitch is a defect in the pitch.** The fix goes into `docs/11-pitch.md`, not into a longer answer in `docs/12` |
+| Any banned sentence that was said, verbatim | Including who said it. The list in `docs/11-pitch.md#delivery-rules` grows from this column and nowhere else |
+| Any number that was said and was not on the screen | The same rule as the sheet: the clause gets cut rather than defended |
+| One thing to change before the next run, and only one | A list of eight changes between two rehearsals is a rewrite, and a rewritten pitch has been rehearsed zero times |
+
+### The cut list if the room is slow
+
+The ladder with its measured savings is `docs/10-demo-script.md#the-cut-ladder-pre-declared`, and it is
+pre-declared so that nobody chooses in front of a judge. The rule for reading it:
+
+1. Take the total of run 1 in seconds.
+2. Subtract 300. If the answer is negative, no rung comes off and the `+` clauses of
+   `docs/11-pitch.md#the-clauses-that-go-back-in-when-the-judge-stays` go in from the top of that list
+   until the total reaches 290.
+3. If it is positive, come down the ladder until the remainder is negative. Rung 1 is beat 10, rung 2 is
+   beat 6, and the order does not get reshuffled at the table.
+4. Say the chosen rung out loud to all four before the window opens, and whoever is presenting says the
+   rung number rather than "nos vamos cortito".
+
+**Three things never come off**, at any rung and at any clock reading. The hook, because it is the one
+beat that makes a judge care. The synthetic-data sentence. And beat 3, because a judge who watched their
+own screenshot become a payment instruction does not need to be convinced that the product runs.
+
+### The exit criteria for #75
+
+- [ ] Run 1 logged with seconds per beat and a total.
+- [ ] Run 2 logged, with the two interruptions, the cards asked and the owner who answered each.
+- [ ] The rung chosen, written down, and said out loud to all four.
+- [ ] Zero banned sentences in run 2. If one appears, there is a run 3, and that is cheaper than the
+      alternative.
+- [ ] The guarantee slot decided or explicitly empty.
+- [ ] Every number said in run 2 was on the screen or on a card.
+
+## Judge visits, and what each one changed
+
+Judging here is continuous rather than a slot: engineers and a product person walk up to the table
+during the 36 hours. Each visit is logged with a date and with the diff it caused, because a visit
+that changes nothing was either a perfect answer or a wasted one, and afterwards those two look
+identical.
+
+### 2026-09-12, afternoon. Three Capital One judges, one question each
+
+Three judges came to the table separately and each asked a different question. None of the three was
+on the answer sheet, and two were answered from memory rather than from a source, which is precisely
+the failure the "research is not evidence" rule in `AGENTS.md` exists to prevent.
+
+| What they asked | What we had | What it exposed |
+|---|---|---|
+| How many people have this problem in Mexico, and is there demand | A firm count, about 246,000 at 11 to 250 people, and a SAT publication frequency | The sizing answered "how many could buy" and nothing answered "how many are hit". No fraud count, no pesos, no SPEI volume |
+| Who is already doing it in Mexico, what are their winning features and what problems do they face | Two Mexican competitors, both list checkers, plus three international payee-verification vendors | The map had no Mexican company that already holds a payment, and the gap paragraph claimed the window between approval and send was empty. Both were wrong |
+| Who exactly is the target user | One synthetic persona with a synthetic workload | Nothing external at all. No population, no geography, no buyer, no channel, and an anti-persona of one instead of four |
+
+What changed as a result, all of it in the pull request that closes
+[#173](https://github.com/garzario/CapitalOneHackMTY/issues/173):
+
+- `docs/04-market.md` gained "Demand: how many have the problem and how we know", split into the fraud
+  side, the fiscal side, the SPEI volume and an explicit list of eight things that are not published
+  anywhere, plus 31 new numbered sources with access dates. Its competitor map now carries twelve
+  companies that sell into Mexico and two Mexican banks, one row each for the winning feature, the
+  problems they face from their own dated material, and what they cannot do that we do.
+- **The claim that the gap was empty is gone**, and that is the most important line in this entry.
+  ValidX sells a pre-payment hold on four SAT lists, Portal de Proveedores in Monterrey holds a
+  payment and sweeps 69-B daily across 20,000 suppliers, and Verificamex sells the one-cent probe with
+  a CEP read-back for MXN 8.93 to 17.85 a call, a mechanism Banco de México's own SPEI rules have the
+  central bank performing. "We invented checking 69-B before paying" is now on the do-not-say list in
+  `docs/12-judge-qa.md`, and the gap is restated as the join, with four named edges.
+- `docs/02-persona.md` gained "Target user, buyer, channel and anti-user": the population Lupita is
+  drawn from rather than a new claim about her, four anti-users instead of one, and the two unchecked
+  interview boxes left exactly as they were.
+- `docs/12-judge-qa.md` now opens with the three questions, a thirty-second spoken answer each, the
+  numbers allowed to be said with their source, and for each one a list of what not to say.
+- One scope question arrived with the research and was answered inside the day, in issue #180: 69-B is
+  no longer the only SAT list published against suppliers. Article 49 Bis creates its own from 1
+  January 2026, and two incumbents already monitor it, one of them having shipped support in July
+  2026. The answer came out differently for each of the two lists, which is why it was worth asking at
+  the source rather than deciding at the table. **Article 49 Bis** is implemented, loader, thirty day
+  window, finding and retroactive sweep, and reported as `not_published_machine_readable`, because the
+  SAT publishes that list one oficio at a time as a DOF note and ships no file at all: fourteen
+  oficios naming fourteen taxpayers between 10 July and 28 August 2026, counted in the DOF on
+  2026-09-12. **Article 69-B Bis** does have a downloadable listing, three taxpayers at a 5 June 2026
+  cut-off, and is deliberately not wired in, because it is about the improper transfer of tax losses
+  and says nothing about a supplier's invoice. Both statements are in `docs/04-market.md`,
+  `docs/06-regulatory-privacy.md` section 3 and `packages/sat/src/snapshot/README.md`, each with the
+  URL and the retrieval time.
+
+Two findings from the same pass were retracted, and they are kept here because the retraction is the
+process working rather than a blemish on it. A first count of job-board vacancies in Nuevo León was
+wrong by an order of magnitude, 146 against an actual 2,145, so the ratio built on it went from 22 to
+1 to about 204 to 1; the correction is written into source 44 of `docs/04-market.md` so nobody
+rediscovers the wrong number. And a claim that the FBI's annual fraud report makes business email
+compromise its largest loss category was simply false, investment fraud is nearly three times larger
+in the same table, so the international-analogy line it supported was cut rather than repaired.
 
 ## What we cut, and why
 
@@ -231,7 +453,7 @@ and would have cost the demo.
 | The composition report does not reach the HTTP contract | PR #117, "Deliberately not done" | Adding `controls: { ran, skipped }` to the intake response would have changed `docs/09-api.md` and `apps/web` while three people were editing those files. It is additive and it is its own PR |
 | The `sat_69b` detector was not fed the real committed SAT list, a cut PR #133 then reversed | PR #119 made the cut, PR #133 undid it, and the reasoning sits in `apps/api/src/pipeline.ts` next to the wiring | ADR-0002 forbids a real RFC sitting next to fabricated evidence, which is why #119 left the real list read-only behind the lookup box. #133 wired it in once the argument was written down: every seeded supplier RFC is synthetic, so a real row cannot meet a fabricated invoice, and what it buys is a control that knows what the lookup box on the next screen knows. `simulatePublication` still refuses any RFC without the `SYN` prefix, so the publication the demo replays stays invented |
 | The `verification_call` event is not rendered in the instruction panel | PR #118, "Deliberately not done" | `InstructionScreen.tsx` and `Findings.tsx` belong to the UI front and were being edited at that hour. The event is already on `GET /api/v1/ledger` and on the SSE stream, so the panel needs no API change when it is built |
-| No ElevenLabs voice id is pinned | PR #118 | Nobody on the team had listened to a Mexican Spanish voice and chosen one, so `ELEVENLABS_VOICE_ID` is empty and the provider default applies rather than an id this repo invented |
+| No ElevenLabs voice id was pinned, until the calls of 2026-09-13 | PR #118, closed by #206 | Nobody on the team had listened to a Mexican Spanish voice and chosen one, so the provider default applied rather than an id this repo invented. `ELEVENLABS_VOICE_ID` now names one in each local `.env`, it is on the agent, and it is the voice heard on the three calls of 2026-09-13. The id stays out of the repository like every other env value |
 | Per-transaction basis points, and lead generation to a lender | `docs/05-business-model.md#revenue-lines` | The first makes a subscriber pay twice for one payment run. The second turns a control into an origination channel and invites the credit regime ADR-0002 deliberately stayed outside of |
 | The white-label licence to a financial institution | `docs/05-business-model.md#revenue-lines` | Real, and on a procurement cycle that cannot start from a hackathon. It is the year-two line, not the headline |
 

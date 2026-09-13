@@ -2,11 +2,12 @@
  * The only place in this repo that talks to the ElevenLabs Conversational AI
  * API.
  *
- * Four calls, in the order the product uses them:
+ * Five calls, in the order the product uses them:
  *
  * | Method | Endpoint | Used for |
  * |---|---|---|
  * | POST | `/v1/convai/agents/create` | create the verification agent once |
+ * | GET | `/v1/convai/agents/{agent_id}` | read the agent before changing it |
  * | PATCH | `/v1/convai/agents/{agent_id}` | push a new script to that agent |
  * | POST | `/v1/convai/twilio/outbound-call` | ring the supplier |
  * | GET | `/v1/convai/conversations/{conversation_id}` | read the transcript |
@@ -120,31 +121,161 @@ export interface AgentConfigInput {
   language?: string;
   /**
    * The voice. Omitted on purpose when the caller has none: ElevenLabs applies
-   * its own default rather than a voice id this repo invented. Put the id of a
-   * Mexican Spanish voice in ELEVENLABS_VOICE_ID once the team has picked one.
+   * its own default rather than a voice id this repo invented. The id lives in
+   * `ELEVENLABS_VOICE_ID` and nowhere else, because a voice id in a committed
+   * file is a credential-shaped string in a public repository.
    */
   voiceId?: string;
-  /** Text to speech model. Omitted means the API default. */
+  /**
+   * Text to speech model. Omitted means the API default.
+   *
+   * `eleven_flash_v2_5` is what this product sends, and the reason is measured:
+   * on the same opening sentence `eleven_multilingual_v2` answered its first
+   * audio byte in 3812, 4920 and 4962 ms, and flash in 195, 211 and 266 ms. That
+   * model alone was most of the dead air issue #250 opened on.
+   */
   ttsModelId?: string;
+  /**
+   * How aggressively the provider streams the first audio chunk, 0 to 4.
+   *
+   * 3 on this agent. Higher trades a little prosody for time to first byte, and
+   * a supplier waiting in silence notices the seconds and not the prosody.
+   */
+  optimizeStreamingLatency?: number;
+  /**
+   * Voice stability, 0 to 1. 0.55 here.
+   *
+   * Low values let the model vary its delivery, which is what makes two
+   * consecutive turns sound like a person rather than a recording; too low and
+   * the same sentence drifts in tone inside one call. 0.55 is the value that was
+   * heard on the working calls.
+   */
+  stability?: number;
+  /** How close to the reference voice, 0 to 1. 0.85 here. */
+  similarityBoost?: number;
+  /** Speaking rate. 1.0, because a payments call read fast sounds evasive. */
+  speed?: number;
+  /**
+   * Seconds of silence before the agent takes the turn. 3.0 here.
+   *
+   * The first version waited 7, which is where the dead air came from, and at
+   * 1 it cut suppliers off mid sentence. Three is long enough that a person
+   * finishing a thought is not interrupted and short enough that nobody wonders
+   * whether the line dropped.
+   */
+  turnTimeoutSeconds?: number;
+  /**
+   * How eager the agent is to start talking. `normal` here.
+   *
+   * `patient` was measured on a live call and it reads as hesitation on a
+   * business call, which is the opposite of the confidence this line needs.
+   */
+  turnEagerness?: string;
+  /**
+   * Whether the provider drafts a reply while the supplier is still speaking.
+   *
+   * False. It would shave a few hundred milliseconds and it drafts against half
+   * a sentence, and the half sentence this call listens to is the one where a
+   * supplier says "no" after saying "sí".
+   */
+  speculativeTurn?: boolean;
+  /**
+   * Whether the greeting can be talked over. True means it cannot.
+   *
+   * The greeting is where rule 1 lives: it names the company and says this is
+   * the automated payments line. A supplier who talks over it never hears the
+   * disclosure, so it is the one turn in the call that finishes.
+   */
+  disableFirstMessageInterruptions?: boolean;
+  /** The model that writes the turns. `gemini-2.5-flash-lite` here. */
+  llm?: string;
+  /**
+   * Sampling temperature. 0.25.
+   *
+   * Low, because the guion is the control and a model that rewrites it is a
+   * model that asks a different question. The naturalness comes from the prompt
+   * and the voice settings, not from temperature.
+   */
+  temperature?: number;
+  /**
+   * Whether the agent may hang up by itself, as the `end_call` system tool.
+   *
+   * True. Rule 8 in `script.ts`: without it the agent says the goodbye and then
+   * sits on an open line until the duration cap, which is what a supplier who
+   * already said goodbye hears.
+   */
+  endCall?: boolean;
   /** Hard stop in seconds, so a call cannot run up a bill unattended. */
   maxDurationSeconds?: number;
+  /**
+   * Default values for the `{{name}}` slots of the stored prompt.
+   *
+   * Sent as `dynamic_variables.dynamic_variable_placeholders`, documented at
+   * https://elevenlabs.io/docs/agents-platform/customization/personalization/dynamic-variables.
+   * They exist so that a call placed with no variables reads a sentence that
+   * asks nothing, rather than reading the literal text `{{supplier}}` to a person
+   * who answered a telephone.
+   */
+  dynamicVariableDefaults?: Record<string, string>;
 }
+
+/**
+ * The `end_call` system tool, in the shape the API stores it.
+ *
+ * System tools are declared by name and by `params.system_tool_type`, and the
+ * provider fills the rest in. It is a constant rather than an inline object so
+ * that the one field that matters, the type, is readable in a diff.
+ */
+const END_CALL_TOOL = {
+  type: "system",
+  name: "end_call",
+  description: "",
+  params: { system_tool_type: "end_call" },
+};
 
 /**
  * The `conversation_config` body, built in one place so the create and the
  * update calls cannot drift apart.
  *
  * Optional fields are omitted rather than sent as null, because the API reads an
- * absent key as "keep the default" and a present null as a value.
+ * absent key as "keep the default" and a present null as a value. That omission
+ * is also what makes the update safe: `PATCH` merges what it is given into the
+ * stored agent, so a field this function does not build is a field nobody
+ * clobbered. `scripts/voice-setup.ts` reads the agent with `GET` first and prints
+ * the difference, so the merge is reviewed rather than assumed.
  */
 export function buildAgentBody(
   config: AgentConfigInput,
 ): Record<string, unknown> {
+  const prompt: Record<string, unknown> = { prompt: config.systemPrompt };
+  if (config.llm !== undefined) {
+    prompt.llm = config.llm;
+  }
+  if (config.temperature !== undefined) {
+    prompt.temperature = config.temperature;
+  }
+  if (config.endCall === true) {
+    prompt.built_in_tools = { end_call: END_CALL_TOOL };
+  }
+
   const agent: Record<string, unknown> = {
-    prompt: { prompt: config.systemPrompt },
+    prompt,
     first_message: config.firstMessage,
     language: config.language ?? "es",
   };
+  if (config.disableFirstMessageInterruptions !== undefined) {
+    agent.disable_first_message_interruptions =
+      config.disableFirstMessageInterruptions;
+  }
+
+  if (
+    config.dynamicVariableDefaults !== undefined &&
+    Object.keys(config.dynamicVariableDefaults).length > 0
+  ) {
+    agent.dynamic_variables = {
+      dynamic_variable_placeholders: config.dynamicVariableDefaults,
+    };
+  }
 
   const tts: Record<string, unknown> = {};
   if (config.voiceId !== undefined) {
@@ -152,6 +283,29 @@ export function buildAgentBody(
   }
   if (config.ttsModelId !== undefined) {
     tts.model_id = config.ttsModelId;
+  }
+  if (config.optimizeStreamingLatency !== undefined) {
+    tts.optimize_streaming_latency = config.optimizeStreamingLatency;
+  }
+  if (config.stability !== undefined) {
+    tts.stability = config.stability;
+  }
+  if (config.similarityBoost !== undefined) {
+    tts.similarity_boost = config.similarityBoost;
+  }
+  if (config.speed !== undefined) {
+    tts.speed = config.speed;
+  }
+
+  const turn: Record<string, unknown> = {};
+  if (config.turnTimeoutSeconds !== undefined) {
+    turn.turn_timeout = config.turnTimeoutSeconds;
+  }
+  if (config.turnEagerness !== undefined) {
+    turn.turn_eagerness = config.turnEagerness;
+  }
+  if (config.speculativeTurn !== undefined) {
+    turn.speculative_turn = config.speculativeTurn;
   }
 
   const conversation: Record<string, unknown> = {};
@@ -162,6 +316,9 @@ export function buildAgentBody(
   const conversationConfig: Record<string, unknown> = { agent };
   if (Object.keys(tts).length > 0) {
     conversationConfig.tts = tts;
+  }
+  if (Object.keys(turn).length > 0) {
+    conversationConfig.turn = turn;
   }
   if (Object.keys(conversation).length > 0) {
     conversationConfig.conversation = conversation;
@@ -297,6 +454,23 @@ export class VoiceClient {
     return { agentId };
   }
 
+  /**
+   * The agent as the provider holds it right now, raw.
+   *
+   * Raw on purpose, as the untouched `conversation_config`. The point of this
+   * call is the fields this repository does **not** model: a setting somebody
+   * changed in the dashboard is only visible if nothing here narrows the shape
+   * first. `scripts/voice-setup.ts` reads it before an update and prints what
+   * would change, so a rerun that quietly reverted a live fix is a diff on a
+   * terminal rather than a discovery on a call.
+   */
+  async getAgent(agentId: string): Promise<Record<string, unknown>> {
+    return await this.sendObject(
+      "GET",
+      `/v1/convai/agents/${encodeURIComponent(agentId)}`,
+    );
+  }
+
   /** Pushes a new script onto an agent that already exists. */
   async updateAgent(
     agentId: string,
@@ -322,6 +496,15 @@ export class VoiceClient {
     agentId: string;
     agentPhoneNumberId: string;
     toNumber: string;
+    /**
+     * This instruction's own words for the slots of the stored prompt.
+     *
+     * Sent as `conversation_initiation_client_data.dynamic_variables`, which the
+     * outbound-call reference documents as a map of string to any. It is how the
+     * supplier, the amount and the four digits reach one call without ever being
+     * written into the agent the provider stores.
+     */
+    dynamicVariables?: Record<string, string>;
   }): Promise<OutboundCall> {
     if (!isE164(params.toNumber)) {
       throw new VoiceError(
@@ -337,6 +520,14 @@ export class VoiceClient {
         agent_id: params.agentId,
         agent_phone_number_id: params.agentPhoneNumberId,
         to_number: params.toNumber,
+        ...(params.dynamicVariables === undefined ||
+        Object.keys(params.dynamicVariables).length === 0
+          ? {}
+          : {
+              conversation_initiation_client_data: {
+                dynamic_variables: params.dynamicVariables,
+              },
+            }),
       },
     );
 

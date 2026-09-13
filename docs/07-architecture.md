@@ -24,37 +24,43 @@ flowchart LR
     X["CFDI 4.0 de ingreso<br/>XML"]
     Y["Complemento de pagos 2.0<br/>XML"]
     P["Payment instruction<br/>email, WhatsApp, PDF, portal"]
-    Q["QR photo and voice note<br/>from the judge's phone"]
+    Q["Screenshot and voice note<br/>QR page, or dropped in the panel"]
     L["SAT Article 69-B<br/>official snapshot, 14234 rows"]
+    L2["SAT article 49 Bis<br/>DOF oficios, no file published"]
     C["Banxico CEP<br/>signed XML"]
     N["Nessie sandbox<br/>bank mirror of outflows"]
+    PZ["Plaza catalogue<br/>786 rows, a name and nothing else"]
     G["packages/seed<br/>deterministic generator, seed 69"]
-    H["packages/seed/src/holdout<br/>30 labelled cases"]
+    H["packages/seed/src/holdout<br/>35 labelled cases"]
   end
 
   subgraph I[2 Ingest and normalise]
     PA["packages/core/src/cfdi.ts<br/>parseCfdi, parseComplement"]
     EX["packages/extract<br/>Gemini, transcription only"]
-    SA["packages/sat<br/>loader, versions, matchRfc"]
+    SA["packages/sat<br/>loader, versions, matchRfc, art49bis"]
     CE["packages/cep<br/>parseCep, verifySignature"]
     NE["packages/nessie<br/>the only Nessie caller"]
-    DB[("packages/db<br/>Postgres 16+, Timescale optional<br/>ledger_events append-only")]
+    CO["packages/consortium<br/>Snowflake, scripts only"]
+    DB[("packages/db<br/>Postgres 16+, Timescale optional<br/>14 migrations, ledger_events append-only")]
   end
 
   subgraph E[3 Intelligence, no IO]
     K["packages/engine runControls<br/>six adapters over one ComposeInput"]
-    KC["packages/core<br/>clabe, duplicates, behaviour,<br/>reconciliation, decide"]
+    KC["packages/core<br/>clabe, plazas, duplicates, behaviour,<br/>reconciliation, decide"]
+    KL["packages/core/src/levels.ts<br/>confidenceOf, transactionStateOf,<br/>planRunExecution"]
     KS["packages/sat<br/>matchRfc, sweep, priceSweep"]
     KP["packages/cep<br/>nameMatch"]
-    T["1341 tests, 77 files<br/>plus bun run eval"]
+    T["2594 tests, 138 files<br/>plus bun run eval"]
   end
 
   subgraph U[4 Surfaces]
     A["apps/api<br/>Hono, REST per docs/09-api.md"]
+    AS["apps/api/src/assistant<br/>Gemini over our own GETs,<br/>reads and proposes"]
     SSE["GET /api/v1/events<br/>Server-Sent Events"]
-    W["apps/web, six screens<br/>run, instruction, intake,<br/>SAT, CEP, metrics"]
+    W["apps/web, ten screens<br/>entry, run, payments, instruction,<br/>supplier, intake, SAT, CEP,<br/>call, metrics"]
     V["verification call<br/>VerifyCallScreen plus packages/voice"]
-    R["packages/constancia<br/>two PDFs"]
+    RL["packages/rail<br/>the only place money leaves:<br/>the centavo and the run"]
+    R["packages/constancia<br/>four documents"]
     D["scripts/demo.ts<br/>headless demo path"]
   end
 
@@ -63,8 +69,10 @@ flowchart LR
   P --> A
   Q --> EX
   L --> SA
+  L2 --> SA
   C --> CE
   N --> NE
+  PZ --> KC
   G --> DB
   H --> T
   PA --> DB
@@ -72,23 +80,30 @@ flowchart LR
   SA --> DB
   CE --> DB
   NE --> DB
+  CO --> DB
   DB --> A
   A --> K
   K --> KC
   K --> KS
   K --> KP
   K --> A
+  A --> KL
+  KL --> A
   K --- T
   A --> SSE
   A --> W
   SSE --> W
+  A --> AS
   A --> V
   A --> R
+  A --> RL
+  RL --> NE
+  AS -. reads this API and proposes, writes only the turn .-> A
   D -. drives and asserts .-> A
   V -. never releases a payment .-> A
 ```
 
-Four things to say out loud about this diagram.
+Six things to say out loud about this diagram.
 
 1. **`packages/core` has no edge to the database, to Nessie, to the SAT or to Banxico.** Everything
    it needs arrives as an argument. `packages/engine` exists for that dependency direction and
@@ -110,6 +125,23 @@ Four things to say out loud about this diagram.
 4. **The verification call points back at the API and stops there.** A voice agent that phoned the
    supplier can append a `verification_call` event, and none of its four outcomes releases a
    payment. The release stays a `decision_made` a person signs.
+5. **`packages/rail` is the only edge on which money leaves, and it carries two things.** The 0.01
+   MXN probe that makes a CEP exist, and one line of one payment instruction for that instruction's
+   own amount to the account it names. There is no shape of `PaymentOrder` that expresses an amount
+   the instruction did not carry, which is what makes the instruction the payment order rather than a
+   note about one. `NessieRail` writes both to the company's bank mirror, so the edge back into
+   `packages/nessie` is the outflow control 6 reconciles against; `StpRail` is the rail that would
+   produce a Banxico-signed CEP and refuses to construct without `STP_*`; `LayoutRail` is the bank
+   portal's file and has no `RailId`, because the participant that executes it is the company's own
+   bank. `POST /api/v1/run/:id/execute` needs `confirm: true` and an `X-Actor`, and on a server with
+   no rail it answers `503` and appends nothing. ADR-0008.
+6. **The assistant is in lane 4 and its only edge is back into this same API.** Every one of its nine
+   tools is a GET `apps/api` already serves, called in process through the very handler the browser
+   calls over the wire, so the panel cannot tell a clerk something the screen beside it does not
+   show. It reads and it proposes; the proposal becomes an action when a person presses the button
+   and the ordinary endpoint appends the ordinary event with their name on it. No level, no action,
+   no finding and no amount on any screen of this product comes from a model: lane 3 answers all
+   four and it has no model in it. ADR-0007.
 
 ## The most important flow, the intake path
 
@@ -226,11 +258,169 @@ The repository path and the fold answer the same question from two directions on
 is the definition, the repository is what the API stores, and `paidCfdisOf` is exported from the
 same file so that `bank_reconciliation` cannot disagree with the sweep about what "paid" means.
 
+## The third flow, the consortium network
+
+The first two flows stay inside one company. This one is the only thing in the product that crosses a
+customer boundary, and the shape of it is the decision: **two batch loops a person runs, and a hot
+path that never leaves the building.** ADR-0006 carries the reasoning and
+`docs/06-regulatory-privacy.md#8-the-consortium-network-what-leaves-the-tenant` carries what may and
+may not travel.
+
+```mermaid
+flowchart LR
+  subgraph T[This tenant]
+    DB[("packages/db on Tiger Data<br/>ledger_events, beneficiaries<br/>names, amounts, CLABEs, CEPs")]
+    SNAP[("consortium_snapshot<br/>consortium_pull<br/>0009, both db paths")]
+    API["apps/api<br/>GET /api/v1/consortium/signal"]
+    ENG["packages/engine beneficiary<br/>packages/core decide"]
+  end
+
+  subgraph C[packages/consortium, scripts only]
+    PUSH["consortium:push<br/>hash, then INSERT"]
+    PULL["consortium:pull<br/>SELECT the view"]
+    SEEDN["consortium:seed<br/>synthetic other tenants<br/>synthetic.ts, seed 69"]
+  end
+
+  subgraph S[Snowflake SENTRYONE.CONSORTIUM]
+    EV[("BENEFICIARY_EVENTS<br/>tenant_hash, rfc_hash, clabe_hash<br/>bank_code, outcome, event_date")]
+    VIEW["BENEFICIARY_NETWORK<br/>tenants, first_seen, last_seen<br/>fraud_reports, other_accounts"]
+  end
+
+  DB -- registry outcomes --> PUSH
+  PUSH -- HMAC of the pair, nothing else --> EV
+  SEEDN --> EV
+  EV --> VIEW
+  VIEW --> PULL
+  PULL --> SNAP
+  SNAP --> API
+  API -- NetworkSignal as an argument --> ENG
+  ENG -. never queries the warehouse .-> EV
+```
+
+**Step by step, in words.**
+
+1. **The tenant ledger does not move.** Names, amounts, CLABEs, CFDIs and CEPs stay in this company's
+   Postgres on Tiger Data, exactly where the first two flows left them. Nothing in this flow reads a
+   name or an amount.
+2. **`consortium:push` sends outcomes, hashed.** It reads this tenant's verified beneficiary registry
+   and the outcomes the payment runs produced, hashes each supplier RFC and each destination CLABE
+   with the network salt, keeps the bank code the CLABE already states in public, and inserts one row
+   per outcome into `BENEFICIARY_EVENTS`. The row has nowhere to put a name and nowhere to put a peso.
+3. **The network aggregates in the warehouse, not here.** `BENEFICIARY_NETWORK` counts distinct
+   `tenant_hash` values per pair, the first and last `event_date`, the fraud reports against the pair
+   and the other accounts seen for the same `rfc_hash`. A tenant reads a count of companies and never
+   a company, which is the property the whole privacy argument rests on.
+4. **`consortium:pull` lands that aggregate in Postgres.** One row per pair in `consortium_snapshot`
+   plus a single-row `consortium_pull` recording when, from where, and how many rows. Migration
+   `0009_consortium_snapshot.sql` applies on both database paths, so the offline Postgres 18 holds the
+   same table and the demo survives a dead uplink.
+5. **The engine reads the snapshot as an argument.** `composeInputFor` hands the beneficiary control a
+   `NetworkSignal` the same way it hands it the supplier's known accounts, the expected-loss decision
+   adjusts deterministically, and the adjustment is stated in the finding evidence under `network`.
+   `GET /api/v1/consortium/signal?rfc=&clabe=` answers from the same snapshot through the repository,
+   so a judge reading the evidence chip and a judge pasting the curl get the same numbers.
+
+**Which lane this is in, because the diagram at the top of this file has a rule.** `packages/consortium`
+is in lane 2, next to the SAT loader and the CEP parser: it is an adapter that turns an external
+source into rows in our database. Lane 3 is untouched and still has no IO. That is not a detail of
+taste. A control that called Snowflake would make a decision about this company's money depend on a
+third party being reachable, on another tenant's write landing in the last second, and on a warehouse
+resume that Snowflake bills with a 60-second minimum. `NetworkSignal.source` is `snapshot` or
+`not_consulted`, and those are the only two states a decision can see.
+
+**What is true with no Snowflake at all.** `ALLOW_CONSORTIUM` unset, or an empty account, and the API
+answers the signal route with a `503` naming the flag while every control still runs and the finding
+says the network was not consulted. `bun run doctor` carries a `snowflake` line that warns rather than
+fails in exactly that case, so nobody discovers it during a rehearsal. The three `consortium:*` scripts are the
+only code that authenticates to Snowflake and a person runs them, which is also why no request path
+holds that credential.
+
+**The network in this repository is synthetic.** `consortium:seed` creates the database, the schema,
+the table and the view, then loads a deterministic network of other tenants built by
+`packages/consortium/src/synthetic.ts` off the same `packages/seed` generator at seed 69, so the demo's
+legitimate supplier accounts carry months of sightings from many tenants and the hard negatives carry
+none or a fraud report. Every row is written with `synthetic = true`. There is
+one real tenant, and `docs/10-demo-script.md` carries the sentence that says so on stage.
+
+## The fourth flow, the run leaving on the rail
+
+The first three flows read. This one writes to the world, and it is the half of the product that did
+not exist before ADR-0008: SentryOne stopped payments and the SPEI left from the company's own
+banking portal, which left the honest answer to "why would Lupita upload the screenshot" at "because
+we asked her to". Now the instruction is the payment order, so every peso that leaves has a CFDI, a
+decision and a name behind it on an append-only ledger.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant L as Lupita, payments screen
+  participant A as apps/api, POST /run/:id/execute
+  participant K as core.planRunExecution
+  participant RL as packages/rail
+  participant N as Nessie, or STP, or the portal file
+  participant D as Repository, ledger_events
+  participant B as Every open screen
+  L->>A: confirm true, X-Actor role and name
+  A->>A: zValidator over executeBodySchema
+  A->>K: planRunExecution({ lines, only })
+  Note over K: one ExecutableLine per payment, carrying its instruction,<br/>its decision, its verification and its execution line
+  Note over K: one question each, through assessTransactionState:<br/>liberado goes, cancelado is dropped, rojo and pendiente<br/>stay in front of a person, enviado is already gone
+  K-->>A: send, cancel, skip, refused, unknown,<br/>each line carrying the rule that put it there
+  A->>D: appendEvent payment_cancelled for every cancel line,<br/>with the reason and no actor on it
+  A->>RL: resolveRail, only once the plan says something may go
+  Note over A,RL: no rail is a 503 and NOTHING is appended:<br/>a payment_sent for a payment that never left<br/>is the one entry this ledger must not hold
+  RL->>N: one order per line, the instruction's own amount<br/>to the account the instruction names
+  N-->>RL: accepted with a clave de rastreo, or refused with a sentence
+  RL-->>A: PaymentSent per line, the rail's own claim and nothing upgraded
+  A->>D: appendEvent payment_sent, or payment_failed with the reason
+  A->>RL: confirm, once, for the whole run
+  RL-->>A: the lines this rail can answer for
+  A->>D: appendEvent payment_settled with the receipt id
+  A->>D: LedgerTx debit on the company's own bank mirror
+  Note over D: so control 6 reconciles the payment instead of<br/>reporting payment_not_in_mirror against it
+  A-->>L: 202 and a stream: one line per state a payment reaches,<br/>one skipped per line left alone, then done
+  A->>B: SSE event: ledger, once per appended event
+```
+
+Four properties of this path, and each one is a thing a judge can check rather than believe.
+
+**Idempotence is per instruction and not per request.** A line the ledger already says was paid reads
+`enviado` through the same `transactionStateOf`, so it is never offered to a rail again, and the run
+is read against the whole ledger rather than only against its own events. That is what makes a SPEI
+the company sent from its own portal before ADR-0008 unrepeatable here. A run with nothing left to
+send is a `409`, and a request naming a line the decisions stop is a `409` that says which line.
+
+**`sent` and `settled` are two claims and nothing collapses them.** The rail reports which one it
+reached, `confirm` is asked as its own question, and a rail that cannot be asked leaves its lines on
+`sent`. That is why a payment reaches the stream more than once on a rail that confirms, and why a
+client counts `PaymentExecution.lines` in the `done` frame rather than counting `line` events: the
+number of events per payment is a property of the rail and never of the contract. On the Nessie mirror the strongest honest acknowledgement is that the row is on the account,
+which is what `confirm` asks for: the `status` on a Nessie row is the one we posted, so reading it
+back would be us signing a settlement on our own behalf.
+
+**The execution is a projection and never a stored row.** `foldExecution` builds `PaymentExecution`
+out of `payment_sent`, `payment_settled`, `payment_failed` and `payment_cancelled`, exactly as
+`foldVerification` does next door, so the screen, the stream, the receipt, the run constancia and a
+replay a year later read one history. `0012_assistant_and_payment_events.sql` adds the event kinds and
+no column.
+
+**A cancelled line is a statement and a skipped one is not.** The run cancels only the line whose
+decision says release and whose evidence says no, which is a definitive SAT listing nobody signed a
+release over or a beneficiary verification that came back blocked, and that `payment_cancelled`
+carries no actor because the evidence dropped it rather than a person. A line nobody released is
+`skipped` on the stream with the ADR-0009 rule that decided it, and nothing is appended for it.
+
+**The no-API path closes the same loop.** `GET /api/v1/run/:id/layout` writes the dispersal file a
+bank portal takes, through the same `planRunExecution`, so a file can never hold a line the run would
+not send; `POST /api/v1/run/:id/layout/response` reads the portal's answer and records the clave de
+rastreo per row. The rule survives it: the clave arrives from the bank and never from a keyboard, and
+a row the portal reports as paid with no clave on it is dropped rather than recorded.
+
 ## Why each choice, and what would make us switch
 
 | Decision | Alternative considered | Why this, for this problem | What would make us switch |
 |---|---|---|---|
-| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 1341 tests across 77 files in 5.8 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
+| Bun 1.3.11 as the single runtime | Node plus a bundler, or Deno | One runtime for the API, the tests, the seeder, the migrations and the demo script. Native TypeScript with no build step, so at 03:00 there is no build to debug. `bun test` runs 2594 tests across 138 files in 14.8 s with no network, no database and no key | A dependency we genuinely need that does not run on Bun. ADR-0001 |
 | TypeScript monorepo, Bun workspaces | Separate repos, or one flat app | All four people commit on day one, and the engine is imported by the API, the tests, the metrics harness and the demo script with nothing published | Nothing in this window |
 | `packages/core`, pure functions, zero runtime dependencies | Detectors inside route handlers | This is the technical-depth play and the answer to the Wizard-of-Oz hunt. A judge opens a detector next to its test file and sees deterministic logic with no mocks and no network. It is also what makes the blind evaluation in `docs/08-data-model.md` possible at all | Nothing. This rule is load-bearing |
 | `packages/engine` as a thin adapter layer | Detectors discovered dynamically | Issue #106: the registry it replaced discovered modules by dynamic import, guessed their argument tuples from arity, called none of them, and returned an empty payment run that every test read as "sin hallazgos". `SENTRYONE_DETECTORS` is now a literal array of six typed adapters, and every control lands in `ran` or `skipped` with a reason | A seventh control, which is a new adapter in that array and a visible diff |
@@ -239,13 +429,14 @@ same file so that `bank_reconciliation` cannot disagree with the sweep about wha
 | Postgres, one dialect, two hosts | SQLite for the offline path | Two dialects means two implementations and two sets of bugs. Same SQL everywhere, same driver, and the offline fallback is a local Postgres 18 rather than a second database. ADR-0003 | Nothing. This was an explicit correction, and `bun:sqlite` is now forbidden |
 | Timescale on Tiger Data, hypertables on `ledger_tx` and `ledger_events` | Plain Postgres only | The ledger genuinely is a time series: append-only, read as one company over a window, rolled up per day. `0002` and `0004` add the hypertables and the two continuous aggregates, and they are the honest answer to "what happens at ten times the volume": the same SQL, partitioned by time | Nothing, because the fallback already exists. `migrate` in `packages/db/src/migrate.ts` checks `pg_available_extensions` and skips both files on a plain Postgres 18, where the same rollups run as plain `date_trunc` queries. `bun run doctor` names which path is live |
 | Raw SQL through `postgres@3.4.9`, no ORM | Drizzle or Prisma | When a judge asks how the sweep is fed, the answer is the SQL on screen. No migration tool to fight, no generated client to explain. Numerics cross the boundary as strings and are moved as integer cents | A schema complex enough that hand-written queries drift. `packages/db/src/queries.ts` is the one file to watch |
+| **Snowflake for the cross-tenant network** (`packages/consortium`) | Another schema in the same Tiger Data Postgres | The ledger is single-tenant by a database check constraint (`0006_company.sql`, `check (id = 1)`), and that constraint is only defensible because nothing behind it is ever read across customers. The network is the opposite shape: append-only events scanned across every tenant, aggregated a handful of times a day, and it has to grow into something a participant can audit and revoke, which is what Secure Data Sharing already is. Separate vendor, separate credential, separate blast radius, and no name or amount in it. ADR-0006 | A participant who needs the operator not to see the pairs at all, which is private set intersection and the Cenote design ADR-0002 rejected for this event. The client is `fetch` plus `node:crypto` and no SDK, so the warehouse is replaceable without touching the engine |
 | **`apps/api` on a Vultr instance** | Serverless functions on the web host | The payment-run screen updates from a Server-Sent Events stream, and SSE needs a long-lived process. A function runtime with a request timeout either drops the stream or forces a polling fallback that makes the product feel like a report. One small box with the API and Postgres next to it also removes a network hop from the read path. This amends ADR-0005, see below | If the SSE stream were dropped in favour of polling, the box stops earning its keep and the API goes back to the function runtime, which the no-`bun:*` rule keeps available |
 | **`apps/web` static on Vercel** | Serving the built assets from the same box | Judges walk up repeatedly across 36 hours and open the product on their own phone. A CDN-hosted static build with a preview URL per pull request is the cheapest way to be reachable and the cheapest evidence to attach to a UI PR. A dead API box then costs us the data, not the page | Nothing. The two-unit split is deliberate |
 | Hash router in `apps/web`, no router dependency | A path router | The app ships as a static build, so a path router needs a rewrite rule on the host for every deep link, and `#/intake` inside a QR code would break the first time a deploy target changed | A server-rendered surface, which we do not have |
 | **Gemini boxed to extraction** (`packages/extract`) | A model call that reads the whole instruction and proposes an action | The model is handed one instruction string and one file, and asked for JSON against a fixed schema with no field that could carry a judgment. Thinking is off: transcription needs none, and on a small output budget thinking tokens can eat the whole allowance and return an empty answer. The Files API is deliberately unused, because a file uploaded there is stored by the provider | A document type the post-processor genuinely cannot read. Any move of the boundary needs its own ADR, and `boundary.test.ts` fails first |
 | **ElevenLabs for the verification call** (`packages/voice`) | A human-only phone call, or a chatbot | When the decision is `verify`, somebody has to ring the supplier. The agent reads a script this repo wrote and the outcome parser is deterministic string work, not a model. The endpoint answers `422` with the exact script when the keys are absent, so the clerk reads it on their own telephone and the demo never depends on a provider | A provider outage, which already degrades to the script. The parser stays deterministic whatever happens to the caller |
 | **No LLM in the decision** | A model call per instruction, or per finding | Cost that scales with volume, hundreds of milliseconds of latency, non-determinism that cannot be unit-tested, and a transfer of financial data to a third party that LFPDPPP constrains. Every one of those is a point lost under this rubric. Deterministic scoring is auditable, reproducible in a test and explainable to a regulator. ADR-0004 | A control that genuinely needs semantic judgment inside the decision, which would need its own ADR with a measured cost per call first |
-| SSE over polling, and over WebSocket | Poll every N seconds, or a socket layer | The product's live moment is the instruction a judge just sent from their phone appearing on the big screen. SSE is one HTTP response, the browser reconnects on its own, and it needs no protocol upgrade or extra library. A `ready` event on connect, a comment line every 15 s and `X-Accel-Buffering: no` are the three details that make it survive a proxy | Bidirectional traffic from the browser, which we do not have |
+| SSE over polling, and over WebSocket | Poll every N seconds, or a socket layer | The product's live moment is the instruction a judge just sent from their phone appearing on the big screen. SSE is one HTTP response, the browser reconnects on its own, and it needs no protocol upgrade or extra library. A `ready` event on connect, a comment line every 15 s and `X-Accel-Buffering: no` are three of the four details that make it survive; the fourth is the runtime's own idle timeout, and it is the one that was wrong. The default is 10 s, which is shorter than the 15 s heartbeat meant to hold the connection open, so the ledger stream was closed five seconds before its own keep-alive and every screen stopped moving until somebody reloaded. `idleTimeout` in `apps/api/src/index.ts` is now 60 s and `apps/api/src/index.test.ts` fails if the heartbeat or the model timeout ever grows past it | Bidirectional traffic from the browser, which we do not have |
 | One web client | A native iOS client | Continuous evaluation means repeated walk-ups. A URL a judge opens on their own phone beats handing them our device, and it keeps signing and provisioning off the critical path. ADR-0001 | The deviation condition in ADR-0001, which is a differentiator that is inherently on-device |
 
 The full scored stack matrix is in `docs/adr/0001-stack-and-runtime.md`. The datastore reasoning is
@@ -268,10 +459,12 @@ and both are deliberate.
 
 ### Deploy topology and commands
 
-Live as of 2026-09-12 15:32 CST: the web at <https://sentryone-one.vercel.app>, the API at
-<https://api.104.238.147.69.sslip.io>, the ledger on Tiger Data. The browser only ever talks to the
-Vercel origin: `vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle
-carries no base URL and there is no CORS configuration anywhere in `apps/api`.
+Live as of 2026-09-13 06:18 CST, re-verified end to end for issue #200: the web at
+<https://sentryone-one.vercel.app>, the API at <https://api.104.238.147.69.sslip.io>, the ledger on
+Tiger Data with all 14 migrations applied. The browser only ever talks to the Vercel origin:
+`vercel.json` rewrites `/api` and `/health` to the instance, which is why the bundle carries no base
+URL and there is no CORS configuration anywhere in `apps/api`. What that re-verification found, and
+what it cost, is in "What the redeploy of 2026-09-13 06:17 CST actually found" below.
 
 | Unit | Where | How it is deployed | Evidence |
 |---|---|---|---|
@@ -280,6 +473,7 @@ carries no base URL and there is no CORS configuration anywhere in `apps/api`.
 | Database | Tiger Data managed Timescale | `bun run migrate` applies the five plain files always and the three Timescale files only when the extension exists. Live there: `timescaledb 2.30.0` on PostgreSQL 18.6, `ledger_events` and `ledger_tx` as hypertables, `ledger_daily`, `ledger_events_daily` and `supplier_weekly_outflow` as continuous aggregates | `bun run doctor` names the live path |
 | Offline fallback | Local Postgres 18 on 5432, second API port | Same SQL, same driver, same migrations | `docs/10-demo-script.md`, offline section |
 | No database at all | Any laptop | `SEED=sentryone bun run dev` serves the generated company out of memory through the same `Repository` interface | The boot log line from `repositoryBootNote` |
+| No API at all | The browser | `apps/web` falls back to `src/lib/mock-data.ts`, which is the SAME generated company, written ahead of time by `bun run web:mock`. `?data=mock` renders it with no request leaving the page | `scripts/web-mock.test.ts`, which asks the API's repository and the browser's fallback the same questions |
 
 **The web.** `apps/web` is a hash-routed static bundle, so there is no rewrite rule to keep and no
 deep link that can 404 on a static host: `#/intake` is an anchor, which is also why the QR code on
@@ -287,6 +481,50 @@ the printed card survives a change of deploy target. What `vercel.json` does car
 because the bundle imports `@hackmty/core` from the workspace and a build rooted at `apps/web`
 cannot resolve it. `.vercelignore` keeps the upload to what the build reads: the SAT snapshot and
 the judging assets are 7.6 of the repository's 8.6 MB and the web bundle imports neither.
+
+**The offline fallback of the web, and why it is generated.** The app has to be demonstrable on a
+phone with no server behind it, so every screen falls back to a synthetic run and says on screen that
+it is doing so. There used to be two datasets: the API booted on the generated company and
+`apps/web/src/lib/mock.ts` carried a hand-written run of eight suppliers, and the two disagreed about
+the legal name of every RFC they shared, which is issue #125. Now there is one. `bun run web:mock`
+writes `apps/web/src/lib/mock-data.ts` from `loadSentryOne` at seed 69 for the week the judged
+documents cite, runs the same `assessRun` the API runs at boot, and composes the rest through
+`MemoryRepository`, so the findings, the decisions, the totals and the blind holdout numbers are the
+API's own answers rather than a second opinion. Three consequences worth knowing:
+
+- **It is generated ahead of time, not at build time.** `@hackmty/seed` reaches `node:fs` through
+  `@hackmty/sat` and the consortium hashes with `node:crypto`, so importing the generator into the
+  bundle would either break the browser build or add a dependency `apps/web` must not have.
+- **It rides in the main chunk, 160 KB gzipped of a 565 KB bundle.** A dynamic import would move the
+  run out of the chunk-size warning and into a second HTTP request, and this is the data the app uses
+  when there is no network to make a request on, so the split would remove it exactly when it is
+  needed. `chunkSizeWarningLimit` is 700 KB for that reason and says so.
+- **Three things are deliberately narrower, all three written down in `mock.ts`.** The invoices are
+  the 156 of the company's 4103 that a screen can reach: the ones this run settles, the ones the
+  retroactive sweep prices and the ones a finding names. The payment complements are the ones that
+  settle those, because no component renders a complement. The verified-beneficiary registry starts
+  empty, which is what `sentryoneDataset` hands the API: a row appears when a one-cent probe is
+  verified, and a browser with no API has verified nothing.
+
+**The one number the narrowing moves, and what the screen does about it.** Carrying all 4103 invoices
+cost 208 KB gzipped against 8.8 for the 156, which is the difference between a 359 KB bundle and a
+160 KB one on a phone in a corridor. The price is that `CFDIS` is no longer the company's whole
+invoice history, and one field reads its length: "facturas en el expediente" in the supplier profile
+at `#/suppliers/:rfc`. `GET /api/v1/suppliers/:rfc` still answers with the issuer's whole file, so
+whenever the API answered that count is the API's and nothing changed. When the profile falls back,
+the same field would print 3 for an issuer that has 23, and a count that changes with who answered is
+issue #125 itself. So the offline profile labels the field "facturas de esta corrida", says in one
+line that only the invoices this run pays, the sweep prices or a finding names travel without the API,
+and for an issuer this week's run never touched it says that rather than "sin facturas". The weekly
+behaviour chart on that screen reads the same list and is narrowed with it, which is why the sentence
+under it names the endpoint the series came from.
+
+`scripts/web-mock.test.ts` is the guard. It regenerates the file and compares it byte for byte, and
+it boots a `MemoryRepository` on the same company to assert that both sides answer the same legal
+name for all 44 suppliers, the same amount, CLABE, action and findings on all 92 lines, the same
+totals, the same list versions and the same metrics. It holds the narrowing to what it is allowed to
+be: every invoice and every complement the offline file carries is the API's own row, every invoice a
+screen can open is carried, and no supplier of the run answers with an empty file.
 
 **The API, in four moving parts.**
 
@@ -328,12 +566,22 @@ Two operational notes that cost time to learn on the night.
   Caddy log. A rebuild through `refresh.sh` keeps the volume and costs nothing.
 
 The instance holds its configuration in `/srv/sentryone/.env`, written by cloud-init from the deploy
-machine's own `.env`: `DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`,
-`GEMINI_MODEL` and the three `ELEVENLABS_*` values. `ALLOW_SEED` is forced empty there, because
-`POST /api/v1/seed` would rewrite the demo company under the judges' feet. Two consequences worth
-stating rather than discovering: the values travel inside the Vultr user data, which anyone holding
-the Vultr API key can read back, and they are the same keys the laptops hold, so the rotation after
-the ceremony in `SECURITY.md` covers the box as well.
+machine's own `.env`. `FORWARDED_ENV` in `scripts/deploy-vultr.ts` is the list and it is the authority:
+`DATABASE_URL`, `NESSIE_API_KEY`, `NESSIE_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, the four
+`ELEVENLABS_*` values, `ALLOW_CEP_FETCH`, `BANXICO_CEP_CERT_PEM` and `ALLOW_CONSORTIUM`. `ALLOW_SEED`
+is forced empty there, because `POST /api/v1/seed` would rewrite the demo company under the judges'
+feet. Two consequences worth stating rather than discovering: the values travel inside the Vultr user
+data, which anyone holding the Vultr API key can read back, and they are the same keys the laptops
+hold, so the rotation after the ceremony in `SECURITY.md` covers the box as well.
+
+The last two names on that list arrived with #200, and how they were found is the argument for the
+endpoint: the refreshed instance answered `consortium: not_configured` on `/health`, because
+`ALLOW_CONSORTIUM` had never been forwarded, so the cross-tenant signal of #164 was off in production
+while the snapshot sat filled in Tiger Data. This page had been claiming `NESSIE_BASE_URL` reached the
+box as well, and it did not. Both are forwarded now, which means a PROVISION carries them; a refresh
+rebuilds the code and deliberately leaves `/srv/sentryone/.env` alone, so the instance serving the
+judges keeps the configuration it was provisioned with and turning the network on there is a team
+decision rather than a side effect of a deploy.
 
 **Tiger Data, wired.** One connection string does everything: `bun run migrate`, `bun run seed` and
 the deployed API all read `DATABASE_URL`, and `packages/db` opens it lazily through `postgres@3.4.9`
@@ -343,6 +591,101 @@ without losing the managed one. The password is not in this repository and is no
 image: it reaches the instance only through the user data described above, and `describeDatabaseUrl`
 in `apps/api/src/deps.ts` prints the host and the database and never the credentials, because that
 boot line is projected on a screen.
+
+### The topology answers for itself, as of 2026-09-13 (issue #200)
+
+Four units, two addresses, one ledger, and until this issue the only way to find out whether the
+deployed one held its configuration was to ssh in and guess. The closing change of #200 is that the
+topology now reports on itself, out of the same code in four places, and the contract for all of it is
+in `docs/09-api.md`.
+
+1. **`GET /health` carries a row per dependency.** `database`, `nessie`, `rail`, `consortium`, `cep`,
+   `extraction` and `voice`, each with `configured`, a `state` of `up`, `down` or `not_configured`, and
+   one sentence. Two things are probed and both are ours: a `select 1` bounded at 2000 ms, and building
+   the payment rail. Nothing reaches a third party, because a health check that depends on the Banxico
+   portal restarts the container when the Banxico portal is slow. Every sentence comes from
+   `dependencyReport` in `apps/api/src/dependencies.ts`, which is also what `bun run doctor` prints as
+   `dep <name>`, so the laptop and the box answer the same seven rows and cannot disagree about why a
+   screen is empty. No secret is in the payload: `configured` is a boolean, the details name variables,
+   and a failed probe is classified into one of five sentences so the driver's message stays in the log.
+2. **A request id on every response and every log line.** `X-Request-Id` was already on the response and
+   in the error envelope; now every request writes `[<id>] <method> <path> <status> <ms>ms`, so an id a
+   judge reads off a payload is findable in `docker compose logs`. The query string is deliberately
+   dropped, because `GET /api/v1/sat/lookup?rfc=` is the one endpoint that takes a real taxpayer's RFC.
+3. **A token bucket per client on every write**, 120 a minute, with the lookup box on 30 and an
+   assistant turn on 20. In memory, per process, keyed on the forwarded address, and the limits and the
+   honest statement of what that cannot defend against are in `docs/09-api.md`.
+4. **The Vercel rewrites are checked rather than remembered.** `scripts/vercel-rewrites.test.ts` reads
+   the route tree off the app and the rewrite sources off `vercel.json` and fails when a path exists that
+   the web origin cannot reach. That is the failure this deploy shape is most exposed to: the bundle
+   ships with no base URL, so a path no rewrite matches is a 404 on the product and a green suite. The
+   two rewrites cover two roots, `/api` and `/health`, and the endpoints under them have grown by the
+   assistant SSE, the execution stream, the layout response and the carta since those lines were written.
+   `/api/(.*)` and `/health` also carry `cache-control: no-store`, because a CDN that cached
+   `GET /api/v1/run/current` would show a judge last hour's run and a cached event stream is not a
+   stream. Those two header rules reach production with the next release PR to `main`; the rewrites
+   themselves have been live since #44.
+
+**How the box was moved onto this code, and why not with `--reinstall`.** `refresh.sh` on the instance,
+over ssh, which repoints the clone at a branch and rebuilds in place. It was the right tool for two
+reasons and both are worth writing down. A reinstall wipes the disk and takes the `caddy_data` volume
+with it, so Let's Encrypt issues again and there are five of those per week for one name; a refresh
+keeps the volume and costs nothing. And `scripts/deploy-vultr.ts` needs `VULTR_API_KEY`, which is IP
+restricted on this account: from the network of 2026-09-13 it answered "Vultr refused the key from this
+machine" with the allow-list instructions, so the API path was closed and the ssh path was open. That is
+the exact inverse of the note above it, where the venue let port 22 open and never delivered the banner,
+which is why both paths exist.
+
+```bash
+ssh -i ~/.ssh/sentryone_vultr root@104.238.147.69 /srv/sentryone/refresh.sh dev
+bun --env-file=.env run scripts/deploy-vultr.ts --smoke-only   # needs the Vultr key
+curl -s https://sentryone-one.vercel.app/health | jq '.dependencies[] | {name, state}'
+```
+
+`--smoke-only` now prints the dependency rows next to the run totals, so a deploy ends by proving the
+box holds its configuration as well as its code.
+
+**What the redeploy of 2026-09-13 06:17 CST actually found, in the order it found it.** The three
+defects below were all invisible to `bun test`, `bun run typecheck` and `bun run build`, and two of
+them had been in production for hours. This is the evidence for the closing claim of this page, which
+is not that the topology is nice but that it is now checkable.
+
+1. **The image could not be built from the tree.** `refresh.sh` stopped at
+   `bun install --frozen-lockfile` with "Workspace dependency @hackmty/rail not found":
+   `apps/api/Dockerfile` copies the workspace manifests one by one and `packages/rail` and
+   `packages/consortium` had never been added. So the instance had been serving the container from
+   before #164 and #198 existed, which means the deployed API had no payment run and no consortium
+   endpoint while the repository had both. The two lines are added and
+   `scripts/docker-image.test.ts` reads the workspace directories off disk so the list cannot drift
+   again.
+2. **The ledger was five migrations behind.** With the new image running, `/health` answered
+   `database: up` and the first assistant turn still failed. The request id found it in one grep:
+   `[smoke-200-assistant] POST /api/v1/assistant/messages 200 20ms` and then
+   `new row for relation "_hyper_6_1603_chunk" violates check constraint "ledger_events_type_check"`,
+   because `0010` through `0014` had never been applied to Tiger Data and `assistant_message` is not a
+   type the old constraint allows. `payment_sent` and `payment_cancelled` would have failed the same
+   way, which is to say the payment run of ADR-0008 could not have been executed against the deployed
+   instance. `bun run migrate` applied the five, idempotently, and `bun run doctor` now reports 14 of
+   14. That log line is the feature of this issue earning its keep on the day it shipped.
+3. **The consortium was off in production**, which is the `FORWARDED_ENV` paragraph above.
+
+After the five migrations, the verified state at 06:18 CST, all of it over HTTPS through the Vercel
+rewrite and none of it from the box directly:
+
+| What was checked | Result |
+|---|---|
+| `GET /health` | 200, seven dependency rows: `database up` (a `select 1` in 33 ms), `nessie up`, `rail up` (the nessie rail built), `cep up`, `extraction up`, `voice up`, `consortium not_configured` |
+| `POST /api/v1/assistant/messages` | 200 `text/event-stream` through the rewrite: `tool_call get_run`, `tool_result`, `token` and `done`, with `x-request-id` echoed back as the caller sent it, `x-accel-buffering: no` and `via: 1.1 Caddy` |
+| The turn was stored | `GET /api/v1/assistant/sessions/:id` answers both messages and the `execute_run` proposal, which is the write that had been failing |
+| The rate limit is live | a write answered `ratelimit-limit: 120`, `ratelimit-remaining: 119`; the assistant turn answered `ratelimit-limit: 20` |
+| The request id is live | `[smoke-200-assistant-2]` appears in `docker logs sentryone-api-1` as one line with the method, the path, the status and the duration, and with no query string on it |
+
+Two things that are true and are not claims about today. The `cache-control: no-store` rules added to
+`vercel.json` reach production with the next release PR to `main`, because the Vercel production build
+comes from `main`; the rewrites themselves have been live since #44. And `GET /api/v1/events` was not
+re-verified in this pass: `flush_interval -1` in the Caddyfile and the SSE trace from #44 are what
+stand behind it, and the assistant stream above is a second long-lived response through the same proxy
+arriving unbuffered.
 
 ## Deliberately not in this tree
 
@@ -357,7 +700,7 @@ preference.
 | **MongoDB**, including MongoDB Atlas | It is an MLH prize category (`docs/00-challenge.md`), which is exactly why it is named here rather than quietly skipped. Our two write shapes are an append-only event log and a set of projections with foreign keys and check constraints, and both are Postgres shapes. Adopting a document store for a prize would be the sponsor-costume version of the Timescale decision we made honestly | A workload that is genuinely document-shaped. The nearest candidate is raw Nessie payloads, whose `_id` mixes UUIDs and Mongo ObjectIds and whose `amount` mixes integers and floats, and today those live verbatim in `ledger_tx.raw` as `jsonb`, which costs nothing and needs no second database |
 | **A queue or a worker tier** | The sweep is a replay over events that fits in one request at demo scale: 3.6 ms over 7997 events. The SSE fan-out is one process | A second API instance, which is the SSE row of the scaling table below: the fan-out moves to Postgres `LISTEN`/`NOTIFY` and a sweep that no longer fits one request goes behind the same publisher. Until then a queue would be a component with nothing in it |
 | **A second database for the SAT list** | A list version is rows in `sat_list_versions` and `sat_list_entries` plus an in-memory index keyed by RFC, rebuilt on load. The committed official snapshot is 14234 rows and 28935 situations, parsed once per process | Nothing at this size. Matching is a hash lookup, so growth changes load time and not query time |
-| **An LLM explanation layer** | ADR-0004 allows one, on demand and outside the decision. It is not built: `Finding.explanation` is deterministic Spanish written by the control that produced the finding | A clerk asking for a rephrasing often enough to be worth the cost model in `docs/06-regulatory-privacy.md`. It never changes an action, a severity or a state |
+| **An LLM that writes a finding** | ADR-0004 allows a model to explain on demand and outside the decision, and since issue #197 one does: the assistant panel answers "por que esta en rojo" over nine read-only tools, and ADR-0007 is its boundary. What is still not built, and is the row this one has become, is a model anywhere near the text a control produces. `Finding.explanation` is deterministic Spanish written by the control itself, the panel quotes it rather than rewriting it, and the level it reads comes from `confidenceOf` | Nothing in this window. A rephrasing that replaced the control's own sentence would put a model inside the evidence, which is the line ADR-0004 draws, and the cost per turn is already on the `assistant_message` ledger event rather than estimated |
 
 ## How this scales beyond one platform
 
@@ -371,6 +714,22 @@ POST.
 imported by a partner's backend, or run inside the client when data residency requires that the
 ledger never leaves the customer perimeter. The only shared assumption is the domain contract, which
 is deliberately narrow and lives in one file.
+
+**Where it plugs into somebody else's stack, drawn as the four places.** The commercial argument is
+in `docs/05-business-model.md#where-the-software-actually-plugs-in-and-what-each-surface-costs-to-build`
+with a source and an unverified column per surface. The architectural point is narrower and it is
+that all four are the same three seams this repository already has, so none of them is a rewrite:
+
+| Surface | The seam it uses | What has to be built |
+|---|---|---|
+| The dispersal layout the ERP exports | Intake and the run. Parse the file into `PaymentInstruction[]`, score them, write the same format back with the stopped lines removed | A parser and a writer per bank format. `packages/core` is untouched, because a line off a layout is the same `PaymentInstruction` a QR intake produces |
+| An ERP connector, CONTPAQi, Siigo Aspel or SAP Business One | The same intake endpoint. The ERP becomes one more producer of instructions and CFDIs | An adapter per vendor, in its own workspace, next to `packages/nessie`. The vendor's shape never reaches `packages/core`: `LedgerTx` and `Cfdi` are what every source normalises into, which is the rule `packages/core/src/types.ts` opens with |
+| The rail, ordering the SPEI ourselves | `packages/rail`, which already has the interface and a simulated adapter | An STP adapter behind the interface that exists. What changes is not the code, it is what we become: ordering a payment is a different regulatory posture from advising on one, and `docs/06-regulatory-privacy.md` is where that has to be answered before the adapter is written |
+| A bank embedding the control in its own portal | The HTTP contract in `docs/09-api.md`, exactly as `apps/web` uses it | Nothing new in this tree. That is the point of the paragraph above: a bank's SMB portal is another consumer of the same endpoints |
+
+**The one that is not an integration.** Email and WhatsApp forwarding needs no vendor to agree to
+anything, because it is `POST /api/v1/instructions` with `text`, an image or a voice note, and that
+is built. What does not exist is the address and the number in front of it.
 
 **Where it breaks first, in order.** Stated as thresholds so the answer is checkable rather than
 reassuring.

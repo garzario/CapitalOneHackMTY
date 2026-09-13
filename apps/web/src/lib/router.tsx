@@ -13,26 +13,36 @@
 
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { useMemo, useSyncExternalStore } from "react";
+import { type RunFacets, runFacetsQuery } from "./run-view";
 
 export type Route =
+  /** The front door: who is acting, and what this build is configured with. */
+  | { name: "entry" }
   | { name: "run" }
+  | { name: "payments" }
   | { name: "instruction"; id: string }
+  | { name: "supplier"; rfc: string }
   | { name: "intake" }
   | { name: "sat" }
   | { name: "cep" }
   | { name: "verifyCall" }
   | { name: "metrics" }
+  /* The token sheet. A reference page, deliberately not in the navigation. */
+  | { name: "design" }
   | { name: "notFound"; path: string };
 
 export type RouteName = Route["name"];
 
 export const PATHS = {
+  entry: "/entrada",
   run: "/run",
+  payments: "/payments",
   intake: "/intake",
   sat: "/sat",
   cep: "/cep",
   verifyCall: "/verify-call",
   metrics: "/metrics",
+  design: "/design",
 } as const;
 
 export const DEFAULT_PATH = PATHS.run;
@@ -41,9 +51,65 @@ export function instructionPath(id: string): string {
   return `/instructions/${encodeURIComponent(id)}`;
 }
 
+/**
+ * The supplier profile: everything this product holds about one counterparty.
+ *
+ * A route and not a drawer. The expediente answers four questions that each need
+ * their own block -- the history, the accounts with their plazas, the weekly
+ * behaviour and the two SAT lists -- and a panel sliding over the payment run had
+ * room for one of them. It also has to be linkable: a judge asking "show me the
+ * supplier whose plaza moved" should get a URL, and the assistant's `get_supplier`
+ * read has somewhere to point.
+ */
+export function supplierPath(rfc: string): string {
+  return `/suppliers/${encodeURIComponent(rfc)}`;
+}
+
+/**
+ * The payment run, filtered.
+ *
+ * The facets are in the URL rather than in the screen's own state so a filtered
+ * table is a link: the three lines a clerk found are sendable, and a reload lands
+ * on the same table. `parsePath` ignores the query, as it already does for the
+ * intake, so every one of these is still the run route.
+ */
+export function runPath(facets: RunFacets = {}): string {
+  const query = runFacetsQuery(facets);
+
+  return query === "" ? PATHS.run : `${PATHS.run}?${query}`;
+}
+
 /** The verification call page, carrying the instruction it is about. */
 export function verifyCallPath(instructionId: string): string {
   return `${PATHS.verifyCall}?instruction=${encodeURIComponent(instructionId)}`;
+}
+
+/**
+ * The 69-B screen with the lookup box prefilled. Never runs the lookup itself:
+ * ADR-0002 puts the official list behind a button a person presses, so a link
+ * may carry the RFC but may not ask the SAT anything on arrival.
+ */
+export function satPath(rfc: string): string {
+  return `${PATHS.sat}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/** The CEP screen with the supplier prefilled in the verification form. */
+export function cepPath(rfc: string): string {
+  return `${PATHS.cep}?rfc=${encodeURIComponent(rfc)}`;
+}
+
+/**
+ * The CEP page with one instruction already selected, so the one-cent
+ * verification is one click from the instruction detail and nobody retypes a
+ * folio in front of a judge.
+ *
+ * A second query key on the same screen rather than a second screen: `rfc` fills
+ * the form a person verifies a beneficiary in, `instruction` picks the payment
+ * the cent is about, and the CEP page answers both because they are the same
+ * page a judge lands on from two different findings.
+ */
+export function verifyAccountPath(instructionId: string): string {
+  return `${PATHS.cep}?instruction=${encodeURIComponent(instructionId)}`;
 }
 
 /** `/run` becomes `#/run`, the value that goes in an href. */
@@ -81,8 +147,12 @@ export function parsePath(target: string): Route {
 
   if (segments.length === 1) {
     switch (segments[0]) {
+      case "entrada":
+        return { name: "entry" };
       case "run":
         return { name: "run" };
+      case "payments":
+        return { name: "payments" };
       case "intake":
         return { name: "intake" };
       case "sat":
@@ -93,6 +163,8 @@ export function parsePath(target: string): Route {
         return { name: "verifyCall" };
       case "metrics":
         return { name: "metrics" };
+      case "design":
+        return { name: "design" };
       default:
         return { name: "notFound", path };
     }
@@ -100,6 +172,10 @@ export function parsePath(target: string): Route {
 
   if (segments.length === 2 && segments[0] === "instructions") {
     return { name: "instruction", id: decodeURIComponent(segments[1] ?? "") };
+  }
+
+  if (segments.length === 2 && segments[0] === "suppliers") {
+    return { name: "supplier", rfc: decodeURIComponent(segments[1] ?? "") };
   }
 
   return { name: "notFound", path };

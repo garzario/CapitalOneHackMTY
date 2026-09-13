@@ -23,15 +23,19 @@
 
 import type { Cfdi, PaymentComplement, Rfc } from "@hackmty/core";
 import { addMonths, monthsInWindow } from "../dates";
-import { AMOUNT_MEDIAN_POSITION } from "../rng";
 import {
   bankCodeOf,
   MX_BANKS,
   mintRandomClabe,
+  plazaCodeOf,
   syntheticBankRfc,
 } from "./clabe";
 import { IVA_RATE } from "./company";
-import { CONSUMABLE_SEGMENTS, type SentryOneSupplierSpec } from "./suppliers";
+import {
+  CONSUMABLE_SEGMENTS,
+  medianTicket,
+  type SentryOneSupplierSpec,
+} from "./suppliers";
 import { cents, dayOf, fromCents, round2 } from "./timeline";
 import type { CaseInjector, CaseResult, SentryOneDraft } from "./types";
 
@@ -82,7 +86,7 @@ const RAMPING_SUPPLIER: SentryOneSupplierSpec = {
   ticket: { min: 12_000, max: 46_000 },
   termsDays: 30,
   tenureMonths: 0,
-  clabe: "021180043000000432",
+  clabe: "021598043000000435",
 };
 
 /** Where the ramp starts, counted from the beginning of the history window. */
@@ -96,14 +100,6 @@ function monthKey(year: number, month: number): string {
 
 function cadenceKey(rfc: Rfc, year: number, month: number): string {
   return `${rfc}|${monthKey(year, month)}`;
-}
-
-/** The median ticket of a supplier, the figure the plan sizes the ramp against. */
-function medianTicket(spec: SentryOneSupplierSpec): number {
-  return (
-    spec.ticket.min +
-    (spec.ticket.max - spec.ticket.min) * AMOUNT_MEDIAN_POSITION
-  );
 }
 
 /**
@@ -233,7 +229,11 @@ const legitimateBankChange: CaseInjector = {
     const oldClabe = supplier.knownAccounts[0]?.clabe ?? "";
     const oldBank = bankCodeOf(oldClabe);
     const newBank = rng.pick(MX_BANKS.filter((bank) => bank.code !== oldBank));
-    const newClabe = mintRandomClabe(newBank.code, rng);
+    /* The plaza stays. A supplier that really did change bank did not also move
+       city, so keeping it is what makes this a hard negative for control 2 as
+       well as for the account comparison: the geography says nothing and the
+       complement is the only thing that matters. */
+    const newClabe = mintRandomClabe(newBank.code, rng, plazaCodeOf(oldClabe));
 
     // The document comes FIRST. The complement they issued for the payment we made
     // last fortnight already says CtaBeneficiario is the new account, which is the

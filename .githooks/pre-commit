@@ -1,0 +1,14 @@
+#!/bin/sh
+# Refuse an author or committer identity that would leave a tool, bot or account trace in history.
+# The squash merge on GitHub adds a Co-authored-by trailer for every distinct commit author in a
+# pull request, so a wrong email on one commit becomes an attribution line on dev. Non-negotiable.
+# Naming the trailer here is safe since #187: scrub's attribution rule matches a trailer line, which
+# means the token at the start of a line followed by a colon, and not the token written in prose.
+bad='claude|anthropic|openai|codex|copilot|cursor|gemini|passmail|\[bot\]'
+for ident in "$(git var GIT_AUTHOR_IDENT)" "$(git var GIT_COMMITTER_IDENT)"; do
+  if printf '%s' "$ident" | grep -Eiq "$bad"; then
+    echo "pre-commit: refusing identity '$ident'." >&2
+    echo "pre-commit: unset GIT_AUTHOR_* and GIT_COMMITTER_* and commit with the clone's own user.name and user.email." >&2
+    exit 1
+  fi
+done

@@ -20,17 +20,21 @@ import { createRng } from "../rng";
 import {
   accountOf,
   bankCodeOf,
+  CONSUMABLE_SEGMENTS,
   clabeCheckDigit,
   DEMO_COMPANY,
   DEMO_SCENARIOS,
+  delayCostPerDayOf,
   generateSentryOne,
   HARD_NEGATIVE_INJECTORS,
   IVA_RATE,
   isClabeValid,
+  LINE_STOP_FACTOR,
   LISTED_SUPPLIER_RFC,
   loadSentryOne,
-  MTY_PLAZA_CODE,
+  MTY_METRO_PLAZA_CODE,
   MX_BANKS,
+  medianTicket,
   mintBrokenClabe,
   mintClabe,
   mintNearMissClabe,
@@ -40,6 +44,8 @@ import {
   runWindow,
   SENTRYONE_DEFAULT_SEED,
   SENTRYONE_SUPPLIERS,
+  SERVICE_SEGMENTS,
+  stopsProduction,
   summarizeSentryOne,
   syntheticBankRfc,
 } from "./index";
@@ -68,7 +74,7 @@ describe("clabe arithmetic", () => {
   });
 
   it("rejects a single transposed digit", () => {
-    const clabe = mintClabe("012", MTY_PLAZA_CODE, "00123456789");
+    const clabe = mintClabe("012", MTY_METRO_PLAZA_CODE, "00123456789");
     expect(isClabeValid(clabe)).toBe(true);
     const transposed = `${clabe.slice(0, 15)}${clabe[16]}${clabe[15]}${clabe[17]}`;
     expect(transposed).not.toBe(clabe);
@@ -86,7 +92,7 @@ describe("clabe arithmetic", () => {
 
   it("mints what it validates", () => {
     for (const bank of MX_BANKS) {
-      const clabe = mintClabe(bank.code, MTY_PLAZA_CODE, "12345678901");
+      const clabe = mintClabe(bank.code, MTY_METRO_PLAZA_CODE, "12345678901");
       expect(clabe).toHaveLength(18);
       expect(isClabeValid(clabe)).toBe(true);
       expect(bankCodeOf(clabe)).toBe(bank.code);
@@ -95,7 +101,7 @@ describe("clabe arithmetic", () => {
 
   it("refuses a body that is not seventeen digits", () => {
     expect(() => clabeCheckDigit("123")).toThrow(/17 digits/);
-    expect(() => mintClabe("12", MTY_PLAZA_CODE, "12345678901")).toThrow(
+    expect(() => mintClabe("12", MTY_METRO_PLAZA_CODE, "12345678901")).toThrow(
       /bank code/,
     );
   });
@@ -190,6 +196,108 @@ describe("the supplier catalogue", () => {
     // 42 from the catalogue, the one that ramps and the one the list names.
     expect(dataset.suppliers).toHaveLength(SENTRYONE_SUPPLIERS.length + 2);
     expect(dataset.suppliers.map((s) => s.rfc)).toContain(LISTED_SUPPLIER_RFC);
+  });
+});
+
+describe("what a day of delay costs", () => {
+  const priced = dataset.suppliers.map((row) => row.delayCostPerDay ?? 0);
+
+  it("prices every supplier, because zero is not a trade-off", () => {
+    // The whole of issue #182. With no price on the record `supplierModelOf` falls
+    // back to zero, every positive expected loss is stopped whatever it costs to
+    // wait, and the field the instruction screen calls "Costo de retrasar un dia"
+    // reads MXN 0.00 on all 92 payments.
+    expect(priced).toHaveLength(dataset.suppliers.length);
+    for (const value of priced) {
+      expect(value).toBeGreaterThan(0);
+      expect(Number.isFinite(value)).toBe(true);
+      // To the cent, like every other peso figure in this package.
+      expect(cents(value) % 1).toBe(0);
+    }
+  });
+
+  it("lands on the scale the hand-written fixture uses", () => {
+    // apps/api/src/synthetic.ts prices its twelve suppliers between 140 and 4,200
+    // pesos a day. The generated company has to read like that company or the
+    // screen changes character when the seed changes, and a judge who opens two
+    // instructions sees two different products.
+    expect(Math.min(...priced)).toBeGreaterThan(100);
+    expect(Math.max(...priced)).toBeLessThan(5000);
+  });
+
+  it("charges more for the delay that stops the line", () => {
+    // Same relationship twice, one segment that stops production and one that does
+    // not, so the factor is read off the price rather than off the constant.
+    const spec = SENTRYONE_SUPPLIERS[0];
+    if (spec === undefined) {
+      throw new Error("the catalogue is empty");
+    }
+    expect(stopsProduction(spec.segment)).toBe(true);
+    const stops = delayCostPerDayOf(spec);
+    const ordinary = delayCostPerDayOf({ ...spec, segment: "epp" });
+
+    expect(stops).toBeGreaterThan(ordinary);
+    // Not exact: both ends are rounded to the cent before the ratio is taken.
+    expect(stops / ordinary).toBeCloseTo(LINE_STOP_FACTOR, 4);
+  });
+
+  it("puts every segment on exactly one side of that split", () => {
+    // The split is the complement of CONSUMABLE_SEGMENTS plus the services, so a
+    // segment added to the catalogue is priced by one of the two lists and never
+    // falls through both. Overlap would make the seasonal spike and the delay cost
+    // disagree about which segment is a consumable.
+    for (const spec of SENTRYONE_SUPPLIERS) {
+      const consumable = CONSUMABLE_SEGMENTS.includes(spec.segment);
+      const service = SERVICE_SEGMENTS.includes(spec.segment);
+      expect(consumable && service).toBe(false);
+      expect(stopsProduction(spec.segment)).toBe(!consumable && !service);
+    }
+    // Both halves are populated, or the factor above is untested by the catalogue.
+    expect(SENTRYONE_SUPPLIERS.some((s) => stopsProduction(s.segment))).toBe(
+      true,
+    );
+    expect(SENTRYONE_SUPPLIERS.some((s) => !stopsProduction(s.segment))).toBe(
+      true,
+    );
+  });
+
+  it("scales with how much this company buys, both inputs together", () => {
+    // Late-payment interest is charged on the outstanding balance and the lost
+    // discount is taken off the payment that was about to leave, and both are
+    // proportional to the spend, so twice the cadence is twice the cost. It is the
+    // property that makes the biggest supplier the expensive one to delay rather
+    // than whichever row happens to have the largest ticket.
+    const spec = SENTRYONE_SUPPLIERS[1];
+    if (spec === undefined) {
+      throw new Error("the catalogue is too short");
+    }
+    const doubled = delayCostPerDayOf({
+      ...spec,
+      invoicesPerMonth: spec.invoicesPerMonth * 2,
+    });
+    expect(doubled / delayCostPerDayOf(spec)).toBeCloseTo(2, 4);
+    // And the median ticket is the figure it is priced off, which is why that half
+    // has one definition in suppliers.ts instead of one per caller.
+    expect(medianTicket(spec)).toBeGreaterThan(spec.ticket.min);
+    expect(medianTicket(spec)).toBeLessThan(spec.ticket.max);
+  });
+
+  it("prices the relationship rather than the window the generator drew", () => {
+    // Nothing about the price may depend on which eight months landed in the
+    // window: it is arithmetic over the catalogue row, it draws nothing from the
+    // RNG, and a cost that moved with the seed would be a measurement and not a
+    // cost model.
+    const elsewhere = generateSentryOne({ weekOf: "2026-06-01", seed: 1234 });
+    const here = new Map(
+      dataset.suppliers.map((row) => [row.rfc, row.delayCostPerDay]),
+    );
+    for (const supplier of elsewhere.suppliers) {
+      const mine = here.get(supplier.rfc);
+      if (mine === undefined) {
+        continue;
+      }
+      expect(supplier.delayCostPerDay).toBe(mine);
+    }
   });
 });
 

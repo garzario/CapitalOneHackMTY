@@ -17,8 +17,11 @@
  */
 
 import type {
+  Actor,
   Cfdi,
   Clabe,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   KnownAccount,
@@ -600,6 +603,163 @@ export async function readLedger(
   return rows.map(ledgerEventFromRow);
 }
 
+/**
+ * The events that build the verification of one instruction, in append order.
+ *
+ * A targeted read and not a slice of the whole ledger, and that is forced rather
+ * than chosen: the ledger of the seeded company is thousands of events long and
+ * `readLedger` answers the OLDEST 500, so the cent that left a minute ago would
+ * never be in the page. Five kinds matter and they are matched two different ways.
+ *
+ * `cent_sent`, `cep_awaited` and `verification_call` carry `instructionId` at the
+ * top of their payload,
+ * and `decision_made` carries it one level down, inside the decision it stores.
+ * `cep_verified` carries no instruction at all: it is evidence about an ACCOUNT,
+ * which is the honest shape, because a CEP proves who holds the account and says
+ * nothing about which of our invoices we were about to pay. So it is matched on the
+ * beneficiary account and the caller passes the CLABE the instruction pays to. A
+ * CEP for another account is not this instruction's evidence and the query leaves
+ * it alone, exactly as `beneficiaryCepAdapter` refuses it on its own side.
+ *
+ * `verification_call` joined the list with the evidence letter of issue #204, which
+ * names the call to the supplier as one of its seven signals. It changes nothing
+ * about `foldVerification`, which ignores it: the state machine turns on the CEP
+ * and a call is not a document.
+ */
+export async function readVerificationEvents(
+  sql: Db,
+  instructionId: string,
+  beneficiaryAccount: string,
+): Promise<LedgerEvent[]> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where (type in ('cent_sent', 'cep_awaited', 'verification_call')
+           and payload ->> 'instructionId' = ${instructionId})
+       or (type = 'decision_made'
+           and payload -> 'decision' ->> 'instructionId' = ${instructionId})
+       or (type = 'cep_verified'
+           and payload -> 'cep' ->> 'beneficiaryAccount' = ${beneficiaryAccount})
+    order by at asc, seq asc
+  `;
+  return rows.map(ledgerEventFromRow);
+}
+
+/**
+ * The newest `payment_cancelled` for one instruction, or undefined.
+ *
+ * It is the fact behind "reopening a cancelled line is the owner's call": the
+ * cancellation lives on the append-only ledger and nowhere else, so the question
+ * is asked of the ledger rather than of a status column that could disagree with
+ * it. Newest by `seq` and not by `at`, for the reason `latestDecisions` gives: a
+ * line cancelled twice in the same instant still has an append order.
+ *
+ * The projection is deliberately narrow. A route deciding whether a person may
+ * reopen a line needs when and why, and handing it the whole event would invite
+ * reading a beneficiary out of a row that exists to answer a yes or a no.
+ */
+export async function latestCancellation(
+  sql: Db,
+  instructionId: string,
+): Promise<{ at: string; reason: string; actor?: Actor } | undefined> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type = 'payment_cancelled'
+      and payload ->> 'instructionId' = ${instructionId}
+    order by seq desc
+    limit 1
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  const event = ledgerEventFromRow(row);
+  if (event.type !== "payment_cancelled") {
+    return undefined;
+  }
+  return {
+    at: event.at,
+    reason: event.reason,
+    ...(event.actor === undefined ? {} : { actor: event.actor }),
+  };
+}
+
+/**
+ * Who posted one SAT list version into this instance, off the ledger.
+ *
+ * Undefined for a version nobody published here, which is the committed official
+ * snapshot: it arrives with the repository rather than through a request, and a
+ * constancia that printed a name for it would be inventing a signature.
+ *
+ * Newest by `seq`, like `latestCancellation` above: loading the same version
+ * twice is legal and the name on the page is whoever did it last.
+ */
+export async function latestListPublisher(
+  sql: Db,
+  listVersion: string,
+): Promise<Actor | undefined> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type = 'sat_list_published'
+      and payload ->> 'listVersion' = ${listVersion}
+    order by seq desc
+    limit 1
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  const event = ledgerEventFromRow(row);
+  return event.type === "sat_list_published" ? event.actor : undefined;
+}
+
+/**
+ * The payment events a `PaymentExecution` is folded out of, in append order.
+ *
+ * Targeted for the same reason `readVerificationEvents` is: `readLedger` answers the
+ * OLDEST 500 events and the seeded company has thousands, so a payment that left a
+ * minute ago would never be in the page.
+ *
+ * The `runId` filter is what keeps an executed run apart from the company's own
+ * history. Every SPEI before ADR-0008 left from the company's own banking portal, and
+ * the seed records those as `payment_sent` with no run on them, so filtering on the
+ * run answers what THIS run did. The clave filter is the receipt lookup, which is
+ * addressed by the clave de rastreo and holds no run id of its own.
+ *
+ * Neither filter set answers nothing rather than everything. A filter that silently
+ * became "the whole ledger" is how a read of one receipt turns into a scan of every
+ * payment the company ever made.
+ */
+export async function readPaymentEvents(
+  sql: Db,
+  query: {
+    runId?: string;
+    claveRastreo?: string;
+    instructionIds?: readonly string[];
+  },
+): Promise<LedgerEvent[]> {
+  const ids =
+    query.instructionIds === undefined ? null : [...query.instructionIds];
+  if (
+    query.runId === undefined &&
+    query.claveRastreo === undefined &&
+    ids === null
+  ) {
+    return [];
+  }
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type in ('payment_sent', 'payment_settled', 'payment_failed', 'payment_cancelled')
+      and (${query.runId ?? null}::text is null
+           or payload ->> 'runId' = ${query.runId ?? null})
+      and (${query.claveRastreo ?? null}::text is null
+           or payload ->> 'claveRastreo' = ${query.claveRastreo ?? null})
+      and (${ids}::text[] is null
+           or payload ->> 'instructionId' = any(${ids}::text[]))
+    order by at asc, seq asc
+  `;
+  return rows.map(ledgerEventFromRow);
+}
+
 /** How many events the ledger holds, for the doctor and the seed summary. */
 export async function countLedgerEvents(sql: Db): Promise<number> {
   const rows = await sql<{ count: number }[]>`
@@ -793,7 +953,7 @@ export async function insertCfdis(
 }
 
 const CFDI_COLUMNS = `uuid, serie, folio, issued_at, issuer_rfc, issuer_name, receiver_rfc,
-  subtotal, iva, total, payment_method, payment_form, synthetic`;
+  subtotal, iva, total, payment_method, payment_form, issue_place, synthetic`;
 
 /**
  * The invoice history of one supplier, newest first. This is the series the
@@ -1346,10 +1506,11 @@ export async function insertDecision(
   return transact(sql, async (tx) => {
     const rows = await tx<{ id: string | number }[]>`
       insert into decisions (instruction_id, action, expected_loss,
-        delay_cost_per_day, decided_at, decided_by)
+        delay_cost_per_day, decided_at, decided_by, decided_by_role, reason)
       values (${decision.instructionId}, ${decision.action}, ${decision.expectedLoss},
         ${decision.delayCostPerDay}, ${decision.decidedAt}::timestamptz,
-        ${decision.decidedBy ?? null})
+        ${decision.decidedBy ?? null}, ${decision.decidedByRole ?? null},
+        ${decision.reason ?? null})
       returning id
     `;
     const id = Number(rows[0]?.id);
@@ -1370,7 +1531,7 @@ export async function insertDecision(
 
 const DECISION_SELECT = `
   select d.id, d.instruction_id, d.action, d.expected_loss, d.delay_cost_per_day,
-         d.decided_at, d.decided_by,
+         d.decided_at, d.decided_by, d.decided_by_role, d.reason,
          coalesce(
            json_agg(
              json_build_object(
@@ -1709,4 +1870,197 @@ export async function truncateSentryOne(sql: Db): Promise<void> {
       known_accounts, sat_list_entries, sat_list_versions, suppliers, company
     restart identity
   `;
+}
+
+// --- The consortium snapshot -------------------------------------------------
+
+/**
+ * The local projection of the SentryOne consortium, from
+ * migrations/0009_consortium_snapshot.sql.
+ *
+ * These four functions are the only place the network is read or written on this
+ * side, and none of them reaches Snowflake: `bun run consortium:pull` fills the
+ * table and the engine reads it, which is what keeps a warehouse off the hot path
+ * of a payment decision.
+ */
+
+interface ConsortiumSnapshotDbRow {
+  rfc_hash: string;
+  clabe_hash: string;
+  bank_code: string;
+  tenants: number;
+  first_seen: Date | string;
+  last_seen: Date | string;
+  fraud_reports: number;
+  other_accounts: number;
+  pulled_at: Date | string;
+}
+
+/** A `date` column, as the ISO day the warehouse actually holds. */
+function isoDay(value: Date | string): string {
+  return value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : String(value).slice(0, 10);
+}
+
+function isoInstant(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+function snapshotFromRow(row: ConsortiumSnapshotDbRow): ConsortiumSnapshotRow {
+  return {
+    /* `char(64)` and `char(3)` are blank padded by the standard, and the driver
+       hands back what the column holds, so the trim is the mapper's job rather
+       than every caller's. */
+    rfcHash: row.rfc_hash.trim(),
+    clabeHash: row.clabe_hash.trim(),
+    bankCode: row.bank_code.trim(),
+    tenants: Number(row.tenants),
+    firstSeen: isoDay(row.first_seen),
+    lastSeen: isoDay(row.last_seen),
+    fraudReports: Number(row.fraud_reports),
+    otherAccounts: Number(row.other_accounts),
+  };
+}
+
+/**
+ * Replaces the whole snapshot and records the pull that produced it.
+ *
+ * Delete and insert inside one transaction, never an upsert. A merge would leave
+ * a pair the network has stopped corroborating in the table forever, and a stale
+ * corroboration is the one way this signal turns into a false release. A failure
+ * between the two therefore has to be impossible, which is what the transaction
+ * is for.
+ */
+export async function replaceConsortiumSnapshot(
+  sql: Db,
+  input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  },
+): Promise<number> {
+  return transact(sql, async (tx) => {
+    await tx`delete from consortium_snapshot`;
+    for (
+      let start = 0;
+      start < input.rows.length;
+      start += DEFAULT_CHUNK_SIZE
+    ) {
+      const chunk = input.rows.slice(start, start + DEFAULT_CHUNK_SIZE);
+      await tx`
+        insert into consortium_snapshot ${tx(
+          driverRows(
+            chunk.map((row) => ({
+              rfc_hash: row.rfcHash,
+              clabe_hash: row.clabeHash,
+              bank_code: row.bankCode,
+              tenants: row.tenants,
+              first_seen: row.firstSeen,
+              last_seen: row.lastSeen,
+              fraud_reports: row.fraudReports,
+              other_accounts: row.otherAccounts,
+              pulled_at: input.pulledAt,
+            })),
+          ),
+        )}
+      `;
+    }
+    await tx`
+      insert into consortium_pull (id, pulled_at, source, rows)
+      values (1, ${input.pulledAt}::timestamptz, ${input.source}, ${input.rows.length})
+      on conflict (id) do update set
+        pulled_at = excluded.pulled_at,
+        source = excluded.source,
+        rows = excluded.rows
+    `;
+    return input.rows.length;
+  });
+}
+
+/**
+ * When the snapshot was filled, where from, and how many rows it holds.
+ *
+ * Undefined means no pull has ever run here, and that is a different answer from
+ * an empty snapshot: the engine reads the first as `not_consulted` and decides
+ * exactly what it decided before the consortium existed.
+ */
+export async function getConsortiumPull(
+  sql: Db,
+): Promise<ConsortiumPull | undefined> {
+  const rows = await sql<
+    { pulled_at: Date | string; source: string; rows: number }[]
+  >`
+    select pulled_at, source, rows from consortium_pull where id = 1
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  return {
+    pulledAt: isoInstant(row.pulled_at),
+    source: row.source === "synthetic" ? "synthetic" : "snowflake",
+    rows: Number(row.rows),
+  };
+}
+
+/** What the network holds for one hashed pair. Undefined means it has none. */
+export async function getConsortiumPair(
+  sql: Db,
+  rfcHash: string,
+  clabeHash: string,
+): Promise<ConsortiumSnapshotRow | undefined> {
+  const rows = await sql<ConsortiumSnapshotDbRow[]>`
+    select rfc_hash, clabe_hash, bank_code, tenants, first_seen, last_seen,
+           fraud_reports, other_accounts, pulled_at
+    from consortium_snapshot
+    where rfc_hash = ${rfcHash} and clabe_hash = ${clabeHash}
+  `;
+  const row = rows[0];
+  return row === undefined ? undefined : snapshotFromRow(row);
+}
+
+/**
+ * Accounts the network holds for one supplier, this one included.
+ *
+ * The number behind "forty companies pay this supplier, and none of them pays it
+ * on this account". It is counted from the snapshot rather than read off
+ * `other_accounts`, because `other_accounts` is relative to a pair that exists
+ * and the interesting case is a pair that does not.
+ */
+export async function countConsortiumAccounts(
+  sql: Db,
+  rfcHash: string,
+): Promise<number> {
+  const rows = await sql<{ accounts: string }[]>`
+    select count(*)::text as accounts
+    from consortium_snapshot
+    where rfc_hash = ${rfcHash}
+  `;
+  return Number(rows[0]?.accounts ?? "0");
+}
+
+/**
+ * Every `assistant_message` of one session, in append order.
+ *
+ * A targeted read and not a slice of the whole ledger, for the same reason
+ * `readVerificationEvents` is one: `readLedger` answers the OLDEST 500 rows and the
+ * seeded company's ledger is thousands long, so a conversation that started a
+ * minute ago would never be in the page. The session id lives at the top of the
+ * payload, which is why this is one jsonb key lookup and not a join.
+ *
+ * No limit. A conversation is bounded by how much a person typed, and truncating
+ * the middle of one would mean the panel replayed a session that never happened.
+ */
+export async function readAssistantMessages(
+  sql: Db,
+  sessionId: string,
+): Promise<LedgerEvent[]> {
+  const rows = await sql<LedgerEventRow[]>`
+    select at, type, payload from ledger_events
+    where type = 'assistant_message'
+      and payload ->> 'sessionId' = ${sessionId}
+    order by at asc, seq asc
+  `;
+  return rows.map(ledgerEventFromRow);
 }

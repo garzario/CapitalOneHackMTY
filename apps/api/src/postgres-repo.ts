@@ -29,7 +29,11 @@
 
 import { nameMatch } from "@hackmty/cep";
 import type {
+  Actor,
+  AssistantMessage,
   Cfdi,
+  ConsortiumPull,
+  ConsortiumSnapshotRow,
   Decision,
   Finding,
   LedgerEvent,
@@ -40,17 +44,20 @@ import type {
   SatListEntry,
   Supplier,
 } from "@hackmty/core";
-import { sumAmounts } from "@hackmty/core";
+import { runLevels, runMoney, sumAmounts } from "@hackmty/core";
 import type { Db } from "@hackmty/db/queries";
 import {
   appendLedgerEvent,
   appendLedgerEvents,
+  countConsortiumAccounts,
   countSentryOne,
   currentPaymentRun,
   deleteLedgerTxForAccount,
   findingsForSubjects,
   findingsForSupplier,
   getCompany,
+  getConsortiumPair,
+  getConsortiumPull,
   getInstruction,
   getSupplier,
   insertCfdis,
@@ -61,7 +68,9 @@ import {
   insertLedgerTx,
   insertPaymentComplements,
   insertSatListVersion,
+  latestCancellation,
   latestDecision,
+  latestListPublisher,
   latestRunWeek,
   listCfdis,
   listCfdisByIssuer,
@@ -76,8 +85,12 @@ import {
   listVerifiedBeneficiariesFor,
   lookupSatEntries,
   markInstructionSent,
+  readAssistantMessages,
   readLedger,
+  readPaymentEvents,
+  readVerificationEvents,
   recordKnownAccount,
+  replaceConsortiumSnapshot,
   selectSuppliers,
   transact,
   truncateSentryOne,
@@ -95,10 +108,15 @@ import {
   runEngine,
 } from "@hackmty/seed";
 import { assessRun } from "./assess";
+import { assistantMessagesFrom } from "./assistant/session";
+import { levelled } from "./levels";
 import type {
+  Cancellation,
   CompanyIdentity,
+  ConsortiumLookup,
   IntakeRecord,
   LedgerQuery,
+  PaymentEventQuery,
   Repository,
   ResetSummary,
   SweepSnapshot,
@@ -211,12 +229,17 @@ export class PostgresRepository implements Repository {
         // An instruction always has a supplier row by the time it is stored.
         continue;
       }
-      items.push({
-        instruction: row.instruction,
-        supplier: row.supplier,
-        decision: row.decision ?? null,
-        findings: row.findings,
-      });
+      /* Through `levelled`, like the memory store, so the two cannot answer a
+         different level for the same line. Neither is a column: see the note at
+         the top of `0012_assistant_and_payment_events.sql`. */
+      items.push(
+        levelled({
+          instruction: row.instruction,
+          supplier: row.supplier,
+          decision: row.decision ?? null,
+          findings: row.findings,
+        }),
+      );
     }
 
     const actions = items.map((item) => item.decision?.action);
@@ -230,6 +253,8 @@ export class PostgresRepository implements Repository {
         held: actions.filter((action) => action === "hold").length,
         toVerify: actions.filter((action) => action === "verify").length,
         released: actions.filter((action) => action === "release").length,
+        ...runMoney(items),
+        ...runLevels(items),
       },
       items,
     };
@@ -360,6 +385,31 @@ export class PostgresRepository implements Repository {
   }
 
   /**
+   * The local consortium snapshot, three reads against the tables 0009 created
+   * and not one against Snowflake.
+   *
+   * That is the point of the snapshot: a payment decision never waits on a
+   * warehouse, so the demo works with the network unplugged and a judge can
+   * unplug it. `bun run consortium:pull` is the only thing here that ever talks
+   * to Snowflake, and it runs on a laptop rather than inside a request.
+   */
+  async consortiumLookup(
+    rfcHash: string,
+    clabeHash: string,
+  ): Promise<ConsortiumLookup> {
+    const [pull, pair, accountsForRfc] = await Promise.all([
+      getConsortiumPull(this.sql),
+      getConsortiumPair(this.sql, rfcHash, clabeHash),
+      countConsortiumAccounts(this.sql, rfcHash),
+    ]);
+    return {
+      accountsForRfc,
+      ...(pull === undefined ? {} : { pull }),
+      ...(pair === undefined ? {} : { pair }),
+    };
+  }
+
+  /**
    * The blind evaluation, recomputed on demand and identical to the memory
    * path's. The labelled cases live in `packages/seed/src/holdout` and are not
    * in any table on purpose: a score read out of the same database the product
@@ -382,6 +432,38 @@ export class PostgresRepository implements Repository {
     return readLedger(this.sql, options);
   }
 
+  async verificationEvents(
+    instructionId: string,
+    beneficiaryAccount: string,
+  ): Promise<LedgerEvent[]> {
+    return readVerificationEvents(this.sql, instructionId, beneficiaryAccount);
+  }
+
+  async cancellation(instructionId: string): Promise<Cancellation | undefined> {
+    return latestCancellation(this.sql, instructionId);
+  }
+
+  async publisher(listVersion: string): Promise<Actor | undefined> {
+    return latestListPublisher(this.sql, listVersion);
+  }
+
+  /**
+   * The turns of one conversation, out of the same `assistant_message` rows the
+   * memory store folds. The fold is shared with the memory path on purpose: two
+   * projections of one conversation is how the panel and its replay would start
+   * disagreeing about what was said.
+   */
+  async assistantMessages(sessionId: string): Promise<AssistantMessage[]> {
+    return assistantMessagesFrom(
+      await readAssistantMessages(this.sql, sessionId),
+      sessionId,
+    );
+  }
+
+  async paymentEvents(query: PaymentEventQuery): Promise<LedgerEvent[]> {
+    return readPaymentEvents(this.sql, query);
+  }
+
   /* --------------------------------------------------------------- writes */
 
   /**
@@ -395,6 +477,28 @@ export class PostgresRepository implements Repository {
     if (event.type === "payment_sent") {
       await markInstructionSent(this.sql, event.instructionId, event.at);
     }
+  }
+
+  /**
+   * Adds one outflow to the company's bank mirror.
+   *
+   * The account comes off the company row, the same one `bankMirror` reads back, so
+   * the executed line lands in the statement the reconciliation control looks at
+   * rather than in an account nobody queries. No company row means no mirror to add
+   * to, and the write is a no-op rather than a row in a made-up account.
+   *
+   * `insertLedgerTx` already carries `on conflict do nothing`, so a second write of
+   * the same transfer changes nothing. That matters: two rows for one payment is
+   * control 6's `cfdi_paid_twice` finding raised by our own bookkeeping.
+   */
+  async recordBankOutflow(tx: Omit<LedgerTx, "accountId">): Promise<void> {
+    const company = await getCompany(this.sql);
+    if (company === undefined) {
+      return;
+    }
+    await insertLedgerTx(this.sql, [
+      { ...tx, accountId: company.bankAccountId },
+    ]);
   }
 
   async saveIntake(record: IntakeRecord): Promise<void> {
@@ -420,8 +524,9 @@ export class PostgresRepository implements Repository {
   async recordDecision(
     instructionId: string,
     action: Decision["action"],
-    decidedBy: string,
+    actor: Actor,
     decidedAt: string,
+    reason?: string,
   ): Promise<Decision | undefined> {
     const current = await latestDecision(this.sql, instructionId);
     if (current === undefined) {
@@ -435,11 +540,31 @@ export class PostgresRepository implements Repository {
       delayCostPerDay: current.delayCostPerDay,
       findings: current.findings,
       decidedAt,
-      decidedBy,
+      decidedBy: actor.name,
+      decidedByRole: actor.role,
     };
+    if (reason !== undefined) {
+      decision.reason = reason;
+    }
     await insertDecision(this.sql, decision);
 
     return decision;
+  }
+
+  /**
+   * The engine's own decision on new evidence, findings first.
+   *
+   * One transaction, and the findings go in before the decision for the same
+   * reason `saveIntake` does it in that order: `decision_findings` has a foreign
+   * key on them, so a decision citing evidence the database does not hold is
+   * refused rather than stored. `insertFindings` is `on conflict do nothing`, so a
+   * finding the run already carried is not duplicated and not overwritten.
+   */
+  async recordEngineDecision(decision: Decision): Promise<void> {
+    await transact(this.sql, async (tx) => {
+      await insertFindings(tx, decision.findings);
+      await insertDecision(tx, decision);
+    });
   }
 
   async publishSatList(
@@ -496,6 +621,14 @@ export class PostgresRepository implements Repository {
       establishedAt: row.verifiedAt,
       timesPaid: 0,
     });
+  }
+
+  async replaceConsortiumSnapshot(input: {
+    rows: readonly ConsortiumSnapshotRow[];
+    pulledAt: string;
+    source: ConsortiumPull["source"];
+  }): Promise<number> {
+    return replaceConsortiumSnapshot(this.sql, input);
   }
 
   /**

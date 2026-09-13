@@ -25,7 +25,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Field, SectionHeader } from "../components/Primitives";
+import { Field } from "../components/Primitives";
 import { ErrorBlock, LoadingBlock } from "../components/States";
 import {
   type ApiFailure,
@@ -37,6 +37,7 @@ import type {
   VerificationOutcome,
   VerificationScriptText,
 } from "../lib/contract";
+import { EXAMPLE_INSTRUCTION_ID } from "../lib/mock";
 import { useRouteQuery } from "../lib/router";
 
 /**
@@ -198,10 +199,11 @@ export function VerifyCallScreen() {
 
   return (
     <>
-      <SectionHeader
-        title="Llamada de verificacion"
-        description="Cuando la decision es verificar, alguien tiene que preguntarle al proveedor si la cuenta es suya. El agente de voz hace la llamada en espanol y lee el guion; si no hay telefonia, se habla con el mismo agente desde esta computadora o se marca a mano. El resultado queda en la bitacora y nunca libera el pago por si solo."
-      />
+      <p className="muted max-w-prose t-sm">
+        Cuando la decision es verificar, el agente de voz le pregunta al
+        proveedor si la cuenta es suya. La respuesta queda en la bitacora y
+        nunca libera el pago sola.
+      </p>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] [&>*]:min-w-0">
         <div className="flex flex-col gap-5">
@@ -223,7 +225,7 @@ export function VerifyCallScreen() {
                   className="input code"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="ins-2026w37-01"
+                  placeholder={EXAMPLE_INSTRUCTION_ID}
                   value={instructionId}
                   onChange={(event) => setInstructionId(event.target.value)}
                 />

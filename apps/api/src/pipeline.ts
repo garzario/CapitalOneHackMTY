@@ -13,22 +13,46 @@
  * that produces nothing comes back either as "ran and found nothing" or as a
  * named skip with the reason, so silence can never be mistaken for a clean
  * payment.
+ *
+ * There are two ways in and they share that one function. `runIntake` is an
+ * instruction arriving; `rescoreSweptLines` at the bottom is a 69-B publication
+ * arriving, which is the same evidence with the newest sweep added and the same
+ * `decide` on the other end. That is deliberate: a second place that assembled a
+ * `ComposeInput` would be a second engine, and issue #175 exists partly because
+ * the alternative was to answer the same question at read time instead.
  */
 
 import { nameMatch } from "@hackmty/cep";
 import type {
+  Action,
   ComposeInput,
   CompositionReport,
+  Decision,
   PaymentInstruction,
   SatListEntry,
   SweepResult,
 } from "@hackmty/core";
-import { decide, supplierModelOf } from "@hackmty/core";
+import {
+  decide,
+  definitiveListingReason,
+  SYSTEM_DECIDER,
+  supplierModelOf,
+} from "@hackmty/core";
 import { runControls } from "@hackmty/engine";
-import { priceSweep, type SatIndex } from "@hackmty/sat";
+import {
+  normalizeRfc,
+  official49BisListing,
+  priceSweep,
+  type SatIndex,
+} from "@hackmty/sat";
+import type { ConsortiumSource } from "./consortium";
 import { type IntakeExtractor, UNAVAILABLE_EXTRACTOR } from "./extraction";
 import type { IntakeRecord, Repository, SweepSubject } from "./repo";
-import type { CreateInstructionBody, NameMatch } from "./schemas";
+import type {
+  CreateInstructionBody,
+  NameMatch,
+  PaymentRunItem,
+} from "./schemas";
 
 /* -------------------------------------------------------------------------- */
 /* Clock and identifiers                                                       */
@@ -69,6 +93,12 @@ export interface IntakeDeps {
   extractor?: IntakeExtractor;
   /** The official Article 69-B list. See the note in `composeInputFor`. */
   satList?: () => Promise<SatIndex>;
+  /**
+   * The consortium, read from the local snapshot. Absent, or off, means the
+   * controls are handed no network and decide exactly what they decided before
+   * issue #164. See `src/consortium.ts`.
+   */
+  consortium?: ConsortiumSource;
 }
 
 /**
@@ -173,16 +203,27 @@ export async function runIntake(
     instruction.ocrConfidence = ocrConfidence;
   }
 
-  const input = await composeInputFor(repo, instruction, now, deps.satList);
+  const input = await composeInputFor(
+    repo,
+    instruction,
+    now,
+    deps.satList,
+    deps.consortium,
+  );
   const report = runControls(input);
   // The cost of delaying this payment comes off the supplier record, so the
   // engine weighs the expected loss against a number somebody can point at
   // instead of the zero this file used to invent.
+  //
+  // The network goes to `decide` as well as to the controls, because it is an
+  // input to the expected loss and not only to a finding's evidence. The same
+  // signal reaches both, so the adjustment the finding states is the adjustment
+  // the decision made.
   const decision = decide(
     instruction,
     report.findings,
     supplierModelOf(input.supplier),
-    { now },
+    { now, ...(input.network === undefined ? {} : { network: input.network }) },
   );
 
   return {
@@ -226,8 +267,11 @@ export async function runControlsFor(
   instruction: PaymentInstruction,
   now: string,
   satList?: () => Promise<SatIndex>,
+  consortium?: ConsortiumSource,
 ): Promise<CompositionReport> {
-  return runControls(await composeInputFor(repo, instruction, now, satList));
+  return runControls(
+    await composeInputFor(repo, instruction, now, satList, consortium),
+  );
 }
 
 /** Everything the six controls read, assembled from the repository. */
@@ -236,6 +280,8 @@ async function composeInputFor(
   instruction: PaymentInstruction,
   now: string,
   satList?: () => Promise<SatIndex>,
+  consortium?: ConsortiumSource,
+  sweep?: SweepResult,
 ): Promise<ComposeInput> {
   const supplier = await repo.findSupplier(instruction.supplierRfc);
   const detail =
@@ -261,6 +307,41 @@ async function composeInputFor(
   }
   if (beneficiary !== undefined) {
     input.cep = beneficiary.cep;
+  }
+  /* The other SAT list. `official49BisListing()` reports the coverage of this
+     build, and today it is `not_published_machine_readable`: the SAT publishes the
+     49 Bis listing one oficio at a time in the DOF and ships no file, so this adds
+     no rows and the control stays silent rather than answering "no listado" for a
+     list nobody loaded. The day a machine-readable listing exists, the listing
+     function loads it and this arm arms the control with no other change. */
+  const art49Bis = official49BisListing();
+  if (art49Bis.coverage === "loaded") {
+    const rows = art49Bis.index.lookup(instruction.supplierRfc);
+    if (rows.length > 0) {
+      input.sat49BisEntries = rows;
+    }
+  }
+  /* The local snapshot, never Snowflake. A server with `ALLOW_CONSORTIUM` unset,
+     or with nothing pulled, leaves `network` absent, and every control then reads
+     it as `NOT_CONSULTED` and decides what it decided before the consortium
+     existed. An unknown pair is NOT absent: it is a consulted network with zero
+     tenants, which is a real answer and a much stronger one. */
+  if (consortium?.enabled === true) {
+    const answer = await consortium.lookup({
+      rfc: instruction.supplierRfc,
+      clabe: instruction.clabe,
+    });
+    if (answer.signal.source === "snapshot") {
+      input.network = answer.signal;
+    }
+  }
+  /* The sweep of the publication that is landing right now, handed in only by
+     `rescoreSweptLines` below. Intake leaves it absent, because an instruction
+     that arrives on a Thursday is not a publication and pricing it against the
+     newest one would attribute a whole supplier's voided deductions to whichever
+     line happened to arrive last. */
+  if (sweep !== undefined) {
+    input.sweep = sweep;
   }
   return input;
 }
@@ -323,6 +404,153 @@ export async function runRetroactiveSweep(
   subjects: SweepSubject[],
 ): Promise<SweepResult> {
   return priceSweep(subjects, { listVersion });
+}
+
+/**
+ * What the re-score reads. `ApiDeps` satisfies it structurally, like `IntakeDeps`.
+ */
+export interface RescoreDeps {
+  repo: Repository;
+  clock: PipelineClock;
+  satList?: () => Promise<SatIndex>;
+  consortium?: ConsortiumSource;
+}
+
+/** One line of the current run that a publication moved, and where it moved to. */
+export interface RescoredLine {
+  instructionId: string;
+  supplierRfc: string;
+  /** The action that stood on the line before. Null when nothing had decided it. */
+  before: Action | null;
+  /** The decision the engine reached on the new evidence. */
+  decision: Decision;
+  /**
+   * The sentence that cancels this line, when THIS publication is what made the
+   * listing definitive, and null otherwise.
+   *
+   * Null and not a repeated sentence is what makes the cancellation land exactly
+   * once. A line that already carried a definitive row was already cancelled when
+   * that row arrived, so a second publication naming the same supplier re-scores
+   * the pesos and appends no second `payment_cancelled`: an append-only ledger with
+   * two cancellations of one line reads as two events and there was one.
+   *
+   * Issue #204 and ADR-0009 row 4 are what this is for. A definitive listing is not
+   * a hold somebody can wait out, because the comprobantes have no fiscal effect at
+   * all, so the line is cancelled rather than stopped and only a named owner
+   * reopens it with a written reason.
+   */
+  cancellation: string | null;
+}
+
+/**
+ * Re-scores the lines of the current run a 69-B publication just touched.
+ *
+ * This is issue #175, and option 1 of the two it names. A publication prices the
+ * whole ledger, but the findings already stored on the run were scored before the
+ * list existed, so without this the run totals read zero retroactive exposure in
+ * the same minute `SweepResult.totalExposure` reads hundreds of thousands of
+ * pesos. Two numbers that are both correct and look contradictory next to each
+ * other is what a judge picks at, and the fix is to make the stored findings true
+ * rather than to join the newest sweep in at read time: `packages/core/src/exposure.ts`
+ * exists so that one arithmetic answers this, and a second source of the same
+ * number is the thing it was written to prevent. The amendment to ADR-0002 records
+ * the choice.
+ *
+ * Three rules, and each one is a line this must not cross.
+ *
+ * - **It decides nothing itself.** The evidence is gathered by `composeInputFor`,
+ *   the findings are `@hackmty/engine`'s and the action is `decide`'s, exactly as
+ *   on intake and in `completeVerification`. The only thing this file adds is the
+ *   sweep, on the one input field that exists for it.
+ * - **Released and humanly decided lines are never touched.** A release is money
+ *   the run already let go, and a decision with a person's name on it is that
+ *   person's, not the engine's to overwrite. A decision the engine signed
+ *   `SYSTEM_DECIDER` is re-scorable, because a second publication is new evidence
+ *   and the engine's own earlier verdict is not somebody's signature.
+ * - **Findings are added, never replaced.** `recordEngineDecision` unions them, so
+ *   the presunto row the clerk was shown in August stays on the line next to the
+ *   definitivo one published today. `runMoney` keys the retroactive pair on the
+ *   RFC, so a supplier is still priced once however many rows reach the line.
+ *
+ * Returns what moved, so the caller can announce it on the ledger and the SSE
+ * stream. An empty array is the ordinary answer: a publication naming suppliers
+ * this week's run does not pay changes nothing about this week's run.
+ */
+export async function rescoreSweptLines(
+  deps: RescoreDeps,
+  sweep: SweepResult,
+): Promise<RescoredLine[]> {
+  const affected = new Set(
+    sweep.newlyListed.map((row) => normalizeRfc(row.supplier.rfc)),
+  );
+  if (affected.size === 0) {
+    return [];
+  }
+
+  const run = await deps.repo.currentRun();
+  const now = deps.clock.now();
+  const rescored: RescoredLine[] = [];
+
+  for (const item of run.items) {
+    if (!affected.has(normalizeRfc(item.instruction.supplierRfc))) {
+      continue;
+    }
+    if (!isRescorable(item.decision)) {
+      continue;
+    }
+
+    const input = await composeInputFor(
+      deps.repo,
+      item.instruction,
+      now,
+      deps.satList,
+      deps.consortium,
+      sweep,
+    );
+    const report = runControls(input);
+    const decision: Decision = {
+      ...decide(
+        item.instruction,
+        report.findings,
+        supplierModelOf(input.supplier),
+        {
+          now,
+          ...(input.network === undefined ? {} : { network: input.network }),
+        },
+      ),
+      decidedBy: SYSTEM_DECIDER,
+    };
+
+    await deps.repo.recordEngineDecision(decision);
+    /* Cancelled by this publication and not by a previous one. `item.findings` is
+       what the clerk was looking at a second ago and `report.findings` is what the
+       list just made true, so the difference is exactly the lines this request
+       cancelled. */
+    const before = definitiveListingReason(item.findings);
+    const after = definitiveListingReason(report.findings);
+    rescored.push({
+      instructionId: item.instruction.id,
+      supplierRfc: item.instruction.supplierRfc,
+      before: item.decision?.action ?? null,
+      decision,
+      cancellation: before === undefined && after !== undefined ? after : null,
+    });
+  }
+
+  return rescored;
+}
+
+/** Whether a publication may re-score this line. See the rules above. */
+function isRescorable(decision: PaymentRunItem["decision"]): boolean {
+  if (decision === null || decision === undefined) {
+    return true;
+  }
+  if (decision.action === "release") {
+    return false;
+  }
+  return (
+    decision.decidedBy === undefined || decision.decidedBy === SYSTEM_DECIDER
+  );
 }
 
 /* -------------------------------------------------------------------------- */

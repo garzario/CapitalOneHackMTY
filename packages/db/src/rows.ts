@@ -215,6 +215,7 @@ export interface CfdiRow {
   total: SqlNumeric;
   payment_method: Cfdi["paymentMethod"];
   payment_form: string | null;
+  issue_place: string | null;
   synthetic: boolean;
 }
 
@@ -231,6 +232,7 @@ export interface CfdiInsertRow {
   total: number;
   payment_method: Cfdi["paymentMethod"];
   payment_form: string | null;
+  issue_place: string | null;
   synthetic: boolean;
 }
 
@@ -250,6 +252,9 @@ export function cfdiFromRow(row: CfdiRow): Cfdi {
   assign(cfdi, "serie", optionalText(row.serie));
   assign(cfdi, "folio", optionalText(row.folio));
   assign(cfdi, "paymentForm", optionalText(row.payment_form));
+  /* Null stays absent rather than becoming an empty string: control 2 reads a
+     missing place as no comparison, and "" would be a place that matches nothing. */
+  assign(cfdi, "issuePlace", optionalText(row.issue_place));
   return cfdi;
 }
 
@@ -267,6 +272,7 @@ export function cfdiToRow(cfdi: Cfdi): CfdiInsertRow {
     total: cfdi.total,
     payment_method: cfdi.paymentMethod,
     payment_form: cfdi.paymentForm ?? null,
+    issue_place: cfdi.issuePlace ?? null,
     synthetic: cfdi.synthetic,
   };
 }
@@ -522,6 +528,10 @@ export interface DecisionRow {
   delay_cost_per_day: SqlNumeric;
   decided_at: SqlInstant;
   decided_by: string | null;
+  /** The role they were acting in. Null on the engine's own decision. */
+  decided_by_role: Decision["decidedByRole"] | null;
+  /** What the person wrote about it. Null on the engine's own proposal. */
+  reason: string | null;
   /** The findings that justified it, through decision_findings. `[]` when none. */
   findings: FindingRow[] | null;
 }
@@ -536,6 +546,8 @@ export function decisionFromRow(row: DecisionRow): Decision {
     decidedAt: toInstant(row.decided_at),
   };
   assign(decision, "decidedBy", optionalText(row.decided_by));
+  assign(decision, "decidedByRole", row.decided_by_role ?? undefined);
+  assign(decision, "reason", optionalText(row.reason));
   return decision;
 }
 
