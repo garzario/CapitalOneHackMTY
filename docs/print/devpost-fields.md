@@ -258,7 +258,7 @@ runControls, bun run eval imprime la matriz de confusión por control y por nive
 /api/v1/metrics sirve los mismos números, así que la pantalla de métricas es un reporte y no una
 afirmación.
 
-Al 2026-09-13 la suite son 2,594 pruebas en 138 archivos: 2,476 pasando, 118 saltadas y 0 fallando,
+Al 2026-09-13 la suite son 2,912 pruebas en 150 archivos: 2,794 pasando, 118 saltadas y 0 fallando,
 y ninguna abre un socket.
 
 ---
@@ -312,7 +312,7 @@ The evaluation runs the same entry point intake runs. The labelled cases go thro
 run eval prints the confusion matrix per control and per level, and GET /api/v1/metrics serves the
 identical numbers, so the metrics screen is a report and not a claim.
 
-As of 2026-09-13 the suite is 2,594 tests across 138 files: 2,476 passing, 118 skipped and 0
+As of 2026-09-13 the suite is 2,912 tests across 150 files: 2,794 passing, 118 skipped and 0
 failing, and none of them opens a socket.
 ```
 
