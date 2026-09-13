@@ -10,6 +10,7 @@ import {
   instructionDetailSchema,
   intakeResponseSchema,
   ledgerResponseSchema,
+  paymentRunSchema,
 } from "../schemas";
 import { createTestApp, TEST_NOW } from "../test-app";
 
@@ -745,5 +746,233 @@ describe("POST /api/v1/instructions/:id/decide", () => {
 
     expect(res.status).toBe(400);
     expect(body.error.message).toContain("action");
+  });
+});
+
+/**
+ * Issue #204: a definitive SAT listing cancels the line, and only a named owner
+ * reopens it with a written reason.
+ *
+ * The listing is made definitive through `POST /api/v1/sat/publish`, which is how
+ * it happens on stage, rather than by writing a finding into the store. A test that
+ * hand-built the evidence would pass with the engine unplugged.
+ */
+describe("reopening a line a definitive SAT listing cancelled", () => {
+  /** The fixture line whose supplier the seeded 69-B list names. */
+  const LISTED_ID = "ins-2026w37-02";
+
+  async function withDefinitiveListing() {
+    const harness = createTestApp();
+    const detail = instructionDetailResponseSchema.parse(
+      await (
+        await harness.app.request(`/api/v1/instructions/${LISTED_ID}`)
+      ).json(),
+    );
+    expect(detail.instruction.supplierRfc).toBe("SYN020202BBB");
+
+    const published = await harness.app.request(
+      "/api/v1/sat/publish",
+      json({
+        simulate: true,
+        rfcs: [detail.instruction.supplierRfc],
+        status: "definitivo",
+      }),
+    );
+    expect(published.status).toBe(200);
+    return harness;
+  }
+
+  it("reads cancelado on the line, with the rule that cancelled it", async () => {
+    const { app } = await withDefinitiveListing();
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${LISTED_ID}`)).json(),
+    );
+
+    expect(detail.confidence).toBe("alerta");
+    expect(detail.confidenceRule).toBe("sat_definitive");
+    expect(detail.state).toBe("cancelado");
+    expect(detail.stateRule).toBe("sat_definitive");
+  });
+
+  it("appends the cancellation to the ledger, with the article in the sentence", async () => {
+    const { app, deps } = createTestApp();
+    const seen: LedgerEvent[] = [];
+    deps.events.subscribe((event) => seen.push(event));
+
+    await app.request(
+      "/api/v1/sat/publish",
+      json({
+        simulate: true,
+        rfcs: ["SYN020202BBB"],
+        status: "definitivo",
+      }),
+    );
+
+    const cancelled = seen.filter(
+      (event) => event.type === "payment_cancelled",
+    );
+    expect(cancelled.length).toBeGreaterThan(0);
+    for (const event of cancelled) {
+      if (event.type !== "payment_cancelled") {
+        throw new Error("unreachable");
+      }
+      expect(event.reason).toContain("articulo 69-B");
+      expect(event.reason).toContain("Solo el propietario puede reabrirla");
+      /* No actor: nobody dropped the line by hand, the evidence cancelled it. */
+      expect(event.actor).toBeUndefined();
+    }
+  });
+
+  it("refuses a release with no X-Actor, and names the header", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(
+      `/api/v1/instructions/${LISTED_ID}/decide`,
+      json({
+        action: "release",
+        decidedBy: "Mariana Trevino",
+        reason: "El proveedor impugno la resolucion y entrego el acuse.",
+      }),
+    );
+    const body = (await res.json()) as ErrorBody;
+
+    /* 400 and not 403: nothing about the caller was rejected, the request did not
+       say who was acting. */
+    expect(res.status).toBe(400);
+    expect(body.error.code).toBe("bad_request");
+    expect(body.error.message).toContain("x-actor");
+  });
+
+  it("refuses a release signed by a clerk, because this is the owner's exception", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(`/api/v1/instructions/${LISTED_ID}/decide`, {
+      ...json({
+        action: "release",
+        decidedBy: "Lupita Elizondo",
+        reason: "El proveedor impugno la resolucion y entrego el acuse.",
+      }),
+      headers: {
+        "content-type": "application/json",
+        "x-actor": "role=clerk; name=Lupita Elizondo",
+      },
+    });
+    const body = (await res.json()) as ErrorBody;
+
+    expect(res.status).toBe(403);
+    expect(body.error.code).toBe("forbidden");
+    expect(body.error.message).toContain("propietario");
+  });
+
+  it("refuses an owner whose name disagrees with the signature in the body", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(`/api/v1/instructions/${LISTED_ID}/decide`, {
+      ...json({
+        action: "release",
+        decidedBy: "Lupita Elizondo",
+        reason: "El proveedor impugno la resolucion y entrego el acuse.",
+      }),
+      headers: {
+        "content-type": "application/json",
+        "x-actor": "role=owner; name=Mariana Trevino",
+      },
+    });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as ErrorBody).error.message).toContain(
+      "coincidir",
+    );
+  });
+
+  it("refuses an owner who writes no reason", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(`/api/v1/instructions/${LISTED_ID}/decide`, {
+      ...json({ action: "release", decidedBy: "Mariana Trevino" }),
+      headers: {
+        "content-type": "application/json",
+        "x-actor": "role=owner; name=Mariana Trevino",
+      },
+    });
+    const body = (await res.json()) as ErrorBody;
+
+    expect(res.status).toBe(422);
+    expect(body.error.code).toBe("unprocessable");
+    expect(body.error.message).toContain("motivo escrito");
+  });
+
+  it("lets a named owner with a reason reopen it, and the line reads liberado", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(`/api/v1/instructions/${LISTED_ID}/decide`, {
+      ...json({
+        action: "release",
+        decidedBy: "Mariana Trevino",
+        reason: "El proveedor impugno la resolucion y entrego el acuse.",
+      }),
+      headers: {
+        "content-type": "application/json",
+        "x-actor": "role=owner; name=Mariana Trevino",
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${LISTED_ID}`)).json(),
+    );
+
+    /* The signature outranks the listing, which is ADR-0002 refusing to overrule a
+       person in either direction. The level does not move: the listing is still on
+       the line and the letter still names the article. */
+    expect(detail.state).toBe("liberado");
+    expect(detail.stateRule).toBe("released");
+    expect(detail.confidence).toBe("alerta");
+    expect(detail.decision?.reason).toContain("impugno la resolucion");
+  });
+
+  it("leaves a hold on the same line alone, because only a release reopens", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(
+      `/api/v1/instructions/${LISTED_ID}/decide`,
+      json({ action: "hold", decidedBy: "Lupita Elizondo" }),
+    );
+
+    expect(res.status).toBe(200);
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${LISTED_ID}`)).json(),
+    );
+    expect(detail.state).toBe("cancelado");
+  });
+
+  it("leaves every other line's release alone, header or no header", async () => {
+    /* The narrow check of this issue, stated as a test so it cannot widen by
+       accident: making every write carry `X-Actor` is issue #199, and a release on
+       a line with no definitive listing still goes through with no header. */
+    const { app } = createTestApp();
+    const res = await app.request(
+      `/api/v1/instructions/${SEEDED_ID}/decide`,
+      json({ action: "release", decidedBy: "clerk-synthetic" }),
+    );
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("the level and the state on the instruction detail", () => {
+  it("are the same two words the run carries for that line", async () => {
+    const { app } = createTestApp();
+    const run = paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+
+    for (const item of run.items) {
+      const detail = instructionDetailResponseSchema.parse(
+        await (
+          await app.request(`/api/v1/instructions/${item.instruction.id}`)
+        ).json(),
+      );
+
+      expect(detail.confidence).toBe(item.confidence);
+      expect(detail.confidenceRule).toBe(item.confidenceRule);
+      expect(detail.confidenceFindingIds).toEqual(item.confidenceFindingIds);
+      expect(detail.state).toBe(item.state);
+      expect(detail.stateRule).toBe(item.stateRule);
+    }
   });
 });

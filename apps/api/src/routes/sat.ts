@@ -72,6 +72,14 @@ import {
  * lines moved and where they moved to. Released lines and lines a person decided
  * are not touched.
  *
+ * And the lines the publication made DEFINITIVE are cancelled in the same request,
+ * with a `payment_cancelled` naming the article. That is issue #204 and ADR-0009
+ * row 4: a definitive listing voids the fiscal effect of the comprobantes
+ * retroactively, so the line does not wait in front of a person, it stops, and the
+ * only way back is a release signed by a named owner with a written reason on
+ * `POST /api/v1/instructions/:id/decide`. This is the live beat of the demo: the
+ * list lands, the exposure climbs and one line goes to `cancelado` on the screen.
+ *
  * That is also the line between the two endpoints, and it is the ADR: the
  * official list is read here and joined to nothing, and the only publication
  * that ever meets an invoice is one built from the company's own synthetic
@@ -171,6 +179,24 @@ export function satRoutes(deps: ApiDeps) {
             at: line.decision.decidedAt,
             decision: line.decision,
           });
+          /* And the cancellation, for the lines this publication made definitive.
+             A definitive listing is not a hold somebody can wait out, because the
+             comprobantes have no fiscal effect at all, so the line is cancelled on
+             the spot with the article in the sentence and only a named owner reopens
+             it with a written reason. `actor` is absent because nobody dropped the
+             line by hand. Issue #204 and ADR-0009 row 4.
+
+             `cancellation` is null on a line that already carried a definitive row,
+             so a second publication naming the same supplier re-scores the pesos and
+             appends no second event: one cancellation per line, once. */
+          if (line.cancellation !== null) {
+            await deps.emit({
+              type: "payment_cancelled",
+              at: line.decision.decidedAt,
+              instructionId: line.instructionId,
+              reason: line.cancellation,
+            });
+          }
         }
 
         /* `RescoredLine` is the wire shape, stated once in `satPublishResponseSchema`

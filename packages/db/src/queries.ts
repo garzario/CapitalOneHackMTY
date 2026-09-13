@@ -608,9 +608,10 @@ export async function readLedger(
  * A targeted read and not a slice of the whole ledger, and that is forced rather
  * than chosen: the ledger of the seeded company is thousands of events long and
  * `readLedger` answers the OLDEST 500, so the cent that left a minute ago would
- * never be in the page. Four kinds matter and they are matched two different ways.
+ * never be in the page. Five kinds matter and they are matched two different ways.
  *
- * `cent_sent` and `cep_awaited` carry `instructionId` at the top of their payload,
+ * `cent_sent`, `cep_awaited` and `verification_call` carry `instructionId` at the
+ * top of their payload,
  * and `decision_made` carries it one level down, inside the decision it stores.
  * `cep_verified` carries no instruction at all: it is evidence about an ACCOUNT,
  * which is the honest shape, because a CEP proves who holds the account and says
@@ -618,6 +619,11 @@ export async function readLedger(
  * beneficiary account and the caller passes the CLABE the instruction pays to. A
  * CEP for another account is not this instruction's evidence and the query leaves
  * it alone, exactly as `beneficiaryCepAdapter` refuses it on its own side.
+ *
+ * `verification_call` joined the list with the evidence letter of issue #204, which
+ * names the call to the supplier as one of its seven signals. It changes nothing
+ * about `foldVerification`, which ignores it: the state machine turns on the CEP
+ * and a call is not a document.
  */
 export async function readVerificationEvents(
   sql: Db,
@@ -626,7 +632,7 @@ export async function readVerificationEvents(
 ): Promise<LedgerEvent[]> {
   const rows = await sql<LedgerEventRow[]>`
     select at, type, payload from ledger_events
-    where (type in ('cent_sent', 'cep_awaited')
+    where (type in ('cent_sent', 'cep_awaited', 'verification_call')
            and payload ->> 'instructionId' = ${instructionId})
        or (type = 'decision_made'
            and payload -> 'decision' ->> 'instructionId' = ${instructionId})

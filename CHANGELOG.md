@@ -18,6 +18,65 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The level and the state on every line, the cancellation a definitive SAT listing writes, and the
+  one-page evidence letter (issue #204). The contract of issue #221 said what the two words are; this
+  is where they reach the wire and where one of them stops a payment.
+
+  `assessLine` and `runLevels` join `confidenceOf` and `transactionStateOf` in
+  `packages/core/src/levels.ts`, so one call answers both halves about one line and a run is counted
+  by level and by state. Two properties are in that function rather than in every caller, because both
+  are how the same payment starts reading differently on two screens. The decision handed to the state
+  rules carries the LINE's findings and not the ones the stored decision remembers weighing, since
+  `recordEngineDecision` unions findings into the line and never removes one. And a caller holding no
+  folded `VerificationState` still reads row 3 of the table, because a critical `beneficiary_cep`
+  finding IS a blocked verification and `blockedByCep` reads it off the line. `GET /api/v1/run/current`
+  carries `confidence`, `confidenceRule`, `confidenceFindingIds`, `state` and `stateRule` per item and
+  the eight counts in `totals`; `GET /api/v1/instructions/:id` carries the same five, through the same
+  function, so a judge who clicks a line of the run cannot be shown a different level on the panel.
+  Neither value is a column and `0012_assistant_and_payment_events.sql` already said why.
+
+  A definitive listing cancels the line rather than holding it. Under article 69-B `definitivo`, or a
+  final resolution under article 49 Bis, the comprobantes have no fiscal effect at all and
+  retroactively, so there is nothing for a clerk to wait out: `POST /api/v1/sat/publish` appends one
+  `payment_cancelled` per line the publication made definitive, after the `decision_made` so a replay
+  reads as the publication and then its consequences, and the intake does the same for an instruction
+  that arrives naming a supplier already listed. `definitiveListingReason` writes the sentence once and
+  it names the article, the version and the DOF date. It fires once per line: a second publication
+  naming the same supplier re-scores the pesos and appends nothing. Reopening it needs an owner.
+  `POST /api/v1/instructions/:id/decide` with `action: "release"` on such a line refuses a missing or
+  malformed `X-Actor` with `400` naming the header, a `clerk` with `403`, a header whose name
+  disagrees with `decidedBy` with `400`, and a release with no written reason with `422`. Nothing is
+  deleted when an owner does reopen it: the cancellation stays on the ledger, the `decision_made`
+  carries the name and the argument, and `releasedByAPerson` is what makes the signature outrank the
+  listing, which is ADR-0002 refusing to overrule a person in either direction. The general `X-Actor`
+  middleware is issue #199; what landed here is that one check, in `apps/api/src/actor.ts`, behind the
+  header name and the grammar docs/09-api.md already documented, so that issue replaces it rather than
+  finding a second spelling.
+
+  `GET /api/v1/instructions/:id/carta` is the one page a clerk attaches to an email when the supplier
+  rings. `evidenceLetter` in `packages/constancia/src/letter.ts` reuses the constancia generator, the
+  shared header and the same huella functions, and prints seven signals with the rule that none of them
+  may be blank: both SAT lists (article 49 Bis saying why it could not be consulted, because the SAT
+  publishes it one oficio at a time in the DOF and ships no file), the account with its participant and
+  plaza code and four digits, the payment history behind that account, the CEP with its seal state and
+  the holder-name comparison, the verification call, and what the clerk uploaded. Then the level with
+  the rule behind it, the state, the resolution with the person who signed it and their written reason,
+  every finding in plain Spanish, and the SHA-256 huella. One page is a test and not an intention, and
+  no number about the risk reaches it: the expected loss, the delay cost and the transcription
+  confidence all stay in the engine, because a figure next to a supplier's name on a document this
+  company signs is a precision nobody earned. `verification_call` joined
+  `readVerificationEvents` in `packages/db` so the letter can name the call; `foldVerification` ignores
+  it, since the state machine turns on the CEP and a call is not a document.
+
+  Beat 8 of `bun run demo` reads it all back: every line carries a level and a state, the two groups
+  add up to the lines of the run, and on seed 69 three lines carry three different state rules,
+  `released`, `verification_blocked` and `sat_definitive`. It then fetches the letter of the cancelled
+  line and checks it is one page and names the article. `docs/05-business-model.md` says what the
+  client is sold (two words and never a figure, and the commitment that does not attach to a payment an
+  owner reopened), `docs/08-data-model.md` adds the two domain types with no storage and the field note
+  on an absent `actor`, and `docs/09-api.md` carries the five keys, the cancellation, the reopening and
+  three more lines a judge can paste.
+
 - The contract the assistant, the payment run and the three screens of 12 September are built on
   (issues #195 and #196). `packages/core/src/domain.ts` gains the shapes and nothing it already had
   moved: `Actor` and `ActorRole`, the name and the role every write carries on `X-Actor`;

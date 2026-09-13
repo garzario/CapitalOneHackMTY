@@ -16,7 +16,9 @@
  *
  * The response is a real `application/pdf` with a filename, served inline so a
  * judge who opens the link sees the document rather than a download they have
- * to find in a folder during a four minute demo.
+ * to find in a folder during a four minute demo. The headers come from
+ * `src/pdf.ts`, which the evidence letter of issue #204 shares, so the three
+ * documents of this API cannot be served three different ways.
  */
 
 import {
@@ -31,10 +33,10 @@ import {
   OFFICIAL_SNAPSHOT_URL,
 } from "@hackmty/sat";
 import { zValidator } from "@hono/zod-validator";
-import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { notFound, rejectInvalid } from "../http";
+import { pdfResponse } from "../pdf";
 import { runRetroactiveSweep } from "../pipeline";
 import { constanciaQuerySchema, idParamSchema } from "../schemas";
 
@@ -47,18 +49,6 @@ function sourceOf(listVersion: string): string {
     return "Publicacion simulada en esta instancia, con RFC sinteticos";
   }
   return "Version cargada en esta instancia";
-}
-
-function pdf(c: Context, bytes: Uint8Array, filename: string): Response {
-  return c.body(bytes as unknown as ArrayBuffer, 200, {
-    "content-type": "application/pdf",
-    // Inline, because the judge is watching a screen and not a downloads
-    // folder. The filename still travels, so saving it keeps a usable name.
-    "content-disposition": `inline; filename="${filename}"`,
-    // The document is a statement about a moment. Caching it would hand back
-    // yesterday's exposure after a new list version landed.
-    "cache-control": "no-store",
-  });
 }
 
 export function constanciaRoutes(deps: ApiDeps) {
@@ -89,7 +79,7 @@ export function constanciaRoutes(deps: ApiDeps) {
           suppliersChecked: snapshot.suppliersChecked,
         });
 
-        return pdf(c, bytes, constanciaFilename("sweep", listVersion));
+        return pdfResponse(c, bytes, constanciaFilename("sweep", listVersion));
       },
     )
     .get(
@@ -121,7 +111,7 @@ export function constanciaRoutes(deps: ApiDeps) {
           items,
         });
 
-        return pdf(c, bytes, constanciaFilename("run", run.id));
+        return pdfResponse(c, bytes, constanciaFilename("run", run.id));
       },
     );
 }

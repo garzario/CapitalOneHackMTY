@@ -15,6 +15,8 @@ import type {
   Cep,
   Cfdi,
   Clabe,
+  Confidence,
+  ConfidenceRule,
   Decision,
   VerificationState as DomainVerificationState,
   VerificationStateName as DomainVerificationStateName,
@@ -31,6 +33,8 @@ import type {
   SealState,
   Supplier,
   SweepResult,
+  TransactionState,
+  TransactionStateRule,
   VerificationOutcome,
   VerificationTurn,
 } from "@hackmty/core";
@@ -79,6 +83,25 @@ export interface PaymentRunTotals {
   retroactive69bBase: number;
   /** ISR plus IVA that reverses on that subtotal. No fraud is needed for it. */
   retroactive69bExposure: number;
+  /*
+   * The run counted by level and by state, from `runLevels` in `@hackmty/core`.
+   * Counts and never an average: the mean of three words is not a word, and a run
+   * reported as `precaucion` as a whole would hide the one `alerta` line the clerk
+   * opened the screen for. ADR-0009 carries the rule table.
+   *
+   * Both producers answer them: the API through `runLevels` over its own run, and
+   * `totalsFor` below through the same function over the offline rows, so the
+   * stored totals and the ones a screen recomputes after a local decision cannot
+   * disagree about how many lines are on alert.
+   */
+  confiable: number;
+  precaucion: number;
+  alerta: number;
+  rojo: number;
+  cancelado: number;
+  enviado: number;
+  pendiente: number;
+  liberado: number;
 }
 
 /** One row of the payment-run table. */
@@ -87,6 +110,25 @@ export interface PaymentRunItem {
   supplier: Supplier;
   decision: Decision;
   findings: Finding[];
+  /*
+   * The level and the state of this line, derived by `assessLine` in
+   * `@hackmty/core` and attached by the API to every line of the run and to the
+   * instruction detail. Never stored, and never a number: the three words are the
+   * whole vocabulary and ADR-0009 forbids a probability on any screen.
+   *
+   * Optional on this mirror, and that is deliberate rather than sloppy. The API
+   * always answers them; offline, `RUN_ITEMS` in `mock.ts` is assembled by hand and
+   * `LEVELS_BY_INSTRUCTION` in the generated `mock-data.ts` is where the offline
+   * level and state already live, keyed by instruction id, derived from the mock
+   * verifications and the mock execution as well as the decision. Writing them onto
+   * the row too would be two offline copies of one pair, which is the failure this
+   * whole vocabulary exists to prevent. Issue 208 is where the chips pick one.
+   */
+  confidence?: Confidence;
+  confidenceRule?: ConfidenceRule;
+  confidenceFindingIds?: string[];
+  state?: TransactionState;
+  stateRule?: TransactionStateRule;
 }
 
 /** `GET /api/v1/run/current`. */
