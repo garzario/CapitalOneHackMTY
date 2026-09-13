@@ -143,6 +143,11 @@
      beside it. */
   --tour-card-width: 25rem;
 
+  /* How tall the top bar is, as a token because two files need the same answer:
+     the bar itself, and the recorrido's card when the spotlight sends it to a
+     top corner and it must not stand on the title and the two controls. */
+  --topbar-h: 3.25rem;
+
   /* The keyboard affordance, as tokens, so the ring is one value and not one
      per component. `base.css` is the only place that draws it. */
   --focus-width: 2px;

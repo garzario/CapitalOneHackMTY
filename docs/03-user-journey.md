@@ -69,14 +69,15 @@ Everything above is the journey of the person who pays the suppliers. This is th
 judge, the teammate or the visitor who opens the link cold and meets ninety-two rows of pesos that
 explain nothing on their own, and it is a stage of the product rather than a page about it.
 
-**Recorrido** in the top bar, and a banner on `#/entrada` on a first visit, opens nine stops over the
-running app. The steps are `tourSteps` in `apps/web/src/lib/tour.ts`: each one navigates to the
-screen a stage above happens on, dims the page except for the one element it is about, and says in
-three paragraphs what that element is for. In order: why SentryOne exists, the Thursday run, the
-WhatsApp screenshot arriving in the assistant panel, the account and its plaza, the cent and the
-CEP, the SAT publishing, the run leaving, who signs, and the call. Every line a stop points at is
-derived from the run through `GET /api/v1/tour`, so a reseed moves the recorrido with it and no stop
-names a folio.
+The first load of a browser opens it by itself, and **Recorrido** in the top bar reopens it at any
+time: nine stops over the running app. The steps are `tourSteps` in `apps/web/src/lib/tour.ts`. The
+first is a welcome card, with the lockup, one headline and the three lines of the scene. The other
+eight each navigate to the screen a stage above happens on, dim the page except for the one element
+they are about, and say it in a title, at most two short sentences and one line that names what to
+look at. In order: the welcome, the Thursday run, the WhatsApp screenshot arriving in the assistant
+panel, the account and its plaza, the cent and the CEP, the SAT publishing, the run leaving, who
+signs, and the call. Every line a stop points at is derived from the run through
+`GET /api/v1/tour`, so a reseed moves the recorrido with it and no stop names a folio.
 
 The ninth stop is the one that is not a screen. The visitor types their own mobile number, ticks a
 box, and the payments line telephones them as Gerardo Villarreal, the owner of the synthetic

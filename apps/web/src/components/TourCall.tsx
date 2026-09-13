@@ -8,24 +8,29 @@
  * two other things, and what he needs is one sentence and one question. A visitor
  * who hears that call understands the product in a way no panel explains.
  *
- * What it does, and the order matters because three of the four are refusals.
+ * What it does, in the order it is on screen, and it is one thing at a time.
  *
- * 1. One field that takes a telephone number in whatever shape it was written in,
- *    a line underneath saying which number is about to be dialled, and a box that
- *    has to be ticked. The number is sent in the body of one POST and nowhere
- *    else, and the API keeps a salted hash of it rather than the number.
- * 2. The call, as a strip that walks `Marcando`, `En llamada`, `Procesando`,
- *    `Termino`. It follows the ledger stream, which is how the rest of this app
- *    learns that anything happened, and asks `GET /tour/call/:id` every four
- *    seconds only while that stream is not open.
+ * 1. One compact block: the field that takes a telephone number in whatever shape
+ *    it was written in, the line underneath saying which number is about to be
+ *    dialled, the consent line, and the button. The number is sent in the body of
+ *    one POST and nowhere else, and the API keeps a salted hash of it rather than
+ *    the number. The block goes as soon as the call is under way, because a form
+ *    that is still there is a form somebody presses twice.
+ * 2. The call, as a strip of three: `Marcando`, `En llamada`, `Termino`. It
+ *    follows the ledger stream, which is how the rest of this app learns that
+ *    anything happened, and asks `GET /tour/call/:id` every four seconds only
+ *    while that stream is not open.
  * 3. The answer, as the same badge the run uses, with the sentence the outcome was
  *    read from quoted underneath. A `hold` and a `release` are both an ordinary
  *    decision with the owner's name on it, and the two answers that are the
  *    telephone rather than the owner leave the line exactly where it was.
  * 4. With no telephony -- `?data=mock`, or a server with `ALLOW_TOUR_CALLS` off, or
- *    one with no voice configured -- the script is printed and the two answers can
- *    be simulated. The result card then says `simulado` on it, because a simulated
- *    answer that looks like a real one is the one thing this stop must not do.
+ *    one with no voice configured -- the same block appears with `Simular` and the
+ *    two answers in place of the button, so the flow is demonstrable at every
+ *    stand, on every laptop, with or without a server. The strip and the result
+ *    then run exactly as they do for a real call and the result card says
+ *    `simulado` on it, because a simulated answer that looks like a real one is
+ *    the one thing this stop must not do.
  *
  * The button is dead only while there are fewer than eight digits or the box is
  * unticked, and both of those say so on screen next to the control they are
@@ -72,8 +77,9 @@ import {
   revertSentence,
   SIMULATED_EVIDENCE,
   stateFromEvent,
+  stripIndexOf,
   TOUR_CALL_STATUS_LABEL,
-  TOUR_CALL_STATUS_ORDER,
+  TOUR_CALL_STRIP,
 } from "../lib/tour-call";
 import { TransactionStateBadge } from "./Primitives";
 
@@ -86,7 +92,7 @@ const OWNER = { role: "owner", name: "Visitante" } as const;
 type Result = {
   outcome: TourOwnerOutcome;
   evidence: string;
-  /** True when nothing rang: the two buttons under the script. */
+  /** True when nothing rang: the two buttons in place of the call button. */
   simulated: boolean;
 };
 
@@ -237,10 +243,17 @@ export function TourCall({ config }: { config: TourConfig }) {
     });
   }, []);
 
+  /* A call that is under way, which is the one state the form must not be in:
+     a form still on screen while the telephone is ringing is a form that gets
+     pressed twice. A refusal is not one of these, so the block comes back with
+     the reason next to it. */
+  const dialing = status !== null && status !== "failed";
+  const reached = status === null ? -1 : stripIndexOf(status);
+
   return (
     <div className="tour-call">
-      {result === null ? (
-        <>
+      {result === null && !dialing ? (
+        <div className="tour-block">
           <div className="tour-field">
             <label className="label" htmlFor="tour-phone">
               Tu celular
@@ -304,11 +317,34 @@ export function TourCall({ config }: { config: TourConfig }) {
               ) : null}
             </>
           ) : (
-            <p className="panel-sunken muted m-0 p-3 t-xs">
-              {mode === "mock"
-                ? "Modo sin conexion: no sale ninguna peticion del navegador, asi que nadie marca. Abajo esta el guion y las dos respuestas se pueden simular."
-                : "Este servidor tiene las llamadas del recorrido apagadas. Abajo esta el guion y las dos respuestas se pueden simular."}
-            </p>
+            <>
+              {/* No telephony, and the same flow anyway: the two answers a person
+                  can give, in place of the button, so the strip and the result
+                  card below run exactly as they do for a real call. */}
+              <div className="tour-simulate">
+                <span className="eyebrow">Simular</span>
+                <button
+                  type="button"
+                  className="btn btn-hold btn-sm"
+                  onClick={() => simulate("hold")}
+                >
+                  Retener
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-release btn-sm"
+                  onClick={() => simulate("release")}
+                >
+                  Liberar
+                </button>
+              </div>
+
+              <p className="subtle m-0 t-xs">
+                {mode === "mock"
+                  ? "Modo sin conexion: no sale ninguna peticion del navegador, asi que nadie marca."
+                  : "Este servidor tiene las llamadas del recorrido apagadas, asi que nadie marca."}
+              </p>
+            </>
           )}
 
           {problem !== null ? (
@@ -316,26 +352,22 @@ export function TourCall({ config }: { config: TourConfig }) {
               {problem}
             </p>
           ) : null}
-        </>
+        </div>
       ) : null}
 
-      {/* The strip: where this one call has got to, in the provider's own four
-          words. A call that failed is not a fifth step of it, so the strip comes
-          off and the sentence underneath says what happened to the payment. */}
-      {status !== null && status !== "failed" && result === null ? (
+      {/* The strip: where this one call has got to, in three words. It stays
+          under the result, because "Termino" and the answer are one thing. A
+          call that failed is not a fourth step of it, so the strip comes off and
+          the sentence underneath says what happened to the payment. */}
+      {reached >= 0 ? (
         <div aria-live="polite" className="tour-strip">
-          {TOUR_CALL_STATUS_ORDER.map((name) => (
+          {TOUR_CALL_STRIP.map((label, at) => (
             <span
-              key={name}
+              key={label}
               className="tour-strip-step"
-              data-on={
-                TOUR_CALL_STATUS_ORDER.indexOf(name) <=
-                TOUR_CALL_STATUS_ORDER.indexOf(status)
-                  ? "true"
-                  : "false"
-              }
+              data-on={at <= reached ? "true" : "false"}
             >
-              {TOUR_CALL_STATUS_LABEL[name]}
+              {label}
             </span>
           ))}
         </div>
@@ -373,9 +405,9 @@ export function TourCall({ config }: { config: TourConfig }) {
 
       {/* The words, always available and never behind the call: a visitor who
           does not want to give a telephone number still gets to read what the
-          owner would hear. It opens itself where nothing can ring, because there
-          the script is the stop rather than a footnote to it. */}
-      <details className="tour-script" open={!canCall}>
+          owner would hear. It stays shut, because the stop is the call and this
+          is the footnote to it. */}
+      <details className="tour-script">
         <summary className="t-xs">El guion que escucha el dueno</summary>
 
         {/* The stand-in is close to the call and is not the call, and a card
@@ -396,26 +428,6 @@ export function TourCall({ config }: { config: TourConfig }) {
         </ol>
 
         <p className="m-0 t-xs">{script.question}</p>
-
-        {!canCall && result === null ? (
-          <div className="tour-simulate">
-            <span className="eyebrow">Simular respuesta</span>
-            <button
-              type="button"
-              className="btn btn-hold btn-sm"
-              onClick={() => simulate("hold")}
-            >
-              Retener
-            </button>
-            <button
-              type="button"
-              className="btn btn-release btn-sm"
-              onClick={() => simulate("release")}
-            >
-              Liberar
-            </button>
-          </div>
-        ) : null}
       </details>
     </div>
   );

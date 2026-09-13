@@ -33,7 +33,7 @@ import { describe, expect, test } from "bun:test";
 import type { LedgerEvent } from "@hackmty/core";
 import type { ApiFailure } from "./api";
 import { forbiddenVerdict } from "./assistant";
-import type { TourHero, TourOwnerOutcome } from "./contract";
+import type { TourCallStatus, TourHero, TourOwnerOutcome } from "./contract";
 import { mockRun } from "./mock";
 import { heroOf } from "./tour";
 import {
@@ -55,8 +55,9 @@ import {
   SIMULATED_EVIDENCE,
   stateFromEvent,
   stillHeld,
+  stripIndexOf,
   TOUR_CALL_STATUS_LABEL,
-  TOUR_CALL_STATUS_ORDER,
+  TOUR_CALL_STRIP,
   toE164,
   tourCallFields,
 } from "./tour-call";
@@ -323,16 +324,47 @@ describe("what an answer means", () => {
     expect(SIMULATED_EVIDENCE.unclear).toBe("");
   });
 
-  test("the strip is four steps and every status has a word", () => {
-    expect(TOUR_CALL_STATUS_ORDER).toEqual([
-      "initiated",
-      "in-progress",
-      "processing",
-      "done",
-    ]);
+  /* Every status there is, read off the map the compiler keeps exhaustive: it is
+     a `Record<TourCallStatus, string>`, so a status added to the union fails the
+     build here rather than rendering as an empty pill. */
+  const statuses = Object.keys(TOUR_CALL_STATUS_LABEL) as TourCallStatus[];
 
-    for (const status of [...TOUR_CALL_STATUS_ORDER, "failed" as const]) {
+  test("every status the provider can report has a word", () => {
+    expect(statuses).toHaveLength(5);
+
+    for (const status of statuses) {
       expect([status, TOUR_CALL_STATUS_LABEL[status].length > 3]).toEqual([
+        status,
+        true,
+      ]);
+    }
+  });
+
+  test("the strip a visitor watches is three states and not four", () => {
+    /* It rings, you talk, it ends. `processing` is the provider reading its own
+       transcript, which is not a thing that happens to the person holding the
+       telephone: they are still on the call until the answer lands, so it folds
+       into the middle one rather than being a fourth pill saying nothing. */
+    expect(TOUR_CALL_STRIP).toEqual(["Marcando", "En llamada", "Termino"]);
+
+    expect(stripIndexOf("initiated")).toBe(0);
+    expect(stripIndexOf("in-progress")).toBe(1);
+    expect(stripIndexOf("processing")).toBe(1);
+    expect(stripIndexOf("done")).toBe(2);
+  });
+
+  test("a call that failed is off the strip rather than stuck on it", () => {
+    /* The strip comes off and the sentence underneath says what happened to the
+       payment, which is the only thing a visitor can act on. A fourth pill that
+       said "No se pudo completar" would be a step of a call that never had one. */
+    expect(stripIndexOf("failed")).toBeLessThan(0);
+  });
+
+  test("the strip never points past its own last state", () => {
+    /* The guard on the renderer: every index it can be handed is inside the
+       array it indexes, in both directions. */
+    for (const status of statuses) {
+      expect([status, stripIndexOf(status) < TOUR_CALL_STRIP.length]).toEqual([
         status,
         true,
       ]);

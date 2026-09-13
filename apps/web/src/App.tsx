@@ -17,7 +17,7 @@ import {
   useRoute,
   useRouteQuery,
 } from "./lib/router";
-import { openTour } from "./lib/tour-store";
+import { openTour, openTourOnFirstVisit } from "./lib/tour-store";
 import { CepScreen } from "./screens/CepScreen";
 import { EntryScreen } from "./screens/EntryScreen";
 import { InstructionScreen } from "./screens/InstructionScreen";
@@ -107,6 +107,19 @@ export default function App() {
       openTour();
     }
   }, [query]);
+
+  /* The first load of this browser opens the recorrido by itself, and no load
+     after it does. The product opens on ninety-two rows of pesos and a judge who
+     walks up while nobody is presenting has no way to know which of them is the
+     product, so the one thing this app does without being asked is introduce
+     itself, once, with `Saltar` and `Ver despues` on the card. It replaced a
+     banner on `#/entrada`, which is a screen a visitor landing on the run never
+     opened. `lib/tour-store.ts` holds the remembering and every read of it is
+     wrapped, so a browser that refuses storage is greeted every time rather than
+     left with an unexplained table. */
+  useEffect(() => {
+    openTourOnFirstVisit();
+  }, []);
 
   /* A bare URL lands on the payment run with a real hash, so every link on the
      page is shareable from the first paint. */

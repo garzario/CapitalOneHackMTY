@@ -98,6 +98,40 @@ section landed after that tag was cut.
 
 ### Changed
 
+- **The recorrido opens itself, says one thing per stop, and points at what to look at** (issue
+  #216). The tour existed and nobody found it: the invitation was a banner on `#/entrada`, which a
+  visitor landing on the payment run never opened. The first load of a browser now opens it without
+  being asked, once, remembered in `localStorage` under `sentryone:tour-seen` through a `try` so a
+  private window is greeted again rather than left in front of an unexplained table, and the card it
+  opens on carries `Saltar` and `Ver despues` before it carries anything else. `Recorrido` in the top
+  bar and `#/run?tour=1` still open the same thing, and closing it hands focus back to that button.
+
+  The first card is a welcome and not a stop: the lockup, the headline `El ultimo control antes de
+  que un pago sea irrevocable`, the three lines of Lupita's Thursday, `Empezar el recorrido`, and
+  `9 pasos, 2 minutos`, because a tour that does not say how long it is, is a tour a person declines
+  rather than risks. The eight after it are `Paso N de 9`, a title, at most two short sentences, and
+  one line in its own style that says where the eye goes: `Mira la cifra grande`, `Presiona Simular
+  publicacion 69-B`, `Mira el boton de enviar`. `apps/web/src/lib/tour.test.ts` counts every one of
+  those lengths and fails a stop that lights something up without naming it.
+
+  The spotlight is the part that had to be reliable rather than pretty. It polls for the element for
+  two seconds after the navigation, scrolls it into view once, draws a three-pixel ring in the hold
+  red and re-measures on resize and on scroll; a target that never appears leaves the card with no
+  ring rather than a ring around nothing. The card now takes the first of four corners that does not
+  touch that hole, `placeCard` in `apps/web/src/lib/tour.ts`, and the rectangle it chooses is a unit
+  test: it used to choose between left and right only, so the stop about the button that sends the
+  run put its card on top of that button whichever side it took. A top corner stands under the top
+  bar and not on it, which is what `--topbar-h` became a token for. Progress is nine dots instead of a
+  bar, the card is `aria-modal`, and below `48rem` it is a bottom sheet with the target scrolled to
+  the top of the screen rather than the middle.
+
+  The call of the last stop is one compact block -- field, consent line, button -- with a three-state
+  strip under it, `Marcando`, `En llamada`, `Termino`, and then the result. With no telephony the
+  same block offers `Simular` with `Retener` and `Liberar` where the button would be, so the flow is
+  demonstrable at any stand with or without a server, and the result still says `simulado` on it.
+  `brand/shoot.ts` and `audit/audit.ts` mark the tour seen on every document they open, because a
+  headless profile is a first visit every time.
+
 - **Six environment variables, and a box that rings a telephone only when it was told to** (issue
   #216). `ELEVENLABS_OWNER_AGENT_ID` is the second agent, created by `bun run voice-setup --owner`;
   an agent id names a configuration and authorises nothing, so it is not a secret. `ALLOW_TOUR_CALLS`
