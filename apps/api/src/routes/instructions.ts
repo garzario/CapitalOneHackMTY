@@ -2,6 +2,7 @@ import {
   assessConfidence,
   type DecideRequirement,
   decideRequirement,
+  definitiveListingReason,
   estimateLoss,
   holdWindow,
   roleSatisfies,
@@ -10,6 +11,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
 import { fail, notFound, rejectInvalid } from "../http";
+import { detailLevels } from "../levels";
 import { ACTOR_HEADER, actorOf, requireActor } from "../middleware/actor";
 import { runIntake } from "../pipeline";
 import {
@@ -61,13 +63,19 @@ export function instructionRoutes(deps: ApiDeps) {
         }
 
         /* The window is computed here and not in the repository, because the
-           repository owns no clock. `null` means the money is not stopped. */
+           repository owns no clock. `null` means the money is not stopped.
+
+           The level and the state come from the same `assessLine` the run payload
+           reads, so a judge who clicks a line of the run and lands here sees the
+           same two words. That is the whole point of ADR-0009, and the failure of
+           issue #125 is what it was written after. */
         const response: InstructionDetailResponse = {
           ...detail,
           hold:
             detail.decision === null
               ? null
               : holdWindow(detail.decision, { now: deps.clock.now() }),
+          ...detailLevels(detail),
         };
 
         return c.json(response);
@@ -101,6 +109,23 @@ export function instructionRoutes(deps: ApiDeps) {
           at: decision.decidedAt,
           decision,
         });
+        /* A payment to a definitively listed supplier is cancelled on arrival, and
+           the ledger says so with the article in the sentence. No `actor`: nobody
+           dropped this line by hand, the evidence cancelled it, which is what
+           `payment_cancelled` documents that field for. It goes out after the
+           decision, because a replay has to read as the assessment and then its
+           consequence. From here it is `deps.repo.cancellation` that the owner rule
+           of issue #199 reads, so the two halves meet on the ledger and nowhere
+           else. */
+        const cancellation = definitiveListingReason(findings);
+        if (cancellation !== undefined) {
+          await deps.emit({
+            type: "payment_cancelled",
+            at: decision.decidedAt,
+            instructionId: instruction.id,
+            reason: cancellation,
+          });
+        }
 
         return c.json({ instruction, findings, decision }, 201);
       },
