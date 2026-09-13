@@ -22,7 +22,10 @@ import type {
 } from "@hackmty/core";
 import type {
   CepSealState,
+  Confidence,
   NameMatch,
+  PaymentLineState,
+  TransactionState,
   VerificationRail,
   VerificationStateName,
 } from "./contract";
@@ -207,6 +210,103 @@ export const SEAL_STATE_BADGE: Record<CepSealState, string> = {
   valid: "badge badge-release",
   not_checked: "badge badge-verify",
   invalid: "badge badge-hold",
+};
+
+/**
+ * The level, in the only three words this product has for it.
+ *
+ * ADR-0009 fixes them and forbids everything around them: no probability, no
+ * percentage, no score, and never the word that would read as a guarantee about a
+ * transfer nobody can recall. `confiable` is a statement about the evidence we
+ * hold and the findings are rendered next to it, which is the only way it is ever
+ * shown.
+ */
+export const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confiable: "Confiable",
+  precaucion: "Precaucion",
+  alerta: "Alerta",
+};
+
+export const CONFIDENCE_BADGE: Record<Confidence, string> = {
+  confiable: "badge badge-release",
+  precaucion: "badge badge-verify",
+  alerta: "badge badge-hold",
+};
+
+export const CONFIDENCE_HELP: Record<Confidence, string> = {
+  confiable:
+    "Los documentos que tenemos coinciden y no hay nada abierto. No es una garantia: un SPEI no regresa.",
+  precaucion:
+    "Falta una comprobacion o la cuenta no tiene historial de pagos detras.",
+  alerta: "Los documentos ya muestran un problema que cuesta dinero.",
+};
+
+/**
+ * The state of a payment, in the three words a screen says plus the two the run
+ * counts internally.
+ *
+ * `rojo` and `cancelado` share a colour and that is deliberate rather than lazy:
+ * for a clerk both mean the same thing about the money, which is that it is not
+ * leaving, and the word and the sentence next to it are what tell her whether
+ * somebody still has to act. Painting them apart would invent a distinction the
+ * palette does not have.
+ */
+export const TRANSACTION_STATE_LABEL: Record<TransactionState, string> = {
+  pendiente: "Pendiente",
+  rojo: "Rojo",
+  cancelado: "Cancelado",
+  liberado: "Liberado",
+  enviado: "Enviado",
+};
+
+export const TRANSACTION_STATE_BADGE: Record<TransactionState, string> = {
+  pendiente: "badge badge-neutral",
+  rojo: "badge badge-hold",
+  cancelado: "badge badge-hold",
+  liberado: "badge badge-info",
+  enviado: "badge badge-release",
+};
+
+export const TRANSACTION_STATE_HELP: Record<TransactionState, string> = {
+  pendiente: "Nadie ha decidido esta linea todavia.",
+  rojo: "Esta detenida y enfrente de una persona.",
+  cancelado: "No sale en esta corrida, y el motivo va junto al estado.",
+  liberado: "Nada la detiene y todavia no sale. Entra en la corrida.",
+  enviado: "El dinero salio. Es lo unico aqui que no se puede deshacer.",
+};
+
+/**
+ * What the rail did with one line, and the five states are never four.
+ *
+ * `sent` and `settled` keep different words and different colours because they
+ * are two different claims: the first is that we asked, the second is that the
+ * rail says it happened. ADR-0008 calls collapsing them the one thing the demo
+ * must not do, since the CEP exists to prove exactly that difference.
+ */
+export const PAYMENT_LINE_LABEL: Record<PaymentLineState, string> = {
+  queued: "En cola",
+  sent: "Enviado",
+  settled: "Liquidado",
+  failed: "Rechazado",
+  cancelled: "Cancelado",
+};
+
+export const PAYMENT_LINE_BADGE: Record<PaymentLineState, string> = {
+  queued: "badge badge-info",
+  sent: "badge badge-verify",
+  settled: "badge badge-release",
+  failed: "badge badge-hold",
+  cancelled: "badge badge-neutral",
+};
+
+export const PAYMENT_LINE_HELP: Record<PaymentLineState, string> = {
+  queued: "El riel la acepto y todavia no sale.",
+  sent: "Salio. El riel aun no la reconoce, y eso es otra afirmacion.",
+  settled:
+    "El riel reconocio la transferencia. Hasta aqui el recibo esta completo.",
+  failed: "El riel la rechazo. El motivo va en la misma linea.",
+  cancelled:
+    "Se quedo fuera antes de enviar nada. El motivo va en la misma linea.",
 };
 
 export const ESTABLISHED_BY_LABEL: Record<string, string> = {

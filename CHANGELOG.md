@@ -79,6 +79,54 @@ then the screens, then the narrative, then the plumbing.
   that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
   not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
 
+- The payments screen, where the run leaves and a person sends it (issue #212). `#/payments` in
+  `apps/web` is the last look before the money moves: the lines the run hands to the rail with their
+  level and their state, "Enviar corrida" behind a second press and a name, the progress line by line
+  as the rail answers, the receipt of every payment that left, the run constancia and the bank layout
+  export. The lines the run does not take sit in their own table with the sentence that says why,
+  because a payment that disappears quietly is a payment somebody believes they made.
+
+  The part worth reading is `apps/web/src/lib/payments.ts`, which answers two different questions with
+  two different fields instead of collapsing them into one. Whether the run TAKES a line is the
+  decision, because `POST /api/v1/run/:id/execute` hands the rail every released line and nothing
+  else; whether a line the run took will be PAID is `transactionStateOf`, because a released line
+  whose beneficiary came back blocked, or whose supplier is definitively listed with nobody's
+  signature over it, reads `cancelado` and comes back off the rail as a `cancelled` line carrying a
+  reason. Collapsing the two is how a screen either hides a payment that was refused or offers one the
+  API was never going to send, and the generated run has one line of each kind, so both cases are on
+  screen rather than in a comment. Neither the level nor the state is computed here: `confidenceOf`
+  and `transactionStateOf` in `packages/core` answer both, the API's own `confidence` and `state` are
+  used when the payload carries them, and the module adds only the Spanish sentence under a state,
+  quoting the engine's own `explanation` or the rail's own `reason` rather than composing a second
+  account of one event.
+
+  Nothing leaves without a person and the screen is built so that is visible rather than claimed. The
+  name of whoever sends the run is a field on the page, it travels on `X-Actor`, the ledger records it
+  per line, and the button refuses to work without it. The confirmation press names the count and the
+  pesos and says that a SPEI does not come back. `GET /api/v1/rails` is what lets the screen say which
+  rail is live without reading an environment file: on the Nessie mirror it states that the sandbox
+  registers the outflow, moves no pesos and produces no CEP, which is why the receipt reads "sello no
+  verificado", and on STP it says the rail has never run live from this repository. A server with no
+  rail repeats the sentence `packages/rail` wrote instead of a paraphrase.
+
+  The layout export is the no-API path a small company actually uses: a CSV in SentryOne's own
+  columns, one row per line, and the screen says out loud that every bank publishes its own template
+  so the file is adjusted to the portal before it is uploaded. It carries only a line that may be paid
+  and that no rail is holding, which are the same two refusals the execute endpoint follows: a file
+  with a held payment in it would be the control being bypassed by the export, and a file repeating a
+  transfer already on the rail is how a supplier gets paid twice.
+
+  Two pieces of plumbing came with it. `apps/web/src/lib/sse.ts` is the Server-Sent Events framing by
+  hand, because `EventSource` issues a bare GET and this stream needs `confirm: true` and an actor
+  header, and the three things a naive decoder gets wrong are each a test: a message ends at a blank
+  line and not at a newline, repeated `data:` fields join with a newline between them, and the
+  heartbeat comment that keeps a proxy from closing the connection is not a message. The screen also
+  listens on `GET /api/v1/events` and re-reads the execution on any `payment_*` event, so a second
+  screen watching the run moves with the first, and folding a line is idempotent per instruction so
+  the two channels delivering the same payment cannot double it. Under `?data=mock` nothing opens at
+  all: the generated execution is replayed line by line in the browser, so the review, the progress,
+  the receipts and the export are demonstrable on a phone in a corridor.
+
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now
   carries a deadline and a way out: `holdWindow` in `packages/core/src/hold.ts` reads the same

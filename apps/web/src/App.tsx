@@ -11,12 +11,14 @@ import { CepScreen } from "./screens/CepScreen";
 import { InstructionScreen } from "./screens/InstructionScreen";
 import { IntakeScreen } from "./screens/IntakeScreen";
 import { MetricsScreen } from "./screens/MetricsScreen";
+import { PaymentsScreen } from "./screens/PaymentsScreen";
 import { RunScreen } from "./screens/RunScreen";
 import { SatScreen } from "./screens/SatScreen";
 import { VerifyCallScreen } from "./screens/VerifyCallScreen";
 
 const TITLES: Record<Route["name"], string> = {
   run: "Corrida de pagos",
+  payments: "Salida de la corrida",
   instruction: "Instruccion de pago",
   intake: "Alta de una instruccion",
   sat: "Lista 69-B",
@@ -30,6 +32,8 @@ function screenFor(route: Route) {
   switch (route.name) {
     case "run":
       return <RunScreen />;
+    case "payments":
+      return <PaymentsScreen />;
     case "instruction":
       return <InstructionScreen id={route.id} />;
     case "intake":

@@ -17,16 +17,22 @@
 import type { LedgerEvent } from "@hackmty/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  Actor,
   BeneficiaryRegistry,
   CepVerification,
   CepVerifyBody,
   CreateInstructionBody,
   DecideBody,
+  ExecuteRunBody,
   Health,
   InstructionDetail,
   LedgerPage,
   Metrics,
+  PaymentExecution,
+  PaymentExecutionLine,
+  PaymentReceipt,
   PaymentRun,
+  RailsStatus,
   SatLookup,
   SatPublishBody,
   SatVersions,
@@ -39,6 +45,7 @@ import type {
   VerifyCallResult,
   VerifyCallScript,
 } from "./contract";
+import { SseBuffer } from "./sse";
 
 export const API_TIMEOUT_MS = 6000;
 export const API_PREFIX = "/api/v1";
@@ -387,6 +394,76 @@ export async function getLedger(
 }
 
 /**
+ * What this run did on the payment rail, folded out of the ledger.
+ *
+ * A run nobody has executed answers `200` with no lines rather than a `404`, so an
+ * empty result here is the review state of the screen and never an error. `current`
+ * is accepted as the id, the same as everywhere else in this contract.
+ */
+export async function getRunExecution(
+  runId: string,
+  options?: RequestOptions,
+): Promise<ApiResult<PaymentExecution>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/run/${encodeURIComponent(runId)}/execution`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<PaymentExecution>(
+        value,
+        (execution) =>
+          Array.isArray(execution.lines) && isRecord(execution.totals),
+        "payment execution",
+      ),
+  );
+}
+
+/**
+ * Which rails this server holds, so a screen can say which one is live without
+ * reading an environment file it cannot see.
+ *
+ * No secret is in this payload and that is the whole reason it is its own
+ * endpoint: `configured` says whether the variables exist and never what they
+ * contain, and `live` is whether that rail has ever actually moved money from this
+ * repository, which is what stops a screen claiming the production path has run.
+ */
+export async function getRails(
+  options?: RequestOptions,
+): Promise<ApiResult<RailsStatus>> {
+  return andThen(await request(`${API_PREFIX}/rails`, {}, options), (value) =>
+    shaped<RailsStatus>(
+      value,
+      (payload) => Array.isArray(payload.rails) && "active" in payload,
+      "rails",
+    ),
+  );
+}
+
+/** The receipt of one payment, as JSON. `id` is the line's `receiptId`. */
+export async function getPaymentReceipt(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<PaymentReceipt>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/payments/${encodeURIComponent(id)}/receipt`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<PaymentReceipt>(
+        value,
+        (receipt) =>
+          typeof receipt.claveRastreo === "string" &&
+          typeof receipt.sealState === "string",
+        "payment receipt",
+      ),
+  );
+}
+
+/**
  * The constancia is a PDF, so it is a link and not a fetch.
  *
  * These build the href the anchor carries. Letting the browser navigate is what
@@ -400,6 +477,16 @@ export function sweepConstanciaHref(listVersion: string): string {
 
 export function runConstanciaHref(runId: string): string {
   return `${API_PREFIX}/run/${encodeURIComponent(runId)}/constancia`;
+}
+
+/** The same receipt as a PDF, which is the copy the accountant files. */
+export function paymentReceiptHref(receiptId: string): string {
+  return `${API_PREFIX}/payments/${encodeURIComponent(receiptId)}/receipt?format=pdf`;
+}
+
+/** The one-page evidence letter of one instruction, for a supplier who asks. */
+export function instructionCartaHref(instructionId: string): string {
+  return `${API_PREFIX}/instructions/${encodeURIComponent(instructionId)}/carta`;
 }
 
 /* -------------------------------------------------------------------- write */
@@ -744,4 +831,214 @@ export function useEvents(options: UseEventsOptions = {}): UseEvents {
   }, [enabled, limit, attempt]);
 
   return { status, events, lastEventAt, reconnect };
+}
+
+/* ------------------------------------------------------ the payment run out */
+
+export const ACTOR_HEADER = "X-Actor";
+
+/** The two event names `POST /run/:id/execute` writes, from docs/09-api.md. */
+export const EXECUTE_LINE_EVENT = "line";
+export const EXECUTE_DONE_EVENT = "done";
+
+/**
+ * The `X-Actor` header value for one person.
+ *
+ * Two keys separated by `;`, and the name is the rest of the pair so a real name
+ * needs no quoting. A name that carries a `;` is refused here rather than
+ * truncated, because the API refuses it too and a header this client silently cut
+ * in half would put half a person's name on a ledger entry.
+ */
+export function actorHeaderValue(actor: Actor): string | null {
+  const name = actor.name.trim();
+
+  if (name === "" || name.length > 120 || name.includes(";")) {
+    return null;
+  }
+
+  return `role=${actor.role}; name=${name}`;
+}
+
+export type ExecuteRunHandlers = {
+  /** Every `line` event, in arrival order, as the rail answered it. */
+  onLine?: (line: PaymentExecutionLine) => void;
+};
+
+/**
+ * The payment run leaving on the configured rail.
+ *
+ * `fetch` and not `EventSource`, because this stream starts with a body and a
+ * header: `confirm: true` and a valid `X-Actor` are both required and an
+ * `EventSource` can send neither. `sse.ts` owns the framing; this owns the reader.
+ *
+ * Three things it deliberately does not do.
+ *
+ * It sets **no timeout**. Every other call in this file gives up after six
+ * seconds, which is right for a read and wrong for a stream that is acknowledging
+ * payments one at a time: aborting it would leave a run half sent with the screen
+ * reporting a network failure. The caller's `signal` is still honoured, so a screen
+ * that unmounts closes the connection.
+ *
+ * It **never retries**. A retried execute is a second request to move money, and
+ * the endpoint is idempotent per instruction precisely so that a person can decide
+ * to press the button again rather than a client deciding for them.
+ *
+ * It **reports a refusal as a value**, like the rest of this file. A `503` from a
+ * server with no rail, a `409` naming a line the decisions stop and a `403` for a
+ * role that may not execute all arrive as an `ApiFailure` carrying the message the
+ * API wrote, and nothing was appended to the ledger for any of them.
+ */
+export async function executeRun(
+  runId: string,
+  body: ExecuteRunBody,
+  actor: Actor,
+  handlers: ExecuteRunHandlers = {},
+  options: RequestOptions = {},
+): Promise<ApiResult<PaymentExecution>> {
+  const header = actorHeaderValue(actor);
+
+  if (header === null) {
+    return {
+      ok: false,
+      error: {
+        status: 0,
+        message:
+          "Falta el nombre de quien envia la corrida, o trae un punto y coma. Nada sale sin una persona detras.",
+      },
+    };
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_PREFIX}/run/${encodeURIComponent(runId)}/execute`,
+      {
+        method: "POST",
+        headers: {
+          accept: "text/event-stream",
+          "content-type": "application/json",
+          [ACTOR_HEADER]: header,
+        },
+        body: JSON.stringify(body),
+        signal: options.signal,
+      },
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      return { ok: false, error: { status: 0, message: "Request cancelled." } };
+    }
+
+    return {
+      ok: false,
+      error: { status: 0, message: "The API is not reachable." },
+    };
+  }
+
+  if (!response.ok) {
+    /* A refusal answers the error envelope as JSON and never a stream. */
+    const payload: unknown = await response.json().catch(() => null);
+
+    return { ok: false, error: failureFrom(response.status, payload) };
+  }
+
+  const stream = response.body;
+
+  if (!stream) {
+    return {
+      ok: false,
+      error: {
+        status: response.status,
+        message: "The API accepted the run and sent no stream to follow it on.",
+      },
+    };
+  }
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  const buffer = new SseBuffer();
+  let execution: PaymentExecution | null = null;
+
+  const handle = (event: string, data: string) => {
+    const parsed: unknown = parseJson(data);
+
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    if (event === EXECUTE_LINE_EVENT) {
+      if (
+        typeof parsed.instructionId === "string" &&
+        typeof parsed.state === "string"
+      ) {
+        handlers.onLine?.(parsed as unknown as PaymentExecutionLine);
+      }
+
+      return;
+    }
+
+    if (
+      event === EXECUTE_DONE_EVENT &&
+      Array.isArray(parsed.lines) &&
+      isRecord(parsed.totals)
+    ) {
+      execution = parsed as unknown as PaymentExecution;
+    }
+  };
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+
+      for (const message of buffer.push(chunk)) {
+        handle(message.event, message.data);
+      }
+    }
+
+    for (const message of buffer.flush()) {
+      handle(message.event, message.data);
+    }
+  } catch (error) {
+    if (isAbortError(error)) {
+      return { ok: false, error: { status: 0, message: "Request cancelled." } };
+    }
+
+    return {
+      ok: false,
+      error: {
+        status: 0,
+        message:
+          "Se corto el flujo de la corrida. Vuelve a leer la ejecucion para ver que alcanzo a salir.",
+      },
+    };
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (execution === null) {
+    return {
+      ok: false,
+      error: {
+        status: 0,
+        message:
+          "El flujo termino sin el resumen de la corrida. Vuelve a leer la ejecucion antes de concluir nada.",
+      },
+    };
+  }
+
+  return { ok: true, data: execution };
+}
+
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }

@@ -1,5 +1,5 @@
 /**
- * The frame every screen sits in: skip link, product header, the six routes,
+ * The frame every screen sits in: skip link, product header, the seven routes,
  * and the footer that says what this is.
  *
  * The header is deliberately small. The screen a judge is looking at is the
@@ -14,6 +14,7 @@ import { Wordmark } from "./Wordmark";
 
 const NAV: Array<{ to: string; label: string; match: RouteName[] }> = [
   { to: PATHS.run, label: "Corrida", match: ["run", "instruction"] },
+  { to: PATHS.payments, label: "Pagos", match: ["payments"] },
   { to: PATHS.intake, label: "Alta por QR", match: ["intake"] },
   { to: PATHS.sat, label: "Lista 69-B", match: ["sat"] },
   { to: PATHS.cep, label: "CEP", match: ["cep"] },
