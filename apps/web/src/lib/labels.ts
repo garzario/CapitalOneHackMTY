@@ -20,11 +20,13 @@ import type {
   ConfidenceRule,
   Detector,
   FindingState,
+  HoldNextStep,
   InstructionSource,
   ProposalKind,
   SatListStatus,
   Severity,
   TransactionState,
+  TransactionStateRule,
 } from "@hackmty/core";
 import type {
   CepSealState,
@@ -380,6 +382,56 @@ export const STATE_BADGE: Record<TransactionState, string> = {
   enviado: "state state-enviado",
   pendiente: "state state-pendiente",
   liberado: "state state-liberado",
+};
+
+/**
+ * Why the state is the state, one sentence per rule of `assessTransactionState`.
+ *
+ * The state arrives with its rule for the same reason the level does: a word a
+ * clerk cannot explain to the supplier on the telephone is a word that gets
+ * overridden blindly. `sat_definitive` is the one worth wording carefully. It is
+ * not a hold somebody can wait out, because the comprobantes have no fiscal
+ * effect at all, and a release a named person signed still wins over it, since
+ * ADR-0002 forbids the product overruling a person in either direction.
+ */
+export const STATE_RULE_LABEL: Record<TransactionStateRule, string> = {
+  executed: "el riel ya mando este pago",
+  execution_cancelled: "la corrida cancelo la linea antes de mandarla",
+  verification_blocked: "el CEP contradice a los documentos",
+  sat_definitive: "el SAT publico a este proveedor en definitiva",
+  stopped_for_a_person:
+    "el motor propuso detenerlo y la decision es de una persona",
+  execution_failed: "el riel rechazo la linea",
+  released: "una persona lo libero y todavia no sale",
+  undecided: "nadie ha decidido esta linea",
+};
+
+/**
+ * What a person can do next with a payment that has not left.
+ *
+ * `one_cent_cep` is the one worth naming out loud, because it needs nobody to
+ * answer a telephone, and it is why a hold in this product has a way out that
+ * does not depend on the supplier picking up.
+ */
+export const HOLD_STEP_LABEL: Record<HoldNextStep, string> = {
+  call_supplier: "Llamar al proveedor",
+  retry_call: "Volver a llamar",
+  one_cent_cep: "Verificar la cuenta con un centavo",
+  release_with_reason: "Liberar con nombre y razon escrita",
+  keep_held: "Mantenerlo retenido",
+};
+
+export const HOLD_STEP_HELP: Record<HoldNextStep, string> = {
+  call_supplier:
+    "La llamada lee cuatro digitos de la cuenta, nunca los dieciocho, y no libera nada.",
+  retry_call:
+    "El reintento se acota con la fecha limite, no con un contador que nadie mira.",
+  one_cent_cep:
+    "Un SPEI de un centavo sale en la misma corrida y Banxico firma el CEP que dice a nombre de quien esta la cuenta. No necesita que nadie conteste.",
+  release_with_reason:
+    "Sale con el nombre de quien lo decide y la razon escrita. Queda en la bitacora, que solo crece.",
+  keep_held:
+    "El proveedor dijo que la cuenta no es suya. Proponer una liberacion al lado de eso seria el producto discutiendo con su propio hallazgo.",
 };
 
 /**

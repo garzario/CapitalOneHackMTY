@@ -588,8 +588,9 @@ The evidence sentence is conditional and worth being precise about: for a voicem
 carries the phrase it was read from, and for a telephone nobody picked up at all there is no phrase and
 no transcript, only the `no_answer`. Silence is still an outcome; it is just not a quote.
 
-Today the deadline and the steps are in the API and not yet on the screen, and by the demo they are on
-the instruction detail (#174).
+The deadline and the steps are on the instruction detail since #209: the fecha limite, the window in
+days, and the ordered next steps, each one the control that performs it. So this is pointed at rather
+than described.
 
 ### 5b. "What if it is urgent and nobody answers?"
 
@@ -608,10 +609,14 @@ expected loss is on the instruction screen and each finding carries its own peso
 One honest gap worth volunteering before it is found, and one figure that is now worth pointing at
 rather than talking around.
 
-- Since #199 the screen sends the identity the header carries rather than a fixed string, and the API
-  refuses an override that has no reason with a `422` asking for it, so the prose is no longer optional
-  on the one shape where it matters. What the screen still owes is asking for it before the click
-  instead of after the refusal (#174). The selector itself landed in #215, on **Entrada y ajustes**.
+- Both halves are now in the product. Since #199 the screen sends the identity the header carries
+  rather than a fixed string, and the API refuses an override with no reason with a `422` asking for
+  it. Since #209 the screen asks before the click rather than after the refusal: a release over a
+  stopped payment, and the reopening of a line the run dropped, go through a form that takes the name,
+  the role and the written reason, shows the pesos at risk at that moment, and keeps the button
+  disabled until the rule `decideRequirement` states is satisfied. That is the same function the API
+  refuses on, so the screen cannot enable a button the server will reject. The selector itself landed
+  in #215, on **Entrada y ajustes**.
 - The screen carries a third figure, "Costo de retrasar un dia", and since #182 it reads a number on
   every one of the 92 payments: between MXN 101.98 and MXN 4,611.27, MXN 1,120.05 on the hero line.
   `Supplier.delayCostPerDay` is priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` from
@@ -677,9 +682,9 @@ compares and say the seal is unverified, in the same breath.
 
 One thing to volunteer rather than defend: **the loss probability per severity is a prior, not a
 measurement.** `LOSS_PROBABILITY_BY_SEVERITY` in `decision.ts` carries three numbers with a `TODO` on
-top saying exactly that. The screen does not yet say it: it renders "Perdida esperada" as a peso figure
-with no note that the probability behind it is an assumption, so this one is said out loud rather than
-pointed at (#174). What is not a prior is the amount at risk: it is the instruction's own pesos plus, for
+top saying exactly that. The screen says it since #209: "Perdida esperada" carries the sentence that the
+probability behind it is a supuesto per severity and not a medicion, so this one is pointed at like the
+rest. What is not a prior is the amount at risk: it is the instruction's own pesos plus, for
 a listed supplier, the ISR and IVA that reverse on the subtotal already deducted, at the published rates.
 That second term used to be a sentence with nothing behind it on stage, because the run-level pair read
 zero until a publication had priced a supplier the run pays; since #175 the publication in beat 2 prices
@@ -954,9 +959,10 @@ Five gaps to volunteer, in this order, because each one is cheaper said than fou
   were false over thirty-five labelled cases, 13.0 percent, which is what shadow mode replaces. The
   projection in `docs/05` moved with it, about 41 wrongly stopped payments a year rather than 47, and it
   was restated rather than left at the old number. The name and the role are enforced on every write
-  since issue #199 and an override with no reason is refused, so the release under a named person is no
-  longer only an API fact; what the screens still owe is asking for the reason before the click rather
-  than after the refusal (#174). The person selector itself landed in #215.
+  since issue #199 and an override with no reason is refused; since #209 the instruction detail asks
+  for all three before the click and shows the pesos at risk at that moment, so the release under a
+  named person is a screen fact and not only an API one. The person selector itself landed in
+  #215.
 
 ### 9. "What percentage of supplier transfers in Mexico is stolen?" We answered 25.4 percent
 

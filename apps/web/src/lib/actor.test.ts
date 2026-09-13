@@ -14,14 +14,16 @@
  * re-render for ever.
  */
 
-import { afterAll, afterEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, describe, expect, it, test } from "bun:test";
 import type { Actor } from "@hackmty/core";
+import { ACTOR_NAME_MAX_LENGTH } from "@hackmty/core";
 import {
   actorHeaderValue,
   actorSnapshot,
   currentActor,
   DEFAULT_ACTOR,
   DEMO_ACTORS,
+  isActorName,
   setCurrentActor,
   subscribeActor,
 } from "./actor";
@@ -178,5 +180,36 @@ describe("actorHeaderValue", () => {
     expect(
       actorHeaderValue({ name: "Gerardo Villarreal", role: "owner" }),
     ).toBe("role=owner; name=Gerardo Villarreal");
+  });
+});
+
+/**
+ * The one question this module answers, and the two ways answering it wrong puts
+ * a name in the ledger that nobody typed.
+ *
+ * Who may decide what is deliberately not tested here: `decideRequirement` in
+ * `@hackmty/core` owns that rule, the API refuses on the same function, and
+ * `packages/core/src/actor.test.ts` is where it is covered. A second suite over a
+ * second copy of the rule is how the two come to disagree.
+ */
+describe("isActorName", () => {
+  it("accepts a real name with its spaces", () => {
+    expect(isActorName("Maria del Carmen Ruiz")).toBe(true);
+  });
+
+  it("refuses a name carrying the header separator", () => {
+    /* `X-Actor` splits its pairs on `;`, and a name cut at one would put a
+       different person in the ledger than the one who signed. The API refuses it
+       rather than truncating, and so does the screen. */
+    expect(isActorName("Ruiz; Maria")).toBe(false);
+  });
+
+  it("refuses an empty name, which the API answers 400 for anyway", () => {
+    expect(isActorName("   ")).toBe(false);
+  });
+
+  it("holds the bound the header parser and the ledger share", () => {
+    expect(isActorName("a".repeat(ACTOR_NAME_MAX_LENGTH))).toBe(true);
+    expect(isActorName("a".repeat(ACTOR_NAME_MAX_LENGTH + 1))).toBe(false);
   });
 });

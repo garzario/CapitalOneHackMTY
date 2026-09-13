@@ -64,6 +64,37 @@ then the screens, then the narrative, then the plumbing.
   it proves and what it does not, and the quirk a probe of this issue found and paid for: Nessie
   accepts a withdrawal with no `status` and then refuses to list that account's withdrawals at all,
   with no route that deletes a single row.
+- The instruction detail answers the questions the Capital One table asked, on the screen rather than
+  in the API and a rehearsal (issue #209, absorbing #174). The level and the state are on the line
+  with the rule that produced each one and the findings the level fired on, from `assessConfidence`
+  and `assessTransactionState` in `@hackmty/core`: the same two pure functions the API calls, so a
+  line cannot read `alerta` on one screen and `precaucion` on another, and `?data=mock` reads what the
+  API reads. Neither is ever a number and neither is ever the word "seguro".
+
+  The hold window is next to it: the deadline, the days, and the ordered next steps, each one the
+  thing that performs it. `one_cent_cep` links to the cent, the call links to the call, and
+  `release_with_reason` focuses the form below, because a list of steps a clerk cannot act on is a
+  list of suggestions. The window is `EXPECTED_DELAY_DAYS` under another name, three days for a hold
+  and one for a verification, so the delay the expected-loss arithmetic charged for and the promise on
+  screen cannot drift apart. When it closes, nothing is released and nothing is refused: the panel
+  says so in that many words.
+
+  Three figures sit where the person signs: the pesos at risk, which is the largest single amount
+  among the findings and never the sum; what a day of delay costs with this supplier, with the
+  sentence that it is priced from a synthetic company's catalogue; and the expected loss, which now
+  carries out loud that the probability behind it is a prior per severity and not a measurement. That
+  last one was the honest gap docs/12 section 5c had to say at the table instead of pointing at.
+
+  The way out is inside the product. `OverrideForm` releases a stopped payment, or reopens a line the
+  run dropped, with a name, a role and a written reason, and it shows the pesos at risk at that moment.
+  Which role and whether prose is required are `decideRequirement` in `@hackmty/core`, which is the
+  same function the API refuses on with a `403` and a `422`, so the screen cannot enable a button the
+  server will reject and the rule is not copied into a component. What the screen adds over the API is
+  the moment: it asks before the click instead of after the refusal, because a clerk who finds out
+  after pressing the button has already decided.
+
+  `GET /api/v1/instructions/:id/carta` is offered as a link when the payload came from the API, and
+  says why it is not offered when it did not. The endpoint itself landed with #204.
 
 - The level and the state on every line, the cancellation a definitive SAT listing writes, and the
   one-page evidence letter (issue #204). The contract of issue #221 said what the two words are; this
@@ -1801,6 +1832,11 @@ then the screens, then the narrative, then the plumbing.
   thinks whether or not it is asked to and the answer was being truncated instead. Verified against
   the live API with a real screenshot: the account, the amount and the payee all come back, and
   `docs/06` section 6.4 carries what the thinking tokens cost.
+- `decideInstruction` in `apps/web/src/lib/api.ts` said the decide route answers a whole
+  `InstructionDetail`, and it answers `{ instruction, decision, amountAtRisk, hold }`: no supplier and
+  no findings. Nothing crashed, because the only card that rendered it reads the decision and the
+  folio, but the type invited the next caller to read two fields that were never there. It is
+  `DecideResult` now, which is the shape the route sends (issue #209).
 
 - `?data=mock` was documented as "no request leaves the browser" and it was making two, so the offline
   mode looked broken exactly where it is meant to be the strongest (found verifying issue #125).

@@ -35,6 +35,7 @@ import type {
   VerificationStateName as DomainVerificationStateName,
   EvidenceValue,
   Finding,
+  HoldWindow,
   InstructionSource,
   LedgerEvent,
   Metrics,
@@ -127,9 +128,9 @@ export interface PaymentRunTotals {
  * `docs/09-api.md` shows them being read straight off an item of this payload.
  * They are optional here for one reason and it is not laziness: they are derived
  * and never stored, so a server that has not shipped them yet is still answering
- * the documented shape for everything else, and `payments.ts` falls back to the
- * same two pure functions in `@hackmty/core` the API itself calls. What a screen
- * may never do is compute a third answer of its own.
+ * the documented shape for everything else, and `payments.ts` and `levels.ts`
+ * both fall back to the same two pure functions in `@hackmty/core` the API itself
+ * calls. What a screen may never do is compute a third answer of its own.
  */
 export interface PaymentRunItem {
   instruction: PaymentInstruction;
@@ -176,6 +177,17 @@ export interface InstructionDetail {
   decision: Decision;
   findings: Finding[];
   supplier: Supplier;
+  /**
+   * The window this payment is stopped for, or null when it was released.
+   *
+   * Never stored: a deadline in a column could disagree with the delay the
+   * expected-loss arithmetic charged for, and a derived one cannot. The screen
+   * prefers the one the API measured against its own clock and falls back to
+   * `holdOf` in `./levels.ts`, which is the same `holdWindow`.
+   */
+  hold?: HoldWindow | null;
+  confidence?: Confidence;
+  state?: TransactionState;
 }
 
 /** One entry of the per-company registry of beneficiaries verified by CEP. */
@@ -275,7 +287,31 @@ export interface CreateInstructionBody {
 export interface DecideBody {
   action: Action;
   decidedBy: string;
+  /**
+   * Why, in the words of whoever signed it.
+   *
+   * Optional in the contract and asked for by the screen on an override, which
+   * is the asymmetry docs/09 argues for: an API that refused a release with no
+   * prose would be refused by the clerk instead, outside the product, where
+   * nothing is recorded at all. `decidedBy` has to be the same name `X-Actor`
+   * carries, and the API answers `400` when the two disagree.
+   */
   reason?: string;
+}
+
+/**
+ * What `POST /api/v1/instructions/:id/decide` answers.
+ *
+ * `amountAtRisk` is stated rather than left to be re-derived, and it is the
+ * figure the override panel showed the person a moment before they signed: the
+ * largest single amount at risk among the findings, from `estimateLoss`. `hold`
+ * is `null` exactly when the action is `release`.
+ */
+export interface DecideResult {
+  instruction: PaymentInstruction;
+  decision: Decision;
+  amountAtRisk?: number;
+  hold?: HoldWindow | null;
 }
 
 /** `POST /api/v1/sat/publish`. Simulation accepts synthetic RFCs only. */
@@ -522,6 +558,7 @@ export type {
   AssistantToolCall,
   Confidence,
   EvidenceValue,
+  HoldWindow,
   ProposalKind,
   ProposalValue,
   TransactionState,
