@@ -668,6 +668,57 @@ describe.skipIf(!enabled)("packages/db queries against Postgres", () => {
       expect(await latestDecision(sql, "INS-1")).toEqual(clerk);
     });
 
+    it("keeps the reason a person wrote next to their name", async () => {
+      // The judges' question on 2026-09-12 was what happens if the payment is
+      // urgent. The answer is a release under a named person's responsibility
+      // with a written argument, so both have to survive a reload: without the
+      // column, the in-memory store would answer a reason and Postgres nothing,
+      // which is exactly the asymmetry a judge finds by refreshing the page.
+      const evidence = finding("fnd-reason", "INS-1", 184300);
+      await insertFindings(sql, [evidence]);
+      const engine: Decision = {
+        instructionId: "INS-1",
+        action: "hold",
+        expectedLoss: 110580,
+        delayCostPerDay: 920,
+        findings: [evidence],
+        decidedAt: "2026-09-10T16:30:00.000Z",
+      };
+      const override: Decision = {
+        ...engine,
+        action: "release",
+        decidedAt: "2026-09-11T09:00:00.000Z",
+        decidedBy: "ana.tesoreria",
+        reason: "el proveedor confirmo la cuenta y la nomina sale hoy",
+      };
+      await insertDecision(sql, engine);
+      await insertDecision(sql, override);
+
+      const latest = await latestDecision(sql, "INS-1");
+      expect(latest).toEqual(override);
+      expect(latest?.reason).toBe(
+        "el proveedor confirmo la cuenta y la nomina sale hoy",
+      );
+    });
+
+    it("carries no reason on the engine's own proposal", async () => {
+      // The engine's reasoning is the findings, which are already on the object.
+      // An empty string in the column would read on screen as a person who
+      // pressed the button and wrote nothing.
+      const evidence = finding("fnd-no-reason", "INS-1", 31320);
+      await insertFindings(sql, [evidence]);
+      await insertDecision(sql, {
+        instructionId: "INS-1",
+        action: "verify",
+        expectedLoss: 31320,
+        delayCostPerDay: 640,
+        findings: [evidence],
+        decidedAt: "2026-09-10T16:30:00.000Z",
+      });
+
+      expect(await latestDecision(sql, "INS-1")).not.toHaveProperty("reason");
+    });
+
     it("refuses a decision that cites a finding the database does not hold", async () => {
       await expect(
         insertDecision(sql, {

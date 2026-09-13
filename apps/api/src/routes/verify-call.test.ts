@@ -396,6 +396,30 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
     expect(event.manual).toBe(true);
     expect(event.transcript).toEqual([]);
     expect(event.evidence).toBe("Me dijo que esa cuenta no es de ellos");
+    /* The name is why the schema requires it. A hand-recorded call with nobody
+       against it would be the only human action in this product that the ledger
+       cannot attribute, on the exact path the demo falls back to. */
+    expect(event.recordedBy).toBe("clerk@sintetica.mx");
+  });
+
+  it("leaves recordedBy off a call the agent placed, because there the conversation id is the provenance", async () => {
+    const { deps: voiceDeps } = voice({ body: CONVERSATION_PAYLOAD });
+    const { app, deps } = createTestApp({}, voiceDeps);
+    const events: LedgerEvent[] = [];
+    deps.events.subscribe((event) => events.push(event));
+
+    const res = await app.request(
+      path(),
+      json({ conversationId: "conv_synthetic_0001" }),
+    );
+
+    expect(res.status).toBe(200);
+    const event = events[0];
+    if (event?.type !== "verification_call") {
+      throw new Error("expected a verification_call event");
+    }
+    expect(event.manual).toBe(false);
+    expect(event.recordedBy).toBeUndefined();
   });
 
   it("accepts no_answer with no sentence, because silence is an outcome", async () => {
@@ -408,6 +432,67 @@ describe("POST /api/v1/instructions/:id/verify-call, recorded by hand", () => {
 
     expect(body.outcome).toBe("no_answer");
     expect(body.evidence).toBeUndefined();
+  });
+
+  it("answers an unanswered call with the deadline and the way out", async () => {
+    /* The judges asked on 2026-09-12 what happens when nobody picks up. The same
+       response that reports `no_answer` says how long the payment stays stopped
+       and offers the one-cent CEP, which needs nobody to answer anything. */
+    const { app } = createTestApp();
+    const res = await app.request(
+      path(),
+      json({ outcome: "no_answer", recordedBy: "clerk@sintetica.mx" }),
+    );
+    const body = verifyCallResponseSchema.parse(await res.json());
+
+    expect(body.hold?.action).toBe("hold");
+    /* Three days from when the payment was stopped, which is the decision's own
+       instant and not the instant of the call: the window is the delay the
+       expected-loss arithmetic already charged for, and the call does not reset
+       it. Confirming the hold does, because then a person looked at it. */
+    expect(body.hold?.deadline).toBe("2026-09-14T16:30:00.000Z");
+    expect(body.hold?.expired).toBe(false);
+    expect(body.hold?.outcome).toBe("no_answer");
+    expect(body.hold?.nextSteps).toEqual([
+      "retry_call",
+      "one_cent_cep",
+      "release_with_reason",
+    ]);
+    /* And it still releases nothing, which is the older promise of this file. */
+    expect(body.releasesPayment).toBe(false);
+  });
+
+  /**
+   * The window on a verification is ONE day, not three.
+   *
+   * `HOLD_WINDOW_DAYS` is `EXPECTED_DELAY_DAYS`, and a verification call is placed
+   * on a payment the engine put in `verify`, so this is the number a judge who
+   * curls the endpoint actually sees. `docs/12-judge-qa.md` said three days for
+   * both and that was wrong; this test is what keeps the sheet honest, because the
+   * instruction the tests above use happens to be on `hold`.
+   */
+  it("reports one day on a payment the engine put in verify, not three", async () => {
+    const { app } = createTestApp();
+    const res = await app.request(
+      path("ins-2026w37-04"),
+      json({ outcome: "no_answer", recordedBy: "clerk@sintetica.mx" }),
+    );
+    const body = verifyCallResponseSchema.parse(await res.json());
+
+    expect(body.hold?.action).toBe("verify");
+    expect(body.hold?.days).toBe(1);
+    expect(body.releasesPayment).toBe(false);
+  });
+
+  it("offers no release after the supplier denied the account", async () => {
+    const { app } = createTestApp();
+    const res = await app.request(
+      path(),
+      json({ outcome: "denied", recordedBy: "clerk@sintetica.mx" }),
+    );
+    const body = verifyCallResponseSchema.parse(await res.json());
+
+    expect(body.hold?.nextSteps).toEqual(["keep_held"]);
   });
 
   it("rejects an outcome that is not one of the four", async () => {

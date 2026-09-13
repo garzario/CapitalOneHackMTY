@@ -1,3 +1,4 @@
+import { estimateLoss, holdWindow } from "@hackmty/core";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { ApiDeps } from "../deps";
@@ -5,7 +6,9 @@ import { fail, notFound, rejectInvalid } from "../http";
 import { runIntake } from "../pipeline";
 import {
   createInstructionBodySchema,
+  type DecideResponse,
   decideBodySchema,
+  type InstructionDetailResponse,
   idParamSchema,
 } from "../schemas";
 
@@ -17,6 +20,13 @@ import {
  * appends `decision_made` and never `payment_sent`. That event arrives later,
  * from bank reconciliation, and it is the only one that means pesos actually
  * left.
+ *
+ * Two things travel with that yes, and a Capital One judge asked for both on
+ * 2026-09-12. The pesos the person accepted responsibility for, stated as
+ * `amountAtRisk` rather than left to be re-derived. And `hold`, the deadline the
+ * payment is stopped until, which is the same delay the expected-loss arithmetic
+ * already charged for. Neither is stored: both are functions of the decision and
+ * the clock, so neither can drift away from the decision it describes.
  */
 export function instructionRoutes(deps: ApiDeps) {
   return new Hono()
@@ -31,7 +41,17 @@ export function instructionRoutes(deps: ApiDeps) {
           return notFound(c, `No instruction with id ${id}.`);
         }
 
-        return c.json(detail);
+        /* The window is computed here and not in the repository, because the
+           repository owns no clock. `null` means the money is not stopped. */
+        const response: InstructionDetailResponse = {
+          ...detail,
+          hold:
+            detail.decision === null
+              ? null
+              : holdWindow(detail.decision, { now: deps.clock.now() }),
+        };
+
+        return c.json(response);
       },
     )
     .post(
@@ -66,7 +86,7 @@ export function instructionRoutes(deps: ApiDeps) {
       zValidator("json", decideBodySchema, rejectInvalid),
       async (c) => {
         const { id } = c.req.valid("param");
-        const { action, decidedBy } = c.req.valid("json");
+        const { action, decidedBy, reason } = c.req.valid("json");
 
         const detail = await deps.repo.instructionDetail(id);
         if (detail === undefined) {
@@ -78,6 +98,7 @@ export function instructionRoutes(deps: ApiDeps) {
           action,
           decidedBy,
           deps.clock.now(),
+          reason,
         );
         if (decision === undefined) {
           return notFound(
@@ -92,7 +113,17 @@ export function instructionRoutes(deps: ApiDeps) {
           decision,
         });
 
-        return c.json({ instruction: detail.instruction, decision });
+        const response: DecideResponse = {
+          instruction: detail.instruction,
+          decision,
+          /* The largest single amount at risk, which is what `estimateLoss`
+             calls the exposure. Never the sum: six detectors describing one
+             payment describe the same pesos six times. */
+          amountAtRisk: estimateLoss(decision.findings).exposure,
+          hold: holdWindow(decision, { now: decision.decidedAt }),
+        };
+
+        return c.json(response);
       },
     );
 }
