@@ -23,7 +23,10 @@
  */
 
 import { spawn } from "node:child_process";
-import { HERO_INSTRUCTION_IDS } from "../src/lib/mock-data";
+import {
+  HERO_INSTRUCTION_IDS,
+  LISTED_SUPPLIER_RFC,
+} from "../src/lib/mock-data";
 
 const CHROME =
   process.env.CHROME_PATH ??
@@ -45,6 +48,14 @@ const PORT = Number(process.env.AUDIT_PORT ?? 9334);
  * moves, and an audit that passes on an error state has audited nothing.
  */
 const DETAIL_PATH = `/instructions/${HERO_INSTRUCTION_IDS[0] ?? ""}`;
+
+/**
+ * The supplier expediente, read off the mock for the same reason the folio above
+ * is: it is the one RFC the generated company guarantees has a listing, a plaza
+ * and a week of invoices behind it, so the route renders its full self rather
+ * than four empty blocks that pass every check by having nothing in them.
+ */
+const SUPPLIER_PATH = `/suppliers/${LISTED_SUPPLIER_RFC}`;
 
 /** The widths issue #96 names: a small phone, a tablet, a laptop, a projector. */
 const WIDTHS = [390, 768, 1440, 1920];
@@ -68,6 +79,13 @@ const ROUTES = [
   { path: "#/cep", name: "CEP viewer" },
   { path: "#/metrics", name: "metrics" },
   { path: "#/payments", name: "payments" },
+  /* Both of these were added after this audit was written and neither had ever
+     been measured: the entry screen in issue #215 and the supplier expediente in
+     issue #213. The expediente is the one that most needed it, because it is the
+     widest screen in the product: a plaza table and a weekly chart side by side,
+     which is exactly the shape that breaks first at 390. */
+  { path: "#/entrada", name: "entry and settings" },
+  { path: `#${SUPPLIER_PATH}`, name: "supplier profile" },
   /* The token sheet, which is not in the navigation. It is audited because it
      is the one route where every chip, button and state is on screen at once,
      so a component that overflows at 390 or a control nobody named is caught

@@ -1390,6 +1390,67 @@ then the screens, then the narrative, then the plumbing.
   off the supplier's own sentence. `docs/14-process.md#live-integrations-verified` lists every id and
   what each call settled, and `docs/10-demo-script.md` carries the greeting and the closing line word
   for word plus the rule that the stand plays the recording rather than dialling anybody.
+- **Every screenshot in the README is of the product on `dev`, against the seeded company**
+  (issue #216). The set was captured before issues #208, #209, #210 and #214 merged, so the README
+  showed a run screen with three cards and no facets where the product now has five and a filterable
+  table, an instruction detail with no level, no state, no hold deadline and no override form, a CEP
+  screen showing an empty form rather than the six states of the cent, and a SAT screen with no live
+  cancellation. All fifteen are regenerated with `bun run shoot:web`.
+
+  Two things had to be true before the frames were worth keeping, and neither was obvious. The first
+  is the base: `vite.config.ts` declares the `/api` proxy under `server` and not under `preview`, so
+  the script's default of `http://localhost:4173` reaches no API at all and writes every frame with
+  the "La API no responde" banner across the top. The second is the data: an API with no
+  `DATABASE_URL` serves the small in-memory run, so a README shot against a local API shows twelve
+  instructions where the demo shows ninety-two. `API_ORIGIN` in the environment now points the dev
+  proxy at the deployed API, which is what puts the real run in the frame. It is read with a default
+  and changes nothing about the client, which still talks to one origin and still knows no base URL.
+
+  The CEP frame is the offline run rather than the API, and that is deliberate. The screen only draws
+  the track when the instruction carries a verification, the seeded API carries none, and starting one
+  to take a screenshot would send a real cent down the rail. The folio is read off `VERIFICATIONS` in
+  the generated mock, which holds one instruction per state by construction, and the `blocked` one is
+  chosen because it is the ending that draws the whole machine: the four common steps, both endings,
+  and the one that was taken.
+
+  **The screens print.** `apps/web/src/design/print.css` is new and it is the one design system file
+  that declares no cascade layer, because a print override has to beat the Tailwind utility that would
+  otherwise keep an element sticky or a table inside a scroll container paper cannot scroll. The rail,
+  the top bar, the toasts, the scrim and the action bars are furniture rather than evidence and are
+  gone; the grid stops reserving the rail's column; a run table wider than the sheet is let out of its
+  scroller and reprints its header on every page it spans, because sheet two of a payment run was
+  otherwise unlabelled columns of pesos; and rows, panels and headings carry their break rules. The
+  paper palette lives in `tokens.css` with every other colour in the system, so the stylesheet next
+  door still asks for `--c-surface` and `--c-border` and the only thing that changed is what those are
+  worth on paper. It is scoped to the screens on purpose: the carta and the constancias are PDFs the
+  API renders from the ledger and arrive as a link rather than a print dialog.
+
+  `print.test.ts` reads the primitives for every class the system pins with `position: fixed` or
+  `sticky` and fails when print has no answer for one of them, which is the regression this is
+  actually exposed to: nothing on screen changes when a new floating panel is added, and nobody opens
+  the print dialog on the way to a demo. It caught two on the first run, `.scrim` and `.form-actions`.
+
+  `tour.gif` is regenerated too, over the same seeded run. It predated the redesign entirely, so the
+  loop the README offers as a look at the whole product was a look at a product that no longer exists.
+  The tour's CEP stop now uses the same verified instruction the still does, so the loop shows the six
+  states rather than an empty form. The comment saying this machine has no ffmpeg is gone, because it
+  does.
+
+  **The audit was missing two screens and one of them was broken.** `bun run audit:web` measured
+  eight routes and neither of the two most recently added: the entry screen of issue #215 and the
+  supplier expediente of issue #213, which is the widest screen in the product. Both are in it now,
+  and the entry screen failed on the first run: the actor selector is a segmented control with a name
+  and a role in each option, the faces measure 176 px and 172 px with `nowrap` on them, and 348 px of
+  content does not fit a 390 px screen whatever `flex` says, because a flex item does not shrink below
+  its min-content. It pushed the whole document to 397 px. The control now wraps below 48 rem, with a
+  `1 1 auto` basis rather than `1`, since a `0%` basis makes every option claim it fits on one line
+  and overflow instead of wrapping.
+
+  The 400 px criterion is measured rather than asserted. `bun run audit:web` reports no failures at
+  390, 768, 1440 and 1920 px, and a sweep of the nine routes at 400 px in both `?data=mock` and
+  `?data=api` finds no document wider than its viewport and nothing clipped: every table and chart
+  wider than the screen sits in its own scrollable `overflow-x: auto` container, read off
+  `scrollWidth > clientWidth` on that container rather than judged by eye.
 
 - **The Devpost submission is final copy now, and a person pastes it in minutes** (issue #76).
   `docs/13-devpost.md` was an M3 draft of a product that has since grown an assistant, a payment rail,

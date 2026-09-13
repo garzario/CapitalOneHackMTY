@@ -490,3 +490,42 @@
     --motion-draw: 1ms;
   }
 }
+
+
+/* Paper.
+ *
+ * The palette on a sheet, and it lives here for the same reason every other
+ * colour does: `tokens.css` is the only file allowed to write one, so the print
+ * stylesheet next door carries structure and no values at all.
+ *
+ * It redefines names that already exist rather than inventing print-only ones.
+ * That is what keeps `print.css` readable as a stylesheet instead of a second
+ * palette: a panel there still asks for `--c-surface` and a hairline still asks
+ * for `--c-border`, and the only thing that changed is what those are worth once
+ * the medium is paper.
+ *
+ * Dark mode is a screen preference. Carrying it onto paper prints a solid black
+ * page and empties a toner cartridge, so this block overrides both schemes
+ * rather than sitting beside them. */
+@media print {
+  :root {
+    color-scheme: light;
+
+    --c-canvas: #ffffff;
+    --c-surface: #ffffff;
+    --c-surface-raised: #ffffff;
+    --c-surface-sunken: #ffffff;
+    --c-well: #ffffff;
+    --c-well-line: #cccccc;
+    --c-card-dark: #ffffff;
+    --c-card-dark-ink: #000000;
+    --c-card-dark-ink-muted: #333333;
+
+    --c-ink: #000000;
+    --c-ink-muted: #333333;
+    --c-ink-subtle: #555555;
+
+    --c-border: #999999;
+    --c-border-strong: #666666;
+  }
+}

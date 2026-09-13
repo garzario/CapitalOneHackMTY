@@ -2237,10 +2237,21 @@
   @media (max-width: 48rem) {
     .segmented {
       width: 100%;
+      /* The control wraps rather than pushing the page wider than the phone.
+         Two options with a name and a role in them, which is the actor selector
+         on Entrada y ajustes, measure 176px and 172px with `nowrap` on the face,
+         and 348px of content does not fit a 390px screen whatever `flex` says:
+         a flex item does not shrink below its min-content. Found at 390 by
+         `bun run audit:web` after issue 216 added that route to it, as seven
+         pixels of horizontal scroll on the whole document. */
+      flex-wrap: wrap;
     }
 
     .segment {
-      flex: 1;
+      /* `1 1 auto` and not `1`, because a `0%` basis makes every option claim it
+         fits on one line and then overflow instead of wrapping. */
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .segment-face {
