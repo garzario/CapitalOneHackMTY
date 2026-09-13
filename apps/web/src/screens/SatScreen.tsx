@@ -275,8 +275,8 @@ export function SatScreen() {
           </div>
           <p className="muted t-sm">
             Publica una version de la lista sobre proveedores sinteticos y
-            vuelve a recorrer el ledger desde febrero. Nada de lo que aparece
-            aqui es un RFC real.
+            vuelve a recorrer el ledger desde su primer evento. Nada de lo que
+            aparece aqui es un RFC real.
           </p>
 
           <button
