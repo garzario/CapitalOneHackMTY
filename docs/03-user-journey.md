@@ -37,7 +37,7 @@ the post-outcome stage is required, but it does not claim that the PDF generator
 |---|---|---|---|---|
 | 1. Pre-trigger | A supplier's CFDI XML arrives by email. Lupita files it for Thursday. | The ledger records `cfdi_received`, links the synthetic supplier and makes the invoice available to the run. | 0, routine | **Corrida de pagos**, `RunScreen`, `#/run` |
 | 2. Trigger | On Thursday, Lupita opens the run and scans the highest pesos at risk first. | `PaymentRun` shows totals and ranks instructions with decisions and findings. The reference synthetic run contains 92 payment instructions totaling MXN 2,174,210.76. | -1, time pressure | **Corrida de pagos**, `RunScreen`, `#/run` |
-| 3. Evidence | She opens one row, reads the evidence chips and opens the supplier history when needed. | The detail shows the CFDI link, CLABE, source, findings, expected loss and delay cost without treating message text as evidence. | -2, concerned | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id`; **Expediente del proveedor**, `SupplierDrawer` |
+| 3. Evidence | She opens one row, reads the evidence chips and opens the supplier history when needed. | The detail shows the CFDI link, CLABE, source, findings, expected loss and delay cost without treating message text as evidence. | -2, concerned | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id`; **Expediente del proveedor**, `SupplierScreen`, `#/suppliers/:rfc` |
 | 4. Verification | For an unproved account, she presses **Verificar cuenta** once. She types nothing: no clave de rastreo, no XML, no statement to read. | The one cent leaves through the configured rail inside the same run, `cent_sent` records the clave de rastreo the bank gave back, the CEP for that clave is resolved and its seal checked as far as the server can, the holder is compared with the CFDI legal name, and the engine releases or blocks the instruction. A verified account enters the beneficiary registry. | 0, checking | **CEP**, `CepScreen`, `#/cep`; **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
 | 5. Decision and payment | She returns to the instruction and confirms **Retener**, **Verificar** or **Liberar**. The bank remains the place where the SPEI is sent. | The API appends `decision_made` with the action and `decidedBy`. SentryOne advises; a person decides. | +1, in control | **Instruccion de pago**, `InstructionScreen`, `#/instructions/:id` |
 | 6. Post-outcome | She keeps the signed CEP, the decision and the SAT sweep memo with the payment evidence. | `cep_verified` preserves the verified beneficiary. A later `sat_list_published` event replays the ledger and quantifies prior exposure. The constancia PDF remains `TODO(fabbyyyy)`. | +2, confident | **CEP**, `CepScreen`, `#/cep`; **Lista 69-B**, `SatScreen`, `#/sat` |
@@ -85,8 +85,8 @@ already doing.
 
 1. Lupita opens **Instruccion de pago** at `#/instructions/:id` and reads the exact evidence that
    raised the finding.
-2. She checks the supplier history in `SupplierDrawer` and completes any independent verification
-   the evidence requires.
+2. She checks the supplier history in `SupplierScreen` at `#/suppliers/:rfc` and completes any
+   independent verification the evidence requires.
 3. She selects **Liberar**. The system stores `decision_made` with `action: "release"` and the
    person who decided.
 4. The team adds the reviewed case to the labelled hard-negative set used by the blind metrics
@@ -118,8 +118,8 @@ honest product gap.
 **Example trigger:** the supplier has genuinely moved to a new account, so the CLABE is valid but
 is absent from `knownAccounts`.
 
-1. **Instruccion de pago** and `SupplierDrawer` show the new CLABE beside prior accounts and how
-   each was established.
+1. **Instruccion de pago** and **Expediente del proveedor** show the new CLABE beside prior accounts,
+   how each was established and which plaza each one sits in.
 2. Lupita presses **Verificar cuenta** on the instruction. The cent leaves through the rail, the
    CEP comes back under the clave the rail recorded, and **CEP** at `#/cep` shows its beneficiary
    beside the CFDI legal name with the seal state the server can prove.
