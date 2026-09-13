@@ -20,7 +20,7 @@ Capital One track 3, Real-Time Anomaly and Security Sentinel. HackMTY 2026
 **[Open the live app](https://sentryone-one.vercel.app)** |
 **[Take the recorrido](https://sentryone-one.vercel.app/#/run?tour=1)**, 9 steps, about two minutes,
 and at the end SentryOne calls you as the owner |
-**Video: (YouTube link)**, TODO(garzario), issue #73
+**[Watch the 60 second video](https://youtu.be/yUxlZNeAMKo)**
 
 ## The Thursday
 
