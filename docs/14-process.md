@@ -237,11 +237,19 @@ What changed as a result, all of it in the pull request that closes
   interview boxes left exactly as they were.
 - `docs/12-judge-qa.md` now opens with the three questions, a thirty-second spoken answer each, the
   numbers allowed to be said with their source, and for each one a list of what not to say.
-- One scope question arrived with the research and is recorded rather than answered: 69-B is no longer
-  the only SAT list published against suppliers. Article 49 Bis creates its own from 1 January 2026,
-  and two incumbents already monitor it, one of them having shipped support in July 2026.
-  TODO(garzario) before M4: add 49 Bis and 69-B Bis to `packages/sat`, or state plainly in the docs
-  that the sweep covers 69-B only.
+- One scope question arrived with the research and was answered inside the day, in issue #180: 69-B is
+  no longer the only SAT list published against suppliers. Article 49 Bis creates its own from 1
+  January 2026, and two incumbents already monitor it, one of them having shipped support in July
+  2026. The answer came out differently for each of the two lists, which is why it was worth asking at
+  the source rather than deciding at the table. **Article 49 Bis** is implemented, loader, thirty day
+  window, finding and retroactive sweep, and reported as `not_published_machine_readable`, because the
+  SAT publishes that list one oficio at a time as a DOF note and ships no file at all: fourteen
+  oficios naming fourteen taxpayers between 10 July and 28 August 2026, counted in the DOF on
+  2026-09-12. **Article 69-B Bis** does have a downloadable listing, three taxpayers at a 5 June 2026
+  cut-off, and is deliberately not wired in, because it is about the improper transfer of tax losses
+  and says nothing about a supplier's invoice. Both statements are in `docs/04-market.md`,
+  `docs/06-regulatory-privacy.md` section 3 and `packages/sat/src/snapshot/README.md`, each with the
+  URL and the retrieval time.
 
 Two findings from the same pass were retracted, and they are kept here because the retraction is the
 process working rather than a blemish on it. A first count of job-board vacancies in Nuevo León was

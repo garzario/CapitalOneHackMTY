@@ -14,7 +14,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier }` | detail panel |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
-| GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. Rate limited per client |
+| GET | `/api/v1/sat/lookup?rfc=` | `{ rfc, entries: SatListEntry[], listed, effective?, source, lists }` | the judge types a real RFC here; read-only over the official list merged with any version this instance was posted. `lists` answers for both SAT lists, article 69-B and article 49 Bis, and says which one could answer. Rate limited per client |
 | GET | `/api/v1/sat/versions` | `{ versions: [{ listVersion, publishedAt, rows }] }` | loaded list versions |
 | GET | `/api/v1/beneficiaries` | `{ items: [{ supplierRfc, clabe, cep, verifiedAt }] }` | verified beneficiary registry |
 | GET | `/api/v1/consortium/signal?rfc=&clabe=` | `{ rfc, clabe, network: NetworkSignal }` | what the SentryOne consortium holds for one beneficiary pair, read from the LOCAL snapshot and never from Snowflake. Both halves of the pair are required. `503 service_unavailable` when `ALLOW_CONSORTIUM` is unset, `404 not_found` when the network has never seen the pair or when nothing has been pulled. See "The consortium, and what the network can say" below |
@@ -34,7 +34,10 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 - The RFC is normalised before validation: upper-cased and stripped of spaces, dots, slashes, underscores and hyphens. `&` and `Ñ` are kept, because both are legitimate in the name portion of a moral person's RFC. `rfc` in the response is the normalised form, so the screen echoes what was searched.
 - `listed` is true only when the newest situation is `presunto` or `definitivo`. A taxpayer who was published and then cleared their name is not listed, and `entries` still carries the whole history so a clerk can see both rows.
 - `effective` is the newest row, absent when the RFC appears on no version we hold.
-- `source` names the snapshot that answered: `{ listVersion, retrievedAt, url, taxpayers, rows }`. It is present on an empty answer too, so "not listed" can never be read as "no list was loaded".
+- `source` names the snapshot that answered: `{ article: "69-B", listVersion, retrievedAt, url, taxpayers, rows }`. It is present on an empty answer too, so "not listed" can never be read as "no list was loaded".
+- `lists` is the whole answer, one block per SAT list, and the four keys above are the 69-B block repeated at the top level so nothing that already read them breaks. Every block carries `article` and `answered`.
+  - `{ article: "69-B", answered: true, listed, entries, effective?, source }`. It answers from the committed download plus any posted version, which is what the top-level keys say.
+  - `{ article: "49 Bis", answered: false, coverage: "not_published_machine_readable", entries: [], note, publications }`. `note` is the sentence in Spanish a screen shows, and `publications` is `{ oficios, taxpayers, firstPublishedAt, lastPublishedAt, surveyedAt, url }`. **`answered: false` is the point of the field.** Article 49 Bis has been in force since 1 January 2026 and the SAT publishes that list one oficio at a time as a DOF note, with no CSV and no open-data dataset: fourteen oficios naming fourteen taxpayers between 10 July and 28 August 2026, counted at the DOF on 2026-09-12. A screen that rendered an empty `entries` as "no esta listado" would claim a check nobody ran, so the block refuses to carry a `listed` key at all. When a machine-readable listing exists the block becomes `{ answered: true, coverage: "loaded", listed, entries, effective?, source }` and nothing else on this endpoint changes. Provenance and the manual steps are in `packages/sat/src/snapshot/README.md`.
 - Rate limited per client: 30 requests per minute, answered with `429 rate_limited` plus `Retry-After`. Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. The counter is per process and keyed on the forwarded client address, which is caller-controlled: it stops one machine enumerating the list, and it is not a defence against a distributed client.
 - Nothing on this path touches a synthetic invoice. ADR-0002 keeps a real RFC to this box and to nothing else.
 
@@ -214,6 +217,9 @@ out of Postgres. The boot log says which of the two is live.
 
 ```bash
 curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' | jq
+# Both SAT lists, and which of the two could answer at all.
+curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' \
+  | jq '.lists | map({article, answered, coverage, listed})'
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
   -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
@@ -235,7 +241,7 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
   | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
 ```
 
-## Where the 69-B rows a control sees come from
+## Where the SAT rows a control sees come from
 
 Two sources, and the difference is binding under ADR-0002. `sat_69b` is handed the versions this
 instance has been posted, plus the rows the committed official snapshot holds **for that one RFC**.
@@ -243,6 +249,20 @@ Every supplier in the seeded company is synthetic and a synthetic RFC is on no r
 official snapshot contributes nothing to any of them and a real RFC never stands next to a
 fabricated invoice. What the second source buys is that an instruction naming an RFC that is on the
 official list is caught by the control rather than only by the lookup box.
+
+The same control reads a second list. `sat_69b` is control 1 of ADR-0002 and control 1 is the SAT
+lists cross-check, so a supplier published under article 49 Bis produces a **second finding** from the
+same detector, with an id prefixed `sat49bis:` and `article: "49 Bis"` in its evidence. The detector
+id does not change: it is persisted in `decision_findings`, constrained by a CHECK in
+`0003_sentryone.sql` and counted per detector by the metrics harness, and ADR-0002 has six controls
+rather than seven. A supplier on both lists gets both findings, which is correct rather than
+duplication: two statutes voided the same invoices on two different clocks and the clerk has a
+complementary return to file under each. The 49 Bis finding names the article, the DOF publication
+date, the days left of the thirty natural days of fraccion X and the restriction of the company's own
+digital seal under article 17-H Bis fraccion XIV, and it is always `comprobable`, because fraccion X
+publishes a resolution that is already final. Today `composeInputFor` adds no 49 Bis rows, because
+`official49BisListing()` reports the list as not published in a machine-readable form, so the finding
+appears on a seeded instance only when a caller supplies the rows.
 
 ## Nessie, verified quirks
 

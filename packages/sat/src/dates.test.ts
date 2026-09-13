@@ -4,7 +4,13 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { parseDofDate, parseDofDates, parseUpdatedAsOf } from "./dates";
+import {
+  addNaturalDays,
+  naturalDaysBetween,
+  parseDofDate,
+  parseDofDates,
+  parseUpdatedAsOf,
+} from "./dates";
 
 describe("parseDofDate", () => {
   it("reads the ordinary DD/MM/YYYY", () => {
@@ -83,5 +89,52 @@ describe("parseUpdatedAsOf", () => {
     expect(
       parseUpdatedAsOf("actualizada al 31 de brumario de 2025"),
     ).toBeUndefined();
+  });
+});
+
+describe("the Spanish long form, which the 49 Bis oficios use", () => {
+  it("reads the shape the Anexo writes", () => {
+    // Seven of the fourteen oficios the DOF had published under article 49 Bis,
+    // fraccion X by 2026-09-12 write the notification dates this way and seven
+    // write them as DD/MM/YYYY, the change falling between oficio
+    // 500-05-00-00-00-2026-24291 and 500-05-00-00-00-2026-24292.
+    expect(parseDofDate("06 de agosto de 2026")).toBe("2026-08-06");
+    expect(parseDofDate("3 de julio de 2026")).toBe("2026-07-03");
+  });
+
+  it("does not care about accents, case or doubled spaces", () => {
+    expect(parseDofDate("17  DE  JULIO  DE  2026")).toBe("2026-07-17");
+  });
+
+  it("refuses a month that does not exist rather than guessing", () => {
+    expect(parseDofDate("10 de brumario de 2026")).toBeUndefined();
+    expect(parseDofDate("31 de febrero de 2026")).toBeUndefined();
+  });
+});
+
+describe("addNaturalDays", () => {
+  it("adds calendar days, so weekends and month ends count", () => {
+    expect(addNaturalDays("2026-08-28", 29)).toBe("2026-09-26");
+    expect(addNaturalDays("2026-12-20", 29)).toBe("2027-01-18");
+    expect(addNaturalDays("2028-02-10", 29)).toBe("2028-03-10");
+  });
+
+  it("goes backwards too, and refuses a day it cannot read", () => {
+    expect(addNaturalDays("2026-09-12", -1)).toBe("2026-09-11");
+    expect(addNaturalDays("12/09/2026", 1)).toBeUndefined();
+  });
+});
+
+describe("naturalDaysBetween", () => {
+  it("counts whole days, negative when the second date is earlier", () => {
+    expect(naturalDaysBetween("2026-09-12", "2026-09-26")).toBe(14);
+    expect(naturalDaysBetween("2026-09-12", "2026-09-12")).toBe(0);
+    expect(naturalDaysBetween("2026-09-12", "2026-08-08")).toBe(-35);
+  });
+
+  it("crosses a daylight-saving boundary in the UTC it computes in", () => {
+    // Computed in UTC on purpose: a deadline that moves with the timezone of the
+    // process is a fiscal date that is one day wrong on somebody's machine.
+    expect(naturalDaysBetween("2026-03-01", "2026-04-01")).toBe(31);
   });
 });

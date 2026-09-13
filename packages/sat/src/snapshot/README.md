@@ -1,15 +1,23 @@
-# The Article 69-B snapshot
+# The SAT snapshots
 
-This folder holds the SAT list the product matches supplier RFCs against: the real
-listing as the SAT publishes it, committed, plus a synthetic fixture for the tests.
+This folder holds the SAT lists the product matches supplier RFCs against: the real
+Article 69-B listing as the SAT publishes it, committed, plus the synthetic fixtures the
+tests read.
 
 ```
 src/snapshot/
   README.md                  this file
-  official-2026-09-12.csv    the real list, downloaded 2026-09-12, committed as is
-  synthetic.ts               20 invented rows, for tests. Never for a screen
+  official-2026-09-12.csv    the real 69-B list, downloaded 2026-09-12, committed as is
+  synthetic.ts               20 invented 69-B rows, for tests. Never for a screen
+  art49bis-fixture.csv       6 invented 49 Bis rows in the published Anexo layout.
+                             NOT the SAT file: there is none, see the last sections
   official/                  scratch downloads. Git-ignored on purpose
 ```
+
+Two lists, one committed file. Article 69-B is published as a 4.5 MB CSV and it is here;
+article 49 Bis is published one oficio at a time as a DOF note and nothing about it can
+honestly be committed as a listing, which is what the last two sections of this file are
+about.
 
 ## Provenance of `official-2026-09-12.csv`
 
@@ -175,3 +183,158 @@ The SAT publication the demo shows is not this file and is not the real list. It
 `simulatePublication` in `../sweep.ts`: it builds list entries from the company's own
 synthetic suppliers, refuses any RFC that is not synthetic, and then replays the
 ledger. That is what keeps the rule in ADR-0002 intact.
+
+## The other SAT list: Article 49 Bis
+
+Issue #180. Article 69-B is not the only list the SAT publishes against a supplier, and
+this section is the honest statement of what we cover, written from primary sources
+opened on 2026-09-12.
+
+### What the statute says
+
+Article 49 Bis of the CFF was added by the decree published in the DOF on 7 November
+2025 and is in force from 1 January 2026 by its Transitorio Primero, which also delays
+article 30-B to 1 April 2026 and nothing else. It is the procedure for the express home
+visit of article 42, fraccion V, inciso g): the order states why the authority presumes
+the taxpayer's CFDI are false and suspends that taxpayer's invoicing from the moment it
+is delivered (fraccion I, and article 17-H Bis expressly does not apply), the whole
+procedure closes within twenty-four business days (fraccion IX), the taxpayer has five
+business days to offer evidence (fraccion V) and the authority fifteen business days to
+resolve (fraccion VIII).
+
+Inciso b) of fraccion VIII is the outcome that reaches a buyer: the taxpayer did not
+rebut, the CFDI "se consideran falsos con efectos generales" for failing article 29-A,
+fraccion IX, and "las operaciones contenidas en los mismos no producen ni produjeron
+efecto fiscal alguno". Then fraccion X, which is the clock this product cares about:
+
+| What | Who | How long |
+|---|---|---|
+| Publish the name and the RFC in the DOF and on the SAT portal | SAT | within 45 business days of the notification of the resolution taking effect |
+| Reverse the fiscal effect through a complementary return | every third party who received those CFDI | **30 natural days from the DOF publication** |
+| Temporarily restrict the third party's own certificado de sello digital when they do not | SAT, under article 17-H Bis, fraccion XIV | after the 30 days |
+
+Fraccion XI refers the matter to the Ministerio Publico under article 113 Bis, whose
+second paragraph, added by the same 7 November 2025 decree, covers whoever "expida,
+enajene, compre, adquiera o de efectos fiscales a comprobantes fiscales falsos", with
+two to nine years of prison.
+
+Source: Codigo Fiscal de la Federacion, texto vigente, last reform DOF 9 April 2026,
+<https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf>, retrieved 2026-09-12 at 17:25
+local (UTC-6), 3,134,465 bytes, `Last-Modified` 2026-04-18. Articles 49 Bis, 17-H Bis
+fraccion XIV, 17-H fraccion XIII, 29-A fraccion IX, 29-A Bis and 113 Bis.
+
+### What the SAT actually publishes, and why there is no file here
+
+**There is no machine-readable 49 Bis listing, so this folder commits none.** Two
+checks, both repeatable in a minute:
+
+- **The SAT open-data catalogue does not carry it.** `Contribuyentes incumplidos` on
+  <https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html>
+  (retrieved 2026-09-12 at 17:24 local, 26,334 bytes) has sections for article 69,
+  article 69-B (five CSV files) and article 69-B Bis (three CSV files) and none for
+  article 49 Bis. The navigation of
+  <https://www.sat.gob.mx/minisitio/DatosAbiertos/index.html> lists the same three
+  articles.
+- **The DOF publishes it one oficio at a time, as an HTML note.** A full-text search
+  for `fraccion X del articulo 49 Bis` at <https://dof.gob.mx/busqueda_detalle.php>
+  answered **14 notes** on 2026-09-12, each an oficio of the Administracion Central de
+  Fiscalizacion Estrategica naming **one taxpayer** in an `Anexo 1` table.
+
+| DOF date | Oficios, all prefixed `500-05-00-00-00-2026-` | `nota_detalle.php?codigo=` |
+|---|---|---|
+| 2026-07-10 | 21468, 21469, 21471 | 5793257, 5793258, 5793259 |
+| 2026-08-07 | 21590, 21600, 21601, 24291, 24292 | 5795723, 5795724, 5795725, 5795726, 5795727 |
+| 2026-08-14 | 24370, 24371, 24417 | 5796303, 5796304, 5796305 |
+| 2026-08-28 | 24472, 24524, 24525 | 5797380, 5797381, 5797382 |
+
+Fourteen oficios, fourteen taxpayers, first publication 2026-07-10, which is six months
+after the article came into force. Those counts are the ones `official49BisListing()`
+reports and `art49bis.test.ts` asserts, so a stale claim fails a test.
+
+### The published layout, which is what the loader reads
+
+Transcribed from oficio `500-05-00-00-00-2026-24472`, DOF 28 August 2026
+(`https://dof.gob.mx/nota_detalle.php?codigo=5797380&fecha=28/08/2026`). The `Anexo 1`
+table is seven columns under a two-level header:
+
+```
+R.F.C. | Nombre, denominacion o razon social del Contribuyente |
+Numero y fecha de oficio de resolucion |
+Medio de notificacion al contribuyente
+  Notificacion por Buzon Tributario
+    Fecha de notificacion | Fecha en que surtio efectos la notificacion
+  Estrados de la autoridad
+    Fecha de fijacion en los estrados de la Autoridad Fiscal | Fecha en que surtio efectos la notificacion
+```
+
+What the loader in `../art49bis.ts` had to be taught, each of it read off the fourteen
+notes rather than imagined:
+
+| Observed | Count | What the loader does |
+|---|---|---|
+| The DOF publication date is nowhere inside the Anexo | all 14 | `publishedAt` is a REQUIRED argument. The 30 natural days run from it and it is the one number here nobody may infer |
+| Notification dates written `DD/MM/YYYY` | 7 of 14 | reads them |
+| The same dates written `06 de agosto de 2026` | 7 of 14, from oficio 24292 onwards | reads them too, so a future oficio that switches back needs no change |
+| `Fecha en que surtio efectos la notificacion` appears twice, once per notice group | all 14 | pairs each one with the nearest notice column to its left, because a flattened export loses the group row |
+| The `Estrados de la autoridad` pair empty, buzon tributario dated | all 14 | records `notifiedBy: "buzon_tributario"`; a row with neither dated is kept and reported in `warnings` |
+| One taxpayer per oficio | all 14 | nothing, but it is why a publication and a version are the same thing here |
+
+### Refreshing, which is manual today
+
+There is no `curl` that gets this list. The steps, in full:
+
+1. Open <https://dof.gob.mx/busqueda_detalle.php> and search the exact phrase
+   `fraccion X del articulo 49 Bis`. Every result is one oficio. Paginate: the form
+   posts `actualPage`, `globalPage` and `iniciaMuestra` and reports the total in the
+   hidden `cantidadTotalResultados` field.
+2. For each note that is newer than the ones in the table above, open
+   `https://dof.gob.mx/nota_detalle.php?codigo=<codigo>&fecha=<DD/MM/YYYY>` and copy
+   the `Anexo 1` table into a CSV with the seven column names spelled as the note
+   spells them. Do not reorder them and do not rename them: `resolveColumns` in
+   `../art49bis.ts` matches on the names and refuses a file it cannot recognise, which
+   is the behaviour you want when the SAT respells something.
+3. Load it with `parse49BisPublication(text, { publishedAt: "<the DOF date>" })`, or
+   `load49BisPublication(bytes, ...)` for a file. Check `rejected` and `warnings`
+   before believing `entries`.
+4. If the SAT ever ships a real file, commit it here **unmodified** with the same
+   provenance table the 69-B snapshot has (URL, retrieval time, byte size, row count,
+   cut-off date), point `official49BisListing()` at it so `coverage` becomes `loaded`,
+   and update the counts asserted in `../art49bis.test.ts` by hand so a change in the
+   list cannot pass as a change in the parser.
+
+Until then `GET /api/v1/sat/lookup` answers, for that list, `answered: false` with
+`coverage: "not_published_machine_readable"`, the counts above and the URL to check
+them. That is not a degraded mode we are hiding: it is what the SAT publishes.
+
+### `art49bis-fixture.csv` is a fixture and not a listing
+
+Six data rows that exercise the loader: both date shapes, a buzon row, an estrados row,
+a legal name carrying a comma, an unreadable RFC and a row with no notice date. The
+same rules the synthetic 69-B rows follow apply, and for the same reason:
+
+- Every RFC starts with `SYN` and none of them exists.
+- Every legal name says SINTETICA or SINTETICO.
+- Every oficio number is prefixed `SIM-`, so it cannot be mistaken for one the SAT
+  signed.
+- The first line of the file says, in Spanish, that it is not the SAT's file.
+
+It is loaded by `loadFixture49BisPublication` and by nothing else. No endpoint, no
+screen and no finding reads it.
+
+## Article 69-B Bis, and why it is not loaded either
+
+Different reason, and the decision is deliberate rather than pending. The 69-B Bis
+listing DOES exist as open data, three CSV files under
+`.../Datos_abiertos/Documents_AGGC/`: `Listado_69_B_Bis_Completo.csv` (1,256 bytes,
+`Last-Modified` 2026-08-19, `Informacion actualizada al 05 de junio de 2026`, **three
+taxpayers**: two `Definitivo` and one `Sentencia Favorable`), plus a definitivos file
+and a sentencias file. Its columns mirror the 69-B ones with two situations instead of
+four.
+
+It is not loaded because it is about something else. Article 69-B Bis presumes the
+IMPROPER TRANSFER OF TAX LOSSES in a restructuring, spin-off, merger or change of
+shareholders. Appearing in it says nothing about whether a supplier's invoice to us is
+real, so using it as a supplier red flag would be exactly the kind of plausible, wrong
+inference `docs/06-regulatory-privacy.md` section 3.2 exists to prevent. Three
+taxpayers nationally is also not a screening signal. If it is ever surfaced it is a
+separate control with its own copy, never a row inside the SAT lists control.
