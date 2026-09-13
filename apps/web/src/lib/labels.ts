@@ -122,6 +122,26 @@ export const SOURCE_LABEL: Record<InstructionSource, string> = {
   manual: "Captura manual",
 };
 
+/** Which Rune glyph draws a channel. The drawings are in `Icons.tsx`. */
+export type SourceGlyph = "mail" | "message" | "file-text" | "globe" | "pencil";
+
+/**
+ * The channel an instruction arrived by, as a shape.
+ *
+ * It sits next to `SOURCE_LABEL` because it is the same fact in the other
+ * channel, and a run row shows both: the tile says where it came from at a
+ * glance and the word under it says the same thing for anyone who cannot use
+ * the shape. A key rather than a component, so this file stays a dictionary of
+ * words with no view in it.
+ */
+export const SOURCE_ICON: Record<InstructionSource, SourceGlyph> = {
+  email: "mail",
+  whatsapp: "message",
+  pdf: "file-text",
+  portal: "globe",
+  manual: "pencil",
+};
+
 export const SAT_STATUS_LABEL: Record<SatListStatus, string> = {
   presunto: "Presunto",
   desvirtuado: "Desvirtuado",

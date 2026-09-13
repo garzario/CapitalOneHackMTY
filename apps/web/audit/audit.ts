@@ -369,6 +369,23 @@ const CONTRAST_PROBE = `(() => {
     ["--c-ink", "--c-accent-soft", 4.5, "the marked sweep row on its tint"],
     ["--c-ink-muted", "--c-accent-soft", 4.5, "the RFC on the marked sweep row"],
     ["--c-border-strong", "--c-surface", 3, "a strong border"],
+    // The pill button's boundary is the hairline and not the strong border.
+    // WCAG 1.4.11 asks 3.0 of the boundary of an input, where the box is the
+    // only thing saying the control exists; a secondary button whose own word
+    // carries the affordance is not that case. Recorded at 1.0 so the number
+    // is on the report rather than in an argument, and so the day somebody
+    // puts this border on an input the pair is already here to be raised.
+    ["--c-border", "--c-canvas", 1, "the pill button's boundary, and the bar of a control with no hits"],
+    // The run's soft tiles and its round icon tiles: a ground that only this
+    // screen uses, which is exactly the kind that ships unmeasured.
+    ["--c-ink", "--c-tile", 4.5, "text on a soft tile"],
+    ["--c-ink-muted", "--c-tile", 4.5, "secondary text on a soft tile"],
+    ["--c-ink-subtle", "--c-tile", 4.5, "subtle text on a soft tile"],
+    // The chart sits straight on the page: the bar of a control with hits is
+    // a non-text indicator on the canvas, and the label at the end of a quiet
+    // bar is the sentence that says nothing was found.
+    ["--c-hold", "--c-canvas", 3, "a control's bar in the chart"],
+    ["--c-ink-subtle", "--c-canvas", 4.5, "the Sin hallazgos label on the chart"],
     // The rail is a navy brand panel with its own small palette. None of the
     // pairs above touch it, and it is the one surface on every screen.
     ["--c-rail-ink", "--c-rail", 4.5, "a rail item"],

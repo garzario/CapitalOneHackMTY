@@ -7,6 +7,14 @@
  * Everything else on this screen is subordinate to those three, and this file
  * is mostly a record of what was removed to make that true.
  *
+ * The boxes are gone. Every block on this screen used to be a bordered panel
+ * with a card head on it, which is five rectangles telling the eye that five
+ * things of equal importance start here. They are not of equal importance. The
+ * screen is now one column with air between its blocks, a hairline where a
+ * boundary is genuinely load-bearing, and exactly two soft tiles, for the two
+ * asides that are furniture rather than the run. Hierarchy comes from size and
+ * from space, which is the only way it survives a screenshot.
+ *
  * The three decision buttons are gone from the table. Every row carried
  * Retener, Verificar and Liberar in three different colours; thirteen rows made
  * fifty-two coloured objects, and past the third row the eye stops reading them
@@ -15,9 +23,11 @@
  * instruction, next to the finding that explains it, which is the product's own
  * argument applied to its own interface.
  *
- * The decision chip is gone too. A row's state is a 3 px mark on its left edge
- * and a word in its own column, so the table can be scanned down the margin and
- * colour is never the only signal.
+ * The decision chip is gone too, and so is the 3 px mark the row used to carry
+ * on its left edge: with no panel around the table that mark was a stripe
+ * floating in the margin of the page. A row's state is the round tile at its
+ * head, tinted by the decision, and the word in its own column, so colour is
+ * never the only signal.
  *
  * The alert rail is gone. It listed the same findings the table was already
  * sorted by. In its place the six controls say what they found, including the
@@ -32,6 +42,7 @@ import type { Rfc } from "@hackmty/core";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useMemo, useState } from "react";
 import { ControlsPanel } from "../components/Controls";
+import { SourceIcon } from "../components/Icons";
 import { IntakeQr } from "../components/IntakeQr";
 import { Amount } from "../components/Primitives";
 import { RunFilterControl } from "../components/RunFilter";
@@ -52,7 +63,7 @@ import {
   formatDate,
   formatPlural,
 } from "../lib/format";
-import { ACTION_LABEL, SOURCE_LABEL } from "../lib/labels";
+import { ACTION_LABEL, SOURCE_ICON, SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
 import { useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
@@ -114,154 +125,158 @@ export function RunScreen() {
   return (
     <>
       {resource.status === "loading" ? (
-        <div className="panel">
-          <LoadingBlock label="Cargando la corrida" rows={6} />
-        </div>
+        <LoadingBlock label="Cargando la corrida" rows={6} />
       ) : null}
 
       {resource.status === "error" ? (
-        <div className="panel">
-          <ErrorBlock message={resource.message} onRetry={reload} />
-        </div>
+        <ErrorBlock message={resource.message} onRetry={reload} />
       ) : null}
 
       {run && verdict ? (
-        <>
-          {/* The header and the figure are one group, tied together with a gap
-              tighter than the screen's own: everything in the row above is
-              about the figure under it -- which week, how many instructions,
-              where the numbers came from -- and reading them as two separate
-              strips was the screen opening with three bars before the number
-              it exists for. */}
-          <div className="flex flex-col gap-4">
-            <div className="run-head">
-              {/* The week and the count. The screen's name is in the top bar
-                  and is not repeated here. */}
-              <p className="subtle m-0 t-sm">
-                {`Semana del ${formatDate(run.weekOf)} · ${formatCount(verdict.totalCount)} instrucciones`}
+        /* One column, four blocks, 32px of air between them and no borders in
+           between. The gap is the whole layout: it is wider than the gap
+           inside any block, so the four read as four even though nothing is
+           drawn around them. */
+        <div className="run-stack">
+          <header className="run-hero">
+            <div>
+              {/* An h2: the top bar keeps the page's one h1. "Corrida del
+                  jueves" is the ritual and not the date -- the persona runs
+                  the payment run on Thursdays -- and the week it covers is the
+                  first clause of the line underneath. */}
+              <h2 className="run-hero-title">Corrida del jueves</h2>
+              <p className="run-hero-sub">
+                {`Semana del ${formatDate(run.weekOf)} · ${formatCount(verdict.totalCount)} instrucciones · ${formatCount(verdict.stoppedCount)} no salen todavia`}
               </p>
-
-              <div className="run-head-status">
-                <SourceNotice
-                  notice={resource.status === "ready" ? resource.notice : null}
-                  compact
-                />
-                <StreamStatus
-                  status={stream.status}
-                  onReconnect={stream.reconnect}
-                />
-
-                {/* The retention artifact for this run: what was checked, what
-                    was decided, and a digest of the ledger range behind it.
-                    Offered only against the engine, because a constancia of a
-                    run the browser made up would be a document about
-                    nothing. */}
-                {source !== "mock" ? (
-                  <a
-                    className="btn"
-                    href={runConstanciaHref(run.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Constancia (PDF)
-                  </a>
-                ) : null}
-              </div>
             </div>
 
-            <RunVerdict verdict={verdict} />
-          </div>
+            <div className="run-hero-aside">
+              <SourceNotice
+                notice={resource.status === "ready" ? resource.notice : null}
+                compact
+              />
+              <StreamStatus
+                status={stream.status}
+                onReconnect={stream.reconnect}
+              />
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <section
-              aria-labelledby="run-table-heading"
-              className="panel min-w-0"
-            >
-              <div className="card-head">
-                <h2 id="run-table-heading" className="eyebrow">
-                  Instrucciones
-                </h2>
-                {/* The filter replaced the line that used to sit here saying
-                    "first what is not leaving, then by amount". The control
-                    says the same thing and does it as well. */}
-                <RunFilterControl
-                  value={filter}
-                  counts={counts}
-                  onChange={changeFilter}
-                />
-              </div>
+              {/* The retention artifact for this run: what was checked, what
+                  was decided, and a digest of the ledger range behind it.
+                  Offered only against the engine, because a constancia of a
+                  run the browser made up would be a document about
+                  nothing. */}
+              {source !== "mock" ? (
+                <a
+                  className="btn btn-pill"
+                  href={runConstanciaHref(run.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Constancia (PDF)
+                </a>
+              ) : null}
+            </div>
+          </header>
 
-              {run.items.length === 0 ? (
-                <EmptyBlock
-                  title="No hay instrucciones esta semana"
-                  description="Cuando llegue la primera instruccion por correo, portal o la pagina de alta, aparece aqui."
-                  action={
-                    <Link to="/intake" className="btn">
-                      Dar de alta una instruccion
-                    </Link>
-                  }
-                />
-              ) : (
-                <div className="table-scroll">
-                  <table className="data-table">
-                    <caption className="sr-only">
-                      Instrucciones de pago de la semana, con su cuenta y su
-                      decision.
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Proveedor</th>
-                        <th scope="col" className="align-end">
-                          Importe
-                        </th>
-                        <th scope="col">Cuenta destino</th>
-                        <th scope="col">Decision</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/*
-                       * The filter change is animated per row: the new set fades
-                       * and lifts into place with a stagger capped so that even
-                       * ninety-two rows have settled inside a fifth of a second.
-                       *
-                       * The key carries the filter, which is the whole trick.
-                       * React then treats a filter change as a new set of rows
-                       * rather than an edit to the old one, so every visible row
-                       * mounts fresh and animates. The first attempt used
-                       * `AnimatePresence` with an `exit` so leaving rows could
-                       * fade out too, and it did not work: exiting `<tr>`s were
-                       * never unmounted, so switching back to "No salen" left
-                       * all ninety-two rows on screen with the filter claiming
-                       * seven. Animating only the entrance costs nothing you can
-                       * see -- the outgoing rows are replaced under an incoming
-                       * animation -- and it cannot strand a row.
-                       *
-                       * Only opacity and transform move, never height or layout,
-                       * so the column widths hold still and the table does not
-                       * shiver while it changes.
-                       */}
-                      {rows.map((item, index) => {
-                        const { action } = item.decision;
+          <RunVerdict verdict={verdict} />
 
-                        return (
-                          <motion.tr
-                            key={`${filter}-${item.instruction.id}`}
-                            initial={
-                              filterTouched ? { opacity: 0, y: -4 } : false
-                            }
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{
-                              duration: reduceMotion ? 0 : 0.22,
-                              delay: reduceMotion
-                                ? 0
-                                : Math.min(index * 0.012, 0.18),
-                              ease: [0.2, 0.8, 0.2, 1],
-                            }}
-                          >
-                            <td
-                              className={`cell-supplier row-mark row-mark-${action}`}
-                            >
-                              <div className="flex flex-col">
+          <section aria-labelledby="run-table-heading" className="min-w-0">
+            <div className="section-head">
+              <h2 id="run-table-heading" className="t-lg">
+                Instrucciones
+              </h2>
+              {/* The filter replaced the line that used to sit here saying
+                  "first what is not leaving, then by amount". The control
+                  says the same thing and does it as well. */}
+              <RunFilterControl
+                value={filter}
+                counts={counts}
+                onChange={changeFilter}
+              />
+            </div>
+
+            {run.items.length === 0 ? (
+              <EmptyBlock
+                title="No hay instrucciones esta semana"
+                description="Cuando llegue la primera instruccion por correo, portal o la pagina de alta, aparece aqui."
+                action={
+                  <Link to="/intake" className="btn btn-pill">
+                    Dar de alta una instruccion
+                  </Link>
+                }
+              />
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table open-table">
+                  <caption className="sr-only">
+                    Instrucciones de pago de la semana, con su cuenta y su
+                    decision.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Proveedor</th>
+                      <th scope="col" className="align-end">
+                        Importe
+                      </th>
+                      <th scope="col">Cuenta destino</th>
+                      <th scope="col">Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/*
+                     * The filter change is animated per row: the new set fades
+                     * and lifts into place with a stagger capped so that even
+                     * ninety-two rows have settled inside a fifth of a second.
+                     *
+                     * The key carries the filter, which is the whole trick.
+                     * React then treats a filter change as a new set of rows
+                     * rather than an edit to the old one, so every visible row
+                     * mounts fresh and animates. The first attempt used
+                     * `AnimatePresence` with an `exit` so leaving rows could
+                     * fade out too, and it did not work: exiting `<tr>`s were
+                     * never unmounted, so switching back to "No salen" left
+                     * all ninety-two rows on screen with the filter claiming
+                     * seven. Animating only the entrance costs nothing you can
+                     * see -- the outgoing rows are replaced under an incoming
+                     * animation -- and it cannot strand a row.
+                     *
+                     * Only opacity and transform move, never height or layout,
+                     * so the column widths hold still and the table does not
+                     * shiver while it changes.
+                     */}
+                    {rows.map((item, index) => {
+                      const { action } = item.decision;
+
+                      return (
+                        <motion.tr
+                          key={`${filter}-${item.instruction.id}`}
+                          initial={
+                            filterTouched ? { opacity: 0, y: -4 } : false
+                          }
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: reduceMotion ? 0 : 0.22,
+                            delay: reduceMotion
+                              ? 0
+                              : Math.min(index * 0.012, 0.18),
+                            ease: [0.2, 0.8, 0.2, 1],
+                          }}
+                        >
+                          <td className="cell-supplier">
+                            <div className="row-lead">
+                              {/* Two facts in one object: the tint is the
+                                  decision and the glyph is the channel the
+                                  instruction arrived by. Neither is the only
+                                  place either fact appears -- the word is in
+                                  the last column and the channel is spelled
+                                  out under the name. */}
+                              <span className={`row-tile row-tile-${action}`}>
+                                <SourceIcon
+                                  glyph={SOURCE_ICON[item.instruction.source]}
+                                  size={18}
+                                />
+                              </span>
+                              <span className="flex min-w-0 flex-col">
                                 <Link
                                   to={instructionPath(item.instruction.id)}
                                   className="link-quiet t-base font-medium"
@@ -285,93 +300,88 @@ export function RunScreen() {
                                     {formatDate(item.instruction.receivedAt)}
                                   </span>
                                 </span>
-                              </div>
-                            </td>
-                            <td className="align-end">
-                              {/* The amount carries the same weight as the
-                                  legal name above it. The name is the link;
-                                  the amount is what the clerk is deciding
-                                  about, and it should not be the lighter of
-                                  the two things in the row. */}
-                              <Amount
-                                value={item.instruction.amount}
-                                className="font-medium"
-                              />
-                            </td>
-                            <td>
-                              <span className="code code-nowrap">
-                                {formatClabe(item.instruction.clabe)}
                               </span>
-                              <span className="subtle block t-xs">
-                                {bankName(item.instruction.clabe)}
-                              </span>
-                            </td>
-                            <td>
-                              {/* No dot here. The row already carries its
-                                  decision twice -- as the 3 px mark on its left
-                                  edge and as this word -- and a third copy in
-                                  the same cell as the second is punctuation,
-                                  not information. Colour is still not the only
-                                  signal: the word is. */}
-                              <span className={`decision decision-${action}`}>
-                                {ACTION_LABEL[action]}
-                              </span>
-                              {item.findings.length > 0 ? (
-                                <Link
-                                  to={instructionPath(item.instruction.id)}
-                                  className="subtle block t-xs underline"
-                                >
-                                  {formatPlural(
-                                    item.findings.length,
-                                    "hallazgo",
-                                  )}
-                                </Link>
-                              ) : null}
-                            </td>
-                          </motion.tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                          </td>
+                          <td className="align-end">
+                            {/* The amount carries the same weight as the
+                                legal name above it. The name is the link;
+                                the amount is what the clerk is deciding
+                                about, and it should not be the lighter of
+                                the two things in the row. */}
+                            <Amount
+                              value={item.instruction.amount}
+                              className="font-medium"
+                            />
+                          </td>
+                          <td>
+                            <span className="code code-nowrap">
+                              {formatClabe(item.instruction.clabe)}
+                            </span>
+                            <span className="subtle block t-xs">
+                              {bankName(item.instruction.clabe)}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`decision decision-${action}`}>
+                              <span className="decision-dot" />
+                              {ACTION_LABEL[action]}
+                            </span>
+                            {item.findings.length > 0 ? (
+                              <Link
+                                to={instructionPath(item.instruction.id)}
+                                className="subtle block t-xs underline"
+                              >
+                                {formatPlural(item.findings.length, "hallazgo")}
+                              </Link>
+                            ) : null}
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
 
-                  {/* A filter that matches nothing has to say so. The common
-                      case is the good one: a week where nothing was stopped
-                      opens on an empty "No salen", and that is a result worth
-                      a sentence rather than a blank panel. */}
-                  {rows.length === 0 ? (
-                    <EmptyBlock
-                      title={
-                        filter === "stopped"
-                          ? "Nada detenido esta semana"
-                          : "Nada liberado todavia"
-                      }
-                      description={
-                        filter === "stopped"
-                          ? `Las ${formatPlural(counts.all, "instruccion")} de la corrida pasaron los seis controles.`
-                          : "Cada instruccion de la corrida sigue detenida o pendiente de verificar."
-                      }
-                      action={
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => changeFilter("all")}
-                        >
-                          Ver las {formatCount(counts.all)}
-                        </button>
-                      }
-                    />
-                  ) : null}
-                </div>
-              )}
-            </section>
+                {/* A filter that matches nothing has to say so. The common
+                    case is the good one: a week where nothing was stopped
+                    opens on an empty "No salen", and that is a result worth
+                    a sentence rather than a blank panel. */}
+                {rows.length === 0 ? (
+                  <EmptyBlock
+                    title={
+                      filter === "stopped"
+                        ? "Nada detenido esta semana"
+                        : "Nada liberado todavia"
+                    }
+                    description={
+                      filter === "stopped"
+                        ? `Las ${formatPlural(counts.all, "instruccion")} de la corrida pasaron los seis controles.`
+                        : "Cada instruccion de la corrida sigue detenida o pendiente de verificar."
+                    }
+                    action={
+                      <button
+                        type="button"
+                        className="btn btn-pill"
+                        onClick={() => changeFilter("all")}
+                      >
+                        Ver las {formatCount(counts.all)}
+                      </button>
+                    }
+                  />
+                ) : null}
+              </div>
+            )}
+          </section>
 
-            <aside className="flex min-w-0 flex-col gap-5">
-              <ControlsPanel items={run.items} />
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <ControlsPanel items={run.items} />
+
+            <aside className="flex min-w-0 flex-col gap-4">
               <IntakeQr />
               <StatusCard />
             </aside>
           </div>
-        </>
+        </div>
       ) : null}
 
       {/* AnimatePresence keeps the drawer mounted long enough to leave the

@@ -227,6 +227,23 @@
     font-size: var(--text-md);
   }
 
+  /*
+   * The secondary button on a page with no borders on anything else.
+   *
+   * Rounder and wider than `.btn`, and its boundary is the hairline rather
+   * than the strong border: WCAG 1.4.11 asks 3.0 of the boundary of an *input*,
+   * where the box is the only thing saying "you can type here". A button whose
+   * own word carries the affordance is not that case, and a 3.0 outline on a
+   * page this open reads as a fourth kind of box. The pair is measured by
+   * `bun run audit:web` anyway, at 1.0, so the number is on the record instead
+   * of in an argument.
+   */
+  .btn-pill {
+    border-color: var(--c-border);
+    border-radius: var(--radius-pill);
+    padding-inline: var(--space-5);
+  }
+
   .btn-accent {
     background-color: var(--c-accent);
     border-color: var(--c-accent);
@@ -409,6 +426,38 @@
     padding: var(--space-3);
     border-bottom: var(--border-width) solid var(--c-grid);
     vertical-align: middle;
+  }
+
+  /* ---------------------------------------------------------- the open list */
+
+  /*
+   * The run's table with the panel taken off it.
+   *
+   * It is still a real `<table>` -- scoped headers, a caption, four columns a
+   * screen reader can name -- because what it holds is tabular and dressing it
+   * as a list of divs would cost that for nothing. Only the chrome changed:
+   * the header is a line of small subtle words over one hairline, rows are
+   * 64px tall and separated by the faintest rule in the palette, and the last
+   * one has none at all so the list ends in air rather than on a border.
+   */
+  .open-table th {
+    background-color: var(--c-canvas);
+    padding-inline: 0;
+    padding-block: 0 var(--space-2);
+    border-bottom: var(--border-width) solid var(--c-border);
+  }
+
+  /* Only the geometry is overridden. The hairline under a row, the missing one
+     under the last, and the row's hover are `.data-table`'s own and are the
+     same here; restating them would be two rules that have to agree. */
+  .open-table td {
+    height: 4rem;
+    padding-inline: var(--space-4) 0;
+    padding-block: var(--space-4);
+  }
+
+  .open-table td:first-child {
+    padding-inline-start: 0;
   }
 
   /* The three decision buttons stay on one line whatever the column width,
@@ -1210,94 +1259,210 @@
     text-decoration: underline;
   }
 
-  /* ---------------------------------------------------------- the run head */
+  /* ------------------------------------------------------- the payment run */
 
-  /* One row above the figure instead of three strips before it. The week, the
-     provenance of the numbers and the run's one artifact are all captions on
-     the figure underneath, and stacking them made the screen open with three
-     bars before the number it exists for. Everything in it is allowed to wrap,
-     because on a phone it is four objects in 390px. */
-  .run-head {
+  /*
+   * The run's own column.
+   *
+   * Four blocks -- the greeting, the metrics, the list, and the pair of
+   * columns under it -- separated by 32px of nothing. The screen's own gap is
+   * 24px and every gap inside a block is smaller than that, so this one is the
+   * widest space on the page and the eye groups on it without a single border
+   * being drawn. That is the whole depth strategy on this screen: no panels,
+   * a hairline only where a boundary carries meaning, and two soft tiles for
+   * the two asides.
+   */
+  .run-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+  }
+
+  /* The greeting. One large light line naming the ritual, the week and the
+     counts under it, and everything that describes the run's provenance
+     pushed to the right where it stays available without being read first.
+     Everything wraps, because on a phone it is four objects in 390px. */
+  .run-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-6);
+  }
+
+  .run-hero-title {
+    margin: 0;
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-light);
+    letter-spacing: var(--tracking-display);
+    line-height: var(--leading-tight);
+  }
+
+  .run-hero-sub {
+    margin: var(--space-2) 0 0;
+    color: var(--c-ink-muted);
+    font-size: var(--text-md);
+    font-weight: var(--weight-light);
+  }
+
+  /* Right-aligned on a laptop and under the greeting on a phone, which is what
+     `flex-wrap` on the parent already does; this only keeps the three objects
+     on one line for as long as there is a line. */
+  .run-hero-aside {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--space-3) var(--space-4);
   }
 
-  .run-head-status {
+  /* The head of a section that is no longer a card: the title on the left, one
+     control or one caption on the right, and no padding of its own because
+     there is no box for it to sit inside any more. */
+  .section-head {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-4);
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
   }
 
-  /* ------------------------------------------------------- the one figure */
+  /* ----------------------------------------------------------- the metrics */
 
-  /* The headline of the run. There is exactly one, because there is exactly
-     one number that decides whether the clerk can go home: the money that is
-     not leaving yet.
-
-     It is a two-column grid rather than a row of two blocks. The left column
-     is the tone label and the hero; the right is the pair of side totals, set
-     on the hero's own baseline so the three numbers read as one row instead of
-     as a figure with a footnote floating beside it. Under both, spanning the
-     full width: the bar that shows how the run's money splits, and then the
-     two sentences that say the same thing in words. Below 40rem the whole
-     thing is one column and the totals drop under the hero. */
-  .figure-block {
+  /*
+   * The three numbers the run opens with, as one row bounded by two hairlines.
+   *
+   * This used to be a tinted card and the tint was doing the grouping. The
+   * rules do it now: two horizontal hairlines say "these three belong
+   * together" and a vertical one between the cells says "these are three", and
+   * nothing is painted behind anything. The first cell is the focal point by
+   * size alone -- its value is 38px where the other two are 24px -- which is
+   * the hierarchy that survives being squinted at.
+   */
+  .metric-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-3) var(--space-8);
-    align-items: end;
-    padding: var(--space-6);
-    border-radius: var(--radius-xl);
-    /* The one tinted surface on the screen, and it is under the one number the
-       screen exists for. A dashboard of white cards on a white page has no
-       centre; tinting the figure gives the eye somewhere to land before it
-       starts reading rows. The tint is the pale end of Capital One's own blue
-       ramp, so it reads as brand rather than as a status colour -- the status
-       colours are three centimetres below it, in the table. */
-    background-color: var(--c-accent-tint);
-    border: var(--border-width) solid var(--c-accent-tint-line);
-  }
-
-  /* The tone label sits on the first row of the left column, directly over the
-     hero it describes. */
-  .figure-tone {
-    grid-column: 1;
-  }
-
-  .figure-side {
-    grid-column: 2;
-    grid-row: 1 / 3;
-    align-self: end;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-6) var(--space-10);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: 0;
+    padding: var(--space-6) 0;
+    border-top: var(--border-width) solid var(--c-border);
+    border-bottom: var(--border-width) solid var(--c-border);
+  }
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-inline: var(--space-6);
+  }
+
+  .metric:first-child {
+    padding-inline-start: 0;
+  }
+
+  /* The rule between cells, on the cell that follows it, so a one-column
+     layout drops it by changing one rule rather than three. */
+  .metric + .metric {
+    border-inline-start: var(--border-width) solid var(--c-border);
+  }
+
+  .metric-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  /* The soft round ground under a glyph. It is the only shape on the screen
+     that is not type, a rule or a bar, which is what keeps three of them from
+     reading as decoration. */
+  .metric-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--c-tile);
+    color: var(--c-ink);
+  }
+
+  .metric-label {
+    color: var(--c-ink-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .metric-lead .metric-label {
+    color: var(--c-ink);
+  }
+
+  .metric-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+  }
+
+  .metric-value {
+    font-size: var(--text-xl);
+    /* Light, not thin. Capital One sets display copy at 100, but these are
+       digits a person is about to act on: at 100 the strokes of a 5 and a 6
+       start agreeing with each other, and this is the amount of money that is
+       not leaving the company's account. 300 keeps the airy Capital One
+       register without asking anyone to squint at pesos. */
+    font-weight: var(--weight-light);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-display);
+    font-variant-numeric: var(--numeric-tabular);
+    color: var(--c-ink);
+  }
+
+  .metric-value-lead {
+    font-size: var(--text-3xl);
+  }
+
+  .metric-bar {
+    margin-top: var(--space-4);
+    margin-bottom: var(--space-2);
+  }
+
+  /* Three cells side by side stop being three cells when each one is 120px
+     wide. Under 40rem they stack, and the rule between them turns with them. */
+  @media (max-width: 40rem) {
+    .metric-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-5);
+    }
+
+    .metric {
+      padding-inline: 0;
+    }
+
+    .metric + .metric {
+      border-inline-start: 0;
+      border-top: var(--border-width) solid var(--c-border);
+      padding-top: var(--space-5);
+    }
   }
 
   /*
    * How the run's money splits between held, awaiting verification and
-   * released, spanning the whole block because it is the composition of the
-   * total and not a caption on the left column.
+   * released.
    *
    * It is the one object on this screen that could not belong to any other
    * product, and it is not decoration: the sentence below it states the same
    * split in words, and this says it in the channel the eye reads first. Six
-   * pixels tall and unlabelled, so it stays under the figure rather than
-   * competing with it. The track is the tint's own hairline, so a run with a
-   * rounding gap between segments shows the card it sits on and not a hole.
+   * pixels tall and unlabelled, so it stays under the metrics rather than
+   * competing with them. The track is the page's own hairline, so a run with a
+   * rounding gap between segments shows a line and not a hole.
    */
   .run-bar {
-    grid-column: 1 / -1;
     display: flex;
     gap: 2px;
     height: 0.375rem;
     border-radius: var(--radius-pill);
     overflow: hidden;
-    background-color: var(--c-accent-tint-line);
+    background-color: var(--c-border);
   }
 
   /* The one transition in the app that moves something other than opacity or
@@ -1323,82 +1488,94 @@
     background-color: var(--c-release);
   }
 
-  /* The sentence under the figure and the line naming the worst risk are one
-     wrapping row: they are two clauses of the same caption, and stacked they
-     read as two separate claims. */
-  .figure-foot {
-    grid-column: 1 / -1;
+  /* ---------------------------------------------------------- the open list */
+
+  .row-lead {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-6);
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
   }
 
-  /* Under 40rem there is no second column to put anything in: the totals drop
-     under the hero and start at the top of their own stack rather than being
-     pushed to the bottom of a row they no longer share. */
-  @media (max-width: 40rem) {
-    .figure-block {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .figure-side {
-      grid-column: 1;
-      grid-row: auto;
-      align-self: start;
-    }
+  /* The round tile at the head of a row: tinted by the decision, drawn as the
+     channel the instruction arrived by. Two facts, one object, and neither of
+     them is only here. */
+  .row-tile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-pill);
   }
 
-  .figure-side div {
+  .row-tile-hold {
+    background-color: var(--c-hold-soft);
+    color: var(--c-hold-ink);
+  }
+
+  .row-tile-verify {
+    background-color: var(--c-verify-soft);
+    color: var(--c-verify-ink);
+  }
+
+  .row-tile-release {
+    background-color: var(--c-release-soft);
+    color: var(--c-release-ink);
+  }
+
+  /* ------------------------------------------------------------- the tiles */
+
+  /*
+   * The two asides under the run: the QR and the API's health.
+   *
+   * They are the only boxes left on the screen and they are boxes on purpose:
+   * neither is the run, both are furniture the clerk uses once, and a soft
+   * ground with no border is how the reference says "this is beside the work"
+   * without drawing another rectangle around it. Nothing is nested inside
+   * them -- a sunken box inside a tile is the pile of frames this screen took
+   * the borders off to escape.
+   */
+  .tile {
+    background-color: var(--c-tile);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+  }
+
+  /* --------------------------------------------------------------- charts */
+
+  /* The detector names do not shrink below their own width, so on a phone the
+     chart scrolls inside its own box instead of scrolling the page.
+
+     `min-width: 0` is the half of that which is not optional. Without it the
+     box is sized by the min-content of the canvas inside it, the grid column
+     around it grows to 448px, and a 390px phone scrolls the whole document
+     sideways -- which is the exact failure `bun run audit:web` exists to
+     catch, and did. */
+  .chart-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chart-canvas {
+    min-width: 28rem;
+  }
+
+  /* The tooltip, and the one floating object the chart has. It is the only
+     place on this screen that still carries a hairline and a shadow, because
+     it genuinely floats over the page the way the drawer does. */
+  .chart-tip {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-  }
-
-  .figure-side-value {
-    margin: 0;
-    font-size: var(--text-xl);
-    font-weight: var(--weight-light);
-    letter-spacing: var(--tracking-display);
-    line-height: var(--leading-tight);
-    font-variant-numeric: var(--numeric-tabular);
-  }
-
-  /* Two peso totals at 24px with a 40px gutter is 340px of unbreakable line,
-     which is wider than the card holding them on a 375px phone: the second
-     total was clipped at the card's right edge. Here they step down a size and
-     the row is allowed to wrap, so on a phone they stack under each other and
-     on anything wider they stay the pair they read as. */
-  @media (max-width: 30rem) {
-    .figure-side {
-      gap: var(--space-4) var(--space-6);
-    }
-
-    .figure-side-value {
-      font-size: var(--text-md);
-    }
-  }
-
-  .figure-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    color: var(--c-ink-muted);
-  }
-
-  .figure-value {
-    grid-column: 1;
-    font-size: var(--text-4xl);
-    /* Light, not thin. Capital One sets display copy at 100, but these are
-       digits a person is about to act on: at 100 the strokes of a 5 and a 6
-       start agreeing with each other, and this is the amount of money that is
-       not leaving the company's account. 300 keeps the airy Capital One
-       register without asking anyone to squint at pesos. */
-    font-weight: var(--weight-light);
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-display);
-    font-variant-numeric: var(--numeric-tabular);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--c-surface-raised);
+    border: var(--border-width) solid var(--c-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-2);
+    font-size: var(--text-xs);
   }
 
   /* --------------------------------------------------------- decision ink */
@@ -1442,67 +1619,6 @@
   .decision-release .decision-dot {
     background-color: var(--c-release);
   }
-
-  /* On the tinted card the label's own colour is dropped and only its dot keeps
-     it. Red type on a blue ground is two brand colours arguing over one line,
-     and the dot already says the same thing in the channel that survives being
-     glanced at. Declared after the three rules above, not before: a more
-     specific selector that reads first still wins, but only until somebody
-     reorders the file. */
-  .figure-block .decision {
-    color: var(--c-ink-muted);
-    font-weight: var(--weight-medium);
-  }
-
-  /* The row's left edge carries the same decision, so the table can be read
-     down the margin without reading a single word. */
-  .row-mark {
-    border-left: 3px solid transparent;
-  }
-  .row-mark-hold {
-    border-left-color: var(--c-hold);
-  }
-  .row-mark-verify {
-    border-left-color: var(--c-verify);
-  }
-  .row-mark-release {
-    border-left-color: var(--c-release);
-  }
-
-  /* ------------------------------------------------------------- controls */
-
-  /* One row per control, and every control appears whether it ran or not. A
-     control that could not run says why, which is the difference between an
-     empty panel and an honest one. */
-  .control-row {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border-bottom: var(--border-width) solid var(--c-grid);
-  }
-
-  .control-row:last-child {
-    border-bottom: 0;
-  }
-
-  .control-dot {
-    flex: none;
-    width: 0.4375rem;
-    height: 0.4375rem;
-    margin-top: 0.4375rem;
-    border-radius: var(--radius-pill);
-    background-color: var(--c-release);
-  }
-
-  .control-dot-hit {
-    background-color: var(--c-hold);
-  }
-
-  .control-dot-skipped {
-    background-color: transparent;
-    box-shadow: inset 0 0 0 1px var(--c-border-strong);
-  }
 }
 
 @layer components {
@@ -1526,7 +1642,7 @@
     gap: 2px;
     padding: 2px;
     border: var(--border-width) solid var(--c-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-pill);
     background-color: var(--c-surface-sunken);
   }
 
@@ -1557,7 +1673,7 @@
     position: absolute;
     inset: 0;
     z-index: 0;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     background-color: var(--c-surface);
     box-shadow: var(--shadow-2);
   }
@@ -1569,7 +1685,7 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     color: var(--c-ink-muted);
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);

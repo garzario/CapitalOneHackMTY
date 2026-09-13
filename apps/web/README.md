@@ -43,8 +43,9 @@ src/
     fonts.css         Hanken Grotesk, self-hosted, one variable file per subset
     tokens.css        colour, type scale, weights, spacing, radius, motion, light and dark
     base.css          element rules, in Tailwind's base layer
-    primitives.css    .shell .rail .topbar .panel .card-head .figure-block .segmented .decision
-                      .row-mark .data-table .btn .chip .badge .watermark, in the components layer
+    primitives.css    .shell .rail .topbar .panel .tile .metric-row .run-bar .segmented .decision
+                      .data-table .open-table .btn .btn-pill .chip .badge .watermark, in the
+                      components layer
     tokens.test.ts    the enforcement: no colour outside tokens.css, no token without a dark pair
   lib/
     api.ts            typed client for every route in docs/09-api.md, plus useEvents (SSE)
@@ -189,8 +190,9 @@ From ADR-0002, and they are not negotiable:
   the ledger month by month and lighting up each newly listed supplier is the next step.
 - **A QR image.** Generating one needs a dependency, and the rule is zero new dependencies.
   The intake URL is a plain hash link that any QR generator can take.
-- **`recharts`** is declared and currently unused. It is a vetted pin and the per-detector
-  table is the obvious first chart. If it is still unused at the feature freeze, drop it.
+- **`recharts`** draws exactly one chart, the pesos at risk per control on the run. It is
+  the mono-charts geometry (rounded bars, no axis lines, no grid) painted with the tokens.
+  It costs about 100 kB gzipped, which is the price of six bars until the app splits chunks.
 
 ## Accessibility
 

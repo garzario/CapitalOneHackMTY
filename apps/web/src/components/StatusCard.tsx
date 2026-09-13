@@ -74,7 +74,7 @@ export function StatusCard() {
   return (
     <section
       aria-labelledby="api-status-heading"
-      className="panel flex flex-col gap-3 p-5"
+      className="tile flex flex-col gap-3"
     >
       <div className="flex items-start justify-between gap-3">
         <h2 id="api-status-heading" className="eyebrow">
@@ -108,7 +108,7 @@ export function StatusCard() {
           onClick={() => {
             void check();
           }}
-          className="btn"
+          className="btn btn-pill"
         >
           {isChecking ? "Consultando" : "Consultar de nuevo"}
         </button>

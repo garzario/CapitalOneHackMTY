@@ -109,12 +109,16 @@
      capitalone.com itself uses: 8px on a control, 12px on a card, 16px on a
      panel that holds other panels. The scale still steps -- a control is not as
      round as the card it sits in -- because one radius stamped on every box is
-     what flattens a hierarchy into a pile of identical tiles. */
+     what flattens a hierarchy into a pile of identical tiles. 24 is the step
+     above that: a tile that is the only box in its area, on a page with no
+     other borders, and which therefore has to read as soft rather than as one
+     more panel in a stack. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-2xl: 24px;
   --radius-pill: 999px;
 
   --border-width: 1px;
@@ -156,6 +160,16 @@
   --c-surface: #ffffff;
   --c-surface-raised: #ffffff;
   --c-surface-sunken: #f7f4ee;
+  /* The soft round ground of an icon tile, and of the two aside tiles on the
+     run. It started as its own value, one step cooler than the sunken surface
+     so that a tile laid on a cream track would still read as a separate
+     object. Measured in the browser, that value was #f5f2ec against #f7f4ee:
+     two points per channel, which is under the threshold anyone can see, and
+     there is no place in the app where the two actually touch. So it is an
+     alias and says so. It keeps its own name because a tile and a sunken panel
+     are different objects and the day one of them moves, only one name has to
+     change. */
+  --c-tile: var(--c-surface-sunken);
 
   /* Text. Warm, from Gravity's neutral-emphasis-high. */
   --c-ink: #14110c;
@@ -283,6 +297,7 @@
     --c-surface: #1c1913;
     --c-surface-raised: #24201a;
     --c-surface-sunken: #23201a;
+    --c-tile: var(--c-surface-sunken);
 
     --c-ink: #f5f1e9;
     --c-ink-muted: #b3ac9f;

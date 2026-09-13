@@ -35,7 +35,7 @@ export function IntakeQr({ origin }: IntakeQrProps) {
   return (
     <section
       aria-labelledby="intake-qr-heading"
-      className="panel flex flex-col items-center gap-3 p-4 text-center"
+      className="tile flex flex-col items-center gap-3 text-center"
     >
       <h2 id="intake-qr-heading" className="eyebrow">
         Alta desde tu telefono
@@ -48,7 +48,10 @@ export function IntakeQr({ origin }: IntakeQrProps) {
           label="Codigo QR con la direccion de la pagina de alta de instrucciones"
         />
       ) : (
-        <p className="panel-sunken muted p-3 t-xs">{link.reason}</p>
+        /* Plain text, not a sunken box. A box inside a tile is the nesting
+           this screen took the borders off to avoid, and the sentence is
+           already the only thing standing where the code would be. */
+        <p className="muted m-0 t-sm">{link.reason}</p>
       )}
 
       <p className="code subtle m-0 t-xs" style={{ wordBreak: "break-all" }}>
