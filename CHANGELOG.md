@@ -194,6 +194,40 @@ then the screens, then the narrative, then the plumbing.
   thirty-five cases: precision 87.0, recall 83.3, false positive rate 1.6, action agreement 33 of 35,
   and `confiable` right on 12 of 12. The numbers in docs/11 and docs/12 are that run's.
 
+- The entry screen in `apps/web`, at `#/entrada` (issue #215): who is acting, what this instance was
+  configured with, and one line across every screen when the API is not answering. Two things the rest
+  of the app assumed were invisible. Every write carries `X-Actor` and the append-only ledger records
+  that name, so "who did this" is answerable for every decision and every peso that left, and until
+  now the identity was a value in `localStorage` that nothing on screen could show or change. And the
+  rail, the six thresholds and the three levels decide what the run does, which a product that hides
+  them is asking to be believed about.
+
+  The selector writes `src/lib/actor.ts`, which grew the store the screens subscribe to, so switching
+  the person changes the app under your hand rather than after a reload. It is not a login and the
+  screen says so where a judge reads it, under the header it prints verbatim: no password, no session,
+  no check, the header is caller-controlled, and a deployment that needs real identity puts
+  authentication in front of the API, which is `docs/06-regulatory-privacy.md` section 4.4 moved onto
+  the screen it is about. The payment run now sends as the person selected, name and role both: a run
+  the owner sent used to reach the ledger as `role=clerk`, a signature that did not match whoever gave
+  it. The assistant panel reads the same selection instead of the generated clerk, which is what
+  decides whether its proposal card asks for a second signature.
+
+  What a person may do is asked of `packages/core` and never answered on the screen. Each row of the
+  capability list carries the `DecideRequest` it is about, `decideRequirement` answers it, and
+  `entry.test.ts` asserts that each row really produces the rule it names, so the offer on screen and
+  the refusal from the API cannot disagree: the clerk sees the two exceptions she may not do, the
+  owner sees three he may, and no button is offered that `apps/api` would answer `403` to. The
+  settings are read-only and that is the feature, because a threshold that moves from a control no
+  longer matches the tests or the documents; each row prints the file and the constant its number came
+  from, and the test opens that file and fails when it no longer exports it.
+
+  The offline banner belongs to the shell for the reason the synthetic mark does: it is true of the
+  page load and not of a screen. It appears only when the API was asked and did not answer, never
+  under `?data=mock`, where nothing was asked and a failure nobody looked for is not a failure. The
+  status card's state machine moved into `src/lib/api-status.ts` so the banner and the card read one
+  answer and a page load asks `/health` once, instead of a banner reporting a server the card says is
+  up.
+
 - The assistant drawer in `apps/web`, which is the front door of the product for the person who uses
   it (issue #211). Lupita drops the screenshot that arrived on WhatsApp, asks why a line is red, and
   presses the button on what the app proposes, without leaving the screen she is on: `AssistantDock`

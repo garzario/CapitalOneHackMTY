@@ -3,9 +3,12 @@
  *
  * `X-Actor` is required on every write endpoint (docs/09-api.md, "The actor on
  * every write"), so the client has to hold an identity before it can hold a
- * button. This module is that identity and nothing else: it is data layer, it
- * renders nothing, and the selector that lets a person switch is a screen
- * concern.
+ * button. This module is that identity and nothing else: it is data layer and it
+ * renders nothing. The selector that lets a person switch is a screen concern
+ * and lives in `screens/EntryScreen.tsx`; what lives here is the store it writes
+ * to and the subscription the rest of the app reads, because a screen that has
+ * to be drawn differently for each of the two people cannot wait for a reload to
+ * find out which one is acting.
  *
  * **It is not authentication.** There is no password, no session and no check:
  * the header is a name and a role the caller chooses, the API records it on the
@@ -20,6 +23,7 @@
  */
 
 import type { Actor, ActorRole } from "@hackmty/core";
+import { useSyncExternalStore } from "react";
 
 export const ACTOR_HEADER = "x-actor";
 
@@ -77,14 +81,93 @@ export function currentActor(): Actor {
   return DEFAULT_ACTOR;
 }
 
+/**
+ * The identity as the screens read it, cached so that two renders of the same
+ * choice are the same object.
+ *
+ * `useSyncExternalStore` compares snapshots by reference, so a getter that
+ * parsed `localStorage` on every call would hand React a new object every time
+ * and re-render for ever. The cache is invalidated by the two things that can
+ * change the choice, the selector in this tab and another tab writing the same
+ * key, and by nothing else.
+ */
+let cached: Actor | null = null;
+
+const listeners = new Set<() => void>();
+
+function publish() {
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
 /** Remembers the choice. Returns the actor, so a caller can set state with it. */
 export function setCurrentActor(actor: Actor): Actor {
+  cached = actor;
+
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(actor));
   } catch {
     /* A browser that refuses storage still gets the identity for this tab. */
   }
+
+  publish();
+
   return actor;
+}
+
+/**
+ * The identity, by reference, for a component that has to re-render when it
+ * changes.
+ *
+ * Every write still reads `currentActor()` at the moment it is sent, which is
+ * the header's own source. This is the same value for the parts of the screen
+ * that have to be drawn differently for one of the two people, which is the
+ * whole point of the selector: a button the API would answer `403` to is a
+ * button this product must not offer.
+ */
+export function actorSnapshot(): Actor {
+  cached ??= currentActor();
+
+  return cached;
+}
+
+/**
+ * Subscribes to the choice, including the choice made in another tab.
+ *
+ * The `storage` event fires on every other document of this origin and never on
+ * the one that wrote, which is exactly the half this store cannot see for
+ * itself: a judge with the run open on two tabs must not be told two different
+ * things about who is acting.
+ */
+export function subscribeActor(listener: () => void): () => void {
+  listeners.add(listener);
+
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== STORAGE_KEY) {
+      return;
+    }
+
+    cached = null;
+    publish();
+  };
+
+  window.addEventListener("storage", onStorage);
+
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+/** The identity this browser is acting as, live. */
+export function useActor(): Actor {
+  return useSyncExternalStore(subscribeActor, actorSnapshot, serverActor);
+}
+
+/** Nothing is stored where there is no browser, so the clerk is the answer. */
+function serverActor(): Actor {
+  return DEFAULT_ACTOR;
 }
 
 /** The header value, in the form docs/09-api.md documents. */
