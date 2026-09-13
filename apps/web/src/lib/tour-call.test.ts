@@ -43,21 +43,29 @@ import {
   callProblem,
   dialNote,
   digitsOf,
+  HOLD_BUTTON,
   isPhoneComplete,
   isSettled,
   LOCAL_SCRIPT_NOTE,
   localScript,
   MIN_PHONE_DIGITS,
+  noDialReason,
   OUTCOME_SENTENCE,
   outcomeState,
+  ownerDecided,
   phoneProblem,
+  RELEASE_BUTTON,
   revertSentence,
+  SIMULATE_LEAD,
   SIMULATED_EVIDENCE,
+  SIMULATED_RING_MS,
+  SIMULATED_TALK_MS,
   stateFromEvent,
   stillHeld,
   stripIndexOf,
   TOUR_CALL_STATUS_LABEL,
   TOUR_CALL_STRIP,
+  telephonyOff,
   toE164,
   tourCallFields,
 } from "./tour-call";
@@ -548,5 +556,84 @@ describe("the copy of the form", () => {
 
   test("the button says who the visitor is about to be", () => {
     expect(CALL_BUTTON).toContain("dueno");
+  });
+});
+
+/**
+ * The two halves of the stop that are not the telephone: the seconds a simulated
+ * call takes, and the refusals that mean the field should not be on screen.
+ */
+describe("the call with no telephone behind it", () => {
+  test("it rings before it ends, and neither beat is instant", () => {
+    /* The bug these two numbers exist for: the press used to set the status and
+       the answer in the same tick, so Marcando, En llamada and Termino all lit
+       at once over a result card that was already rendered, and two captures
+       300 ms apart were the same frame. A strip of three that arrives in one
+       tick is three decorative pills. */
+    expect(SIMULATED_RING_MS).toBeGreaterThan(0);
+    expect(SIMULATED_TALK_MS).toBeGreaterThan(SIMULATED_RING_MS);
+
+    /* And the three beats those two delays walk through are the three the strip
+       draws, in order. */
+    const walked: TourCallStatus[] = ["initiated", "in-progress", "done"];
+
+    expect(walked.map(stripIndexOf)).toEqual([0, 1, 2]);
+    expect(TOUR_CALL_STRIP).toHaveLength(walked.length);
+  });
+
+  test("the two answers are the primary pair, in words a person acts on", () => {
+    /* The card used to carry a live telephone field and a consent box that led
+       nowhere under `?data=mock`, with the only working controls under a small
+       Simular eyebrow: the two loudest buttons on it were Anterior and
+       Terminar. These two are the card's own primary pair now, so they say what
+       they do to the payment rather than naming a simulation. */
+    expect(HOLD_BUTTON).toContain("pago");
+    expect(RELEASE_BUTTON).toContain("pago");
+    expect(SIMULATE_LEAD).toContain("dueno");
+
+    for (const line of [HOLD_BUTTON, RELEASE_BUTTON, SIMULATE_LEAD]) {
+      expect([line, forbiddenVerdict(line)]).toEqual([line, null]);
+      expect(line).toMatch(/^[\x20-\x7E]+$/);
+    }
+  });
+
+  test("it says who is not dialling, in both cases where nobody is", () => {
+    expect(noDialReason(true)).toContain("sin conexion");
+    expect(noDialReason(false)).toContain("apagadas");
+
+    for (const line of [noDialReason(true), noDialReason(false)]) {
+      expect([line, line.includes("nadie marca")]).toEqual([line, true]);
+      expect(line).toMatch(/^[\x20-\x7E]+$/);
+    }
+  });
+
+  test("a refusal that means no telephone takes the field off the card", () => {
+    /* 403 is a server with the tour's calls switched off and 422 is one with no
+       voice configured, and neither is worth leaving a telephone box standing
+       over. A 400 is a number the endpoint refused, and correcting it is the
+       whole reason to keep the field. */
+    const refusal = (status: number): ApiFailure =>
+      ({ status, message: "no" }) as ApiFailure;
+
+    expect(telephonyOff(refusal(403))).toBe(true);
+    expect(telephonyOff(refusal(422))).toBe(true);
+    expect(telephonyOff(refusal(400))).toBe(false);
+    expect(telephonyOff(refusal(500))).toBe(false);
+  });
+
+  test("only the two answers the owner gave decide anything", () => {
+    /* `no_answer` and `unclear` are the telephone rather than the owner, so
+       neither reaches the run: nothing about a call that did not connect moves
+       a payment this product is holding. */
+    const outcomes: TourOwnerOutcome[] = [
+      "hold",
+      "release",
+      "no_answer",
+      "unclear",
+    ];
+
+    expect(outcomes.map(ownerDecided)).toEqual([true, true, false, false]);
+    /* And of the two that do, exactly one stops holding the line. */
+    expect(outcomes.filter(ownerDecided).map(stillHeld)).toEqual([true, false]);
   });
 });

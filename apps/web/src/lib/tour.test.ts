@@ -51,11 +51,14 @@ import {
   CARD_TOP_GAP,
   cardRectOf,
   DEFAULT_REVERT_MS,
+  fieldKeepsKey,
   heroOf,
   linksOf,
   mockTourConfig,
   placeCard,
   SPOT_PAD,
+  SPOT_TOP_GAP,
+  scrollTopFor,
   spotlightHole,
   stepLabel,
   TOUR_LENGTH_NOTE,
@@ -261,6 +264,32 @@ describe("the steps", () => {
     expect(call?.body.join(" ")).toContain("Contesta con tu voz");
     expect(call?.kind).toBe("call");
     expect(steps.filter((step) => step.kind === "call")).toHaveLength(1);
+  });
+
+  test("the SAT stop explains both lists, one sentence each", () => {
+    /* It covered 69-B twice and 49 Bis not at all, in both sentences and in the
+       look line, so the tour explained one of the two lists this product reads.
+       The second one is the honest half: the SAT publishes it one DOF oficio at
+       a time with no machine-readable file, which is why `packages/sat` answers
+       `answered: false` for it rather than implying a check. */
+    const sat = steps.find((step) => step.id === "sat");
+
+    expect(sat?.body).toHaveLength(2);
+    expect(sat?.body[0]).toContain("69-B");
+    expect(sat?.body[1]).toContain("49 Bis");
+    expect(sat?.body[1]).toContain("sin archivo");
+  });
+
+  test("no line names a side of the screen a phone does not have", () => {
+    /* At 390 the assistant panel is the whole viewport rather than a panel to
+       the right, and the stop that opens it said "mira el panel que se abrio a
+       la derecha" at every width. A card cannot point at a side it cannot know,
+       so none of them does. */
+    const sided = everyLine()
+      .filter((line) => /\b(a la derecha|a la izquierda)\b/i.test(line.text))
+      .map((line) => line.where);
+
+    expect(sided).toEqual([]);
   });
 
   test("exactly one stop opens the assistant drawer", () => {
@@ -713,5 +742,70 @@ describe("the first visit", () => {
     closeTour();
 
     expect(openTourOnFirstVisit()).toBe(true);
+  });
+});
+
+/**
+ * Where the page stands while a step is lit.
+ *
+ * The other half of the geometry, and the half a screenshot of one step hides:
+ * the app's own top bar is sticky, so a target scrolled to the top of the
+ * viewport is a target painted under it. Measured at 390 every ring had `top: 0`
+ * and the bar itself was inside the hole, with the button the card had just
+ * named invisible behind it.
+ */
+describe("where the page stands", () => {
+  test("the target clears the sticky top bar, at every width", () => {
+    /* An element 200 px down a page scrolled 400 px is 600 px down the document,
+       and it has to end up `SPOT_TOP_GAP` under the top of the viewport rather
+       than at zero, which is where `scrollIntoView({ block: "start" })` put it. */
+    expect(scrollTopFor(200, 400)).toBe(600 - SPOT_TOP_GAP);
+    expect(scrollTopFor(0, 0)).toBe(0);
+  });
+
+  test("it is the card's own gutter plus the air around the ring", () => {
+    /* The ring is drawn `SPOT_PAD` outside the element, so a gap that only
+       cleared the bar would still draw the ring's top edge under it. */
+    expect(SPOT_TOP_GAP).toBe(CARD_TOP_GAP + SPOT_PAD);
+    expect(SPOT_TOP_GAP).toBeGreaterThan(CARD_TOP_GAP);
+  });
+
+  test("it never asks the page to scroll above itself", () => {
+    /* A target already at the top of a short page: the answer is zero rather
+       than a negative scroll the browser would clamp anyway. */
+    expect(scrollTopFor(10, 0)).toBe(0);
+    expect(scrollTopFor(-500, 0)).toBe(0);
+  });
+});
+
+/**
+ * The keyboard, which is how a judge who does not want to touch the laptop takes
+ * the tour.
+ */
+describe("which keys the tour gets", () => {
+  test("a field of the card keeps its own arrows", () => {
+    /* The last stop has a telephone number in it, and a left arrow inside that
+       field has to move the caret rather than the tour. */
+    expect(fieldKeepsKey("INPUT", false, true)).toBe(true);
+    expect(fieldKeepsKey("TEXTAREA", false, true)).toBe(true);
+    expect(fieldKeepsKey("SELECT", false, true)).toBe(true);
+    expect(fieldKeepsKey("DIV", true, true)).toBe(true);
+  });
+
+  test("a field anywhere else does not", () => {
+    /* The bug: the stop that opens the assistant drawer hands focus to that
+       panel's composer, which is a TEXTAREA, and an exemption written by tag
+       name alone swallowed every arrow press from there on. Eight ArrowRight
+       presses from the welcome landed on Paso 3 de 9 and stayed there, and
+       ArrowLeft did nothing either. */
+    expect(fieldKeepsKey("TEXTAREA", false, false)).toBe(false);
+    expect(fieldKeepsKey("INPUT", false, false)).toBe(false);
+    expect(fieldKeepsKey("DIV", true, false)).toBe(false);
+  });
+
+  test("nothing that is not a field keeps a key, wherever it is", () => {
+    expect(fieldKeepsKey("BUTTON", false, true)).toBe(false);
+    expect(fieldKeepsKey("A", false, true)).toBe(false);
+    expect(fieldKeepsKey("TABLE", false, false)).toBe(false);
   });
 });

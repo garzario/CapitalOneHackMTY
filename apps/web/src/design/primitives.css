@@ -2494,6 +2494,27 @@
     gap: var(--space-2);
   }
 
+  /* Room at the foot of the page, for as long as the recorrido is open.
+
+     `scrollTopFor` in `lib/tour.ts` puts the top of the step's target just under
+     the sticky top bar, and the browser clamps that to the end of the document.
+     A target near the foot of a page therefore stops where the page does: the
+     first hallazgo of an instruction sat 409 px down a page already scrolled to
+     its last pixel, which left the card no corner that missed it and the card
+     covered the ring's own top-left corner. A screen of air below the content
+     makes the rule reachable for every target there is, and it is invisible
+     while it applies, because everything but the hole is under the veil. */
+  body:has(.tour-card) .screen {
+    padding-bottom: 100svh;
+
+    /* And the page does not move by itself while a step is aimed at something.
+       The last stop releases a line, the table under the figure loses a row,
+       and the browser's scroll anchoring compensates by scrolling the page:
+       the dark card the ring is on slid up under the top bar after the owner
+       answered, with nothing having been scrolled by anybody. */
+    overflow-anchor: none;
+  }
+
   /* The other three corners, taken when the spotlight is standing in the default
      one. The card moves rather than covering the thing it is pointing at, and
      `placeCard` in `lib/tour.ts` is what decides which; the rules are above the

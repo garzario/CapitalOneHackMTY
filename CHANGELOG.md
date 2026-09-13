@@ -216,6 +216,68 @@ section landed after that tag was cut.
 
 ### Fixed
 
+- **The recorrido said things the screen behind it did not do** (issue #216). Eight findings from a
+  clarity pass over the nine stops, at 1440 and at 390, all in `apps/web`.
+
+  The last stop claimed a payment moved and nothing moved. It rings the visitor as the owner and
+  spotlights the one figure of the payment run, because a released line walks out of the slice the
+  table is showing while the figure is always there to move, and then the card printed `El dueno la
+  libero bajo su nombre` over a figure that read `$785,289.86, 6 de 92 instrucciones` before the
+  press and after it: nothing on the card asked the run anything again, with an API or without one.
+  `apps/web/src/lib/run-local.ts` is the overlay the run screen folds in while it renders, so the
+  answer reaches the line the stop is about. Releasing now takes the figure to `$247,328.89, 5 de 92
+  instrucciones, 1 retenida`, in front of the visitor, and the card says in its own words that the
+  simulated answer moved the run in this browser and reached no ledger. `run-local.test.ts` is the
+  arithmetic: the findings, the evidence and the expected loss are the same objects, the totals
+  travel with the items, a decision that changes nothing answers the same run object, and the level
+  and the state are derived again rather than kept from before the decision.
+
+  The three-state strip arrived in one tick. `Marcando`, `En llamada` and `Termino` all lit 300 ms
+  after the press, over a result card that was already rendered, because the simulated answer set the
+  status and the outcome together: three decorative pills instead of a call in flight. It rings for
+  `SIMULATED_RING_MS` and talks for `SIMULATED_TALK_MS`, which are the call taking time and not an
+  animation, so reduced motion does not collapse them.
+
+  The card had no primary action where it cannot dial. At `?data=mock`, the offline state a judge
+  hits when the API is down, it showed a live telephone field with a Monterrey placeholder and a
+  consent box that led nowhere, with the only working controls under a small `Simular` eyebrow: the
+  two loudest buttons on the card were `Anterior` and `Terminar`. The field and the box are for
+  placing a call, so where no call can be placed neither is rendered and `Retener el pago` and
+  `Liberar el pago` are the card's own primary pair. A `403` or a `422` from a deployment that cannot
+  dial now switches to the same block rather than leaving a telephone box standing over a refusal.
+
+  The arrow keys died at `Paso 3 de 9`. That stop opens the assistant drawer, which takes focus into
+  its composer, and the window handler exempted every `INPUT`, `TEXTAREA` and `SELECT` from the
+  arrows: eight `ArrowRight` presses from the welcome landed on stop three and stayed there, and
+  `ArrowLeft` did nothing either, so a judge driving by keyboard was stranded a third of the way
+  through. The exemption is the card's own fields now, which is the telephone number it was written
+  for, and `fieldKeepsKey` is the rule with a test.
+
+  The spotlight scrolled its target under the sticky top bar. Every ring measured at 390 had `top: 0`
+  with the app's own bar painted inside the hole: the stop that says `Presiona Simular publicacion
+  69-B` ringed the page title and the two controls of the whole app with the button itself hidden,
+  and `Mira el boton de enviar` ringed a bar with `Enviar corrida` invisible behind it. `scrollTopFor`
+  replaces `scrollIntoView` at both widths and puts the top of the target `SPOT_TOP_GAP` under the
+  bar, `.screen` keeps a screen of room at its foot while the tour is open so that rule is reachable
+  for a target near the end of a page, and scroll anchoring is switched off there so a run that
+  re-scores itself does not slide its own spotlight under the bar. Every one of the nine stops now
+  measures a ring at `top: 64` at both widths, and a `position: fixed` panel is left where it is.
+
+  The card covered its own spotlight on the instruction stop. The findings section is 1164 px wide on
+  a 1440 px screen and as tall as the findings it holds, so all four corners overlapped it and
+  `placeCard` fell back to the least bad one, which hid the ring's top-left corner and left it reading
+  as a broken rectangle: 9,056 px of overlap. The ring is the first hallazgo now, which is what the
+  copy says, and the overlap measured at every stop at both widths is zero.
+
+  Two lines of copy were wrong. `Mira el panel que se abrio a la derecha` named a side the assistant
+  panel does not have at 390, where it is the whole screen. And the SAT stop covered article 69-B in
+  both sentences and in the look line, so the tour explained one of the two lists this product reads;
+  the second sentence is the 49 Bis now, with the honest half of it, that the SAT publishes it one
+  oficio at a time and no file, which is why `packages/sat` answers `answered: false` there.
+
+  One thing went with them, because the fix above is what made it reachable: the run's own figure
+  said `1 retenidas` the moment a line was released out of two.
+
 - **The telephone field refused the visitor's own number, and the button said nothing about it**
   (issue #216). A number typed into the last stop of the tour never reached the API: no
   `POST /api/v1/tour/call` in the instance log, no error on the screen, nothing. The block was

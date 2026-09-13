@@ -47,8 +47,11 @@ import { RunBar } from "./RunBar";
 function stoppedBreakdown(verdict: Verdict): string {
   const parts: string[] = [];
 
+  /* `formatPlural` and not a count with a fixed noun after it. One line held
+     used to read "1 retenidas", which nothing on this screen reached until the
+     recorrido's telephone call started releasing a line out of two. */
   if (verdict.heldCount > 0) {
-    parts.push(`${formatCount(verdict.heldCount)} retenidas`);
+    parts.push(formatPlural(verdict.heldCount, "retenida"));
   }
   if (verdict.toVerifyCount > 0) {
     parts.push(`${formatCount(verdict.toVerifyCount)} por verificar`);

@@ -76,7 +76,16 @@ export const TOUR_TARGETS = {
   runFirstRow: "run-first-row",
   /** The assistant drawer, once the step has opened it. */
   assistantPanel: "assistant-panel",
-  /** The findings of one instruction, with the evidence under each one. */
+  /**
+   * The first finding of one instruction, with its evidence under it.
+   *
+   * The first one and not the block. The block is 1164 px wide on a 1440 px
+   * screen and as tall as the findings it holds, so every corner the card can
+   * take stands on it and `placeCard` falls back to the least bad one: the
+   * card then covered the ring's own top-left corner and the spotlight read as
+   * a broken rectangle. The copy says "mira el primer hallazgo", so the ring
+   * goes around the first hallazgo.
+   */
   instructionFindings: "instruction-findings",
   /** The one-page evidence letter, which the server writes from the ledger. */
   instructionCarta: "instruction-carta",
@@ -204,7 +213,10 @@ export function tourSteps(links: TourLinks): TourStep[] {
         "Asi llega un pago real: una foto. El asistente lee la cuenta y propone.",
         "Ejecuta una persona, y su nombre queda en el evento.",
       ],
-      look: "Mira el panel que se abrio a la derecha.",
+      /* No side in it. At 390 the assistant panel is the whole screen and
+         not a panel to the right, so a line that names a side is wrong on
+         every phone the tour is opened on. */
+      look: "Mira el panel del asistente que se acaba de abrir.",
       opensAssistant: true,
       target: TOUR_TARGETS.assistantPanel,
     },
@@ -233,9 +245,16 @@ export function tourSteps(links: TourLinks): TourStep[] {
     {
       id: "sat",
       title: "El SAT publica",
+      /* One sentence per list, because there are two and the product reads
+         both. The 69-B is the one with a file behind it and the one this
+         screen replays; the 49 Bis is the one the SAT publishes as separate
+         oficios with no machine-readable file at all, which `packages/sat`
+         answers as `answered: false` rather than as a check it did not do. A
+         tour that named only the first was a tour that explained half of what
+         the product reads. */
       body: [
-        "Cuando el SAT publica a un proveedor, tus deducciones sobre sus facturas se caen.",
-        "El boton lo simula y recorre la bitacora para ponerlo en pesos.",
+        "El 69-B tira tus deducciones sobre las facturas del proveedor publicado.",
+        "La otra lista es el 49 Bis, y el SAT la publica sin archivo que revisar.",
       ],
       look: "Presiona Simular publicacion 69-B y mira la exposicion.",
       route: PATHS.sat,
@@ -334,6 +353,66 @@ export const CARD_GAP = 24;
  * corner free that the card actually overlaps.
  */
 export const CARD_TOP_GAP = 64;
+
+/**
+ * And the band at the top of the viewport a spotlight target may not stand in.
+ *
+ * The top bar is sticky, so an element scrolled to `y = 0` is an element painted
+ * under it: the ring is drawn with no top border and the bar itself sits inside
+ * the hole. The stop that says "presiona Simular publicacion 69-B" then ringed
+ * the page title and the two controls that belong to the whole app, with the
+ * button it had just named hidden behind the bar. It is `CARD_TOP_GAP` plus the
+ * air the ring keeps around its own target, because the ring is drawn outside
+ * the element by exactly that much.
+ */
+export const SPOT_TOP_GAP = CARD_TOP_GAP + SPOT_PAD;
+
+/**
+ * Where the page has to stand so the step's target clears that band.
+ *
+ * One rule for both widths, and it replaces two that were each wrong in their
+ * own way. `scrollIntoView({ block: "start" })` put the target at `y = 0`, which
+ * is under the sticky bar. `block: "center"` put a block as tall as a findings
+ * section across the middle of a desktop screen, where all four corners the card
+ * can take overlap it. Putting the top of the target just under the bar leaves
+ * the ring whole and leaves the foot of the screen, which is the corner the card
+ * defaults to, free.
+ *
+ * The argument is the rect's `top` in viewport coordinates and the current
+ * scroll, so this is arithmetic with a test rather than a thing that only runs
+ * in a browser. A negative answer is clamped here and the browser clamps the
+ * other end, so a target near the end of a short page simply stops where the
+ * page does.
+ */
+export function scrollTopFor(rectTop: number, scrollY: number): number {
+  return Math.max(0, scrollY + rectTop - SPOT_TOP_GAP);
+}
+
+/* ------------------------------------------------------------- the keyboard */
+
+/** The tags whose own key handling a press belongs to. */
+const FIELD_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+
+/**
+ * Whether an arrow key belongs to the field it was pressed in rather than to the
+ * tour.
+ *
+ * Only inside the card, which is the whole of the fix. The reason the exemption
+ * exists is the telephone field of the last stop, where a left arrow has to move
+ * the caret, and that field is on the card. Outside it the exemption stranded a
+ * judge: the stop that opens the assistant drawer hands focus to that panel's
+ * composer, a `TEXTAREA`, and from there every arrow press was swallowed, so the
+ * tour stopped at `Paso 3 de 9` and neither arrow brought it back.
+ */
+export function fieldKeepsKey(
+  tagName: string,
+  contentEditable: boolean,
+  insideCard: boolean,
+): boolean {
+  return (
+    insideCard && (contentEditable || FIELD_TAGS.has(tagName.toUpperCase()))
+  );
+}
 
 /**
  * The hole, padded, clamped to the viewport so no veil is given a negative size.

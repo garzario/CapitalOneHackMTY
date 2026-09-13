@@ -217,6 +217,26 @@ export const TOUR_CALL_STRIP: readonly string[] = [
 ];
 
 /**
+ * How long the simulated call spends ringing, and how long it spends on the
+ * line.
+ *
+ * The strip is three steps because a call has three, and a simulation that lands
+ * on all three inside one tick is not a strip: `Marcando`, `En llamada` and
+ * `Termino` all lit at once read as three decorative pills next to a result card
+ * that was already there. That is what it did, because the press set the status
+ * and the answer in the same React tick, and two captures 300 ms apart were the
+ * same frame.
+ *
+ * These are not durations of an animation and they do not collapse under reduced
+ * motion. A telephone call takes time whether or not a person asked their
+ * operating system to stop moving things, and what is being shown here is the
+ * time, not a transition.
+ */
+export const SIMULATED_RING_MS = 900;
+
+export const SIMULATED_TALK_MS = 2100;
+
+/**
  * Which of the three the call has reached, or minus one for a call that never
  * got there.
  *
@@ -418,6 +438,49 @@ export function callProblem(failure: ApiFailure): string {
   }
 
   return failure.message;
+}
+
+/**
+ * The primary action of the card when nothing can dial, and the two answers
+ * under it.
+ *
+ * There has to be one. The block used to carry a live telephone field with a
+ * Monterrey placeholder and a consent box that led nowhere at `?data=mock`,
+ * with the only working controls sitting under a small `Simular` eyebrow as two
+ * outline buttons: a visitor filled in a number, ticked the box and found
+ * nothing to press, while the two loudest buttons on the card were `Anterior`
+ * and `Terminar`. The field is for placing a call, so where no call can be
+ * placed the field goes and these two are the card's own primary pair.
+ */
+export const SIMULATE_LEAD = "Contesta tu la llamada, como el dueno.";
+
+export const HOLD_BUTTON = "Retener el pago";
+
+export const RELEASE_BUTTON = "Liberar el pago";
+
+/** Why nobody is dialling, in the two cases where nobody can. */
+export function noDialReason(offline: boolean): string {
+  return offline
+    ? "Modo sin conexion: no sale ninguna peticion del navegador, asi que nadie marca."
+    : "Este servidor tiene las llamadas del recorrido apagadas, asi que nadie marca.";
+}
+
+/** Whether the owner answered, which is the only case that decides a line. */
+export function ownerDecided(outcome: TourOwnerOutcome): boolean {
+  return outcome === "hold" || outcome === "release";
+}
+
+/**
+ * Whether a refusal means this deployment cannot dial at all.
+ *
+ * The two the API answers when the telephone is off: `403` is a server with the
+ * tour's calls switched off, and `422` is one with no voice configured. Neither
+ * is worth leaving a telephone field on screen for, so the card swaps to the two
+ * answers a person can give instead. A `400` is a number the endpoint refused
+ * and the field stays, because correcting it is the whole point.
+ */
+export function telephonyOff(failure: ApiFailure): boolean {
+  return failure.status === 403 || failure.status === 422;
 }
 
 /**

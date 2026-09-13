@@ -25,12 +25,20 @@
  *    decision with the owner's name on it, and the two answers that are the
  *    telephone rather than the owner leave the line exactly where it was.
  * 4. With no telephony -- `?data=mock`, or a server with `ALLOW_TOUR_CALLS` off, or
- *    one with no voice configured -- the same block appears with `Simular` and the
- *    two answers in place of the button, so the flow is demonstrable at every
- *    stand, on every laptop, with or without a server. The strip and the result
- *    then run exactly as they do for a real call and the result card says
+ *    one with no voice configured -- the field and the consent box are not
+ *    rendered at all and the two answers are the card's own primary pair, so the
+ *    flow is demonstrable at every stand, on every laptop, with or without a
+ *    server. They used to sit under a small `Simular` eyebrow beneath a live
+ *    field that could not place a call: a visitor typed a number, ticked the box
+ *    and found nothing to press. The strip and the result then run exactly as
+ *    they do for a real call, over the same seconds, and the result card says
  *    `simulado` on it, because a simulated answer that looks like a real one is
  *    the one thing this stop must not do.
+ * 5. And the answer reaches the run. `hold` and `release` are applied to the line
+ *    this stop is about through `lib/run-local.ts`, so the figure the spotlight
+ *    is ringing moves when the owner releases the payment. Without it the card
+ *    said "el dueno la libero bajo su nombre" over a figure that read the same
+ *    string before and after the press.
  *
  * The button is dead only while there are fewer than eight digits or the box is
  * unticked, and both of those say so on screen next to the control they are
@@ -61,6 +69,7 @@ import type {
   TourOwnerOutcome,
 } from "../lib/contract";
 import { dataMode, reachesApi } from "../lib/resource";
+import { applyLocalDecision } from "../lib/run-local";
 import {
   CALL_BUSY,
   CALL_BUTTON,
@@ -68,18 +77,26 @@ import {
   callBody,
   callProblem,
   dialNote,
+  HOLD_BUTTON,
   isPhoneComplete,
   LOCAL_SCRIPT_NOTE,
   localScript,
+  noDialReason,
   OUTCOME_SENTENCE,
   outcomeState,
+  ownerDecided,
   phoneProblem,
+  RELEASE_BUTTON,
   revertSentence,
+  SIMULATE_LEAD,
   SIMULATED_EVIDENCE,
+  SIMULATED_RING_MS,
+  SIMULATED_TALK_MS,
   stateFromEvent,
   stripIndexOf,
   TOUR_CALL_STATUS_LABEL,
   TOUR_CALL_STRIP,
+  telephonyOff,
 } from "../lib/tour-call";
 import { TransactionStateBadge } from "./Primitives";
 
@@ -99,7 +116,11 @@ type Result = {
 export function TourCall({ config }: { config: TourConfig }) {
   const mode = dataMode();
   const online = reachesApi(mode);
-  const canCall = config.callsEnabled && online;
+  /* A deployment that answered "I cannot dial" is treated from then on exactly
+     like one that never could: the field goes and the two answers take over,
+     rather than a telephone box standing over a server that just refused it. */
+  const [refused, setRefused] = useState(false);
+  const canCall = config.callsEnabled && online && !refused;
 
   /* Exactly what was typed, kept exactly as it was typed. The field used to hold
      ten digits and redraw itself out of them, which is what ate the country code
@@ -231,17 +252,77 @@ export function TourCall({ config }: { config: TourConfig }) {
       setScriptFromApi(true);
     }
 
+    if (telephonyOff(failure)) {
+      setRefused(true);
+    }
+
     setProblem(callProblem(failure));
   }, [phone]);
 
+  /* The two simulated steps of the strip, so they can be cleared if the stop is
+     left before the call has ended. */
+  const timers = useRef<number[]>([]);
+
+  useEffect(
+    () => () => {
+      for (const timer of timers.current) {
+        window.clearTimeout(timer);
+      }
+    },
+    [],
+  );
+
+  /*
+   * The simulated call, in the three beats a call has.
+   *
+   * It rings, you talk, it ends. The version this replaced set the status and
+   * the answer in the same tick, so `Marcando`, `En llamada` and `Termino` all
+   * lit at once over a result card that was already rendered, and the strip read
+   * as three decorative pills rather than as a call in flight. The delays are
+   * the call taking time and not an animation, so they are the same under
+   * reduced motion.
+   */
   const simulate = useCallback((outcome: TourOwnerOutcome) => {
-    setStatus("done");
-    setResult({
-      outcome,
-      evidence: SIMULATED_EVIDENCE[outcome],
-      simulated: true,
-    });
+    setProblem(null);
+    setStatus("initiated");
+
+    timers.current.push(
+      window.setTimeout(() => setStatus("in-progress"), SIMULATED_RING_MS),
+      window.setTimeout(() => {
+        setStatus("done");
+        setResult({
+          outcome,
+          evidence: SIMULATED_EVIDENCE[outcome],
+          simulated: true,
+        });
+      }, SIMULATED_TALK_MS),
+    );
   }, []);
+
+  /*
+   * And the answer reaches the run underneath.
+   *
+   * The spotlight of this stop is the one figure of the payment run, because a
+   * released line walks out of the slice the table is showing while the figure
+   * is always there to move. It could not move: nothing on this card asked the
+   * run anything again, so "el dueno la libero bajo su nombre" was printed over
+   * a figure that read the same string before and after the press, with an API
+   * or without one. `applyLocalDecision` is the overlay the run screen folds in
+   * while it renders, and with an API behind the page it sets the same action
+   * the ledger already recorded. The two answers that are the telephone rather
+   * than the owner decide nothing and are not applied.
+   */
+  useEffect(() => {
+    if (result === null || !ownerDecided(result.outcome)) {
+      return;
+    }
+
+    applyLocalDecision({
+      instructionId: config.hero.instructionId,
+      action: result.outcome === "release" ? "release" : "hold",
+      decidedBy: OWNER.name,
+    });
+  }, [result, config.hero.instructionId]);
 
   /* A call that is under way, which is the one state the form must not be in:
      a form still on screen while the telephone is ringing is a form that gets
@@ -254,46 +335,46 @@ export function TourCall({ config }: { config: TourConfig }) {
     <div className="tour-call">
       {result === null && !dialing ? (
         <div className="tour-block">
-          <div className="tour-field">
-            <label className="label" htmlFor="tour-phone">
-              Tu celular
-            </label>
-            <input
-              id="tour-phone"
-              className="input"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              /* The example is a Monterrey mobile because that is where the
-                 company is, and it is only an example: the field takes a number
-                 from anywhere, with or without a country code. */
-              placeholder="81 1234 5678"
-              aria-describedby="tour-phone-help"
-              value={phone}
-              onChange={(event) => {
-                setTouched(true);
-                setPhone(event.target.value);
-              }}
-            />
-            {/* What is missing while something is, and which telephone is about
-                to ring as soon as nothing is. */}
-            <p id="tour-phone-help" className="subtle m-0 t-xs">
-              {phoneFault ?? dial}
-            </p>
-          </div>
-
-          <label className="tour-consent t-xs" htmlFor="tour-consent">
-            <input
-              id="tour-consent"
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            <span className="muted">{CONSENT_TEXT}</span>
-          </label>
-
           {canCall ? (
             <>
+              <div className="tour-field">
+                <label className="label" htmlFor="tour-phone">
+                  Tu celular
+                </label>
+                <input
+                  id="tour-phone"
+                  className="input"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  /* The example is a Monterrey mobile because that is where the
+                     company is, and it is only an example: the field takes a
+                     number from anywhere, with or without a country code. */
+                  placeholder="81 1234 5678"
+                  aria-describedby="tour-phone-help"
+                  value={phone}
+                  onChange={(event) => {
+                    setTouched(true);
+                    setPhone(event.target.value);
+                  }}
+                />
+                {/* What is missing while something is, and which telephone is
+                    about to ring as soon as nothing is. */}
+                <p id="tour-phone-help" className="subtle m-0 t-xs">
+                  {phoneFault ?? dial}
+                </p>
+              </div>
+
+              <label className="tour-consent t-xs" htmlFor="tour-consent">
+                <input
+                  id="tour-consent"
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(event) => setConsent(event.target.checked)}
+                />
+                <span className="muted">{CONSENT_TEXT}</span>
+              </label>
+
               <button
                 type="button"
                 className="btn btn-accent btn-lg"
@@ -318,32 +399,34 @@ export function TourCall({ config }: { config: TourConfig }) {
             </>
           ) : (
             <>
-              {/* No telephony, and the same flow anyway: the two answers a person
-                  can give, in place of the button, so the strip and the result
-                  card below run exactly as they do for a real call. */}
+              {/* Nothing here can dial, so nothing here asks for a telephone
+                  number: the field and the consent box are for placing a call.
+                  What is left is the same flow, answered by the visitor, with
+                  the two answers as the primary pair of the card. */}
+              {problem === null ? (
+                <p className="muted m-0 t-sm">
+                  {noDialReason(mode === "mock")}
+                </p>
+              ) : null}
+
+              <p className="m-0 t-sm">{SIMULATE_LEAD}</p>
+
               <div className="tour-simulate">
-                <span className="eyebrow">Simular</span>
                 <button
                   type="button"
-                  className="btn btn-hold btn-sm"
+                  className="btn btn-hold btn-lg"
                   onClick={() => simulate("hold")}
                 >
-                  Retener
+                  {HOLD_BUTTON}
                 </button>
                 <button
                   type="button"
-                  className="btn btn-release btn-sm"
+                  className="btn btn-release btn-lg"
                   onClick={() => simulate("release")}
                 >
-                  Liberar
+                  {RELEASE_BUTTON}
                 </button>
               </div>
-
-              <p className="subtle m-0 t-xs">
-                {mode === "mock"
-                  ? "Modo sin conexion: no sale ninguna peticion del navegador, asi que nadie marca."
-                  : "Este servidor tiene las llamadas del recorrido apagadas, asi que nadie marca."}
-              </p>
             </>
           )}
 
@@ -397,7 +480,7 @@ export function TourCall({ config }: { config: TourConfig }) {
 
           <p className="subtle m-0 t-xs">
             {result.simulated
-              ? "Simulado en el navegador: nada se escribio en la bitacora."
+              ? "Simulado en este navegador: la corrida ya lo refleja y la bitacora no."
               : `Quedo en la bitacora a nombre del dueno. ${revertSentence(revertMs)}`}
           </p>
         </div>

@@ -39,9 +39,12 @@
  * target that never appears leaves the card with no ring, which is a stop that
  * still reads, rather than a ring drawn around nothing.
  *
- * **Escape and the arrows work everywhere except inside a field.** The last stop has
- * a telephone number in it, and a left arrow inside that field has to move the
- * caret rather than the tour.
+ * **Escape and the arrows work everywhere except inside a field of this card.**
+ * The last stop has a telephone number in it, and a left arrow inside that field
+ * has to move the caret rather than the tour. The exemption is the card's own
+ * fields and nothing else: the stop that opens the assistant drawer hands focus
+ * to that panel's composer, which is a `TEXTAREA`, and while the exemption was
+ * written by tag name alone that swallowed every arrow press from `Paso 3` on.
  *
  * It is a `dialog` with `aria-modal`, which is what the veil makes true: every
  * click outside the hole lands on a veil, so the card is the surface a visitor is
@@ -66,6 +69,7 @@ import { useTheme } from "../lib/theme";
 import {
   BACK_BUTTON,
   END_BUTTON,
+  fieldKeepsKey,
   LATER_BUTTON,
   linksOf,
   mockTourConfig,
@@ -73,6 +77,7 @@ import {
   placeCard,
   SKIP_BUTTON,
   START_BUTTON,
+  scrollTopFor,
   spotlightHole,
   stepLabel,
   TOUR_LENGTH_NOTE,
@@ -98,12 +103,6 @@ const SETTLE_MS = 100;
 
 /** Twenty of them, which is the two seconds the ring waits before giving up. */
 const SETTLE_TICKS = 20;
-
-/** Below this the card is a bottom sheet, so neither axis is chosen. */
-const SHEET_WIDTH = 768;
-
-/** Every field a key press belongs to rather than to the tour. */
-const TYPING = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
 /** The lockup, at the size the welcome card wears it, in its own proportion. */
 const LOCKUP = {
@@ -278,7 +277,6 @@ export function Tour() {
   }, [open]);
 
   const target = step?.target;
-  const narrow = view.width <= SHEET_WIDTH;
 
   /*
    * The spotlight.
@@ -317,16 +315,26 @@ export function Tour() {
       }
 
       /* Once, on the first measurement that found the element: scrolling on
-         every tick would fight a person who scrolled the screen themselves. On a
-         phone the card is the bottom of the screen, so the target is put near the
-         top rather than in the middle of what the sheet covers. */
+         every tick would fight a person who scrolled the screen themselves.
+         `scrollTopFor` puts the top of the target just under the sticky top
+         bar, at both widths, which is what keeps the bar out of the hole and
+         the foot of the screen free for the card.
+
+         A panel that does not move with the page is left alone: the assistant
+         drawer is `position: fixed`, so scrolling for it would move the screen
+         underneath it and change nothing about where the ring lands. */
       if (mayScroll && !scrolled) {
         scrolled = true;
-        element.scrollIntoView({
-          block: narrow ? "start" : "center",
-          inline: "nearest",
-          behavior: reduceMotion ? "auto" : "smooth",
-        });
+
+        if (window.getComputedStyle(element).position !== "fixed") {
+          window.scrollTo({
+            top: scrollTopFor(
+              element.getBoundingClientRect().top,
+              window.scrollY,
+            ),
+            behavior: reduceMotion ? "auto" : "smooth",
+          });
+        }
       }
 
       const rect = element.getBoundingClientRect();
@@ -361,7 +369,7 @@ export function Tour() {
       window.removeEventListener("resize", onMove);
       window.removeEventListener("scroll", onMove, { capture: true });
     };
-  }, [open, target, reduceMotion, narrow]);
+  }, [open, target, reduceMotion]);
 
   const back = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
@@ -386,12 +394,17 @@ export function Tour() {
         return;
       }
 
+      /* A field of this card keeps its own arrows, and nothing else does. The
+         drawer the third stop opens takes focus into its composer, and while
+         the exemption was by tag name alone the tour stopped there for good. */
       const node = event.target;
-      const typing =
-        node instanceof HTMLElement &&
-        (TYPING.has(node.tagName) || node.isContentEditable);
+      const insideCard =
+        node instanceof Node && cardRef.current?.contains(node) === true;
 
-      if (typing) {
+      if (
+        node instanceof HTMLElement &&
+        fieldKeepsKey(node.tagName, node.isContentEditable, insideCard)
+      ) {
         return;
       }
 

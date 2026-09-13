@@ -450,7 +450,6 @@ export function InstructionScreen({ id }: { id: string }) {
           <section
             aria-labelledby="findings-heading"
             className="flex flex-col gap-4"
-            data-tour="instruction-findings"
           >
             <h2 id="findings-heading" className="eyebrow">
               Hallazgos
@@ -463,10 +462,16 @@ export function InstructionScreen({ id }: { id: string }) {
                 />
               </div>
             ) : (
-              detail.findings.map((finding) => (
+              detail.findings.map((finding, index) => (
                 <div
                   key={finding.id}
                   id={`finding-${encodeURIComponent(finding.id)}`}
+                  /* The recorrido rings the first hallazgo, which is what its
+                     copy says. The section around all of them is nearly the
+                     width of the screen and as tall as the findings it holds,
+                     so a ring over it left the card no corner free and the
+                     card covered the ring's own top-left corner. */
+                  data-tour={index === 0 ? "instruction-findings" : undefined}
                 >
                   <FindingPanel
                     finding={finding}

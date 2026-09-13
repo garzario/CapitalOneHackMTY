@@ -93,6 +93,8 @@ src/
     router.tsx        hash router, ~120 lines, no dependency
     run-view.ts       how the run screen reads the run: order, verdict, the level and
                       the state per line, the facets and what the last refresh moved
+    run-local.ts      a decision applied to the run in this browser and nowhere else,
+                      which is how the recorrido's telephone call moves the figure
     keyboard.ts       arrow-key movement over a list of rows, as arithmetic
     count-up.ts       a figure that travels to its new value when the run re-scores itself
     payments.ts       which lines leave, which do not and why, and the bank layout
@@ -327,8 +329,11 @@ the SAT publication, the run leaving, who signs, and the call. Each of those is 
 title, at most two short sentences under twenty-eight words, and **one line that says what to look
 at** -- `Mira la cifra grande`, `Presiona Simular publicacion 69-B` -- printed in its own style
 because a visitor who reads nothing else on the card reads that one. `lib/tour.test.ts` counts every
-one of those lengths and fails a stop that lights something up without naming it. The overlay that
-renders them is `components/Tour.tsx`.
+one of those lengths and fails a stop that lights something up without naming it, and it fails a line
+that names a side of the screen, because the assistant panel a stop used to place `a la derecha` is
+the whole viewport at 390. The SAT stop carries both lists in one sentence each, the 69-B that this
+screen replays and the 49 Bis that the SAT publishes one oficio at a time with no file to check. The
+overlay that renders them is `components/Tour.tsx`.
 
 It drives the real app rather than drawing pictures of it. Every stop navigates with `navigate`, the
 screen underneath is the screen the copy is about, and the stop that is about the assistant opens the
@@ -336,19 +341,38 @@ real drawer -- which is why `AssistantDock` keeps its open state in a store (`li
 instead of in itself. The spotlight is four veils around a hole rather than one box with a hole cut in
 it: the veils take the pointer so a stray click cannot derail the tour, and the gap does not, so the
 control a stop is pointing at is still pressable. It polls for the element for two seconds after the
-navigation, scrolls it into view once, draws a three-pixel ring in the hold red and re-measures on
-resize and on scroll; a target that never appears leaves the card with no ring rather than a ring
-around nothing. The ring travels from one target to the next under `--motion-base`.
+navigation, scrolls it once, draws a three-pixel ring in the hold red and re-measures on resize and
+on scroll; a target that never appears leaves the card with no ring rather than a ring around
+nothing. The ring travels from one target to the next under `--motion-base`.
+
+The scroll is `scrollTopFor` in `lib/tour.ts` and not `scrollIntoView`, at both widths, because both
+of that method's blocks were wrong here in their own way. `block: "start"` puts the element at `y: 0`,
+which is under the sticky top bar: every ring measured at 390 had `top: 0` with the bar itself inside
+the hole, and the stop that says `Presiona Simular publicacion 69-B` ringed the page title with the
+button hidden behind the bar. `block: "center"` puts a block as tall as a findings section across the
+middle of a desktop screen, where all four corners the card can take overlap it. The top of the
+target goes `SPOT_TOP_GAP` under the bar instead, `.screen` keeps a screen of room at its foot while
+the tour is open so that is reachable for a target near the end of a page, and scroll anchoring is
+off there so a run that re-scores itself does not slide its own spotlight under the bar. A
+`position: fixed` panel is left where it is, because scrolling for the assistant drawer would move
+the screen underneath it and change nothing.
 
 The card takes the first of the four corners that does not touch that hole, `placeCard` in
 `lib/tour.ts`, and the rectangle it chooses is a unit test rather than a thing to check by eye. It
 used to choose between left and right only, so the stop about the button that sends the run put its
 card on top of that button whichever side it took. A top corner stands under the top bar rather than
 on it, which is why `--topbar-h` is a token: the stylesheet and `CARD_TOP_GAP` have to agree about
-that distance or the measurement is of a card that is not where it looks. Below `48rem` the card is a bottom sheet instead
-and the target is scrolled to the top of the screen rather than the middle. Progress is nine dots,
-arrows move, `Escape` leaves, focus goes to the card on every step, and `useReducedMotion` is read
-where the animation is in JavaScript, exactly like the drawer.
+that distance or the measurement is of a card that is not where it looks. Below `48rem` the card is a
+bottom sheet instead. Progress is nine dots, arrows move, `Escape` leaves, focus goes to the card on
+every step, and `useReducedMotion` is read where the animation is in JavaScript, exactly like the
+drawer.
+
+The arrows are on the window, because the stop that opens the assistant drawer hands the Tab order to
+that panel, and the one exemption is a field of the tour's own card: the last stop has a telephone
+number in it and a left arrow there has to move the caret. It was written as `INPUT`, `TEXTAREA` or
+`SELECT` anywhere, which is how a judge driving by keyboard got stranded at `Paso 3 de 9`, the stop
+that puts focus in the assistant's composer. `fieldKeepsKey` in `lib/tour.ts` is the rule and it takes
+whether the field is inside the card.
 
 What a stop points at is a `data-tour` attribute on the real element, and the names are
 `TOUR_TARGETS` in `lib/tour.ts`. `lib/tour.test.ts` walks `src/` and fails when a name in that map is
@@ -398,6 +422,13 @@ not at a desk, he answers his telephone between two other things.
   screen reads and asks `GET /api/v1/tour/call/:id` every four seconds only while that stream is not
   open. The run screen underneath re-reads itself on the same events, which is why the figure on the
   dark card moves while the visitor is still on the telephone.
+- **And the answer reaches that figure with no server at all.** `hold` and `release` are applied to
+  the line the stop is about through `lib/run-local.ts`, an overlay the run screen folds in while it
+  renders. Without it the card printed `El dueno la libero bajo su nombre` over a figure that read
+  the same string before and after the press, which is exactly what the stop exists to show: the
+  spotlight is the figure rather than the row precisely because a released line leaves the slice the
+  table is showing and the figure is always there to move. It is the decision and nothing else, it
+  answers the same run object when nothing applies, and a reload is the seeded run again.
 - **It does not release a payment.** The answer lands as a `verification_call` event and then as an
   ordinary decision with the owner's name on it, through the same path `POST /instructions/:id/decide`
   uses. `hold` and `release` are the two a person can say; `no_answer` and `unclear` are the telephone
@@ -416,13 +447,19 @@ thing that happens to the person holding the telephone; and then the result card
 the sentence. The block goes as soon as the call is under way, because a form still on screen while
 the telephone is ringing is a form that gets pressed twice.
 
-Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off, nothing rings, and the same
-block appears with `Simular` and `Retener` and `Liberar` where the button would be, so the flow is
-demonstrable at any stand with or without a server: the strip and the result card then run exactly as
-they do for a real call. The result says `simulado` on it and says that nothing was written to the
-ledger, because a simulated answer that looks like a real one is the one thing this stop must not do.
-The script the agent would read, built from the same line by `localScript`, is under the result in a
-`details` a visitor can open.
+Under `?data=mock`, or against a server with `ALLOW_TOUR_CALLS` off or no voice configured, nothing
+rings, and then the field and the consent box are not rendered at all: they are for placing a call.
+What stands in their place is the reason nobody is dialling and the two answers a person can give,
+`Retener el pago` and `Liberar el pago`, as the card's own primary pair. They used to sit under a
+small `Simular` eyebrow beneath a live telephone field, so a judge filled in a number, ticked the box
+and found nothing to press while the two loudest buttons on the card were `Anterior` and `Terminar`.
+The strip and the result card then run exactly as they do for a real call, over the same seconds:
+`SIMULATED_RING_MS` and `SIMULATED_TALK_MS` in `lib/tour-call.ts` are the call taking time rather
+than an animation, so reduced motion does not collapse them and three chips lighting at once is not a
+progression. The result says `simulado` on it and says that the corrida moved in this browser and the
+ledger did not, because a simulated answer that looks like a real one is the one thing this stop must
+not do. The script the agent would read, built from the same line by `localScript`, is under the
+result in a `details` a visitor can open.
 
 `localScript` is the stand-in and the card says so. The stored prompt lives in `packages/voice` and
 the rendered call comes back from the API, including inside its `422`, so what the browser builds is

@@ -105,6 +105,7 @@ import {
   supplierPath,
   useRouteQuery,
 } from "../lib/router";
+import { useLocalDecisions, withLocalDecisions } from "../lib/run-local";
 import {
   countsFor,
   diffRuns,
@@ -206,8 +207,20 @@ export function RunScreen() {
   }, []);
   const reduceMotion = useReducedMotion();
 
-  const run = resource.status === "ready" ? resource.data : null;
+  const answered = resource.status === "ready" ? resource.data : null;
   const source = resource.status === "ready" ? resource.source : null;
+
+  /* A decision applied in this browser with no ledger behind it, folded in
+     while this screen renders. It is the last stop of the recorrido: the owner
+     answers the telephone and releases the line, and the figure the stop is
+     ringing has to move. `withLocalDecisions` answers the same object when
+     nothing applies, which is every other load of this screen. */
+  const localDecisions = useLocalDecisions();
+  const run = useMemo(
+    () =>
+      answered === null ? null : withLocalDecisions(answered, localDecisions),
+    [answered, localDecisions],
+  );
 
   /* The run as it was before the last refresh, which is the only way to say
      what moved. A ref and not state: nothing renders it, and putting it in
