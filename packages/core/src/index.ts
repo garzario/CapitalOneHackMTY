@@ -3,6 +3,7 @@
  * runtime dependencies at all. See README.md in this folder for the rule.
  */
 
+export * from "./actor";
 export * from "./behaviour";
 export * from "./cfdi";
 export * from "./clabe";
@@ -14,6 +15,7 @@ export * from "./hold";
 export * from "./levels";
 export * from "./money";
 export * from "./network";
+export * from "./plazas";
 export * from "./reconciliation";
 export * from "./rolling";
 export * from "./types";

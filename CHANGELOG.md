@@ -18,6 +18,65 @@ then the screens, then the narrative, then the plumbing.
 
 ### Added
 
+- The plaza of a CLABE as a signal control 2 can name, and the geography comparison neither document
+  can make alone (issue #203). Digits 4 to 6 of an account number are the plaza the branch that
+  opened it belongs to, and `detectClabe` already compared those three digits against the three
+  digits of the accounts a supplier had actually been paid on. What it could not do was say where
+  that is. `packages/core/src/snapshot/plazas-2026-09-13.csv` is the 786-row catalogue that closes
+  the gap, `lookupPlaza` and `plazaLabel` in `packages/core/src/plazas.ts` read it, and the finding
+  now names both places with both codes: "Cambio la plaza dentro del mismo banco: la cuenta conocida
+  esta en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF)". The second
+  comparison is new. `Cfdi.issuePlace` carries `LugarExpedicion`, the postal code a CFDI was issued
+  from and the only geography an invoice has, the parser reads it, `0013_cfdi_issue_place.sql` stores
+  it so the deployed API behaves like the in-memory one, and `plaza_off_invoice` fires when the plaza
+  of a new account and the state of the invoices it settles disagree. A brand-new account with no
+  history raises the level for lack of information and says so in those words:
+  `NO_PLAZA_HISTORY` reaches the evidence and `confidenceOf` answers `precaucion` under
+  `new_account_without_history`, which is the join a test asserts.
+
+  **The provenance is the part to read before quoting any of this, and `packages/core/src/snapshot/README.md`
+  says it in its first paragraph: this is not Banxico's file, because Banxico does not publish one.**
+  What is primary is the definition, and Banco de Mexico and the ABM publish the same sentence on
+  their own FAQs, three digits and a cheque-service plaza key. The catalogue itself is published by
+  neither, and the README carries five repeatable checks that establish the absence rather than
+  asserting it: the CEP app exposes an institution endpoint and no plaza one, the Internet Archive
+  index holds no Banxico URL containing the word, the single ABM URL that ever existed was already
+  answering 404 when it was captured in 2004, Circular 3/2012 and Circular 2019/95 contain no plaza
+  table, and the DOF full-text search answers zero notes. The rows come from the plaza table STP
+  publishes, the SPEI participant `packages/rail` documents as the production rail, whose help-centre
+  article now answers a login page, so the bytes were read from a public copy whose `sha256` the
+  README records. That chain buys exactly one permission and the code enforces it: the catalogue puts
+  a name on three digits, a code it does not carry yields no name and no signal, it never raises a
+  finding and never changes a severity, and every sentence that names a plaza prints the digits
+  beside the name so a reader checks the file instead of trusting us. `POSTAL_PREFIX_STATES` is
+  bounded the same way, the states the synthetic dataset uses and no more, with the SAT
+  `c_CodigoPostal` catalogue named as the national source and the import left as a follow-on, because
+  a 32-row national table written from memory would be a claim with no source.
+
+  The seeded dataset moved with it, and the TODO that asked for this is now answered rather than
+  deleted. `MTY_PLAZA_CODE` was `180`, and `180` is `DISTRITO FEDERAL`: the comment in
+  `packages/seed/src/sentryone/clabe.ts` had been asking since the generator was written for somebody
+  to check it before the detector treated a plaza mismatch as evidence, and it was right about the
+  cost of being wrong. The Monterrey metropolitan plaza is `580`, Pesqueria has `598` of its own, so
+  all 45 known accounts, the company's own account and the 92 run lines were re-minted into the plaza
+  of the municipality that banks there, ids and amounts untouched. The hero line is the case this was
+  built for: `INS-2026-09-07-047` now pays `012180102091764611` against the `012580100091764611` that
+  supplier has been paid on 52 times, two digits apart with a valid check digit as before, except one
+  of the two digits is the plaza, so the money would leave Nuevo Leon. `bun run demo` asserts that
+  line carries `plaza_changed` with both places named and that the seeded line contradicts the
+  `LugarExpedicion` of its own invoices, and a same-plaza account change still raises no plaza signal
+  at all, which is the half that keeps the control usable: 91 of the 92 lines are in `580` or `598`
+  and exactly one is not. Every peso figure in `docs/10-demo-script.md` is unchanged, because the
+  plaza adds a sentence and a chip and never a severity.
+- Where the software actually plugs into somebody else's stack, researched with a source and an
+  unverified column per surface (issue #205). Six of them in `docs/05`, ranked by what they cost and
+  by whether anybody has to agree to anything: the dispersal layout the ERP already exports and the
+  treasurer already uploads, which needs no counterparty; the STP rail, which changes what we are
+  rather than what we build; connectors to CONTPAQi, Siigo Aspel and SAP Business One; and email or
+  WhatsApp forwarding, which is the only one already built. `docs/07` draws the four seams they use,
+  all of which this repository already has. `docs/12` answers "no vamos a reemplazar nuestro SAP" in
+  thirty seconds and points at both.
+
 - The blind evaluation reads the way a clerk reads the screen (issue #201). Five new labelled cases
   cover the shapes the set could not see: a taxpayer published under article 49 Bis, which has no
   clearing to wait for; a plaza change at the same bank; a brand-new account at the same bank and
@@ -144,6 +203,63 @@ then the screens, then the narrative, then the plumbing.
   than eighteen. The assistant session quotes the engine's own `explanation` and its tool result IS
   that finding's evidence object, so nothing in the panel asserts anything the deterministic side did
   not, and the generator refuses to write a sentence carrying a probability or the word "seguro".
+
+- Who did it, on every write and on the ledger, with the two exceptions only the owner may approve
+  (issue #199). `X-Actor: role=clerk; name=Lupita Elizondo` is now required by every write endpoint
+  and read in one place, `apps/api/src/middleware/actor.ts`; a write without it is `400 bad_request`
+  naming the header and showing the form, which is a 400 and not a 403 because nothing about the
+  caller was rejected, the request did not say who was acting. The header is mounted per write route
+  rather than once over `/api/v1`, so a POST to a path that does not exist still answers `404` rather
+  than complaining about a header it would never have needed, and a table-driven test walks every
+  documented write path to catch a new endpoint that forgot it. Where a body already names a person,
+  `decidedBy` on a decision and `recordedBy` on a hand-recorded call, the two have to be the same
+  person and a mismatch is `400` with neither name echoed back, for the reason `rejectInvalid`
+  already gives about a CLABE.
+
+  The role guards exactly two shapes and `decideRequirement` in `packages/core/src/actor.ts` is the
+  rule, pure and unit-tested, so the screens and the assistant panel can show it before anybody
+  presses anything instead of discovering it in a refusal. A release on a line whose `confidence` is
+  not `confiable`, or on a line the engine was holding, is the exception `docs/02-persona.md` gives
+  the owner; and any decision on a line the run cancelled is the owner's too, because a cancelled line
+  is closed and putting it back in front of the run is a second decision about the same pesos. The
+  level and not a count of findings, because an `info` finding stops nothing: a supplier who was
+  listed and then cleared their name leaves a row that is history, and asking the owner to approve a
+  payment nothing stands against is how a control becomes a formality somebody clicks through. A
+  clerk asking for either is `403 forbidden` with the sentence that says who can and names the level,
+  and nothing is appended; the same request with no `reason` is `422 unprocessable` asking for the
+  argument, because an exception approved with no prose is the record ADR-0002 says this ledger must
+  never hold. `reason` stays optional everywhere else, since an API that refused an ordinary hold for
+  lack of a sentence would be refused by the clerk instead, outside the product, where nothing is
+  recorded at all. Whether a line was cancelled is asked of the ledger and not of a status column,
+  through one new repository read implemented on both stores, because a stored status can disagree
+  with the events it came from.
+
+  The ledger answers "who" without a join. `actor` now travels on `instruction_received`,
+  `sat_list_published`, `cep_verified`, `cent_sent` and `verification_call`, joining the four
+  variants that already carried one, and `Decision` grows `decidedByRole` next to `decidedBy` so a
+  document can tell an approved exception from a clerk exceeding theirs.
+  `packages/db/migrations/0013_decision_actor_role.sql` adds the one column that needed DDL, checked
+  to the two roles and nullable because the engine signs decisions too and `system` is not a person;
+  every other actor rides in the `payload` jsonb the event ledger already stores, so no other table
+  moved. Three events deliberately carry nobody: `payment_settled` and `payment_failed` are the rail
+  answering rather than a person acting and `cep_awaited` is a wait, each of them follows an event
+  that does carry the name, and putting a clerk on them would read as an action she never took.
+
+  The documents print it. The run constancia gains a "Quien resolvio cada instruccion" section with
+  the name, the capacity in Spanish and the argument, and calls the engine's own decisions `el motor
+  (automatico)` rather than dressing them as a signature; the sweep constancia says who loaded the
+  list version, off the `sat_list_published` event, and prints "No se cargo desde esta instancia" for
+  the committed official snapshot instead of a name nobody signed. `Decision.decidedByRole` is the
+  field the evidence letter of issue #204 reads next to the name.
+
+  `docs/06-regulatory-privacy.md` section 4.4 states in full what this is not: the demo identity
+  selector is not authentication, the header is caller-controlled, nothing verifies it, and a `curl`
+  can claim to be the owner as easily as the browser can. What the header satisfies is the
+  accountability rule of ADR-0002, that every action on somebody's money has a name against it in a
+  record nobody can rewrite, and the section lists what production needs instead, from an identity
+  provider in front of the API to per-company tenancy, none of which is in this repository. The
+  clerk's identity is personal data about an employee and is treated under the obligations of 4.2
+  like everything else on that page.
 
 - The answers to the six things three Capital One judges said at the table on 2026-09-12, and the
   behaviour that makes four of them true rather than asserted (issue #171). A held payment now

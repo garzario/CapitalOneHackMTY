@@ -40,10 +40,15 @@ Four properties carry the boundary, and three of them are in the type rather tha
    `decide` and the six controls are deterministic, pure and unit-tested, which is how "is this a
    wrapper around a language model" gets answered by running the suite instead of by arguing.
 3. **Every write still carries `X-Actor`**, and the role rule is the one `docs/02-persona.md`
-   supports: `owner` for the exception that page says the owner approves, a release over a finding,
-   and `clerk` for everything else including sending the run. A maker-checker chain is in the
-   anti-persona column of that page, so inventing one would be inventing a control this company does
-   not have.
+   supports: `owner` for the exception that page says the owner approves, and `clerk` for everything
+   else including sending the run. A maker-checker chain is in the anti-persona column of that page,
+   so inventing one would be inventing a control this company does not have. Issue #199 implemented
+   the rule and found that the exception has two shapes rather than one, both of them the same
+   sentence in different words: a release on a line that is not `confiable` or that the engine was
+   holding, and any decision on a line the run already cancelled. Both also require a written
+   reason. `decideRequirement` in `packages/core/src/actor.ts` is the rule and
+   `ActionProposal.requiresRole` is what the panel shows before anybody presses anything, so the
+   offer and the refusal cannot disagree.
 4. **What leaves the perimeter is bounded and written down.** The clerk's own sentence, the image she
    dropped, and the evidence of the findings the turn is about. Never the CFDI ledger, never a full
    CLABE, never the bank mirror, never another tenant's data: the consortium only ever answers counts

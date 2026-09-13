@@ -53,7 +53,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | Method | Path | Body | Effect |
 |---|---|---|---|
 | POST | `/api/v1/instructions` | `{ supplierRfc?, cfdiUuids?, clabe?, amount, source, text?, image? (base64), audio? (base64) }` | intake from the QR page. Runs all detectors, stores the instruction, findings and decision, returns them. If `image` or `audio` is present the CLABE is extracted first and `ocrConfidence` set, and a voice-note transcript lands in `text`; a typed `clabe` always wins over one a model read. Extraction is transcription only (`packages/extract`, docs/06 section 6.2.1). A server with no `GEMINI_API_KEY` answers 422 `unprocessable` and says so. |
-| POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy, reason? }` | a person confirms. Appends `decision_made`, carrying `decidedBy` and `reason` on the decision, so a release nobody can explain later is not a thing this product allows. Answers `{ instruction, decision, amountAtRisk, hold }`: `amountAtRisk` is the largest single amount at risk among the findings, stated rather than left to be re-derived, and `hold` is `null` exactly when the action is `release`. `reason` is optional in the contract and asked for by the screen on an override: an API that refused a release with no prose would be refused by the clerk instead, outside the product, where nothing is recorded at all. |
+| POST | `/api/v1/instructions/:id/decide` | `{ action: "hold" \| "verify" \| "release", decidedBy, reason? }` | a person confirms. Appends `decision_made`, carrying `decidedBy`, `decidedByRole` and `reason` on the decision, so a release nobody can explain later is not a thing this product allows. Answers `{ instruction, decision, amountAtRisk, hold }`: `amountAtRisk` is the largest single amount at risk among the findings, stated rather than left to be re-derived, and `hold` is `null` exactly when the action is `release`. `decidedBy` has to be the name on `X-Actor`. The two owner-only shapes are a release over something and a decision on a cancelled line: a `role` that may not do it is `403` and one of them with no `reason` is `422`. `reason` stays optional on every other shape, because an API that refused an ordinary hold with no prose would be refused by the clerk instead, outside the product, where nothing is recorded at all. See "The actor on every write". |
 | POST | `/api/v1/sat/publish` | `{ listVersion, entries: SatListEntry[] }` or `{ simulate: true, rfcs: string[], status? }` | loads a list version (or simulates one for the demo, synthetic RFCs only), runs the retroactive sweep over everything the ledger says is already paid, and re-scores the run. `status` is one of the four `SatListStatus` values and defaults to `presunto`; the demo publishes `definitivo`, which is the status that voids the deductions. Returns `SweepResult` plus `rescored`. See "What a publication re-scores" below |
 | POST | `/api/v1/cep/verify` | `{ claveRastreo, date, amount, senderBank, beneficiaryBank, beneficiaryAccount, supplierRfc }` or `{ xml, supplierRfc }` | retrieves or accepts the CEP, checks the Banxico seal, compares the holder name with the supplier legal name, stores the evidence. Returns `{ cep, nameMatch: "match" \| "partial" \| "mismatch", finding }`, where `finding` is the `beneficiary_cep` finding `packages/engine` authors, or `null` when no pending payment goes to that account. See "The CEP, and what verify can prove" below. |
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand, and `recordedBy` travels onto the `verification_call` event so that entry carries a name like every other human action. A recorded outcome also carries `hold`, the window and the next step, which is how a `no_answer` answers "what now" in the same response, and that window is three days on a `hold` and one day on a `verify`, from `EXPECTED_DELAY_DAYS`. Never releases a payment: every response that reports a call carries `releasesPayment: false`, and no `decision_made` is ever appended. A `404` or a `400` carries only the error envelope, because there is no call to report. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
@@ -79,19 +79,52 @@ X-Actor: role=clerk; name=Lupita Elizondo
   `POST /api/v1/instructions/:id/decide` and `recordedBy` on a recorded `verify-call` are the two,
   and a mismatch is `400`, because a decision signed by one name under a header carrying another is
   a record nobody can rely on later.
-- `role` is checked on exactly one shape and `docs/02-persona.md` is why. That page puts a formal
+- `role` is checked on two shapes and `docs/02-persona.md` is why. That page puts a formal
   maker-checker in the anti-persona column: this company has one clerk who assembles the run and an
   owner working elsewhere in the business, and an approval chain it does not have is a control that
-  gets bypassed. So `owner` is required for the one thing that page says the owner does, approving
-  an exception, which here is a `decide` with `action: "release"` on a line that carries a finding.
-  Everything else, `POST /api/v1/run/:id/execute` included, is the clerk's own work, and a `role`
-  that is not allowed to do it is `403 forbidden`.
+  gets bypassed. So `owner` is required for the thing that page says the owner does, approving an
+  exception, and there are exactly two of those. Everything else,
+  `POST /api/v1/run/:id/execute` included, is the clerk's own work, and a `role` that is not allowed
+  to do it is `403 forbidden` with the sentence that says who can.
+  1. **A release over something.** `decide` with `action: "release"` on a line whose `confidence` is
+     not `confiable`, or on a line the standing decision was holding. The level and not a count of
+     findings, because an `info` finding stops nothing: a supplier who was listed and then cleared
+     their name carries a row that is history, and asking the owner to approve a payment nothing
+     stands against is how a control becomes a formality. `confidenceOf` in
+     `packages/core/src/levels.ts` is the same function the chip on the screen reads, and
+     `decideRequirement` in `packages/core/src/actor.ts` is the rule.
+  2. **Reopening a line the run cancelled.** Any `decide` on an instruction the ledger holds a
+     `payment_cancelled` for, whatever the new action is. A cancelled line is closed: the money did
+     not leave and the record says so, and putting it back in front of the run is a second decision
+     about the same pesos rather than housekeeping. The question is asked of the ledger and not of a
+     status column, because a stored status can disagree with the events it was derived from.
+- **Both of those need prose.** `reason` stays optional everywhere else, because an API that refused
+  an ordinary hold with no sentence would be refused by the clerk instead, outside the product, where
+  nothing is recorded at all. On these two it is required and a request without it is
+  `422 unprocessable` asking for it: an exception approved with no argument is the record ADR-0002
+  says this ledger must never hold. The 403 and the 422 are deliberately two answers, because "you
+  may not do this" and "say why" are two different things to tell a person.
 - `Actor` is a name and a role and not a user account. SentryOne holds no credentials and no
   session, because a product that asks a clerk to register before it can stop a bad payment is a
   product nobody opens on a Thursday. A deployment that needs authentication puts it in front of
-  this API, and the header stays what the ledger records.
-- The actor reaches the ledger: `payment_sent`, `payment_cancelled`, `intake_image` and the
-  `assistant_message` of a person's turn all carry it, and `Decision.decidedBy` already did.
+  this API, and the header stays what the ledger records. The header is caller-controlled, so it is
+  an identity this product records and not one it verifies, and
+  `docs/06-regulatory-privacy.md` section 4.4 says so in those words: the demo identity selector is
+  not authentication.
+- The actor reaches the ledger, on every event a person caused: `instruction_received`,
+  `sat_list_published`, `cep_verified`, `cent_sent` and `verification_call` carry `actor` as of this
+  issue, `payment_sent`, `payment_cancelled`, `intake_image` and the `assistant_message` of a
+  person's turn already did, and `decision_made` carries `Decision.decidedBy` plus
+  `decidedByRole`. Three carry nobody on purpose: `payment_settled` and `payment_failed` are the
+  rail answering rather than a person acting, and `cep_awaited` is a wait. Each of them follows an
+  event that does carry the name and the clave de rastreo, and putting a clerk on them would read as
+  a second action she never took.
+- `Decision` grows one field: `decidedByRole`, the capacity the signature was given in, absent on a
+  decision the engine signed `system`. It is the field the evidence letter of issue #204 reads next
+  to `decidedBy`, and the run constancia prints both under "Quien resolvio cada instruccion". The
+  sweep constancia prints who loaded the list version, off the `sat_list_published` event, and says
+  "No se cargo desde esta instancia" for the committed official snapshot rather than printing a name
+  nobody signed.
 
 ### Confidence and state, on every instruction and on the run
 
@@ -514,7 +547,7 @@ curl -s 'https://<host>/api/v1/sat/lookup?rfc=AAA080808HL8' \
   | jq '.lists | map({article, answered, coverage, listed})'
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047 | jq '.findings[0].evidence'
 curl -s -X POST https://<host>/api/v1/instructions -H 'content-type: application/json' \
-  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180101391764613","source":"whatsapp"}' | jq
+  -d '{"supplierRfc":"SYN990202S02","amount":38417.48,"clabe":"012180102091764611","source":"whatsapp"}' | jq
 curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
   -d '{"simulate":true,"rfcs":["SYN080910HI8"],"status":"definitivo"}' \
   | jq '{totalExposure, rescored: [.rescored[] | {instructionId, before, after: .decision.action}]}'
@@ -539,6 +572,19 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
 curl -s https://<host>/api/v1/rails | jq '{active, rails: [.rails[] | {id, configured, producesCep, live}]}'
 # What the instance was configured with. Never a key, and never a network call.
 curl -s https://<host>/health | jq '{ok, version, dependencies}'
+# The actor, which every write needs. A clerk cannot release a payment a finding
+# stopped: 403 with the sentence that says who can, and nothing is appended.
+curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \
+  -H 'content-type: application/json' -H 'x-actor: role=clerk; name=Lupita Elizondo' \
+  -d '{"action":"release","decidedBy":"Lupita Elizondo","reason":"urge"}' | jq '.error'
+# The owner can, with the reason, and the decision carries both the name and the role.
+curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \
+  -H 'content-type: application/json' -H 'x-actor: role=owner; name=Gerardo Villarreal' \
+  -d '{"action":"release","decidedBy":"Gerardo Villarreal","reason":"Hable con el proveedor, la cuenta es la suya."}' \
+  | jq '{action: .decision.action, by: .decision.decidedBy, role: .decision.decidedByRole, reason: .decision.reason}'
+# And with no header at all, the write is refused naming the header.
+curl -s -X POST https://<host>/api/v1/sat/publish -H 'content-type: application/json' \
+  -d '{"simulate":true,"rfcs":["SYN080910HI8"]}' | jq '.error.message'
 # The level and the state of every line of the run, which is the vocabulary of the whole product.
 curl -s https://<host>/api/v1/run/current \
   | jq '[.items[] | {id: .instruction.id, confidence, state, action: .decision.action}] | .[0:5]'

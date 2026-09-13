@@ -20,6 +20,8 @@
  */
 
 import type {
+  Actor,
+  ActorRole,
   Cep,
   Cfdi,
   Decision,
@@ -43,6 +45,7 @@ import type {
   VerificationStateName,
   VerificationTurn,
 } from "@hackmty/core";
+import { ACTOR_NAME_MAX_LENGTH, ACTOR_ROLES } from "@hackmty/core";
 import {
   CENT_AMOUNT,
   CLAVE_RASTREO_MAX_LENGTH,
@@ -129,6 +132,16 @@ export const cfdiSchema = z.object({
   total: amountSchema,
   paymentMethod: z.enum(["PUE", "PPD"]),
   paymentForm: z.string().min(1).optional(),
+  /**
+   * CFDI 4.0 LugarExpedicion, five digits. Validated as a postal code here and
+   * not just as a string, because control 2 maps it to a state and a place that
+   * cannot be read has to be refused at the edge rather than silently ignored
+   * inside the engine.
+   */
+  issuePlace: z
+    .string()
+    .regex(/^\d{5}$/, "issuePlace is a five-digit postal code")
+    .optional(),
   synthetic: z.boolean(),
 }) satisfies z.ZodType<Cfdi>;
 
@@ -306,6 +319,25 @@ export const findingSchema = z.object({
 export const actionSchema = z.enum(["hold", "verify", "release"]);
 
 /**
+ * Who is acting, the shape the `X-Actor` header parses into and the shape the
+ * ledger stores.
+ *
+ * The roles come from `ACTOR_ROLES` in @hackmty/core rather than from a literal
+ * here, so a third role would be a compile error in this file instead of an
+ * endpoint that silently refuses it. Same reason the name cap is the constant:
+ * the header parser, this schema and `decisions.decided_by` have to agree, or a
+ * name the API accepts is a name the ledger truncates.
+ */
+export const actorRoleSchema = z.enum(
+  ACTOR_ROLES as readonly [ActorRole, ...ActorRole[]],
+);
+
+export const actorSchema = z.object({
+  name: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
+  role: actorRoleSchema,
+}) satisfies z.ZodType<Actor>;
+
+/**
  * Longest reason a person may write on a decision.
  *
  * Long enough for the sentence an auditor needs ("el proveedor confirmo por
@@ -324,6 +356,8 @@ export const decisionSchema = z.object({
   findings: z.array(findingSchema),
   decidedAt: instantSchema,
   decidedBy: z.string().min(1).optional(),
+  /** The role that name was acting in. Absent on the engine's own decision. */
+  decidedByRole: actorRoleSchema.optional(),
   /** Why the person chose it. Absent on the engine's own proposal. */
   reason: z.string().min(1).max(REASON_MAX).optional(),
 }) satisfies z.ZodType<Decision>;
@@ -358,6 +392,8 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     type: z.literal("instruction_received"),
     at: instantSchema,
     instruction: paymentInstructionSchema,
+    /** Who posted it. Absent on the rows the generator wrote. */
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("payment_sent"),
@@ -366,10 +402,20 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     claveRastreo: z.string().min(1).optional(),
   }),
   z.object({
+    type: z.literal("payment_cancelled"),
+    at: instantSchema,
+    instructionId: z.string().min(1),
+    reason: z.string().min(1).max(1000),
+    runId: z.string().min(1).optional(),
+    /** Absent exactly when nobody dropped the line by hand. */
+    actor: actorSchema.optional(),
+  }),
+  z.object({
     type: z.literal("sat_list_published"),
     at: instantSchema,
     listVersion: z.string().min(1),
     entries: z.array(satListEntrySchema),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("cent_sent"),
@@ -381,6 +427,7 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     amount: z.literal(CENT_AMOUNT),
     clabeLast4: z.string().regex(/^\d{0,4}$/, "last four digits"),
     simulated: z.boolean(),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("cep_awaited"),
@@ -396,6 +443,7 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     at: instantSchema,
     cep: cepSchema,
     supplierRfc: rfcSchema,
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("verification_call"),
@@ -410,7 +458,8 @@ export const ledgerEventSchema = z.discriminatedUnion("type", [
     conversationId: z.string().min(1).max(200).optional(),
     manual: z.boolean(),
     /** Who typed the outcome in, on a hand-recorded call. */
-    recordedBy: z.string().min(1).max(120).optional(),
+    recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH).optional(),
+    actor: actorSchema.optional(),
   }),
   z.object({
     type: z.literal("decision_made"),
@@ -806,7 +855,7 @@ export const createInstructionBodySchema = z
  */
 export const decideBodySchema = z.object({
   action: actionSchema,
-  decidedBy: z.string().min(1).max(120),
+  decidedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
   reason: z.string().min(1).max(REASON_MAX).optional(),
 });
 
@@ -873,7 +922,7 @@ export const verifyCallBodySchema = z.union([
     outcome: verificationOutcomeSchema,
     /** What the person heard, quoted. Optional, because silence is an outcome. */
     evidence: z.string().min(1).max(4000).optional(),
-    recordedBy: z.string().min(1).max(120),
+    recordedBy: z.string().min(1).max(ACTOR_NAME_MAX_LENGTH),
   }),
 ]);
 
