@@ -151,6 +151,12 @@ git commit     # write the one real message
   request, so a single commit under a stray email becomes an attribution line on `dev` that only a
   history rewrite removes. `.githooks/pre-commit` refuses identities that name a tool, a bot or a
   throwaway mailbox before the commit exists.
+- **Pull request bodies are commit messages.** GitHub used to write the PR description into the
+  squash commit; a body that carried a tool's "Generated with" line landed on `dev` that way on
+  12 September and had to be rewritten out. The repository now squashes with the PR title only
+  (`squash_merge_commit_message: BLANK`), and a PR body still must not carry attribution lines,
+  because reviewers and judges read the body too. Turn the attribution off in your assistant's
+  settings before opening a PR.
 - No em dashes in prose. No emoji in commits, docs, YAML or UI copy. Plain ASCII punctuation.
 
 ## Pull requests
