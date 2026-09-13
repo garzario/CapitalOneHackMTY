@@ -95,7 +95,30 @@ weighed against and the cost of one day of delay. The seal on a CEP reads `not_c
 actually validated against a Banxico certificate, and a person can override any of it with a name in
 `Decision.decidedBy` and an argument in `Decision.reason`. So the answer is not that we are never
 wrong. It is what the client holds when we are, and it comes in four layers at four different stages
-of maturity. Three of them answer the payment we released and should not have. The fourth answers the
+of maturity.
+
+**What the clerk reads instead of a number.** The same panel asked what the screen shows, and the
+answer is two words per payment and never a figure. `Confidence` is `confiable`, `precaucion` or
+`alerta`, and `TransactionState` is `rojo`, `cancelado` or `enviado` plus the two the run counts
+internally. Both are derived by `confidenceOf` and `transactionStateOf` in
+`packages/core/src/levels.ts`, neither is stored, and the level always arrives with the findings that
+produced it. That is a commercial decision as much as a technical one: the expected-loss arithmetic in
+`packages/core/src/decision.ts` says in its own comment that its figure is an upper bound on the
+evidence rather than a calibrated probability, so selling 0.73 next to a supplier's name would be
+selling a precision nobody measured, and the first client who asked what it meant would be right.
+`confiable` is a statement about the documents we hold. ADR-0009 carries the rule table and forbids a
+probability, a percentage or a score on any screen or in any document of this product, and it forbids
+the word "seguro" as a verdict in any language, because a SPEI cannot be recalled.
+
+**One case is not a hold and the commercial promise has to say so.** When the SAT publishes a supplier
+as `definitivo` under article 69-B, or a final resolution under article 49 Bis, the comprobantes have
+no fiscal effect at all and retroactively. There is nothing for the clerk to wait out, so the line
+reads `cancelado` rather than `rojo`, `POST /api/v1/sat/publish` appends a `payment_cancelled` naming
+the article, and the only way back is a release signed by the owner with a written reason through
+`POST /api/v1/instructions/:id/decide` with an `X-Actor` carrying `role=owner`. The commitment in
+layer 2 does not attach to a payment reopened that way, for the same reason it does not attach to a
+release taken against our advice: the record names the person who took it and the argument they wrote,
+and `GET /api/v1/instructions/:id/carta` prints both on one page. Three of them answer the payment we released and should not have. The fourth answers the
 opposite error, the payment we held and should not have, which is the one a payables desk meets every
 week. After the four layers comes the menu the team asked for on the same evening, eight options with
 what each one costs us, what it needs legally, whose document is the precedent and where it breaks,
@@ -152,6 +175,13 @@ This layer exists now and needs no counsel, no reserve and no partner.
   replay over it rather than a recomputation, and `decision_made` carries the action, the expected
   loss, the findings, who decided and why. A release cannot be rewritten after the loss, which is the
   property that makes the record worth anything to somebody else.
+- **One page per payment, for the supplier who rings to ask.**
+  `GET /api/v1/instructions/:id/carta` prints the seven signals this product read about one payment,
+  each of them saying whether it could answer at all: both SAT lists, the account with its plaza, the
+  payment history behind it, the CEP and its seal, the verification call, and what the clerk uploaded.
+  Under them the level, the state, the action, the person who signed it and their written reason, and
+  the SHA-256 huella of the ledger range. It is the document a payables desk sends out instead of the
+  sentence "nuestro sistema lo marco", and it costs nothing to produce.
 
 What that is worth in a bad week is not comfort, it is a file: what was checked, when, against which
 list version, and who released it. That file is what a client takes to its bank, to an insurer

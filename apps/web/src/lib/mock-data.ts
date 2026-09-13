@@ -436,7 +436,15 @@ export const TOTALS: PaymentRunTotals = {
   "stoppedAmount": 785289.86,
   "amountAtRisk": 799209.86,
   "retroactive69bBase": 0,
-  "retroactive69bExposure": 0
+  "retroactive69bExposure": 0,
+  "confiable": 85,
+  "precaucion": 3,
+  "alerta": 4,
+  "rojo": 6,
+  "cancelado": 0,
+  "enviado": 0,
+  "pendiente": 0,
+  "liberado": 86
 };
 
 export const SAT_ENTRIES: readonly SatListEntry[] = [
