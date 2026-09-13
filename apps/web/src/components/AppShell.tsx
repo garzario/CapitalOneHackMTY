@@ -55,6 +55,7 @@ import {
   IconRun,
   IconSeal,
 } from "./Icons";
+import { ToastProvider } from "./Toast";
 
 type NavItem = {
   to: string;
@@ -174,169 +175,177 @@ export function AppShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  /* The toast provider wraps the frame rather than a screen, for two reasons:
+     the live region has to exist in the document before the first message lands
+     or a screen reader does not reliably announce it, and a confirmation has to
+     survive the navigation that follows the write that produced it. */
   return (
-    <div className="shell">
-      <a className="skip-link" href="#main">
-        Ir al contenido
-      </a>
+    <ToastProvider>
+      <div className="shell">
+        <a className="skip-link" href="#main">
+          Ir al contenido
+        </a>
 
-      {open ? (
-        <button
-          type="button"
-          className="scrim"
-          aria-label="Cerrar el menu"
-          onClick={() => setOpen(false)}
-        />
-      ) : null}
+        {open ? (
+          <button
+            type="button"
+            className="scrim"
+            aria-label="Cerrar el menu"
+            onClick={() => setOpen(false)}
+          />
+        ) : null}
 
-      <nav
-        className="rail"
-        aria-label="Secciones"
-        data-collapsed={collapsed ? "true" : "false"}
-        data-open={open ? "true" : "false"}
-      >
-        <div className="rail-top">
-          <a
-            href={href(PATHS.run)}
-            className="no-underline rail-brand"
-            aria-label="SentryOne, ir a la corrida"
-          >
-            {collapsed ? (
-              <img
-                src="/sentryone-icon-dark.svg"
-                alt=""
-                width={26}
-                height={26}
-                style={{ display: "block", flex: "none" }}
-              />
-            ) : (
-              <img
-                src="/sentryone-lockup-dark.svg"
-                alt=""
-                style={{ display: "block", width: "100%", height: "auto" }}
-              />
-            )}
-          </a>
-        </div>
+        <nav
+          className="rail"
+          aria-label="Secciones"
+          data-collapsed={collapsed ? "true" : "false"}
+          data-open={open ? "true" : "false"}
+        >
+          <div className="rail-top">
+            <a
+              href={href(PATHS.run)}
+              className="no-underline rail-brand"
+              aria-label="SentryOne, ir a la corrida"
+            >
+              {collapsed ? (
+                <img
+                  src="/sentryone-icon-dark.svg"
+                  alt=""
+                  width={26}
+                  height={26}
+                  style={{ display: "block", flex: "none" }}
+                />
+              ) : (
+                <img
+                  src="/sentryone-lockup-dark.svg"
+                  alt=""
+                  style={{ display: "block", width: "100%", height: "auto" }}
+                />
+              )}
+            </a>
+          </div>
 
-        {/* The group labels are furniture and not links, so they are hidden
+          {/* The group labels are furniture and not links, so they are hidden
             from the accessibility tree and the name they carry is put on the
             list instead. Keyboard order is the order of the links, unchanged. */}
-        <div className="rail-groups">
-          {NAV_GROUPS.map((group, index) => (
-            <Fragment key={group.label ?? `group-${index}`}>
-              {index > 0 ? <hr className="rail-rule" /> : null}
-              {group.label ? (
-                <span className="rail-group-label" aria-hidden="true">
-                  {group.label}
-                </span>
-              ) : null}
-              <ul className="rail-nav" aria-label={group.label ?? undefined}>
-                {group.items.map(({ to, label, match, Icon }) => {
-                  const isCurrent = match.includes(route.name);
+          <div className="rail-groups">
+            {NAV_GROUPS.map((group, index) => (
+              <Fragment key={group.label ?? `group-${index}`}>
+                {index > 0 ? <hr className="rail-rule" /> : null}
+                {group.label ? (
+                  <span className="rail-group-label" aria-hidden="true">
+                    {group.label}
+                  </span>
+                ) : null}
+                <ul className="rail-nav" aria-label={group.label ?? undefined}>
+                  {group.items.map(({ to, label, match, Icon }) => {
+                    const isCurrent = match.includes(route.name);
 
-                  return (
-                    <li key={to}>
-                      <a
-                        href={href(to)}
-                        className="rail-item"
-                        aria-current={isCurrent ? "page" : undefined}
-                        title={collapsed ? label : undefined}
-                        /* On a phone the rail is an overlay, and an overlay
+                    return (
+                      <li key={to}>
+                        <a
+                          href={href(to)}
+                          className="rail-item"
+                          aria-current={isCurrent ? "page" : undefined}
+                          title={collapsed ? label : undefined}
+                          /* On a phone the rail is an overlay, and an overlay
                            that survives navigation covers the screen you just
                            asked for. */
-                        onClick={() => setOpen(false)}
-                      >
-                        {/* The draw is `isCurrent` and nothing more. A CSS
+                          onClick={() => setOpen(false)}
+                        >
+                          {/* The draw is `isCurrent` and nothing more. A CSS
                             animation runs when its `animation` property goes
                             from none to set, which happens exactly when the
                             class lands on the icon you arrived at -- so the
                             section change is the trigger, for free, and
                             collapsing, opening the overlay or re-rendering
                             never touch the class and never restart it. */}
-                        <Icon size={18} draw={isCurrent} />
-                        <span className="rail-label">{label}</span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Fragment>
-          ))}
-        </div>
+                          <Icon size={18} draw={isCurrent} />
+                          <span className="rail-label">{label}</span>
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Fragment>
+            ))}
+          </div>
 
-        <div className="rail-spacer" />
+          <div className="rail-spacer" />
 
-        <div className="rail-foot">
-          {/* Attribution, not co-branding. See the note on `.co-mark`. */}
-          {/* The reverse lockup in both themes: the rail is navy on either
+          <div className="rail-foot">
+            {/* Attribution, not co-branding. See the note on `.co-mark`. */}
+            {/* The reverse lockup in both themes: the rail is navy on either
               ground, and their navy wordmark on their navy is nothing. */}
-          <span className="co-mark">
-            <img
-              src="/brand/capital-one-reverse.svg"
-              alt="Capital One"
-              width={84}
-              height={30}
-            />
-          </span>
-          <span className="rail-foot-detail subtle t-xs">
-            Reto HackMTY 2026 · {DATA_MODE_LABEL[mode] ?? mode}
-          </span>
-        </div>
-      </nav>
+            <span className="co-mark">
+              <img
+                src="/brand/capital-one-reverse.svg"
+                alt="Capital One"
+                width={84}
+                height={30}
+              />
+            </span>
+            <span className="rail-foot-detail subtle t-xs">
+              Reto HackMTY 2026 · {DATA_MODE_LABEL[mode] ?? mode}
+            </span>
+          </div>
+        </nav>
 
-      <div className="flex min-w-0 flex-col">
-        <header className="topbar">
-          <button
-            type="button"
-            className="topbar-toggle"
-            onClick={toggleFrame}
-            /* Above 60rem this is a two-state control and says so. Below it,
+        <div className="flex min-w-0 flex-col">
+          <header className="topbar">
+            <button
+              type="button"
+              className="topbar-toggle"
+              onClick={toggleFrame}
+              /* Above 60rem this is a two-state control and says so. Below it,
                it opens an overlay, which is not a toggle -- but the width is
                not in state, so the attribute is rendered at both widths and
                the overlay simply does not read it. */
-            aria-pressed={collapsed}
-            title={collapsed ? "Expandir el menu" : "Contraer el menu"}
-          >
-            <IconPanel size={17} />
-            {/* The name follows the width, and the width is CSS's to know:
+              aria-pressed={collapsed}
+              title={collapsed ? "Expandir el menu" : "Contraer el menu"}
+            >
+              <IconPanel size={17} />
+              {/* The name follows the width, and the width is CSS's to know:
                 one of these two is display:none on each side of 60rem, and a
                 span that is not displayed is not in the accessibility tree. */}
-            <span className="sr-only topbar-toggle-narrow">Abrir el menu</span>
-            <span className="sr-only topbar-toggle-wide">
-              {collapsed ? "Expandir el menu" : "Contraer el menu"}
-            </span>
-          </button>
-          <h1 className="topbar-title">{title}</h1>
+              <span className="sr-only topbar-toggle-narrow">
+                Abrir el menu
+              </span>
+              <span className="sr-only topbar-toggle-wide">
+                {collapsed ? "Expandir el menu" : "Contraer el menu"}
+              </span>
+            </button>
+            <h1 className="topbar-title">{title}</h1>
 
-          {/* ADR-0002: anything generated carries a visible marker. It is a
+            {/* ADR-0002: anything generated carries a visible marker. It is a
               standing fact about the whole app rather than a property of the
               screen you happen to be on, so it belongs to the frame and appears
               exactly once -- here, in the one strip that is always on screen at
               full width. It used to sit in the rail, which the user can
               collapse to 60px, where the word does not fit. */}
-          <span className="topbar-mark watermark">{SYNTHETIC_LABEL}</span>
-        </header>
+            <span className="topbar-mark watermark">{SYNTHETIC_LABEL}</span>
+          </header>
 
-        <main id="main" className="screen">
-          {children}
+          <main id="main" className="screen">
+            {children}
 
-          {/* The disclaimer is not decoration and it is not optional: this is a
+            {/* The disclaimer is not decoration and it is not optional: this is a
               prototype that renders tax exposure in pesos, and it says so on
               every screen rather than once in a README nobody opens at the
               table. The second line is the frame, in words rather than in
               somebody else's logo: SentryOne is built for Capital One's track
               and borrows their palette and their typography, which is a
               different claim from being them. */}
-          <footer className="shell-foot">
-            <p className="subtle m-0 t-xs">
-              Prototipo sobre datos sinteticos. No es una institucion financiera
-              y no es asesoria fiscal. Los RFC reales solo aparecen en la
-              consulta de la lista oficial.
-            </p>
-          </footer>
-        </main>
+            <footer className="shell-foot">
+              <p className="subtle m-0 t-xs">
+                Prototipo sobre datos sinteticos. No es una institucion
+                financiera y no es asesoria fiscal. Los RFC reales solo aparecen
+                en la consulta de la lista oficial.
+              </p>
+            </footer>
+          </main>
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 }
