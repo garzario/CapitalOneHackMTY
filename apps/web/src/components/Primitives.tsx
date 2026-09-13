@@ -7,6 +7,7 @@
 import type {
   Action,
   Confidence,
+  PaymentLineState,
   Severity,
   TransactionState,
 } from "@hackmty/core";
@@ -16,10 +17,15 @@ import {
   ACTION_BADGE,
   ACTION_LABEL,
   CONFIDENCE_BADGE,
+  CONFIDENCE_HELP,
   CONFIDENCE_LABEL,
+  PAYMENT_LINE_BADGE,
+  PAYMENT_LINE_HELP,
+  PAYMENT_LINE_LABEL,
   SEVERITY_BADGE,
   SEVERITY_LABEL,
   STATE_BADGE,
+  STATE_HELP,
   STATE_LABEL,
   SYNTHETIC_LABEL,
 } from "../lib/labels";
@@ -120,7 +126,9 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
  */
 export function ConfidenceBadge({ level }: { level: Confidence }) {
   return (
-    <span className={CONFIDENCE_BADGE[level]}>{CONFIDENCE_LABEL[level]}</span>
+    <span className={CONFIDENCE_BADGE[level]} title={CONFIDENCE_HELP[level]}>
+      {CONFIDENCE_LABEL[level]}
+    </span>
   );
 }
 
@@ -129,7 +137,31 @@ export function ConfidenceBadge({ level }: { level: Confidence }) {
  * internally, because a line nobody has looked at is not green.
  */
 export function TransactionStateBadge({ state }: { state: TransactionState }) {
-  return <span className={STATE_BADGE[state]}>{STATE_LABEL[state]}</span>;
+  return (
+    <span className={STATE_BADGE[state]} title={STATE_HELP[state]}>
+      {STATE_LABEL[state]}
+    </span>
+  );
+}
+
+/**
+ * What the rail did with one line of an executed run.
+ *
+ * Separate from `TransactionStateBadge` on purpose, because they answer different
+ * questions and a judge asks the second one: the state is where the payment stands
+ * for the company, and this is what the rail said about it. It is also the one
+ * place `sent` and `settled` are visibly two claims, which is the difference the
+ * CEP exists to prove and the one ADR-0008 says a demo must not collapse.
+ */
+export function PaymentLineBadge({ state }: { state: PaymentLineState }) {
+  return (
+    <span
+      className={PAYMENT_LINE_BADGE[state]}
+      title={PAYMENT_LINE_HELP[state]}
+    >
+      {PAYMENT_LINE_LABEL[state]}
+    </span>
+  );
 }
 
 type FieldProps = {
