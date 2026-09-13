@@ -7,13 +7,18 @@ import { defineConfig } from "vite";
  * means the browser only ever talks to one origin, so there is no CORS story
  * to debug in development and no base URL to configure in the client.
  *
- * `API_ORIGIN` in the environment points that proxy somewhere else, and the one
- * job it has is the screenshots. `bun run shoot:web` renders whatever the dev
- * server answers, and a local API with no `DATABASE_URL` serves the small
- * in-memory run rather than the seeded company, so a README shot against it
- * shows twelve instructions where the demo shows ninety-two. Pointing this at
- * the deployed API puts the real run in the frame. It changes nothing about the
+ * `API_ORIGIN` in the environment points that proxy somewhere else, which is how
+ * `bun run shoot:web` renders the README frames against a chosen instance rather
+ * than against whatever happens to be on 3000. It changes nothing about the
  * client, which still talks to one origin and still knows no base URL.
+ *
+ * Whichever instance it names, check what that one serves before trusting a
+ * frame. `bootRepository` in `apps/api/src/deps.ts` picks the run: Postgres when
+ * `DATABASE_URL` is set, the generated company in memory when it is not and
+ * `SEED=sentryone` is, and the hand-written fixture otherwise. The fixture is
+ * twelve instructions and the company is ninety-two, and only the second is the
+ * run the demo shows. An API started without the repository's `.env` lands on the
+ * fixture, so a screenshot taken against it is of a run nobody demonstrates.
  */
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:3000";
 

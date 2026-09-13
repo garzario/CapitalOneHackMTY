@@ -16,6 +16,19 @@ Everything below is on `dev` and is the content of the coming `[1.0.0]`. The ord
 group is the order of `AGENTS.md` "Where things live": the intelligence first, then the transport,
 then the screens, then the narrative, then the plumbing.
 
+### Fixed
+
+- **A sentence this project shipped about its own configuration was wrong, and it pointed the next
+  person at the wrong variable** (issue #216). The note in `vite.config.ts` and the changelog entry
+  beside it said that an API with no `DATABASE_URL` serves the small in-memory run. It does not.
+  `bootRepository` reads three cases and the database is only the first of them: Postgres when
+  `DATABASE_URL` is set, the generated ninety-two instruction company when it is not and
+  `SEED=sentryone` is, and the twelve instruction fixture otherwise. The API that produced the twelve
+  instruction reading had simply been started without the repository's `.env`, and blaming the
+  database sent somebody looking for Postgres when what they needed was one line of environment.
+  Measured rather than reasoned this time: two API processes on two ports, one with `SEED=sentryone`
+  and one with nothing, answering ninety-two and twelve.
+
 ### Added
 
 - A narrated backup video of the stand beats, attached to the release, and the section in `docs/10-demo-script.md` that says how it was made (issue #73).
@@ -1402,11 +1415,14 @@ then the screens, then the narrative, then the plumbing.
   Two things had to be true before the frames were worth keeping, and neither was obvious. The first
   is the base: `vite.config.ts` declares the `/api` proxy under `server` and not under `preview`, so
   the script's default of `http://localhost:4173` reaches no API at all and writes every frame with
-  the "La API no responde" banner across the top. The second is the data: an API with no
-  `DATABASE_URL` serves the small in-memory run, so a README shot against a local API shows twelve
-  instructions where the demo shows ninety-two. `API_ORIGIN` in the environment now points the dev
-  proxy at the deployed API, which is what puts the real run in the frame. It is read with a default
-  and changes nothing about the client, which still talks to one origin and still knows no base URL.
+  the "La API no responde" banner across the top. The second is the data: `bootRepository` in
+  `apps/api/src/deps.ts` answers out of Postgres when `DATABASE_URL` is set, out of the generated
+  company in memory when it is not and `SEED=sentryone` is, and out of the hand-written fixture
+  otherwise. The fixture is twelve instructions and the company is ninety-two, so an API started
+  without the repository's `.env` serves a run nobody demonstrates, and a frame taken against it is of
+  that run. `API_ORIGIN` in the environment now points the dev proxy at a chosen instance, read with a
+  default and changing nothing about the client, which still talks to one origin and still knows no
+  base URL.
 
   The CEP frame is the offline run rather than the API, and that is deliberate. The screen only draws
   the track when the instruction carries a verification, the seeded API carries none, and starting one
