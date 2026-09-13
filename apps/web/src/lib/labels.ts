@@ -66,6 +66,24 @@ export const DETECTOR_LABEL: Record<Detector, string> = {
   bank_reconciliation: "Conciliacion bancaria",
 };
 
+/**
+ * The screen that proves a finding, per detector, and the words on the link.
+ *
+ * Two detectors are missing on purpose rather than by omission. A duplicate
+ * invoice already carries its own origin inside the panel, and a bank
+ * reconciliation already carries the bank row it failed against: the proof is
+ * the block the reader is looking at, and there is no screen in the app that
+ * shows more of it than that. A link to nowhere new is furniture.
+ */
+export const EVIDENCE_ACTION: Partial<
+  Record<Detector, { label: string; kind: "sat" | "cep" | "call" }>
+> = {
+  sat_69b: { label: "Consultar en la lista 69-B", kind: "sat" },
+  beneficiary_cep: { label: "Verificar con el CEP", kind: "cep" },
+  clabe_forensics: { label: "Llamar al proveedor", kind: "call" },
+  supplier_behaviour: { label: "Llamar al proveedor", kind: "call" },
+};
+
 export const DETECTOR_ORDER: Detector[] = [
   "sat_69b",
   "clabe_forensics",
@@ -112,6 +130,26 @@ export const SOURCE_LABEL: Record<InstructionSource, string> = {
   pdf: "PDF",
   portal: "Portal",
   manual: "Captura manual",
+};
+
+/** Which Rune glyph draws a channel. The drawings are in `Icons.tsx`. */
+export type SourceGlyph = "mail" | "message" | "file-text" | "globe" | "pencil";
+
+/**
+ * The channel an instruction arrived by, as a shape.
+ *
+ * It sits next to `SOURCE_LABEL` because it is the same fact in the other
+ * channel, and a run row shows both: the tile says where it came from at a
+ * glance and the word under it says the same thing for anyone who cannot use
+ * the shape. A key rather than a component, so this file stays a dictionary of
+ * words with no view in it.
+ */
+export const SOURCE_ICON: Record<InstructionSource, SourceGlyph> = {
+  email: "mail",
+  whatsapp: "message",
+  pdf: "file-text",
+  portal: "globe",
+  manual: "pencil",
 };
 
 export const SAT_STATUS_LABEL: Record<SatListStatus, string> = {
@@ -324,4 +362,4 @@ export const ESTABLISHED_BY_LABEL: Record<string, string> = {
 };
 
 /** The watermark text ADR-0002 requires on anything generated. */
-export const SYNTHETIC_LABEL = "datos sinteticos";
+export const SYNTHETIC_LABEL = "Datos sinteticos";

@@ -1723,6 +1723,45 @@ then the screens, then the narrative, then the plumbing.
   migration section no longer describes a `supplier_weekly_outflow` aggregate that does not exist,
   and the threshold TODO is answered rather than left open, by stating that no refusal threshold was
   pre-registered before the first run and why claiming one would be false.
+- The web app is redesigned around Capital One's own design language, on top of the rename in
+  #152 (epic #82). The palette, the neutrals, the radii and the three decision colours are read
+  from Gravity, Capital One's design system, rather than invented: the page is white like theirs,
+  the neutrals are warm rather than blue-black, the accent is their brand navy `#013D5B` and the
+  release colour is their olive `#5C7F0B`. The interface is set in Hanken Grotesk, self-hosted as
+  one variable file per subset so the demo survives a room with no Wi-Fi, and it uses Capital One's
+  own weight hierarchy, which is the thing that makes their pages look like two typefaces when they
+  are one: display at 300, navigation and table data at 400, emphasis at 600. The rail's type is
+  matched to their navigation exactly, at 14px and weight 400. Their lockup appears once, in the
+  rail's foot, as attribution.
+- The rail is a brand panel. Its ground is Capital One's brand navy, the same value as the accent,
+  so the one piece of furniture on every screen is theirs and it is the first thing in the reading
+  order. It carries its own palette, because every one of the page's ink tokens is dark on dark in
+  there, and that palette does not change with the theme: a brand colour that shifts with the
+  operating system is not a brand colour. Two things the audit caught rather than the eye: the app's
+  focus ring is that same navy, so it has to invert inside the rail or keyboard focus vanishes where
+  a keyboard user starts, and the muted ink measured 4.2 against the active row, under AA.
+- The metrics page dropped the six-bullet essay on what the evaluation does and does not claim. The
+  argument belongs in `packages/seed/src/holdout/README.md` and in the judge Q&A, not on the screen;
+  what stays is the one line that is evidence rather than argument, that the figures on screen are
+  the ones `bun run eval` and `GET /api/v1/metrics` print.
+- The six sections moved from a row of tabs into a collapsible left rail, whose collapsed state is
+  remembered, and the shell's top bar now carries the page's single `h1`. Five screens stopped
+  repeating that title under it and keep only the sentence that says what they are for.
+- The payment run lost most of what was on it, and reads better for it. The three decision buttons
+  are gone from every row -- fifty-two coloured objects on one screen, inviting the decision to be
+  made from the one place that shows no evidence for it -- and deciding happens on the instruction,
+  next to the finding that explains it. The decision chip is gone too: a row's state is a 3px mark
+  on its left edge and a word in its own column. The alert rail, which listed the findings the table
+  was already sorted by, became a panel that names all six controls and what each one found,
+  including the ones that found nothing. Two of the three totals cards became a line of text beside
+  the one figure that decides whether the clerk can go home.
+- The run opens on its exceptions. A week of 92 instructions is 7 rows of work and 85 that say "this
+  one is fine", and the page was twelve screens tall as a result; a segmented filter above the table
+  (`No salen` / `Liberadas` / `Todas`) opens on the first and takes the page to under two screens.
+  Nothing is hidden: the headline card states the full count and the released total on every view,
+  and each segment carries its own size. Changing the filter animates the incoming rows; the first
+  paint does not animate, so the table is never blank in the frame a judge sees.
+
 - `detectBankReconciliation` buckets the expected payments by the day they are expected on and
   scans only the days inside the match window, instead of the whole company's documents once per
   outflow. Same findings, and a payment run of 92 lines over eight months of statement goes from
