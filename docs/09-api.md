@@ -10,7 +10,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 
 | Method | Path | Returns | Notes |
 |---|---|---|---|
-| GET | `/health` | `{ ok, service, version }` | liveness |
+| GET | `/health` | `{ ok, service, version, dependencies }` | liveness, plus what this instance was configured with. See "Health, and what it may not check" below |
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. See "The hold window" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
@@ -24,6 +24,11 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | GET | `/api/v1/run/:id/constancia` | `application/pdf` | constancia of one weekly payment run. `current` is accepted as the id |
 | GET | `/api/v1/instructions/:id/verify-call` | `{ script, voiceConfigured, releasesPayment: false }` | the words the voice agent reads, or the clerk does. Side effect free: no call is placed and nothing is appended |
 | GET | `/api/v1/instructions/:id/verification` | `VerificationState` | where the one-cent verification of this instruction stands, folded out of the event ledger. `state: "not_started"` when the cent has not been sent, which is a real answer and what lets the screen offer the action. `404` for an instruction nobody holds |
+| GET | `/api/v1/assistant/sessions/:id` | `AssistantSession` | one conversation of the assistant panel, projected from the `assistant_message` events of that session id. `404` for a session nobody holds |
+| GET | `/api/v1/run/:id/execution` | `PaymentExecution` | what this run did on the payment rail, folded out of the ledger. `current` is accepted as the id. A run nobody has executed answers `200` with `lines: []` and `totals` at zero, because "nothing has been sent" is an answer and a `404` there would read as "no such run" |
+| GET | `/api/v1/payments/:id/receipt` | `PaymentReceipt` or `application/pdf` | the receipt of one payment. `:id` is the `receiptId` the execution line carries. JSON by default and the PDF on `Accept: application/pdf` or `?format=pdf`, and the two are the same object. See "The receipt and the carta" below |
+| GET | `/api/v1/instructions/:id/carta` | `application/pdf` | the one-page evidence letter of one instruction: the level with its findings, the decision and the name against it. See "The receipt and the carta" below |
+| GET | `/api/v1/rails` | `{ active, rails, message? }` | which payment rails this server holds, which one is active and which of them has ever moved money. No key, no secret, no account. See "Which rails this server holds" below |
 
 `PaymentRun` = `{ id, weekOf, totals, items: Array<{ instruction, supplier, decision, findings }> }`.
 
@@ -54,6 +59,67 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 | POST | `/api/v1/instructions/:id/verify-call` | `{ toNumber }` or `{ conversationId }` or `{ outcome, evidence?, recordedBy }` | the verification call to the supplier. `toNumber` rings them through the voice agent and answers `202 { status: "calling", conversationId, script }`; `conversationId` collects a finished call, parses the transcript and appends `verification_call`; `outcome` records a call a person made by hand, and `recordedBy` travels onto the `verification_call` event so that entry carries a name like every other human action. A recorded outcome also carries `hold`, the window and the next step, which is how a `no_answer` answers "what now" in the same response, and that window is three days on a `hold` and one day on a `verify`, from `EXPECTED_DELAY_DAYS`. Never releases a payment: every response that reports a call carries `releasesPayment: false`, and no `decision_made` is ever appended. A `404` or a `400` carries only the error envelope, because there is no call to report. When `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` or `ELEVENLABS_PHONE_NUMBER_ID` is missing it answers `422` with the usual error envelope **plus** a `script` key, so the clerk reads it on their own telephone. |
 | POST | `/api/v1/instructions/:id/verify-account` | no body | the one-cent verification, with nobody typing. Sends 0.01 MXN to the account this instruction pays, through the configured rail; appends `cent_sent` with the clave de rastreo the rail answered; resolves the CEP for that clave; and with the CEP in hand runs the beneficiary control and the expected-loss rule and appends `decision_made` signed `system`. Answers `202` with the `VerificationState` it reached synchronously. `404` unknown instruction, `409` when it is already released or blocked, `503` when this server has no rail. See "The cent inside the run" below |
 | POST | `/api/v1/seed` | `{ seed?: number, reset?: boolean }` | regenerates the demo company from `seed`, on either store. Dev only, guarded by `ALLOW_SEED=1`, and a 403 rather than a 404 when it is off, because hiding a destructive endpoint makes it harder to notice when a deployment enables it. There is no way to add to the company without replacing it, so `reset: false` is answered `422` rather than ignored: wiping a store for a caller who asked us not to is the one thing here nobody could undo. |
+| POST | `/api/v1/assistant/messages` | `multipart/form-data` or `{ sessionId?, text, images?: string[] }` | one turn of the assistant panel. Answers `text/event-stream` with `token`, `tool_call`, `tool_result`, `proposal` and `done`. It reads and it proposes, and it writes nothing but the conversation: no decision, no cent, no payment. See "The assistant, and what it may not do" below |
+| POST | `/api/v1/run/:id/execute` | `{ instructionIds?, confirm: true }` | the payment run leaves on the configured rail. `202` and `text/event-stream`, one `line` event per payment and a final `done` carrying the `PaymentExecution`. Nothing is sent without `confirm: true` and an `X-Actor`. See "The payment execution" below |
+
+### The actor on every write
+
+Every write carries `X-Actor`, and it is the header that makes the ledger answer "who".
+
+```
+X-Actor: role=clerk; name=Lupita Elizondo
+```
+
+- Two keys, order free, separated by `;`. `role` is `clerk` or `owner`. `name` is 1 to 120
+  characters and is the rest of the pair, spaces included, so a real name needs no quoting; a name
+  with a `;` in it is refused rather than truncated.
+- A write with no header, an unknown role or an empty name is `400 bad_request` naming the header.
+  Not a `403`: nothing about the caller was rejected, the request did not say who was acting.
+- Where the body already names a person the two must agree. `decidedBy` on
+  `POST /api/v1/instructions/:id/decide` and `recordedBy` on a recorded `verify-call` are the two,
+  and a mismatch is `400`, because a decision signed by one name under a header carrying another is
+  a record nobody can rely on later.
+- `role` is checked on exactly one shape and `docs/02-persona.md` is why. That page puts a formal
+  maker-checker in the anti-persona column: this company has one clerk who assembles the run and an
+  owner working elsewhere in the business, and an approval chain it does not have is a control that
+  gets bypassed. So `owner` is required for the one thing that page says the owner does, approving
+  an exception, which here is a `decide` with `action: "release"` on a line that carries a finding.
+  Everything else, `POST /api/v1/run/:id/execute` included, is the clerk's own work, and a `role`
+  that is not allowed to do it is `403 forbidden`.
+- `Actor` is a name and a role and not a user account. SentryOne holds no credentials and no
+  session, because a product that asks a clerk to register before it can stop a bad payment is a
+  product nobody opens on a Thursday. A deployment that needs authentication puts it in front of
+  this API, and the header stays what the ledger records.
+- The actor reaches the ledger: `payment_sent`, `payment_cancelled`, `intake_image` and the
+  `assistant_message` of a person's turn all carry it, and `Decision.decidedBy` already did.
+
+### Confidence and state, on every instruction and on the run
+
+Two fields travel with every line of the run, every instruction detail and every assistant answer
+about one, and they are the vocabulary of the whole product: a level and a state.
+
+- `confidence` is `confiable`, `precaucion` or `alerta`, from `confidenceOf` in
+  `packages/core/src/levels.ts`. **Never a probability and never the word "seguro", in any
+  language.** The expected-loss arithmetic is an upper bound on the evidence and says so in its own
+  comment, so a figure like 0.73 next to a supplier's name would be a precision nobody earned, and
+  "safe" would be a guarantee nobody can give about a transfer that cannot be recalled. ADR-0009 is
+  binding on this and ADR-0002 is where it comes from.
+- `state` is `rojo`, `cancelado` or `enviado` on screen, from `transactionStateOf` in the same file,
+  plus the two the run has always counted internally: `pendiente` for a line nothing has decided and
+  `liberado` for a line nothing stops that has not been sent. The three public ones are the team
+  decision of 2026-09-12; the internal pair is what stops an honest answer being rounded to a
+  colour, because a line nobody has looked at is not green and a release on Wednesday is not
+  `enviado` until money leaves on Thursday.
+- Both are derived and neither is stored. The rule table is in ADR-0009, the two functions are pure,
+  and `0012_assistant_and_payment_events.sql` deliberately adds no column for either: a stored level
+  can disagree with the findings it was computed from and a derived one cannot. Same argument
+  `holdWindow` made for the deadline it never stores.
+- `confidence` always arrives with the findings behind it. `assessConfidence` answers
+  `{ level, rule, findingIds }`, the detail panel renders the finding and its evidence chips next to
+  the level, and a level with no evidence under it is not a thing this product shows.
+- The run carries them per line and in `totals`, as counts: `confiable`, `precaucion`, `alerta`,
+  and `rojo`, `cancelado`, `enviado`, `pendiente`, `liberado`. Counts and not an average, for the
+  reason `runMoney` gives for never summing an amount at risk inside a line.
 
 ### What a publication re-scores
 
@@ -198,6 +264,154 @@ keeps reconciled. Nothing downstream reads the probe as reconciliation evidence,
 RSA signature, and it refuses to run without `STP_*` configuration, so nothing here can
 pretend to be live. The CEP side is the same seam the pasted-XML path uses.
 
+### The assistant, and what it may not do
+
+`POST /api/v1/assistant/messages` is the panel Lupita types into, and it is the endpoint most able to
+become the thing ADR-0002 and ADR-0004 forbid, so the boundary is written out here and argued in
+ADR-0007.
+
+**What it is.** A reader and a proposer. It reads what the engine already computed, it answers in
+Spanish, and it ends a turn with at most one `ActionProposal`: the one-cent verification, the call,
+a decision, the run, or an intake. A person presses the button, the ordinary endpoint runs, and the
+ordinary ledger event is appended with their name on it.
+
+**What it is not.** It is not in the decision. No level, no action, no finding, no amount and no
+ranking on any screen of this product comes from a language model: `confidenceOf`,
+`transactionStateOf`, `decide` and the six controls are deterministic and unit-tested, which is the
+answer to "is this a wrapper around a language model" that can be given by running the suite rather
+than argued. A model that returned `alerta` would be a different product and a worse one.
+
+**The request.** `multipart/form-data` with `text`, an optional `sessionId` and zero or more `images`
+parts, or the same thing as JSON with base64 images. A new `sessionId` is minted when none is sent
+and comes back on the first event. Images are the reason the panel exists: the clerk drops the
+screenshot she already received on WhatsApp, and `intake_image` records the reference, the media type
+and who dropped it. The bytes are never on the ledger.
+
+**The stream.** `text/event-stream`, and five event names:
+
+| `event` | `data` | When |
+|---|---|---|
+| `token` | `{ text }` | the answer, as it is written |
+| `tool_call` | `AssistantToolCall` with no `result` | a read started |
+| `tool_result` | `AssistantToolCall` with `result` or `error` | that read answered |
+| `proposal` | `ActionProposal` | the turn offers an action, at most one |
+| `done` | `AssistantMessage` | the whole stored turn, which is what the session replays |
+
+**The tools are reads, and the type says so.** `AssistantTool` is the whole list (`get_run`,
+`get_instruction`, `get_verification`, `get_execution`, `get_receipt`, `sat_lookup`,
+`consortium_signal`) and `AssistantToolCall.readOnly` is the literal `true`, so a tool that writes
+cannot be expressed in the contract at all. `result` is `Record<string, EvidenceValue>`, the same
+evidence the finding panel renders as chips, so nothing a model wrote arrives dressed as a fact.
+
+**What leaves the perimeter.** The clerk's own sentence, the image she dropped, and the evidence of
+the findings the turn is about. Never the CFDI ledger, never a CLABE in full, never the bank mirror
+and never another company's data from the consortium, which only ever answers counts and dates about
+a hashed pair. `docs/06-regulatory-privacy.md` section 6.2.1 holds the extraction rule and ADR-0007
+holds this one.
+
+**Status codes.** `200` with the stream once the turn starts. `400 bad_request` for an empty `text`
+with no image, or an actor header that does not parse. `404 not_found` for a `sessionId` nobody
+holds. `422 unprocessable` on a server with no model configured, naming the variable: the panel is
+not the product, and a server without it still answers every other endpoint. `429 rate_limited` per
+client, like the lookup box.
+
+### The payment execution
+
+`POST /api/v1/run/:id/execute` is the one endpoint in this product that moves money that is not a
+cent, and `GET /api/v1/run/:id/execution` is how the screen follows it.
+
+**Nothing leaves without a person.** `confirm: true` in the body and a valid `X-Actor` are both
+required, and a line is sent only when nothing stops it: a `hold`, a `verify`, a `blocked`
+verification or a definitive SAT listing keeps it out, and `instructionIds` can only narrow the set
+further, never widen it past what the decisions allow. A request that names a held line is
+`409 conflict` and says which one, because silently dropping it would let a clerk believe they paid
+somebody they did not.
+
+**The response.** `202` and `text/event-stream`: on a real rail the transfer is acknowledged after
+the response is written, so the work is not finished when the status code is chosen. One
+`event: line` per payment carrying a `PaymentExecutionLine`, then one `event: done` carrying the
+whole `PaymentExecution`. Every one of them is also an ordinary ledger event on
+`GET /api/v1/events`, so a second screen watching the run moves with the first.
+
+**The five line states.** `queued` accepted and not yet sent, `sent` gone, `settled` acknowledged by
+the rail, `failed` refused with a sentence a clerk can act on, `cancelled` dropped before anything
+was sent. `sent` and `settled` are two different claims and this API never collapses them: a
+transfer is acknowledged when the rail says so and not when we asked.
+
+**Status codes.** `202` with the stream. `400` for a missing `confirm`. `403 forbidden` for a role
+that may not do it. `404` for a run nobody holds. `409` for a run already executed, or for a request
+naming a line the decisions stop. `503 service_unavailable` when this server has no rail, with the
+message `packages/rail` wrote, naming `RAIL`, `NESSIE_API_KEY` and the `STP_*` variables. On a `503`
+nothing is appended, because a `payment_sent` for a payment that never left is the one entry this
+ledger must not hold.
+
+**Which rail, and what that proves.** `RAIL=nessie` writes the run to the company's bank mirror,
+which is a sandbox and not a bank: no pesos move, no CEP is produced, and a receipt from that rail
+carries `sealState: "not_checked"` for the honest reason that there is no Banxico document to check.
+`RAIL=stp` is the rail that produces a signed CEP and it refuses to run without `STP_*`. The README
+in `packages/rail` says which one has run live, and `GET /api/v1/rails` answers the same thing over
+HTTP.
+
+### The receipt and the carta
+
+Two documents, one per payment and one per instruction, and both exist because the accountant files
+paper and reads it again when the SAT asks.
+
+- `GET /api/v1/payments/:id/receipt` answers the `PaymentReceipt` as JSON, and the same object as a
+  PDF on `Accept: application/pdf` or `?format=pdf`. It carries what left, to whom, under which clave
+  de rastreo, on which rail, against which CFDI, and who executed the run.
+- `GET /api/v1/instructions/:id/carta` is the one-page evidence letter of issue #196: the level and
+  the state, every finding with its evidence in plain Spanish, the decision, the name that signed it
+  and the reason they gave. It is the page a clerk attaches to an email when a supplier asks why the
+  payment has not arrived, which is why it is one page and not a constancia.
+- **The seal is `SealState` and never a boolean.** A receipt printed on a server with no
+  `BANXICO_CEP_CERT_PEM`, or for a rail that produces no CEP at all, says "firma no verificada", and
+  `valid` appears only when a sello actually validated. A document that claimed a seal nobody checked
+  would be the one lie that costs the most.
+- **Four digits, not eighteen.** The beneficiary account on a receipt is `beneficiaryAccountLast4`. A
+  document that leaves the building does not need the rest, which is the same rule the `cent_sent`
+  ledger event and the verification call already follow.
+- Headers and the digest are the ones "The constancias" above already sets: `application/pdf`,
+  `Content-Disposition: inline` with a filename, `Cache-Control: no-store`, the SHA-256 huella of the
+  ledger range with the sentence that it is not an electronic signature, and the synthetic watermark
+  from `synthetic: true` on the record.
+- A payment or an instruction this instance never held is `404 not_found`. A receipt for something
+  that does not exist would be a fabricated document.
+
+### Which rails this server holds
+
+`GET /api/v1/rails` answers `{ active, rails, message? }`, and it exists so a screen can say which
+rail is live without reading an environment file it cannot see.
+
+- `active` is the `RailId` this process resolved, or `null`. `message` is present only when it is
+  `null` or when `RAIL` names something this build does not have, and it is the sentence
+  `packages/rail/src/resolve.ts` already writes for each case.
+- `rails` is one row per rail this build has: `{ id, configured, producesCep, live, detail }`.
+  `configured` is whether the variables exist and **never what they contain**: no key, no account, no
+  fingerprint. `producesCep` is false for `nessie` and true for `stp`. `live` is whether that rail has
+  ever actually moved money from this repository, read off the README in `packages/rail`, so a screen
+  cannot claim the production path has run when it has not.
+- No secret is ever in this payload. That is the whole reason it is a separate endpoint rather than a
+  field on `/health` that somebody extends without thinking.
+
+### Health, and what it may not check
+
+`GET /health` stays liveness and grows a block that says what this instance was configured with.
+
+- `{ ok: true, service, version, dependencies }`. `ok` is liveness and it is `true` whenever the
+  process can answer, because a load balancer that restarts the container when the Banxico portal is
+  slow takes the demo down for a reason that has nothing to do with the demo.
+- `dependencies` is one row per capability: `database`, `nessie`, `rail`, `consortium`, `cep`,
+  `extraction` and `voice`, each `{ configured, state, detail?, checkedAt }` with `state` one of `up`,
+  `down` and `not_configured`. `not_configured` is a statement about this deployment and is never
+  reported as a failure, which is the same distinction `503 service_unavailable` draws against `403`.
+- **It may not touch the network.** No Nessie call, no Banxico fetch, no Snowflake query: a health
+  check that depends on a third party is a health check that lies at 04:00, which is what the route
+  comment in `apps/api/src/routes/health.ts` has said since the first day. `database` is the one
+  dependency that may be probed, with a bounded `select 1`, and it reports `down` with a sentence
+  rather than hanging.
+- No secret, no connection string, no key fingerprint. `configured` is a boolean.
+
 ### The consortium, and what the network can say
 
 `GET /api/v1/consortium/signal?rfc=&clabe=` is the second endpoint able to make a claim it has not
@@ -268,7 +482,9 @@ Two endpoints answer with a PDF rather than JSON, because the accountant files t
 
 ## Streaming
 
-`GET /api/v1/events` is Server-Sent Events. Every appended `LedgerEvent` is pushed as `event: ledger`, so the payment-run screen and the sweep animation update without polling. That includes `cent_sent` and `cep_awaited`: the verification is not on a private channel, and the screen re-reads `GET /api/v1/instructions/:id/verification` whenever an event names that instruction.
+`GET /api/v1/events` is Server-Sent Events. Every appended `LedgerEvent` is pushed as `event: ledger`, so the payment-run screen and the sweep animation update without polling. That includes `cent_sent` and `cep_awaited`: the verification is not on a private channel, and the screen re-reads `GET /api/v1/instructions/:id/verification` whenever an event names that instruction. It also includes the five kinds of issues #195 and #196: `payment_sent`, `payment_settled`, `payment_failed`, `payment_cancelled` and `assistant_message`, so a second screen watching the run moves with the first one and the timeline holds the conversation next to the payments it is about.
+
+Three endpoints stream on their own connection rather than through that one, because each of them is one piece of work a caller started and is waiting on: `POST /api/v1/assistant/messages` (`token`, `tool_call`, `tool_result`, `proposal`, `done`), `POST /api/v1/run/:id/execute` (`line` per payment, then `done`), and `POST /api/v1/instructions/:id/verify-account`, which answers `202` with the state it reached and leaves the rest to the ledger channel. What those two new streams push is also appended to the ledger, so nothing is only visible to whoever happened to hold the connection.
 
 ## Curl a judge can paste
 
@@ -304,7 +520,26 @@ jq -Rs '{xml: ., supplierRfc: "SYN201123S23"}' packages/cep/src/fixtures/synthet
 # until somebody presses the button.
 curl -s https://<host>/api/v1/instructions/INS-2026-09-07-047/verification | jq
 curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-account \
+  -H 'x-actor: role=clerk; name=Lupita Elizondo' \
   | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
+# Which rails this server holds, and which of them has ever moved money. No secret in it.
+curl -s https://<host>/api/v1/rails | jq '{active, rails: [.rails[] | {id, configured, producesCep, live}]}'
+# What the instance was configured with. Never a key, and never a network call.
+curl -s https://<host>/health | jq '{ok, version, dependencies}'
+# The level and the state of every line of the run, which is the vocabulary of the whole product.
+curl -s https://<host>/api/v1/run/current \
+  | jq '[.items[] | {id: .instruction.id, confidence, state, action: .decision.action}] | .[0:5]'
+# The assistant. It reads, it answers and it proposes: the stream carries the reads as tool_result
+# and the offer as proposal, and nothing is written but the conversation until somebody clicks.
+curl -sN -X POST https://<host>/api/v1/assistant/messages \
+  -H 'content-type: application/json' -H 'x-actor: role=clerk; name=Lupita Elizondo' \
+  -d '{"text":"Por que esta en rojo el pago de INS-2026-09-07-047?"}'
+# The run leaving on the rail. confirm and the actor are both required, the stream carries one
+# line per payment, and a held line is refused with a 409 rather than quietly dropped.
+curl -sN -X POST https://<host>/api/v1/run/current/execute \
+  -H 'content-type: application/json' -H 'x-actor: role=clerk; name=Lupita Elizondo' \
+  -d '{"confirm":true}'
+curl -s https://<host>/api/v1/run/current/execution | jq '.totals'
 ```
 
 ## Where the SAT rows a control sees come from

@@ -40,6 +40,8 @@ export const SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION =
 export const CONSORTIUM_SNAPSHOT_MIGRATION = "0009_consortium_snapshot.sql";
 export const RAIL_EVENTS_MIGRATION = "0010_rail_events.sql";
 export const DECISION_REASON_MIGRATION = "0011_decision_reason.sql";
+export const ASSISTANT_PAYMENT_EVENTS_MIGRATION =
+  "0012_assistant_and_payment_events.sql";
 
 /** Resolved from this file, so the runner works from any working directory. */
 export const MIGRATIONS_DIR = `${import.meta.dir}/../migrations`;
@@ -67,6 +69,7 @@ export const MIGRATIONS: readonly MigrationSpec[] = [
   { file: CONSORTIUM_SNAPSHOT_MIGRATION, requiresTimescale: false },
   { file: RAIL_EVENTS_MIGRATION, requiresTimescale: false },
   { file: DECISION_REASON_MIGRATION, requiresTimescale: false },
+  { file: ASSISTANT_PAYMENT_EVENTS_MIGRATION, requiresTimescale: false },
   { file: TIMESCALE_MIGRATION, requiresTimescale: true },
   { file: SENTRYONE_TIMESCALE_MIGRATION, requiresTimescale: true },
   { file: SUPPLIER_OUTFLOW_TIMESCALE_MIGRATION, requiresTimescale: true },

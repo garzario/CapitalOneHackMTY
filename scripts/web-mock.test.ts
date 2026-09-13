@@ -37,6 +37,23 @@ import {
   SAT_VERSIONS,
   SUPPLIERS,
 } from "../apps/web/src/lib/mock.ts";
+/* The generated file itself, for the blocks `mock.ts` does not re-export. This is
+   the file under test, so reading it directly is the point rather than a shortcut. */
+import {
+  ACTOR,
+  ASSISTANT_SESSION,
+  EXECUTION,
+  INTAKE_EXAMPLE,
+  LEVELS_BY_INSTRUCTION,
+  RECEIPTS,
+  VERIFICATIONS,
+} from "../apps/web/src/lib/mock-data.ts";
+import {
+  confidenceOf,
+  executionLineOf,
+  sumAmounts,
+  transactionStateOf,
+} from "../packages/core/src/index.ts";
 import {
   datasetForWeek,
   MOCK_SEED,
@@ -305,5 +322,211 @@ describe("the API and the offline fallback", () => {
 
   test("name the same list versions", async () => {
     expect(SAT_VERSIONS).toEqual(await api.satVersions());
+  });
+});
+
+/**
+ * The four blocks issues #195 and #196 added to the offline run.
+ *
+ * They are asserted against the same sources the generator derived them from, and
+ * never against a copy of the expectation: the levels against the two pure functions
+ * in `@hackmty/core` over the API's own run, the execution against the decisions and
+ * the verifications, the receipts against the lines that left, and the conversation
+ * against the vocabulary ADR-0009 makes binding.
+ */
+describe("the level, the state, the execution and the conversation", () => {
+  test("carry the documented persona as the actor, with her role", async () => {
+    /* `docs/02-persona.md` names her. A second persona invented here would be a
+       name on a ledger event that no document backs. */
+    expect(ACTOR).toEqual({ name: "Lupita Elizondo", role: "clerk" });
+    expect(EXECUTION.startedBy).toEqual(ACTOR);
+    expect(ASSISTANT_SESSION.actor).toEqual(ACTOR);
+    for (const receipt of RECEIPTS) {
+      expect(receipt.executedBy).toEqual(ACTOR);
+    }
+  });
+
+  test("read the same level and the same state the API would derive", async () => {
+    const run = await api.currentRun();
+
+    expect(Object.keys(LEVELS_BY_INSTRUCTION)).toHaveLength(run.items.length);
+
+    for (const item of run.items) {
+      const here = LEVELS_BY_INSTRUCTION[item.instruction.id];
+
+      expect(here?.confidence).toBe(confidenceOf(item.findings, item.decision));
+      expect(here?.state).toBe(
+        transactionStateOf(
+          item.decision,
+          VERIFICATIONS.find(
+            (row) => row.instructionId === item.instruction.id,
+          ),
+          executionLineOf(EXECUTION, item.instruction.id),
+        ),
+      );
+    }
+  });
+
+  test("never answer a level outside the three ADR-0009 allows", () => {
+    for (const level of Object.values(LEVELS_BY_INSTRUCTION)) {
+      expect(["confiable", "precaucion", "alerta"]).toContain(level.confidence);
+      expect([
+        "rojo",
+        "cancelado",
+        "enviado",
+        "pendiente",
+        "liberado",
+      ]).toContain(level.state);
+    }
+  });
+
+  test("execute only the lines nothing stopped", async () => {
+    /* The rule `POST /api/v1/run/:id/execute` enforces. An offline execution that
+       carried a held payment would be a screen the API cannot produce. */
+    const run = await api.currentRun();
+    const actionOf = new Map(
+      run.items.map((item) => [item.instruction.id, item.decision?.action]),
+    );
+
+    expect(EXECUTION.runId).toBe(run.id);
+    expect(EXECUTION.lines.length).toBeGreaterThan(0);
+
+    for (const line of EXECUTION.lines) {
+      expect(actionOf.get(line.instructionId)).toBe("release");
+    }
+    const executed = new Set(EXECUTION.lines.map((line) => line.instructionId));
+    for (const item of run.items) {
+      if (item.decision?.action !== "release") {
+        expect(executed.has(item.instruction.id)).toBe(false);
+      }
+    }
+  });
+
+  test("add up: the five state buckets decompose the run exactly", () => {
+    const { totals, lines } = EXECUTION;
+
+    expect(totals.lines).toBe(lines.length);
+    expect(
+      sumAmounts([
+        totals.queuedAmount,
+        totals.sentAmount,
+        totals.settledAmount,
+        totals.failedAmount,
+        totals.cancelledAmount,
+      ]),
+    ).toBe(totals.amount);
+    expect(
+      totals.queued +
+        totals.sent +
+        totals.settled +
+        totals.failed +
+        totals.cancelled,
+    ).toBe(totals.lines);
+    expect(totals.amount).toBe(sumAmounts(lines.map((line) => line.amount)));
+  });
+
+  test("pay the amount the instruction says, to the account it names", async () => {
+    /* ADR-0008: a rail sends what SentryOne already holds and nothing else. The
+       amount and the last four digits are the two halves of that claim. */
+    const run = await api.currentRun();
+    const itemOf = new Map(
+      run.items.map((item) => [item.instruction.id, item]),
+    );
+
+    for (const line of EXECUTION.lines) {
+      expect(line.amount).toBe(
+        itemOf.get(line.instructionId)?.instruction.amount,
+      );
+    }
+    for (const receipt of RECEIPTS) {
+      const item = itemOf.get(receipt.instructionId);
+
+      expect(receipt.amount).toBe(item?.instruction.amount);
+      expect(receipt.beneficiaryAccountLast4).toBe(
+        item?.instruction.clabe.slice(-4),
+      );
+      expect(receipt.beneficiaryName).toBe(item?.supplier.legalName);
+      expect(receipt.cfdiUuids).toEqual(item?.instruction.cfdiUuids ?? []);
+    }
+  });
+
+  test("hold one receipt per line that left, and none for a line that did not", () => {
+    const left = EXECUTION.lines.filter(
+      (line) => line.state === "sent" || line.state === "settled",
+    );
+    const byId = new Map(RECEIPTS.map((receipt) => [receipt.id, receipt]));
+
+    expect(RECEIPTS).toHaveLength(left.length);
+
+    for (const line of left) {
+      expect(line.receiptId).toBeDefined();
+      expect(byId.get(line.receiptId ?? "")?.claveRastreo).toBe(
+        line.claveRastreo,
+      );
+    }
+    for (const line of EXECUTION.lines) {
+      if (line.state !== "sent" && line.state !== "settled") {
+        expect(line.receiptId).toBeUndefined();
+        // A line that did not leave says why, in a sentence a clerk can act on.
+        expect(line.reason?.length ?? 0).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("claim no seal nobody checked, and never eighteen digits", () => {
+    /* The mirror publishes no CEP, so there is nothing to verify and the receipt
+       says so. `valid` here would be the one lie that costs the most. */
+    for (const receipt of RECEIPTS) {
+      expect(receipt.sealState).toBe("not_checked");
+      expect(receipt.cepAt).toBeUndefined();
+      expect(receipt.beneficiaryAccountLast4).toHaveLength(4);
+      expect(receipt.synthetic).toBe(true);
+    }
+  });
+
+  test("hold three turns: a question, a read and a proposal", () => {
+    const [question, answer, offer] = ASSISTANT_SESSION.messages;
+
+    expect(ASSISTANT_SESSION.messages).toHaveLength(3);
+    expect(question?.author).toBe("clerk");
+    expect(question?.actor).toEqual(ACTOR);
+    expect(answer?.author).toBe("assistant");
+    expect(answer?.toolCalls?.[0]?.readOnly).toBe(true);
+    expect(
+      Object.keys(answer?.toolCalls?.[0]?.result ?? {}).length,
+    ).toBeGreaterThan(0);
+    expect(offer?.proposal?.kind).toBe("verify_account");
+    expect(offer?.proposal?.requiresRole).toBe("clerk");
+  });
+
+  test("quote the engine rather than inventing a reason", async () => {
+    /* ADR-0007: the assistant reads and proposes. The answer is the finding's own
+       explanation plus the level, so nothing in the panel asserts anything the
+       deterministic side did not. */
+    const instructionId = ASSISTANT_SESSION.messages[0]?.instructionId ?? "";
+    const detail = await api.instructionDetail(instructionId);
+    const answer = ASSISTANT_SESSION.messages[1];
+    const level = LEVELS_BY_INSTRUCTION[instructionId];
+
+    expect(detail).toBeDefined();
+    expect(answer?.text).toContain(INTAKE_EXAMPLE.findings[0]?.explanation);
+    expect(answer?.text).toContain(level?.confidence ?? "");
+    expect(answer?.toolCalls?.[0]?.result).toEqual(
+      INTAKE_EXAMPLE.decision.findings[0]?.evidence ?? {},
+    );
+  });
+
+  test("say no probability and never the word ADR-0009 forbids", () => {
+    const sentences = ASSISTANT_SESSION.messages.flatMap((message) => [
+      message.text,
+      message.proposal?.summary ?? "",
+    ]);
+
+    for (const sentence of sentences) {
+      expect(sentence.toLowerCase()).not.toContain("seguro");
+      expect(sentence.toLowerCase()).not.toContain("segura");
+      expect(sentence).not.toMatch(/\d\s?%/);
+      expect(sentence.toLowerCase()).not.toContain("probabilidad");
+    }
   });
 });

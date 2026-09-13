@@ -8,7 +8,9 @@
  * what is deliberately not one for one with the API.
  *
  * 44 suppliers, 92 instructions, 7 findings, and the 156 invoices of
- * the company's 4103 that a screen of this app can reach.
+ * the company's 4103 that a screen of this app can reach. The run also carries its
+ * level and its state per line, the 86 lines the rail was handed, the 84 receipts
+ * that came back, and one assistant session of three turns.
  *
  * Every object here carries `synthetic: true` where the domain has the flag,
  * and every RFC is synthetic, because ADR-0002 makes the watermark a property of
@@ -18,18 +20,24 @@
  */
 
 import type {
+  Actor,
+  AssistantSession,
   Cep,
   Cfdi,
+  Confidence,
   Decision,
   Finding,
   Metrics,
   NameMatch,
   PaymentComplement,
+  PaymentExecution,
   PaymentInstruction,
+  PaymentReceipt,
   Rfc,
   SatListEntry,
   Supplier,
   SweepResult,
+  TransactionState,
   VerificationState,
 } from "@hackmty/core";
 import type { PaymentRunTotals, SatVersion } from "./contract";
@@ -960,6 +968,1391 @@ export const VERIFICATIONS: readonly VerificationState[] = [
   {"instructionId":"INS-2026-09-07-084","state":"blocked","rail":"nessie","claveRastreo":"SYNVERINS20260907084","centSentAt":"2026-09-11T02:21:00.000Z","cepAt":"2026-09-11T02:59:00.000Z","sealState":"not_checked","holderName":"Maquinados Industriales Regios SA de CV","legalName":"Aceros Inoxidables del Poniente SA de CV","nameMatch":"mismatch","decision":{"instructionId":"INS-2026-09-07-084","action":"verify","expectedLoss":136691.62,"delayCostPerDay":1914.62,"findings":[{"id":"cep:SYNVERINS20260907084:SYN150618S18","detector":"beneficiary_cep","severity":"critical","state":"requiere_verificacion","subject":{"kind":"instruction","id":"INS-2026-09-07-084"},"amountAtRisk":227819.37,"explanation":"El CEP SYNVERINS20260907084 dice que la cuenta 014180101559998371 esta a nombre de Maquinados Industriales Regios SA de CV y la factura la emite Aceros Inoxidables del Poniente SA de CV. El sello de Banxico no se ha podido verificar todavia, lo cual no quiere decir que sea invalido. La red SentryOne no se consulto para este pago, asi que la decision es la misma que sin red.","evidence":{"claveRastreo":"SYNVERINS20260907084","beneficiaryAccount":"014180101559998371","beneficiaryName":"Maquinados Industriales Regios SA de CV","legalName":"Aceros Inoxidables del Poniente SA de CV","nameMatch":"mismatch","beneficiaryBank":"SANTANDER","transferredAt":"2026-09-10T20:21:00-06:00","signatureValid":false,"signatureState":"not_checked","network":{"source":"not_consulted","tenants":0,"fraudReports":0,"otherAccounts":0},"networkVerdict":"not_consulted","networkAdjustment":1,"signatureReason":"not_checked","numeroCertificado":"00000100000100099999"},"createdAt":"2026-09-10T15:00:00.000Z"}],"decidedAt":"2026-09-11T02:59:00.000Z","decidedBy":"system"},"updatedAt":"2026-09-11T02:59:00.000Z"},
   {"instructionId":"INS-2026-09-07-032","state":"released","rail":"nessie","claveRastreo":"SYNVERINS20260907032","centSentAt":"2026-09-08T22:15:00.000Z","cepAt":"2026-09-08T22:53:00.000Z","sealState":"not_checked","holderName":"Recubrimientos Ceramicos de Pesqueria SA de CV","legalName":"Recubrimientos Ceramicos de Pesqueria SA de CV","nameMatch":"match","decision":{"instructionId":"INS-2026-09-07-032","action":"release","expectedLoss":2324.64,"delayCostPerDay":4611.27,"findings":[{"id":"duplicate_invoice:same_amount_window:3e002385-4112-46a0-aea0-f28e6b262121","detector":"duplicate_invoice","severity":"warning","state":"requiere_verificacion","subject":{"kind":"cfdi","id":"3e002385-4112-46a0-aea0-f28e6b262121"},"amountAtRisk":13920,"explanation":"Recubrimientos Ceramicos de Pesqueria SA de CV tiene otra factura por exactamente 13,920.00 MXN a 5.98 dias de esta: 2026-08-04 y 2026-08-10. Puede ser un servicio recurrente o el mismo cobro dos veces, hay que confirmarlo con el proveedor.","evidence":{"rule":"same_amount_window","issuerRfc":"SYN260401R43","uuid":"3e002385-4112-46a0-aea0-f28e6b262121","folio":"66","originalUuid":"bca72ef6-e8c2-46bf-bbcc-b931e8c268d4","originalIssuedAt":"2026-08-04T14:40:00.000Z","originalFolio":"74","candidateIssuedAt":"2026-08-10T14:18:00.000Z","daysApart":5.98,"windowDays":7,"total":13920},"createdAt":"2026-09-10T15:00:00.000Z"},{"id":"cep:SYNVERINS20260907032:SYN260401R43","detector":"beneficiary_cep","severity":"info","state":"requiere_verificacion","subject":{"kind":"instruction","id":"INS-2026-09-07-032"},"amountAtRisk":0,"explanation":"El CEP SYNVERINS20260907032 confirma que la cuenta 021180043000000432 esta a nombre de Recubrimientos Ceramicos de Pesqueria SA de CV, que es la razon social de la factura. El sello de Banxico no se ha podido verificar todavia, lo cual no quiere decir que sea invalido. La red SentryOne no se consulto para este pago, asi que la decision es la misma que sin red.","evidence":{"claveRastreo":"SYNVERINS20260907032","beneficiaryAccount":"021180043000000432","beneficiaryName":"Recubrimientos Ceramicos de Pesqueria SA de CV","legalName":"Recubrimientos Ceramicos de Pesqueria SA de CV","nameMatch":"match","beneficiaryBank":"HSBC","transferredAt":"2026-09-08T16:15:00-06:00","signatureValid":false,"signatureState":"not_checked","network":{"source":"not_consulted","tenants":0,"fraudReports":0,"otherAccounts":0},"networkVerdict":"not_consulted","networkAdjustment":1,"signatureReason":"not_checked","numeroCertificado":"00000100000100099999"},"createdAt":"2026-09-10T15:00:00.000Z"}],"decidedAt":"2026-09-08T22:53:00.000Z","decidedBy":"system"},"updatedAt":"2026-09-08T22:53:00.000Z"},
 ];
+
+/**
+ * Who is acting in this run.
+ *
+ * `docs/02-persona.md` names her and fixes her role, and every write in this
+ * product carries an actor on the `X-Actor` header so the append-only ledger can
+ * answer "who". The offline run has one, because a screen that shows an execution
+ * with no name against it is showing something the API cannot produce.
+ */
+export const ACTOR: Actor = {
+  "name": "Lupita Elizondo",
+  "role": "clerk"
+};
+
+/**
+ * The level and the state of every line, by instruction id.
+ *
+ * Derived by `confidenceOf` and `transactionStateOf` in `@hackmty/core`, the same
+ * two pure functions the API calls, so the offline run reads the same level as the
+ * API for the same line. Three levels and never a probability, three public states
+ * plus the two the run counts internally: ADR-0009 carries the rule table.
+ *
+ * Recomputed in the browser after a local decision, exactly like `TOTALS`: a
+ * stored level goes stale the moment the offline path decides something.
+ */
+export const LEVELS_BY_INSTRUCTION: Readonly<
+  Record<string, { confidence: Confidence; state: TransactionState }>
+> = {
+  "INS-2026-09-07-001": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-002": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-003": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-004": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-005": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-006": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-007": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-008": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-009": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-010": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-011": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-012": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-013": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-014": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-015": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-016": {
+    "confidence": "alerta",
+    "state": "rojo"
+  },
+  "INS-2026-09-07-017": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-018": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-019": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-020": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-021": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-022": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-023": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-024": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-025": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-026": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-027": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-028": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-029": {
+    "confidence": "alerta",
+    "state": "rojo"
+  },
+  "INS-2026-09-07-030": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-031": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-032": {
+    "confidence": "precaucion",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-033": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-034": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-035": {
+    "confidence": "confiable",
+    "state": "liberado"
+  },
+  "INS-2026-09-07-036": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-037": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-038": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-039": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-040": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-041": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-042": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-043": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-044": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-045": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-046": {
+    "confidence": "precaucion",
+    "state": "rojo"
+  },
+  "INS-2026-09-07-047": {
+    "confidence": "alerta",
+    "state": "rojo"
+  },
+  "INS-2026-09-07-048": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-049": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-050": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-051": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-052": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-053": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-054": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-055": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-056": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-057": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-058": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-059": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-060": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-061": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-062": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-063": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-064": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-065": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-066": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-067": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-068": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-069": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-070": {
+    "confidence": "alerta",
+    "state": "rojo"
+  },
+  "INS-2026-09-07-071": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-072": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-073": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-074": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-075": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-076": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-077": {
+    "confidence": "precaucion",
+    "state": "rojo"
+  },
+  "INS-2026-09-07-078": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-079": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-080": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-081": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-082": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-083": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-084": {
+    "confidence": "confiable",
+    "state": "cancelado"
+  },
+  "INS-2026-09-07-085": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-086": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-087": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-088": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-089": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-090": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-091": {
+    "confidence": "confiable",
+    "state": "enviado"
+  },
+  "INS-2026-09-07-092": {
+    "confidence": "confiable",
+    "state": "enviado"
+  }
+};
+
+/**
+ * What the run did on the rail: 86 lines of the 92, because a held payment,
+ * one waiting for a verification and one whose beneficiary came back blocked are
+ * not sent.
+ *
+ * Derived from the decisions and the one-cent verifications rather than chosen: the
+ * blocked line is `cancelled` with the two names the CEP comparison read, the line
+ * whose CEP agrees only in part is `queued`, the last line handed to the rail is
+ * `sent` because a rail acknowledges in its own time, and the rest are
+ * `settled`. No line is `failed`: nothing in this company produces a rail
+ * refusal, and inventing a bank error to fill a state would be inventing evidence.
+ */
+export const EXECUTION: PaymentExecution = {
+  "runId": "run-2026-09-07",
+  "lines": [
+    {
+      "instructionId": "INS-2026-09-07-001",
+      "state": "settled",
+      "amount": 5353.61,
+      "claveRastreo": "SYNRUNINS20260907001",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907001"
+    },
+    {
+      "instructionId": "INS-2026-09-07-002",
+      "state": "settled",
+      "amount": 3364.51,
+      "claveRastreo": "SYNRUNINS20260907002",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907002"
+    },
+    {
+      "instructionId": "INS-2026-09-07-003",
+      "state": "settled",
+      "amount": 2269.04,
+      "claveRastreo": "SYNRUNINS20260907003",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907003"
+    },
+    {
+      "instructionId": "INS-2026-09-07-004",
+      "state": "settled",
+      "amount": 17612.98,
+      "claveRastreo": "SYNRUNINS20260907004",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907004"
+    },
+    {
+      "instructionId": "INS-2026-09-07-005",
+      "state": "settled",
+      "amount": 2548.3,
+      "claveRastreo": "SYNRUNINS20260907005",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907005"
+    },
+    {
+      "instructionId": "INS-2026-09-07-006",
+      "state": "settled",
+      "amount": 1281.06,
+      "claveRastreo": "SYNRUNINS20260907006",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907006"
+    },
+    {
+      "instructionId": "INS-2026-09-07-007",
+      "state": "settled",
+      "amount": 2693,
+      "claveRastreo": "SYNRUNINS20260907007",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907007"
+    },
+    {
+      "instructionId": "INS-2026-09-07-008",
+      "state": "settled",
+      "amount": 4278.94,
+      "claveRastreo": "SYNRUNINS20260907008",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907008"
+    },
+    {
+      "instructionId": "INS-2026-09-07-009",
+      "state": "settled",
+      "amount": 7279.21,
+      "claveRastreo": "SYNRUNINS20260907009",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907009"
+    },
+    {
+      "instructionId": "INS-2026-09-07-010",
+      "state": "settled",
+      "amount": 10212.55,
+      "claveRastreo": "SYNRUNINS20260907010",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907010"
+    },
+    {
+      "instructionId": "INS-2026-09-07-011",
+      "state": "settled",
+      "amount": 100000,
+      "claveRastreo": "SYNRUNINS20260907011",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907011"
+    },
+    {
+      "instructionId": "INS-2026-09-07-012",
+      "state": "settled",
+      "amount": 5311.01,
+      "claveRastreo": "SYNRUNINS20260907012",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907012"
+    },
+    {
+      "instructionId": "INS-2026-09-07-013",
+      "state": "settled",
+      "amount": 5300.4,
+      "claveRastreo": "SYNRUNINS20260907013",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907013"
+    },
+    {
+      "instructionId": "INS-2026-09-07-014",
+      "state": "settled",
+      "amount": 3544.63,
+      "claveRastreo": "SYNRUNINS20260907014",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907014"
+    },
+    {
+      "instructionId": "INS-2026-09-07-015",
+      "state": "settled",
+      "amount": 1349.28,
+      "claveRastreo": "SYNRUNINS20260907015",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907015"
+    },
+    {
+      "instructionId": "INS-2026-09-07-017",
+      "state": "settled",
+      "amount": 57953.43,
+      "claveRastreo": "SYNRUNINS20260907017",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907017"
+    },
+    {
+      "instructionId": "INS-2026-09-07-018",
+      "state": "settled",
+      "amount": 9001.23,
+      "claveRastreo": "SYNRUNINS20260907018",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907018"
+    },
+    {
+      "instructionId": "INS-2026-09-07-019",
+      "state": "settled",
+      "amount": 3007.15,
+      "claveRastreo": "SYNRUNINS20260907019",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907019"
+    },
+    {
+      "instructionId": "INS-2026-09-07-020",
+      "state": "settled",
+      "amount": 6728,
+      "claveRastreo": "SYNRUNINS20260907020",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907020"
+    },
+    {
+      "instructionId": "INS-2026-09-07-021",
+      "state": "settled",
+      "amount": 8275.1,
+      "claveRastreo": "SYNRUNINS20260907021",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907021"
+    },
+    {
+      "instructionId": "INS-2026-09-07-022",
+      "state": "settled",
+      "amount": 4378.71,
+      "claveRastreo": "SYNRUNINS20260907022",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907022"
+    },
+    {
+      "instructionId": "INS-2026-09-07-023",
+      "state": "settled",
+      "amount": 3237.8,
+      "claveRastreo": "SYNRUNINS20260907023",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907023"
+    },
+    {
+      "instructionId": "INS-2026-09-07-024",
+      "state": "settled",
+      "amount": 2466.48,
+      "claveRastreo": "SYNRUNINS20260907024",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907024"
+    },
+    {
+      "instructionId": "INS-2026-09-07-025",
+      "state": "settled",
+      "amount": 9331.91,
+      "claveRastreo": "SYNRUNINS20260907025",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907025"
+    },
+    {
+      "instructionId": "INS-2026-09-07-026",
+      "state": "settled",
+      "amount": 3306.81,
+      "claveRastreo": "SYNRUNINS20260907026",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907026"
+    },
+    {
+      "instructionId": "INS-2026-09-07-027",
+      "state": "settled",
+      "amount": 1036.62,
+      "claveRastreo": "SYNRUNINS20260907027",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907027"
+    },
+    {
+      "instructionId": "INS-2026-09-07-028",
+      "state": "settled",
+      "amount": 3628.4,
+      "claveRastreo": "SYNRUNINS20260907028",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907028"
+    },
+    {
+      "instructionId": "INS-2026-09-07-030",
+      "state": "settled",
+      "amount": 15959.41,
+      "claveRastreo": "SYNRUNINS20260907030",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907030"
+    },
+    {
+      "instructionId": "INS-2026-09-07-031",
+      "state": "settled",
+      "amount": 29700.18,
+      "claveRastreo": "SYNRUNINS20260907031",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907031"
+    },
+    {
+      "instructionId": "INS-2026-09-07-032",
+      "state": "settled",
+      "amount": 100368.87,
+      "claveRastreo": "SYNRUNINS20260907032",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907032"
+    },
+    {
+      "instructionId": "INS-2026-09-07-033",
+      "state": "settled",
+      "amount": 2111.88,
+      "claveRastreo": "SYNRUNINS20260907033",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907033"
+    },
+    {
+      "instructionId": "INS-2026-09-07-034",
+      "state": "settled",
+      "amount": 12633.2,
+      "claveRastreo": "SYNRUNINS20260907034",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907034"
+    },
+    {
+      "instructionId": "INS-2026-09-07-035",
+      "state": "queued",
+      "amount": 235452.07,
+      "reason": "El CEP llego y el nombre del titular (ACEROS Y LAMINAS DEL NORT) coincide solo en parte con la factura, asi que la linea espera a que una persona lo resuelva."
+    },
+    {
+      "instructionId": "INS-2026-09-07-036",
+      "state": "settled",
+      "amount": 4780.85,
+      "claveRastreo": "SYNRUNINS20260907036",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907036"
+    },
+    {
+      "instructionId": "INS-2026-09-07-037",
+      "state": "settled",
+      "amount": 3975.82,
+      "claveRastreo": "SYNRUNINS20260907037",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907037"
+    },
+    {
+      "instructionId": "INS-2026-09-07-038",
+      "state": "settled",
+      "amount": 4617.18,
+      "claveRastreo": "SYNRUNINS20260907038",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907038"
+    },
+    {
+      "instructionId": "INS-2026-09-07-039",
+      "state": "settled",
+      "amount": 1566.31,
+      "claveRastreo": "SYNRUNINS20260907039",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907039"
+    },
+    {
+      "instructionId": "INS-2026-09-07-040",
+      "state": "settled",
+      "amount": 17561.32,
+      "claveRastreo": "SYNRUNINS20260907040",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907040"
+    },
+    {
+      "instructionId": "INS-2026-09-07-041",
+      "state": "settled",
+      "amount": 34588.87,
+      "claveRastreo": "SYNRUNINS20260907041",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907041"
+    },
+    {
+      "instructionId": "INS-2026-09-07-042",
+      "state": "settled",
+      "amount": 3221.21,
+      "claveRastreo": "SYNRUNINS20260907042",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907042"
+    },
+    {
+      "instructionId": "INS-2026-09-07-043",
+      "state": "settled",
+      "amount": 4888.81,
+      "claveRastreo": "SYNRUNINS20260907043",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907043"
+    },
+    {
+      "instructionId": "INS-2026-09-07-044",
+      "state": "settled",
+      "amount": 4974.4,
+      "claveRastreo": "SYNRUNINS20260907044",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907044"
+    },
+    {
+      "instructionId": "INS-2026-09-07-045",
+      "state": "settled",
+      "amount": 1297.91,
+      "claveRastreo": "SYNRUNINS20260907045",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907045"
+    },
+    {
+      "instructionId": "INS-2026-09-07-048",
+      "state": "settled",
+      "amount": 1382.88,
+      "claveRastreo": "SYNRUNINS20260907048",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907048"
+    },
+    {
+      "instructionId": "INS-2026-09-07-049",
+      "state": "settled",
+      "amount": 18545.44,
+      "claveRastreo": "SYNRUNINS20260907049",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907049"
+    },
+    {
+      "instructionId": "INS-2026-09-07-050",
+      "state": "settled",
+      "amount": 2610.85,
+      "claveRastreo": "SYNRUNINS20260907050",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907050"
+    },
+    {
+      "instructionId": "INS-2026-09-07-051",
+      "state": "settled",
+      "amount": 15523.55,
+      "claveRastreo": "SYNRUNINS20260907051",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907051"
+    },
+    {
+      "instructionId": "INS-2026-09-07-052",
+      "state": "settled",
+      "amount": 6624.18,
+      "claveRastreo": "SYNRUNINS20260907052",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907052"
+    },
+    {
+      "instructionId": "INS-2026-09-07-053",
+      "state": "settled",
+      "amount": 4094.17,
+      "claveRastreo": "SYNRUNINS20260907053",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907053"
+    },
+    {
+      "instructionId": "INS-2026-09-07-054",
+      "state": "settled",
+      "amount": 6642.13,
+      "claveRastreo": "SYNRUNINS20260907054",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907054"
+    },
+    {
+      "instructionId": "INS-2026-09-07-055",
+      "state": "settled",
+      "amount": 8379.87,
+      "claveRastreo": "SYNRUNINS20260907055",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907055"
+    },
+    {
+      "instructionId": "INS-2026-09-07-056",
+      "state": "settled",
+      "amount": 8313.99,
+      "claveRastreo": "SYNRUNINS20260907056",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907056"
+    },
+    {
+      "instructionId": "INS-2026-09-07-057",
+      "state": "settled",
+      "amount": 6325.36,
+      "claveRastreo": "SYNRUNINS20260907057",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907057"
+    },
+    {
+      "instructionId": "INS-2026-09-07-058",
+      "state": "settled",
+      "amount": 3901.98,
+      "claveRastreo": "SYNRUNINS20260907058",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907058"
+    },
+    {
+      "instructionId": "INS-2026-09-07-059",
+      "state": "settled",
+      "amount": 1396.42,
+      "claveRastreo": "SYNRUNINS20260907059",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907059"
+    },
+    {
+      "instructionId": "INS-2026-09-07-060",
+      "state": "settled",
+      "amount": 973.95,
+      "claveRastreo": "SYNRUNINS20260907060",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907060"
+    },
+    {
+      "instructionId": "INS-2026-09-07-061",
+      "state": "settled",
+      "amount": 2967.81,
+      "claveRastreo": "SYNRUNINS20260907061",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907061"
+    },
+    {
+      "instructionId": "INS-2026-09-07-062",
+      "state": "settled",
+      "amount": 62528.99,
+      "claveRastreo": "SYNRUNINS20260907062",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907062"
+    },
+    {
+      "instructionId": "INS-2026-09-07-063",
+      "state": "settled",
+      "amount": 26552.11,
+      "claveRastreo": "SYNRUNINS20260907063",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907063"
+    },
+    {
+      "instructionId": "INS-2026-09-07-064",
+      "state": "settled",
+      "amount": 1147.1,
+      "claveRastreo": "SYNRUNINS20260907064",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907064"
+    },
+    {
+      "instructionId": "INS-2026-09-07-065",
+      "state": "settled",
+      "amount": 4607.63,
+      "claveRastreo": "SYNRUNINS20260907065",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907065"
+    },
+    {
+      "instructionId": "INS-2026-09-07-066",
+      "state": "settled",
+      "amount": 12135.14,
+      "claveRastreo": "SYNRUNINS20260907066",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907066"
+    },
+    {
+      "instructionId": "INS-2026-09-07-067",
+      "state": "settled",
+      "amount": 1834.15,
+      "claveRastreo": "SYNRUNINS20260907067",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907067"
+    },
+    {
+      "instructionId": "INS-2026-09-07-068",
+      "state": "settled",
+      "amount": 4437.39,
+      "claveRastreo": "SYNRUNINS20260907068",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907068"
+    },
+    {
+      "instructionId": "INS-2026-09-07-069",
+      "state": "settled",
+      "amount": 10106.29,
+      "claveRastreo": "SYNRUNINS20260907069",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907069"
+    },
+    {
+      "instructionId": "INS-2026-09-07-071",
+      "state": "settled",
+      "amount": 2131.67,
+      "claveRastreo": "SYNRUNINS20260907071",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907071"
+    },
+    {
+      "instructionId": "INS-2026-09-07-072",
+      "state": "settled",
+      "amount": 5364.19,
+      "claveRastreo": "SYNRUNINS20260907072",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907072"
+    },
+    {
+      "instructionId": "INS-2026-09-07-073",
+      "state": "settled",
+      "amount": 3201.32,
+      "claveRastreo": "SYNRUNINS20260907073",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907073"
+    },
+    {
+      "instructionId": "INS-2026-09-07-074",
+      "state": "settled",
+      "amount": 3931.42,
+      "claveRastreo": "SYNRUNINS20260907074",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907074"
+    },
+    {
+      "instructionId": "INS-2026-09-07-075",
+      "state": "settled",
+      "amount": 1970.82,
+      "claveRastreo": "SYNRUNINS20260907075",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907075"
+    },
+    {
+      "instructionId": "INS-2026-09-07-076",
+      "state": "settled",
+      "amount": 49524.01,
+      "claveRastreo": "SYNRUNINS20260907076",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907076"
+    },
+    {
+      "instructionId": "INS-2026-09-07-078",
+      "state": "settled",
+      "amount": 4326.94,
+      "claveRastreo": "SYNRUNINS20260907078",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907078"
+    },
+    {
+      "instructionId": "INS-2026-09-07-079",
+      "state": "settled",
+      "amount": 12774.38,
+      "claveRastreo": "SYNRUNINS20260907079",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907079"
+    },
+    {
+      "instructionId": "INS-2026-09-07-080",
+      "state": "settled",
+      "amount": 19027.86,
+      "claveRastreo": "SYNRUNINS20260907080",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907080"
+    },
+    {
+      "instructionId": "INS-2026-09-07-081",
+      "state": "settled",
+      "amount": 2194.36,
+      "claveRastreo": "SYNRUNINS20260907081",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907081"
+    },
+    {
+      "instructionId": "INS-2026-09-07-082",
+      "state": "settled",
+      "amount": 11149.71,
+      "claveRastreo": "SYNRUNINS20260907082",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907082"
+    },
+    {
+      "instructionId": "INS-2026-09-07-083",
+      "state": "settled",
+      "amount": 2885.98,
+      "claveRastreo": "SYNRUNINS20260907083",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907083"
+    },
+    {
+      "instructionId": "INS-2026-09-07-084",
+      "state": "cancelled",
+      "amount": 227819.37,
+      "reason": "El CEP de la verificacion nombra a Maquinados Industriales Regios SA de CV y la factura a Aceros Inoxidables del Poniente SA de CV, asi que la linea no salio en esta corrida."
+    },
+    {
+      "instructionId": "INS-2026-09-07-085",
+      "state": "settled",
+      "amount": 1768.94,
+      "claveRastreo": "SYNRUNINS20260907085",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907085"
+    },
+    {
+      "instructionId": "INS-2026-09-07-086",
+      "state": "settled",
+      "amount": 15705.74,
+      "claveRastreo": "SYNRUNINS20260907086",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907086"
+    },
+    {
+      "instructionId": "INS-2026-09-07-087",
+      "state": "settled",
+      "amount": 997.6,
+      "claveRastreo": "SYNRUNINS20260907087",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907087"
+    },
+    {
+      "instructionId": "INS-2026-09-07-088",
+      "state": "settled",
+      "amount": 6345.91,
+      "claveRastreo": "SYNRUNINS20260907088",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907088"
+    },
+    {
+      "instructionId": "INS-2026-09-07-089",
+      "state": "settled",
+      "amount": 11442.32,
+      "claveRastreo": "SYNRUNINS20260907089",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907089"
+    },
+    {
+      "instructionId": "INS-2026-09-07-090",
+      "state": "settled",
+      "amount": 5813.64,
+      "claveRastreo": "SYNRUNINS20260907090",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907090"
+    },
+    {
+      "instructionId": "INS-2026-09-07-091",
+      "state": "settled",
+      "amount": 22029.68,
+      "claveRastreo": "SYNRUNINS20260907091",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907091"
+    },
+    {
+      "instructionId": "INS-2026-09-07-092",
+      "state": "sent",
+      "amount": 5035.21,
+      "claveRastreo": "SYNRUNINS20260907092",
+      "rail": "nessie",
+      "sentAt": "2026-09-10T16:30:00.000Z",
+      "receiptId": "REC-SYNRUNINS20260907092"
+    }
+  ],
+  "totals": {
+    "lines": 86,
+    "queued": 1,
+    "sent": 1,
+    "settled": 83,
+    "failed": 0,
+    "cancelled": 1,
+    "amount": 1388920.9,
+    "queuedAmount": 235452.07,
+    "sentAmount": 5035.21,
+    "settledAmount": 920614.25,
+    "failedAmount": 0,
+    "cancelledAmount": 227819.37
+  },
+  "startedBy": {
+    "name": "Lupita Elizondo",
+    "role": "clerk"
+  },
+  "startedAt": "2026-09-10T16:30:00.000Z",
+  "updatedAt": "2026-09-10T16:34:00.000Z"
+};
+
+/**
+ * One receipt per line that left, which is the document a clerk opens from any row
+ * of the executed run.
+ *
+ * `sealState` is `not_checked` on every one of them, and that is the honest
+ * answer on this rail rather than a gap: the Nessie mirror is a sandbox, it is not a
+ * SPEI participant, and there is no Banxico document to check. The beneficiary
+ * account is four digits, because a document that leaves the building does not need
+ * the other fourteen.
+ */
+export const RECEIPTS: readonly PaymentReceipt[] = [
+  {"id":"REC-SYNRUNINS20260907001","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-001","claveRastreo":"SYNRUNINS20260907001","rail":"nessie","amount":5353.61,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN201123S23","beneficiaryName":"Tratamientos Termicos del Norte S de RL de CV","beneficiaryAccountLast4":"1425","beneficiaryBank":"SANTANDER","cfdiUuids":["e8193f26-92f4-4319-b2c9-a72fe2e3e427"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907002","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-002","claveRastreo":"SYNRUNINS20260907002","rail":"nessie","amount":3364.51,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN000428S28","beneficiaryName":"Servicios de Pintura Industrial Regia SA de CV","beneficiaryAccountLast4":"4473","beneficiaryBank":"AZTECA","cfdiUuids":["d90515b2-0375-434a-ab27-9e97a3488551"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907003","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-003","claveRastreo":"SYNRUNINS20260907003","rail":"nessie","amount":2269.04,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN180921S21","beneficiaryName":"Bandas y Transmisiones del Noreste SA de CV","beneficiaryAccountLast4":"2201","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["15f5c65d-4ab4-4129-93a6-ddbbf4503129"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907004","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-004","claveRastreo":"SYNRUNINS20260907004","rail":"nessie","amount":17612.98,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN990202S02","beneficiaryName":"Maquinados Industriales Regios SA de CV","beneficiaryAccountLast4":"4613","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["16f95305-4010-489b-82c0-2312b3e6b006"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907005","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-005","claveRastreo":"SYNRUNINS20260907005","rail":"nessie","amount":2548.3,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN110214S14","beneficiaryName":"Equipo de Proteccion Industrial del Norte SA de CV","beneficiaryAccountLast4":"9932","beneficiaryBank":"SCOTIABANK","cfdiUuids":["58d1907c-b5d1-478b-a026-0773af99a34a"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907006","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-006","claveRastreo":"SYNRUNINS20260907006","rail":"nessie","amount":1281.06,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN091212S12","beneficiaryName":"Empaques y Tarimas del Noreste SA de CV","beneficiaryAccountLast4":"0719","beneficiaryBank":"BANAMEX","cfdiUuids":["7902b726-c8c0-40b7-9aab-36769f8d2261"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907007","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-007","claveRastreo":"SYNRUNINS20260907007","rail":"nessie","amount":2693,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN091212S12","beneficiaryName":"Empaques y Tarimas del Noreste SA de CV","beneficiaryAccountLast4":"0719","beneficiaryBank":"BANAMEX","cfdiUuids":["f46f93c3-5ea4-4ec7-bfaf-5b18c1df347f","1db52c0e-57c1-4a54-9878-4cf41448ef21"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907008","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-008","claveRastreo":"SYNRUNINS20260907008","rail":"nessie","amount":4278.94,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN040707S07","beneficiaryName":"Tornilleria y Sujetadores Apodaca SA de CV","beneficiaryAccountLast4":"7661","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["2a21943a-66a1-4d20-8c93-2ac0af31f169","e049e1ab-5bed-4bc0-8c7d-9d52ef22300c"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907009","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-009","claveRastreo":"SYNRUNINS20260907009","rail":"nessie","amount":7279.21,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN160719S19","beneficiaryName":"Galvanizados Pesqueria SA de CV","beneficiaryAccountLast4":"2983","beneficiaryBank":"BANAMEX","cfdiUuids":["a7a63bdc-b05d-4d30-bf45-8f411d6af22b"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907010","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-010","claveRastreo":"SYNRUNINS20260907010","rail":"nessie","amount":10212.55,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN020505S05","beneficiaryName":"Soldaduras y Montajes Escobedo SA de CV","beneficiaryAccountLast4":"8446","beneficiaryBank":"SANTANDER","cfdiUuids":["880a4e15-cd59-47ff-b5c5-48b208913fab","d60b78a2-3a84-407d-8b38-914b8ffe90c9"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907011","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-011","claveRastreo":"SYNRUNINS20260907011","rail":"nessie","amount":100000,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN120412S40","beneficiaryName":"Fundicion de Aluminio Garcia SA de CV","beneficiaryAccountLast4":"9797","beneficiaryBank":"BANAMEX","cfdiUuids":["74c87066-a7d2-4b1d-92a9-5b46cbea6752"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907012","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-012","claveRastreo":"SYNRUNINS20260907012","rail":"nessie","amount":5311.01,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN010501S29","beneficiaryName":"Rodamientos y Retenes San Nicolas SA de CV","beneficiaryAccountLast4":"9080","beneficiaryBank":"BANREGIO","cfdiUuids":["4c421b3a-f31b-4518-851d-a843b013cd1e","378d8768-72f4-4ba6-927e-c9b06cd28f83"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907013","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-013","claveRastreo":"SYNRUNINS20260907013","rail":"nessie","amount":5300.4,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN030703S31","beneficiaryName":"Chatarra y Reciclado Metalico Regio SA de CV","beneficiaryAccountLast4":"8302","beneficiaryBank":"BANORTE","cfdiUuids":["4ea7129a-707e-4daa-96b5-541629d8632c"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907014","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-014","claveRastreo":"SYNRUNINS20260907014","rail":"nessie","amount":3544.63,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN040707S07","beneficiaryName":"Tornilleria y Sujetadores Apodaca SA de CV","beneficiaryAccountLast4":"7661","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["d82cca50-bcc0-4553-8c7f-6d543322ea1c","321b89d2-6757-4a01-bfe6-ab347242b15c"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907015","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-015","claveRastreo":"SYNRUNINS20260907015","rail":"nessie","amount":1349.28,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN010501S29","beneficiaryName":"Rodamientos y Retenes San Nicolas SA de CV","beneficiaryAccountLast4":"9080","beneficiaryBank":"BANREGIO","cfdiUuids":["7502cd79-e4d4-4714-b43a-c2ee325f126b"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907017","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-017","claveRastreo":"SYNRUNINS20260907017","rail":"nessie","amount":57953.43,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN071010S10","beneficiaryName":"Laminados en Frio del Noreste SA de CV","beneficiaryAccountLast4":"1498","beneficiaryBank":"SANTANDER","cfdiUuids":["5e8bcaa3-6ff8-4732-9640-4fd1d04f3ddd"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907018","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-018","claveRastreo":"SYNRUNINS20260907018","rail":"nessie","amount":9001.23,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN100210S38","beneficiaryName":"Resortes Industriales Monterrey S de RL de CV","beneficiaryAccountLast4":"6283","beneficiaryBank":"BANREGIO","cfdiUuids":["29e16674-e713-4c00-8a6e-e87a36dc6c75"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907019","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-019","claveRastreo":"SYNRUNINS20260907019","rail":"nessie","amount":3007.15,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081208S36","beneficiaryName":"Consumibles de Soldadura Apodaca SA de CV","beneficiaryAccountLast4":"1354","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["6d0cbfe1-f390-4b9e-b5d3-ab2a2da07839"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907020","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-020","claveRastreo":"SYNRUNINS20260907020","rail":"nessie","amount":6728,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN120315S15","beneficiaryName":"Gases Industriales Santa Catarina SA de CV","beneficiaryAccountLast4":"4542","beneficiaryBank":"BANORTE","cfdiUuids":["3e3a37b8-b4e9-4749-ae45-5a4d1c80da18"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907021","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-021","claveRastreo":"SYNRUNINS20260907021","rail":"nessie","amount":8275.1,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN030606S06","beneficiaryName":"Recubrimientos Electroliticos del Poniente SA de CV","beneficiaryAccountLast4":"3055","beneficiaryBank":"BANAMEX","cfdiUuids":["38384d3d-47a3-4bb6-a6c8-bcf28b881bac","4d039c80-6c65-4688-ac6e-33443d4ace2a"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907022","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-022","claveRastreo":"SYNRUNINS20260907022","rail":"nessie","amount":4378.71,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN071107S35","beneficiaryName":"Herreria y Forja Guadalupe SA de CV","beneficiaryAccountLast4":"6748","beneficiaryBank":"BANREGIO","cfdiUuids":["e6fca4c0-c20d-425a-81bc-e07e0fe2d5b2"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907023","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-023","claveRastreo":"SYNRUNINS20260907023","rail":"nessie","amount":3237.8,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN020505S05","beneficiaryName":"Soldaduras y Montajes Escobedo SA de CV","beneficiaryAccountLast4":"8446","beneficiaryBank":"SANTANDER","cfdiUuids":["ceeda867-86e8-46d2-9215-e2cb36efe797"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907024","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-024","claveRastreo":"SYNRUNINS20260907024","rail":"nessie","amount":2466.48,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN990327S27","beneficiaryName":"Alambres y Mallas del Noreste SA de CV","beneficiaryAccountLast4":"9866","beneficiaryBank":"BANAMEX","cfdiUuids":["90616e16-e59b-495f-8de6-a41228aabd80"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907025","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-025","claveRastreo":"SYNRUNINS20260907025","rail":"nessie","amount":9331.91,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN020505S05","beneficiaryName":"Soldaduras y Montajes Escobedo SA de CV","beneficiaryAccountLast4":"8446","beneficiaryBank":"SANTANDER","cfdiUuids":["990ccbd2-37bb-4914-9b9d-50f4fcb4aa44"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907026","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-026","claveRastreo":"SYNRUNINS20260907026","rail":"nessie","amount":3306.81,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN120315S15","beneficiaryName":"Gases Industriales Santa Catarina SA de CV","beneficiaryAccountLast4":"4542","beneficiaryBank":"BANORTE","cfdiUuids":["9213c4d1-f59a-4552-8585-13f74c8ad773"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907027","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-027","claveRastreo":"SYNRUNINS20260907027","rail":"nessie","amount":1036.62,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN040707S07","beneficiaryName":"Tornilleria y Sujetadores Apodaca SA de CV","beneficiaryAccountLast4":"7661","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["88879dc3-aeef-4a68-b768-be7076e69393"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907028","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-028","claveRastreo":"SYNRUNINS20260907028","rail":"nessie","amount":3628.4,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN211224S24","beneficiaryName":"Suministros Hidraulicos Juarez SA de CV","beneficiaryAccountLast4":"6036","beneficiaryBank":"SCOTIABANK","cfdiUuids":["75bdffc0-f835-4136-b51e-1ccf6295c8fc"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907030","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-030","claveRastreo":"SYNRUNINS20260907030","rail":"nessie","amount":15959.41,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN100113S13","beneficiaryName":"Mantenimiento Electromecanico Regio SA de CV","beneficiaryAccountLast4":"5324","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["b0f96f70-e5f1-400b-ba3a-0234a16eb4fb","006553e5-e83e-40cf-a038-e6a2c9126141","0ace56f6-10cd-489b-aecb-c588d05df658"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907031","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-031","claveRastreo":"SYNRUNINS20260907031","rail":"nessie","amount":29700.18,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN071010S10","beneficiaryName":"Laminados en Frio del Noreste SA de CV","beneficiaryAccountLast4":"1498","beneficiaryBank":"SANTANDER","cfdiUuids":["8ae048af-5fc6-497e-b60e-a498d1b1d4a8"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907032","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-032","claveRastreo":"SYNRUNINS20260907032","rail":"nessie","amount":100368.87,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN260401R43","beneficiaryName":"Recubrimientos Ceramicos de Pesqueria SA de CV","beneficiaryAccountLast4":"0432","beneficiaryBank":"HSBC","cfdiUuids":["ba715024-0a6e-4d10-8a74-6d018a523036","3e002385-4112-46a0-aea0-f28e6b262121","b50fce50-ff18-4e79-b7a9-2b825e7045d7","d0db58a1-9510-473d-b291-b63687b4a960"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907033","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-033","claveRastreo":"SYNRUNINS20260907033","rail":"nessie","amount":2111.88,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN140614S42","beneficiaryName":"Refacciones Neumaticas Juarez SA de CV","beneficiaryAccountLast4":"9018","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["b87b1a49-ad38-4755-9959-c04e373394c7"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907034","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-034","claveRastreo":"SYNRUNINS20260907034","rail":"nessie","amount":12633.2,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081111S11","beneficiaryName":"Transportes Industriales Juarez S de RL de CV","beneficiaryAccountLast4":"6108","beneficiaryBank":"AZTECA","cfdiUuids":["dd6640d2-ac95-4d14-850b-97f5a03f9b01","3d0c2e6b-7e33-4979-aa9a-3402b66f309d","1cd75ef0-7a37-4455-8b3b-07927e60a28a"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907036","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-036","claveRastreo":"SYNRUNINS20260907036","rail":"nessie","amount":4780.85,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN990327S27","beneficiaryName":"Alambres y Mallas del Noreste SA de CV","beneficiaryAccountLast4":"9866","beneficiaryBank":"BANAMEX","cfdiUuids":["647a0fb5-6e37-469e-a7f6-e44f8351cb9e"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907037","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-037","claveRastreo":"SYNRUNINS20260907037","rail":"nessie","amount":3975.82,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN000303S03","beneficiaryName":"Troquelados de Pesqueria SA de CV","beneficiaryAccountLast4":"9225","beneficiaryBank":"BANREGIO","cfdiUuids":["cbd47d49-0bcf-4a3b-9532-af9b77a6623f"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907038","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-038","claveRastreo":"SYNRUNINS20260907038","rail":"nessie","amount":4617.18,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN090109S37","beneficiaryName":"Logistica y Maniobras del Norte SA de CV","beneficiaryAccountLast4":"5966","beneficiaryBank":"AZTECA","cfdiUuids":["39cfa0bb-3710-4b07-8619-4a048ad0ba2c"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907039","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-039","claveRastreo":"SYNRUNINS20260907039","rail":"nessie","amount":1566.31,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN090109S37","beneficiaryName":"Logistica y Maniobras del Norte SA de CV","beneficiaryAccountLast4":"5966","beneficiaryBank":"AZTECA","cfdiUuids":["b2b395e0-ced7-4059-9db2-3f9c9bdc2840"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907040","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-040","claveRastreo":"SYNRUNINS20260907040","rail":"nessie","amount":17561.32,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN130513S41","beneficiaryName":"Maquilas Metalicas del Noreste SA de CV","beneficiaryAccountLast4":"4408","beneficiaryBank":"BANREGIO","cfdiUuids":["ff8be618-9268-453e-b7e4-73b2e6881dee"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907041","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-041","claveRastreo":"SYNRUNINS20260907041","rail":"nessie","amount":34588.87,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN160719S19","beneficiaryName":"Galvanizados Pesqueria SA de CV","beneficiaryAccountLast4":"2983","beneficiaryBank":"BANAMEX","cfdiUuids":["3f3b304f-9ec5-41e7-88c3-6ce89fef7ec6","1e7872f3-ea32-43e8-888c-1ed7176f0b2a"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907042","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-042","claveRastreo":"SYNRUNINS20260907042","rail":"nessie","amount":3221.21,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN010501S29","beneficiaryName":"Rodamientos y Retenes San Nicolas SA de CV","beneficiaryAccountLast4":"9080","beneficiaryBank":"BANREGIO","cfdiUuids":["a5e738f1-9d54-4c0d-b259-5fffb36c00e3","9eda863d-5fbb-4bb7-836c-4bb850e4b6ba","17aac70c-56a3-424f-8e8d-8f98764fb72b"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907043","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-043","claveRastreo":"SYNRUNINS20260907043","rail":"nessie","amount":4888.81,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081208S36","beneficiaryName":"Consumibles de Soldadura Apodaca SA de CV","beneficiaryAccountLast4":"1354","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["5cd84246-8813-4317-bd0a-eac6ba82a984","717ba163-ada0-4a40-b9c1-df9ce9e94de8"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907044","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-044","claveRastreo":"SYNRUNINS20260907044","rail":"nessie","amount":4974.4,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081208S36","beneficiaryName":"Consumibles de Soldadura Apodaca SA de CV","beneficiaryAccountLast4":"1354","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["0c4518fa-d268-4306-a63c-4c2e59126ce6","82f186c2-f27b-4cfa-a8e6-2d5ebd7cca73","8eb0a6a5-e43e-455d-8291-2fd91b8ac7b7"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907045","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-045","claveRastreo":"SYNRUNINS20260907045","rail":"nessie","amount":1297.91,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081111S11","beneficiaryName":"Transportes Industriales Juarez S de RL de CV","beneficiaryAccountLast4":"6108","beneficiaryBank":"AZTECA","cfdiUuids":["955d7fce-3241-40ed-b6c1-5dffaea58e59"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907048","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-048","claveRastreo":"SYNRUNINS20260907048","rail":"nessie","amount":1382.88,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081208S36","beneficiaryName":"Consumibles de Soldadura Apodaca SA de CV","beneficiaryAccountLast4":"1354","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["9b9a3ff0-b9a9-4692-bbf5-7277fba14219"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907049","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-049","claveRastreo":"SYNRUNINS20260907049","rail":"nessie","amount":18545.44,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN130513S41","beneficiaryName":"Maquilas Metalicas del Noreste SA de CV","beneficiaryAccountLast4":"4408","beneficiaryBank":"BANREGIO","cfdiUuids":["185dc243-944d-4921-983d-cf6df2910257"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907050","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-050","claveRastreo":"SYNRUNINS20260907050","rail":"nessie","amount":2610.85,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN120315S15","beneficiaryName":"Gases Industriales Santa Catarina SA de CV","beneficiaryAccountLast4":"4542","beneficiaryBank":"BANORTE","cfdiUuids":["51ad2ef8-af2b-48e7-ba6e-d74573672df1"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907051","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-051","claveRastreo":"SYNRUNINS20260907051","rail":"nessie","amount":15523.55,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN020505S05","beneficiaryName":"Soldaduras y Montajes Escobedo SA de CV","beneficiaryAccountLast4":"8446","beneficiaryBank":"SANTANDER","cfdiUuids":["7ec708c1-74ee-443c-96cf-ad240e679602","42cef610-8ebb-4e16-8d05-73485992f64e"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907052","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-052","claveRastreo":"SYNRUNINS20260907052","rail":"nessie","amount":6624.18,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN020505S05","beneficiaryName":"Soldaduras y Montajes Escobedo SA de CV","beneficiaryAccountLast4":"8446","beneficiaryBank":"SANTANDER","cfdiUuids":["1cf20ca8-916e-4410-ae40-75ffb4779d06"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907053","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-053","claveRastreo":"SYNRUNINS20260907053","rail":"nessie","amount":4094.17,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN000428S28","beneficiaryName":"Servicios de Pintura Industrial Regia SA de CV","beneficiaryAccountLast4":"4473","beneficiaryBank":"AZTECA","cfdiUuids":["78f30531-3d2b-4313-b303-37ce44f7de13"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907054","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-054","claveRastreo":"SYNRUNINS20260907054","rail":"nessie","amount":6642.13,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN130416S16","beneficiaryName":"Rectificaciones y Baleros Escobedo S de RL de CV","beneficiaryAccountLast4":"9159","beneficiaryBank":"BANREGIO","cfdiUuids":["3c18636b-a28b-46e9-912c-6009c0443948"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907055","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-055","claveRastreo":"SYNRUNINS20260907055","rail":"nessie","amount":8379.87,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN090109S37","beneficiaryName":"Logistica y Maniobras del Norte SA de CV","beneficiaryAccountLast4":"5966","beneficiaryBank":"AZTECA","cfdiUuids":["a754310d-dfda-4162-a5da-8410c4ffea31","590f9ead-a46b-4ca9-b467-c82c0b945b69","6c987ce5-7c2e-4935-a507-1673c0fd0661"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907056","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-056","claveRastreo":"SYNRUNINS20260907056","rail":"nessie","amount":8313.99,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN000303S03","beneficiaryName":"Troquelados de Pesqueria SA de CV","beneficiaryAccountLast4":"9225","beneficiaryBank":"BANREGIO","cfdiUuids":["13154b39-1bcf-4ab6-8d1e-3c5f16fda45e"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907057","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-057","claveRastreo":"SYNRUNINS20260907057","rail":"nessie","amount":6325.36,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN100210S38","beneficiaryName":"Resortes Industriales Monterrey S de RL de CV","beneficiaryAccountLast4":"6283","beneficiaryBank":"BANREGIO","cfdiUuids":["443b882b-d488-44ae-ad3b-9392a8e1a5be","e09c48e6-c40e-42e8-b9c6-2e3975f164ff"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907058","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-058","claveRastreo":"SYNRUNINS20260907058","rail":"nessie","amount":3901.98,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN100113S13","beneficiaryName":"Mantenimiento Electromecanico Regio SA de CV","beneficiaryAccountLast4":"5324","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["6adcf629-a0ff-49db-9170-ef1757d1b6ed"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907059","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-059","claveRastreo":"SYNRUNINS20260907059","rail":"nessie","amount":1396.42,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN010501S29","beneficiaryName":"Rodamientos y Retenes San Nicolas SA de CV","beneficiaryAccountLast4":"9080","beneficiaryBank":"BANREGIO","cfdiUuids":["77d1be33-af1d-42f2-9f5a-a9b8133fe343"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907060","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-060","claveRastreo":"SYNRUNINS20260907060","rail":"nessie","amount":973.95,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN140614S42","beneficiaryName":"Refacciones Neumaticas Juarez SA de CV","beneficiaryAccountLast4":"9018","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["8a8a91e5-5853-4c6b-a3b0-2cc602ca0ae4"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907061","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-061","claveRastreo":"SYNRUNINS20260907061","rail":"nessie","amount":2967.81,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN090109S37","beneficiaryName":"Logistica y Maniobras del Norte SA de CV","beneficiaryAccountLast4":"5966","beneficiaryBank":"AZTECA","cfdiUuids":["a9546087-2766-4d92-aeaf-1f0a6870aac5"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907062","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-062","claveRastreo":"SYNRUNINS20260907062","rail":"nessie","amount":62528.99,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN990202S02","beneficiaryName":"Maquinados Industriales Regios SA de CV","beneficiaryAccountLast4":"4613","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["3a9ecee1-8c12-4800-b92c-44fc21b3d016","51dba7af-ed78-43f0-8ca4-6ecb6d160c14"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907063","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-063","claveRastreo":"SYNRUNINS20260907063","rail":"nessie","amount":26552.11,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN050808S08","beneficiaryName":"Perfiles Estructurales Monterrey SA de CV","beneficiaryAccountLast4":"2278","beneficiaryBank":"BANORTE","cfdiUuids":["21e10a37-3a0e-471e-bb72-cd73dfc6e117"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907064","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-064","claveRastreo":"SYNRUNINS20260907064","rail":"nessie","amount":1147.1,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN110214S14","beneficiaryName":"Equipo de Proteccion Industrial del Norte SA de CV","beneficiaryAccountLast4":"9932","beneficiaryBank":"SCOTIABANK","cfdiUuids":["e2d69c87-799b-4101-ad9b-b7cbdd30ad9b"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907065","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-065","claveRastreo":"SYNRUNINS20260907065","rail":"nessie","amount":4607.63,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081111S11","beneficiaryName":"Transportes Industriales Juarez S de RL de CV","beneficiaryAccountLast4":"6108","beneficiaryBank":"AZTECA","cfdiUuids":["fe74064b-41e9-481c-b8a5-9de50f4a4d7c","bba6dd9c-4f6d-4904-9203-5fb17c85953a"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907066","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-066","claveRastreo":"SYNRUNINS20260907066","rail":"nessie","amount":12135.14,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081111S11","beneficiaryName":"Transportes Industriales Juarez S de RL de CV","beneficiaryAccountLast4":"6108","beneficiaryBank":"AZTECA","cfdiUuids":["d27ec3ec-081d-4c3f-848a-f08c2ab7af4a","5d7b5606-f169-4b9b-b173-b2dc9584a2a8","5b6013f2-9064-450a-8f58-32e2b734fea3"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907067","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-067","claveRastreo":"SYNRUNINS20260907067","rail":"nessie","amount":1834.15,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN010501S29","beneficiaryName":"Rodamientos y Retenes San Nicolas SA de CV","beneficiaryAccountLast4":"9080","beneficiaryBank":"BANREGIO","cfdiUuids":["64dbd06d-8d1a-4241-af65-5ad942d91a6f"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907068","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-068","claveRastreo":"SYNRUNINS20260907068","rail":"nessie","amount":4437.39,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN000428S28","beneficiaryName":"Servicios de Pintura Industrial Regia SA de CV","beneficiaryAccountLast4":"4473","beneficiaryBank":"AZTECA","cfdiUuids":["5883b111-403c-4622-9094-7f3229e226c2"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907069","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-069","claveRastreo":"SYNRUNINS20260907069","rail":"nessie","amount":10106.29,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN050905S33","beneficiaryName":"Cortes de Placa Pesqueria S de RL de CV","beneficiaryAccountLast4":"7520","beneficiaryBank":"BANAMEX","cfdiUuids":["b90da83f-8dc6-4861-8583-52aeb55dced9"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907071","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-071","claveRastreo":"SYNRUNINS20260907071","rail":"nessie","amount":2131.67,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN091212S12","beneficiaryName":"Empaques y Tarimas del Noreste SA de CV","beneficiaryAccountLast4":"0719","beneficiaryBank":"BANAMEX","cfdiUuids":["82014cab-6662-42d7-b786-ca157f06de59"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907072","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-072","claveRastreo":"SYNRUNINS20260907072","rail":"nessie","amount":5364.19,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN090109S37","beneficiaryName":"Logistica y Maniobras del Norte SA de CV","beneficiaryAccountLast4":"5966","beneficiaryBank":"AZTECA","cfdiUuids":["31cd86c9-0288-4741-8fc7-b0bc0d480f7d","30c6391f-edd4-4435-9d84-80ff236943fb"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907073","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-073","claveRastreo":"SYNRUNINS20260907073","rail":"nessie","amount":3201.32,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN000428S28","beneficiaryName":"Servicios de Pintura Industrial Regia SA de CV","beneficiaryAccountLast4":"4473","beneficiaryBank":"AZTECA","cfdiUuids":["a4b0c9cd-ecf6-4a72-a0dd-36b1ee3bf5e9"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907074","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-074","claveRastreo":"SYNRUNINS20260907074","rail":"nessie","amount":3931.42,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN040707S07","beneficiaryName":"Tornilleria y Sujetadores Apodaca SA de CV","beneficiaryAccountLast4":"7661","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["589550fa-468c-4063-b93c-0efd856b68a3","8cf83dbd-d37b-437e-9ad1-d465e38cbae4","24f522ca-1f40-41cd-8b7b-8030d7e3c15a"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907075","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-075","claveRastreo":"SYNRUNINS20260907075","rail":"nessie","amount":1970.82,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN140614S42","beneficiaryName":"Refacciones Neumaticas Juarez SA de CV","beneficiaryAccountLast4":"9018","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["40dbec0c-a03b-43b9-a1bd-838e0c90ea2c"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907076","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-076","claveRastreo":"SYNRUNINS20260907076","rail":"nessie","amount":49524.01,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN260401R43","beneficiaryName":"Recubrimientos Ceramicos de Pesqueria SA de CV","beneficiaryAccountLast4":"0432","beneficiaryBank":"HSBC","cfdiUuids":["c291b6c3-9d51-46df-b59f-42def06894a2"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907078","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-078","claveRastreo":"SYNRUNINS20260907078","rail":"nessie","amount":4326.94,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN211224S24","beneficiaryName":"Suministros Hidraulicos Juarez SA de CV","beneficiaryAccountLast4":"6036","beneficiaryBank":"SCOTIABANK","cfdiUuids":["fe3e2d9c-cd18-483d-9758-ea46158258e0","5033bbdd-86eb-4d12-ad25-8e967d38dd2d"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907079","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-079","claveRastreo":"SYNRUNINS20260907079","rail":"nessie","amount":12774.38,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN100113S13","beneficiaryName":"Mantenimiento Electromecanico Regio SA de CV","beneficiaryAccountLast4":"5324","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["496179f0-2ae5-47db-a0ea-c866413aed97","981944af-4ed8-425f-849a-1e6c09175989"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907080","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-080","claveRastreo":"SYNRUNINS20260907080","rail":"nessie","amount":19027.86,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN260401R43","beneficiaryName":"Recubrimientos Ceramicos de Pesqueria SA de CV","beneficiaryAccountLast4":"0432","beneficiaryBank":"HSBC","cfdiUuids":["e792986d-8c46-4dba-a112-663d1f911d97"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907081","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-081","claveRastreo":"SYNRUNINS20260907081","rail":"nessie","amount":2194.36,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN120315S15","beneficiaryName":"Gases Industriales Santa Catarina SA de CV","beneficiaryAccountLast4":"4542","beneficiaryBank":"BANORTE","cfdiUuids":["aa2dabcd-12a6-4f2a-b68c-ebed9d2dc6eb"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907082","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-082","claveRastreo":"SYNRUNINS20260907082","rail":"nessie","amount":11149.71,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN100210S38","beneficiaryName":"Resortes Industriales Monterrey S de RL de CV","beneficiaryAccountLast4":"6283","beneficiaryBank":"BANREGIO","cfdiUuids":["bcac6450-d67d-4351-8fba-d34f4e400e13","bbc9df2f-0d82-42ba-b315-422e3866618e"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907083","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-083","claveRastreo":"SYNRUNINS20260907083","rail":"nessie","amount":2885.98,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN110214S14","beneficiaryName":"Equipo de Proteccion Industrial del Norte SA de CV","beneficiaryAccountLast4":"9932","beneficiaryBank":"SCOTIABANK","cfdiUuids":["9d257e68-7b74-4722-aae4-ef82d0e647ef"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907085","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-085","claveRastreo":"SYNRUNINS20260907085","rail":"nessie","amount":1768.94,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN081111S11","beneficiaryName":"Transportes Industriales Juarez S de RL de CV","beneficiaryAccountLast4":"6108","beneficiaryBank":"AZTECA","cfdiUuids":["fedd3a59-6861-4e39-9876-0cbe12fd6e4d"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907086","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-086","claveRastreo":"SYNRUNINS20260907086","rail":"nessie","amount":15705.74,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN140517S17","beneficiaryName":"Corte por Laser Apodaca SA de CV","beneficiaryAccountLast4":"3763","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["ef5c1061-6343-48f6-8a93-f6d3ae8ccafa"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907087","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-087","claveRastreo":"SYNRUNINS20260907087","rail":"nessie","amount":997.6,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN180921S21","beneficiaryName":"Bandas y Transmisiones del Noreste SA de CV","beneficiaryAccountLast4":"2201","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["7a3fcd4d-bcd3-43f5-a61c-f3366307f74f"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907088","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-088","claveRastreo":"SYNRUNINS20260907088","rail":"nessie","amount":6345.91,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN180921S21","beneficiaryName":"Bandas y Transmisiones del Noreste SA de CV","beneficiaryAccountLast4":"2201","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["df77e482-7a27-4266-ad43-e71c808a5f50","b23b3e2e-ed48-46f5-a87e-0b0c1599d375","8e9229af-82d0-4117-be79-0ef6862bb5a2"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907089","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-089","claveRastreo":"SYNRUNINS20260907089","rail":"nessie","amount":11442.32,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN170820S20","beneficiaryName":"Inyeccion de Plasticos Tecnicos Regios SA de CV","beneficiaryAccountLast4":"7590","beneficiaryBank":"BANORTE","cfdiUuids":["10a42c7f-dc2f-4dcc-af91-5d3c369e9b1d"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907090","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-090","claveRastreo":"SYNRUNINS20260907090","rail":"nessie","amount":5813.64,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN130416S16","beneficiaryName":"Rectificaciones y Baleros Escobedo S de RL de CV","beneficiaryAccountLast4":"9159","beneficiaryBank":"BANREGIO","cfdiUuids":["bccfe623-84d5-494f-8db8-c6b715262f1e"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907091","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-091","claveRastreo":"SYNRUNINS20260907091","rail":"nessie","amount":22029.68,"sentAt":"2026-09-10T16:30:00.000Z","settledAt":"2026-09-10T16:34:00.000Z","supplierRfc":"SYN140517S17","beneficiaryName":"Corte por Laser Apodaca SA de CV","beneficiaryAccountLast4":"3763","beneficiaryBank":"BBVA MEXICO","cfdiUuids":["fd241f2e-7ce7-4c0f-ba63-f151f0fb46b2"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+  {"id":"REC-SYNRUNINS20260907092","runId":"run-2026-09-07","instructionId":"INS-2026-09-07-092","claveRastreo":"SYNRUNINS20260907092","rail":"nessie","amount":5035.21,"sentAt":"2026-09-10T16:30:00.000Z","supplierRfc":"SYN990327S27","beneficiaryName":"Alambres y Mallas del Noreste SA de CV","beneficiaryAccountLast4":"9866","beneficiaryBank":"BANAMEX","cfdiUuids":["ce228d85-b837-4b20-865e-bd3c2c9d5b1c"],"sealState":"not_checked","executedBy":{"name":"Lupita Elizondo","role":"clerk"},"synthetic":true},
+];
+
+/**
+ * The assistant panel, offline: three turns about the line the demo opens on.
+ *
+ * A question, an answer carrying the read behind it, and one proposal. Every fact
+ * in it comes from the run: the answer is the engine's own `explanation` for the
+ * finding that stopped the line followed by the level and the state, and the tool
+ * result IS that finding's evidence object, the same chips the finding panel
+ * renders. Nothing here asserts anything the deterministic side did not, and the
+ * proposal is an offer a person executes, which is the whole of ADR-0007.
+ */
+export const ASSISTANT_SESSION: AssistantSession = {
+  "id": "SES-INS-2026-09-07-047",
+  "actor": {
+    "name": "Lupita Elizondo",
+    "role": "clerk"
+  },
+  "startedAt": "2026-09-10T15:20:00.000Z",
+  "runId": "run-2026-09-07",
+  "messages": [
+    {
+      "id": "SES-INS-2026-09-07-047-1",
+      "sessionId": "SES-INS-2026-09-07-047",
+      "author": "clerk",
+      "text": "Por que se detuvo el pago de Maquinados Industriales Regios SA de CV por 38,417.48 MXN?",
+      "at": "2026-09-10T15:20:00.000Z",
+      "actor": {
+        "name": "Lupita Elizondo",
+        "role": "clerk"
+      },
+      "instructionId": "INS-2026-09-07-047"
+    },
+    {
+      "id": "SES-INS-2026-09-07-047-2",
+      "sessionId": "SES-INS-2026-09-07-047",
+      "author": "assistant",
+      "text": "Difiere en 2 dígitos (posiciones 9 y 10) de la cuenta 012180100091764613, que ya se pagó 52 veces. Es la primera vez que se ve esta cuenta para este proveedor, que ya tiene 1 cuenta registrada. El nivel de esta linea es alerta y su estado es rojo.",
+      "at": "2026-09-10T15:21:00.000Z",
+      "instructionId": "INS-2026-09-07-047",
+      "toolCalls": [
+        {
+          "id": "SES-INS-2026-09-07-047-tool-1",
+          "tool": "get_instruction",
+          "arguments": {
+            "instructionId": "INS-2026-09-07-047"
+          },
+          "result": {
+            "clabe": "012180101391764613",
+            "ocrChannel": false,
+            "institutionCode": "012",
+            "plazaCode": "180",
+            "checkDigit": "valid",
+            "institutionName": "BBVA MEXICO",
+            "knownAccounts": 1,
+            "nearestKnownAccount": "012180100091764613",
+            "nearestTimesPaid": 52,
+            "editOperations": 2,
+            "ocrSubstitutions": 0,
+            "differingPositions": "9,10",
+            "signals": "near_miss,first_time_seen"
+          },
+          "at": "2026-09-10T15:21:00.000Z",
+          "readOnly": true
+        }
+      ]
+    },
+    {
+      "id": "SES-INS-2026-09-07-047-3",
+      "sessionId": "SES-INS-2026-09-07-047",
+      "author": "assistant",
+      "text": "Puedo preparar la verificacion de la cuenta terminada en 4613: sale un centavo desde el banco de la empresa y Banxico publica un CEP que dice quien es el titular. Tu confirmas y yo no muevo nada.",
+      "at": "2026-09-10T15:22:00.000Z",
+      "instructionId": "INS-2026-09-07-047",
+      "proposal": {
+        "kind": "verify_account",
+        "instructionId": "INS-2026-09-07-047",
+        "payload": {
+          "instructionId": "INS-2026-09-07-047"
+        },
+        "requiresRole": "clerk",
+        "summary": "Enviar 0.01 MXN a la cuenta terminada en 4613 de Maquinados Industriales Regios SA de CV y leer el CEP que Banxico publique para esa clave."
+      }
+    }
+  ]
+};
 
 /**
  * The answer `POST /api/v1/instructions` gives, with the consortium consulted.
