@@ -16,6 +16,7 @@ import { useMemo, useSyncExternalStore } from "react";
 
 export type Route =
   | { name: "run" }
+  | { name: "payments" }
   | { name: "instruction"; id: string }
   | { name: "intake" }
   | { name: "sat" }
@@ -28,6 +29,7 @@ export type RouteName = Route["name"];
 
 export const PATHS = {
   run: "/run",
+  payments: "/payments",
   intake: "/intake",
   sat: "/sat",
   cep: "/cep",
@@ -111,6 +113,8 @@ export function parsePath(target: string): Route {
     switch (segments[0]) {
       case "run":
         return { name: "run" };
+      case "payments":
+        return { name: "payments" };
       case "intake":
         return { name: "intake" };
       case "sat":

@@ -30,11 +30,16 @@ import type {
   CepVerifyBody,
   CreateInstructionBody,
   DecideBody,
+  ExecuteRunBody,
   Health,
   InstructionDetail,
   LedgerPage,
   Metrics,
+  PaymentExecution,
+  PaymentExecutionLine,
+  PaymentReceipt,
   PaymentRun,
+  RailsStatus,
   SatLookup,
   SatPublishBody,
   SatVersions,
@@ -451,6 +456,76 @@ export async function getLedger(
 }
 
 /**
+ * What this run did on the payment rail, folded out of the ledger.
+ *
+ * A run nobody has executed answers `200` with no lines rather than a `404`, so an
+ * empty result here is the review state of the screen and never an error. `current`
+ * is accepted as the id, the same as everywhere else in this contract.
+ */
+export async function getRunExecution(
+  runId: string,
+  options?: RequestOptions,
+): Promise<ApiResult<PaymentExecution>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/run/${encodeURIComponent(runId)}/execution`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<PaymentExecution>(
+        value,
+        (execution) =>
+          Array.isArray(execution.lines) && isRecord(execution.totals),
+        "payment execution",
+      ),
+  );
+}
+
+/**
+ * Which rails this server holds, so a screen can say which one is live without
+ * reading an environment file it cannot see.
+ *
+ * No secret is in this payload and that is the whole reason it is its own
+ * endpoint: `configured` says whether the variables exist and never what they
+ * contain, and `live` is whether that rail has ever actually moved money from this
+ * repository, which is what stops a screen claiming the production path has run.
+ */
+export async function getRails(
+  options?: RequestOptions,
+): Promise<ApiResult<RailsStatus>> {
+  return andThen(await request(`${API_PREFIX}/rails`, {}, options), (value) =>
+    shaped<RailsStatus>(
+      value,
+      (payload) => Array.isArray(payload.rails) && "active" in payload,
+      "rails",
+    ),
+  );
+}
+
+/** The receipt of one payment, as JSON. `id` is the line's `receiptId`. */
+export async function getPaymentReceipt(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<PaymentReceipt>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/payments/${encodeURIComponent(id)}/receipt`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<PaymentReceipt>(
+        value,
+        (receipt) =>
+          typeof receipt.claveRastreo === "string" &&
+          typeof receipt.sealState === "string",
+        "payment receipt",
+      ),
+  );
+}
+
+/**
  * One conversation of the assistant panel, projected from the
  * `assistant_message` events of that session id.
  *
@@ -492,6 +567,16 @@ export function sweepConstanciaHref(listVersion: string): string {
 
 export function runConstanciaHref(runId: string): string {
   return `${API_PREFIX}/run/${encodeURIComponent(runId)}/constancia`;
+}
+
+/** The same receipt as a PDF, which is the copy the accountant files. */
+export function paymentReceiptHref(receiptId: string): string {
+  return `${API_PREFIX}/payments/${encodeURIComponent(receiptId)}/receipt?format=pdf`;
+}
+
+/** The one-page evidence letter of one instruction, for a supplier who asks. */
+export function instructionCartaHref(instructionId: string): string {
+  return `${API_PREFIX}/instructions/${encodeURIComponent(instructionId)}/carta`;
 }
 
 /* -------------------------------------------------------------------- write */
@@ -968,4 +1053,119 @@ export function useEvents(options: UseEventsOptions = {}): UseEvents {
   }, [enabled, limit, attempt]);
 
   return { status, events, lastEventAt, reconnect };
+}
+
+/* ------------------------------------------------------ the payment run out */
+
+/** The two event names `POST /run/:id/execute` writes, from docs/09-api.md. */
+export const EXECUTE_LINE_EVENT = "line";
+export const EXECUTE_DONE_EVENT = "done";
+
+export type ExecuteRunHandlers = {
+  /** Every `line` event, in arrival order, as the rail answered it. */
+  onLine?: (line: PaymentExecutionLine) => void;
+};
+
+/**
+ * The payment run leaving on the configured rail.
+ *
+ * It rides `streamSse` like the assistant turn does, for the same reason that
+ * function exists: `EventSource` only issues a GET and this stream starts with a
+ * body and a header, `confirm: true` and a valid `X-Actor`, both required and
+ * neither optional. What this function adds on top is the meaning of a frame: a
+ * `line` is one payment the rail answered for, a `done` carries the whole
+ * `PaymentExecution`, and nothing else is read.
+ *
+ * Three things it deliberately does not do.
+ *
+ * It **never retries**. A retried execute is a second request to move money, and
+ * the endpoint is idempotent per instruction precisely so that a person can decide
+ * to press the button again rather than a client deciding for them.
+ *
+ * It **reports a refusal as a value**, like the rest of this file. A `503` from a
+ * server with no rail, a `409` naming a line the decisions stop and a `403` for a
+ * role that may not execute all arrive as an `ApiFailure` carrying the message the
+ * API wrote, and nothing was appended to the ledger for any of them.
+ *
+ * It **refuses to send with no name on it**. `formatActor` answers null for an
+ * empty name or one carrying a `;`, and this stops before the request rather than
+ * letting the API reject it, because the screen can say so before anybody presses
+ * anything.
+ */
+export async function executeRun(
+  runId: string,
+  body: ExecuteRunBody,
+  actor: Actor,
+  handlers: ExecuteRunHandlers = {},
+  options: RequestOptions = {},
+): Promise<ApiResult<PaymentExecution>> {
+  if (formatActor(actor) === null) {
+    return {
+      ok: false,
+      error: {
+        status: 0,
+        message:
+          "Falta el nombre de quien envia la corrida, o trae un punto y coma. Nada sale sin una persona detras.",
+      },
+    };
+  }
+
+  let execution: PaymentExecution | null = null;
+
+  const result = await streamSse(
+    `${API_PREFIX}/run/${encodeURIComponent(runId)}/execute`,
+    { method: "POST", json: body },
+    (frame) => {
+      const parsed: unknown = parseJson(frame.data);
+
+      if (!isRecord(parsed)) {
+        return;
+      }
+
+      if (frame.event === EXECUTE_LINE_EVENT) {
+        if (
+          typeof parsed.instructionId === "string" &&
+          typeof parsed.state === "string"
+        ) {
+          handlers.onLine?.(parsed as unknown as PaymentExecutionLine);
+        }
+
+        return;
+      }
+
+      if (
+        frame.event === EXECUTE_DONE_EVENT &&
+        Array.isArray(parsed.lines) &&
+        isRecord(parsed.totals)
+      ) {
+        execution = parsed as unknown as PaymentExecution;
+      }
+    },
+    { ...options, actor },
+  );
+
+  if (!result.ok) {
+    return result;
+  }
+
+  if (execution === null) {
+    return {
+      ok: false,
+      error: {
+        status: 0,
+        message:
+          "El flujo termino sin el resumen de la corrida. Vuelve a leer la ejecucion antes de concluir nada.",
+      },
+    };
+  }
+
+  return { ok: true, data: execution };
+}
+
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
