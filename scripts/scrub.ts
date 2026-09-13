@@ -129,7 +129,7 @@ const RULES: Rule[] = [
   {
     id: "attribution",
     what: "AI attribution, which this repository does not carry anywhere",
-    pattern: /^[ \t]*co-authored-by:|generated with \[/gim,
+    pattern: /^[ \t]*co-authored-by:.*(claude|anthropic|openai|chatgpt|codex|copilot|cursor|gemini|devin|\[bot\]|noreply@anthropic)|generated with \[/gim,
   },
 ];
 
