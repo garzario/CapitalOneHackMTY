@@ -30,8 +30,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LevelChip, LineStateChip, StateChip } from "../components/Levels";
-import { Amount, anySynthetic, SectionHeader } from "../components/Primitives";
+import {
+  Amount,
+  anySynthetic,
+  ConfidenceBadge,
+  PaymentLineBadge,
+  SectionHeader,
+  TransactionStateBadge,
+} from "../components/Primitives";
 import { ReceiptDrawer } from "../components/Receipt";
 import {
   EmptyBlock,
@@ -729,10 +735,10 @@ export function PaymentsScreen() {
                           <Amount value={row.item.instruction.amount} />
                         </td>
                         <td>
-                          <LevelChip level={row.confidence} />
+                          <ConfidenceBadge level={row.confidence} />
                         </td>
                         <td>
-                          <StateChip state={row.state} />
+                          <TransactionStateBadge state={row.state} />
                         </td>
                         <td>
                           <span className="t-sm">
@@ -818,11 +824,11 @@ function LeavingRow({
         <span className="subtle block t-xs">{bankName(instruction.clabe)}</span>
       </td>
       <td>
-        <LevelChip level={row.confidence} />
+        <ConfidenceBadge level={row.confidence} />
       </td>
       <td>
         <div className="flex flex-col items-start gap-1">
-          <StateChip state={row.state} />
+          <TransactionStateBadge state={row.state} />
           {!line && row.exclusion ? (
             <span className="subtle t-xs">{row.exclusion.sentence}</span>
           ) : null}
@@ -831,7 +837,7 @@ function LeavingRow({
       <td>
         {line ? (
           <div className="flex flex-col items-start gap-1">
-            <LineStateChip state={line.state} />
+            <PaymentLineBadge state={line.state} />
             {line.claveRastreo ? (
               <span className="code t-xs">{line.claveRastreo}</span>
             ) : null}

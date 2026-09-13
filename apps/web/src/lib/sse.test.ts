@@ -1,163 +1,123 @@
 /**
- * The framing of the execution stream.
+ * The decoder is tested at the chunk boundaries, because that is the only place
+ * it can be wrong.
  *
- * It is tested on its own because the bug it has is invisible: a decoder that
- * splits on a single newline, or that drops the remainder between two chunks,
- * still shows most of the lines of a run moving. What it loses is the one message
- * that happened to straddle a chunk boundary, which on a 86 line run is a payment
- * the screen never draws and nobody notices until a judge counts the rows.
+ * A frame that arrives in one piece is decoded by anything, including the `split`
+ * this file exists to replace. What breaks a demo is the long frame, which is the
+ * tool result, arriving in three pieces with the split landing between `data:` and
+ * its value, or between the `\r` and the `\n` that end the line. So every test
+ * below feeds the same stream in a different shape and asserts the same frames.
  */
 
 import { describe, expect, test } from "bun:test";
-import { decodeSse, parseSseFrame, SseBuffer } from "./sse";
+import { createSseDecoder, type SseFrame } from "./sse";
 
-/** What Hono's `streamSSE` writes, field order included. */
-function wire(event: string, data: unknown, id: number): string {
-  return `event: ${event}\nid: ${id}\ndata: ${JSON.stringify(data)}\n\n`;
+const STREAM =
+  'event: token\ndata: {"text":"Difiere en 2 digitos"}\n\n' +
+  'event: tool_result\ndata: {"id":"t1","tool":"get_instruction"}\n\n' +
+  'event: done\ndata: {"id":"m1"}\n\n';
+
+/** Feed a whole stream in pieces of `size` characters. */
+function decodeInChunks(stream: string, size: number): SseFrame[] {
+  const decoder = createSseDecoder();
+  const frames: SseFrame[] = [];
+
+  for (let index = 0; index < stream.length; index += size) {
+    frames.push(...decoder.push(stream.slice(index, index + size)));
+  }
+
+  frames.push(...decoder.flush());
+
+  return frames;
 }
 
-describe("decodeSse", () => {
-  test("reads the event name, the id and the payload of one message", () => {
-    const { messages, rest } = decodeSse(
-      wire("line", { instructionId: "INS-1", state: "sent" }, 0),
-    );
+describe("the event stream decoder", () => {
+  test("one frame, in one chunk", () => {
+    const decoder = createSseDecoder();
 
-    expect(messages).toEqual([
-      {
-        event: "line",
-        id: "0",
-        data: '{"instructionId":"INS-1","state":"sent"}',
-      },
+    expect(decoder.push('event: token\ndata: {"text":"hola"}\n\n')).toEqual([
+      { event: "token", data: '{"text":"hola"}' },
     ]);
-    expect(rest).toBe("");
   });
 
-  test("reads several messages out of one chunk, in order", () => {
-    const chunk =
-      wire("line", { instructionId: "INS-1" }, 0) +
-      wire("line", { instructionId: "INS-2" }, 1) +
-      wire("done", { runId: "run-1" }, 2);
+  test("the same three frames whatever the chunk size", () => {
+    const whole = decodeInChunks(STREAM, STREAM.length);
 
-    const { messages } = decodeSse(chunk);
-
-    expect(messages.map((message) => message.event)).toEqual([
-      "line",
-      "line",
+    expect(whole.map((frame) => frame.event)).toEqual([
+      "token",
+      "tool_result",
       "done",
     ]);
-  });
 
-  test("hands back a message that has not ended yet instead of dropping it", () => {
-    /* The case that matters. A chunk can stop between the two newlines, and a
-       decoder that returns only whole messages and forgets the tail loses the
-       payment the next chunk completes. */
-    const whole = wire("line", { instructionId: "INS-1" }, 0);
-    const cut = whole.length - 1;
-
-    const first = decodeSse(whole.slice(0, cut));
-
-    expect(first.messages).toEqual([]);
-    expect(first.rest).toBe(whole.slice(0, cut));
-  });
-
-  test("ends a message at a blank line and not at a newline", () => {
-    const { messages, rest } = decodeSse("event: line\ndata: {}\n");
-
-    expect(messages).toEqual([]);
-    expect(rest).toBe("event: line\ndata: {}\n");
-  });
-
-  test("ignores the heartbeat comment that keeps a proxy from closing", () => {
-    /* `: heartbeat\n\n` is a frame with no field in it. A decoder that read it as
-       a field would emit one empty message every fifteen seconds and the screen
-       would count each one as progress. */
-    const { messages } = decodeSse(`: heartbeat\n\n${wire("done", {}, 1)}`);
-
-    expect(messages.map((message) => message.event)).toEqual(["done"]);
-  });
-
-  test("joins repeated data fields with a newline, as the spec says", () => {
-    const { messages } = decodeSse("event: line\ndata: one\ndata: two\n\n");
-
-    expect(messages[0]?.data).toBe("one\ntwo");
-  });
-
-  test("accepts CRLF, because what ends a line is not ours to choose", () => {
-    const { messages } = decodeSse("event: line\r\ndata: {}\r\n\r\n");
-
-    expect(messages).toEqual([{ event: "line", data: "{}" }]);
-  });
-
-  test("strips exactly one space after the colon and no more", () => {
-    const { messages } = decodeSse("data:  two spaces\n\n");
-
-    expect(messages[0]?.data).toBe(" two spaces");
-  });
-
-  test("defaults the event name the way the spec does", () => {
-    const { messages } = decodeSse("data: {}\n\n");
-
-    expect(messages[0]?.event).toBe("message");
-  });
-});
-
-describe("parseSseFrame", () => {
-  test("answers null for a frame that carries no data", () => {
-    expect(parseSseFrame(": heartbeat")).toBeNull();
-    expect(parseSseFrame("id: 7")).toBeNull();
-    expect(parseSseFrame("")).toBeNull();
-  });
-
-  test("keeps a data field that is deliberately empty", () => {
-    expect(parseSseFrame("event: done\ndata:")).toEqual({
-      event: "done",
-      data: "",
-    });
-  });
-});
-
-describe("SseBuffer", () => {
-  test("reassembles a message split across chunks, byte by byte", () => {
-    const whole =
-      wire("line", { instructionId: "INS-1" }, 0) +
-      wire("done", { ok: true }, 1);
-    const buffer = new SseBuffer();
-    const seen: string[] = [];
-
-    for (const character of whole) {
-      for (const message of buffer.push(character)) {
-        seen.push(message.event);
-      }
+    /* One character at a time is the worst case and the cheapest proof: every
+       boundary in the stream is exercised by it, including the one between the
+       two newlines that dispatch a frame. */
+    for (const size of [1, 2, 3, 7, 13, 64]) {
+      expect([size, decodeInChunks(STREAM, size)]).toEqual([size, whole]);
     }
-
-    expect(seen).toEqual(["line", "done"]);
   });
 
-  test("keeps nothing once a message has been handed out", () => {
-    const buffer = new SseBuffer();
+  test("a frame cut between its carriage return and its newline is one frame", () => {
+    const decoder = createSseDecoder();
 
-    buffer.push(wire("line", {}, 0));
-
-    expect(buffer.flush()).toEqual([]);
-  });
-
-  test("flushes a final message the server did not end with a blank line", () => {
-    /* A server that closes right after the last `done` has written a complete
-       message. Dropping it would lose the frame that carries the whole
-       PaymentExecution, which is the one the screen reconciles against. */
-    const buffer = new SseBuffer();
-
-    expect(buffer.push('event: done\ndata: {"runId":"run-1"}')).toEqual([]);
-    expect(buffer.flush()).toEqual([
-      { event: "done", data: '{"runId":"run-1"}' },
+    expect(decoder.push("event: token\r")).toEqual([]);
+    expect(decoder.push("\ndata: uno\r\n\r\n")).toEqual([
+      { event: "token", data: "uno" },
     ]);
   });
 
-  test("flushes nothing when the tail is only whitespace", () => {
-    const buffer = new SseBuffer();
+  test("two data lines are one value joined with a newline", () => {
+    const decoder = createSseDecoder();
 
-    buffer.push("\n");
+    expect(decoder.push("event: token\ndata: uno\ndata: dos\n\n")).toEqual([
+      { event: "token", data: "uno\ndos" },
+    ]);
+  });
 
-    expect(buffer.flush()).toEqual([]);
+  test("a comment is not an event", () => {
+    const decoder = createSseDecoder();
+
+    /* The keep-alive a proxy needs so it does not close an idle stream. Reading
+       it as a field would invent a frame the server never sent. */
+    expect(decoder.push(": keep-alive\n\n")).toEqual([]);
+    expect(decoder.push("event: done\ndata: {}\n\n")).toEqual([
+      { event: "done", data: "{}" },
+    ]);
+  });
+
+  test("exactly one leading space belongs to the syntax and not to the value", () => {
+    const decoder = createSseDecoder();
+
+    expect(decoder.push("event:token\ndata:  dos espacios\n\n")).toEqual([
+      { event: "token", data: " dos espacios" },
+    ]);
+  });
+
+  test("id and retry are read, unknown fields are ignored", () => {
+    const decoder = createSseDecoder();
+    const frames = decoder.push(
+      "event: token\nid: 7\nretry: 2000\nunknown: x\ndata: hola\n\n",
+    );
+
+    expect(frames).toEqual([
+      { event: "token", data: "hola", id: "7", retry: 2000 },
+    ]);
+  });
+
+  test("blank lines between frames dispatch nothing", () => {
+    const decoder = createSseDecoder();
+
+    expect(decoder.push("\n\n\n")).toEqual([]);
+  });
+
+  test("a stream cut before its blank line is not a lost answer", () => {
+    const decoder = createSseDecoder();
+
+    expect(decoder.push('event: done\ndata: {"id":"m1"}')).toEqual([]);
+
+    /* The edge case that matters during a demo: the connection drops after the
+       last frame's data and before its terminator. Keeping it in the buffer
+       would be the panel losing a turn it had already received. */
+    expect(decoder.flush()).toEqual([{ event: "done", data: '{"id":"m1"}' }]);
   });
 });

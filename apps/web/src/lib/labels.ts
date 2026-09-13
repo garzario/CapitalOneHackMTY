@@ -14,18 +14,21 @@
 
 import type {
   Action,
+  AssistantTool,
+  Confidence,
+  ConfidenceRule,
   Detector,
   FindingState,
   InstructionSource,
+  ProposalKind,
   SatListStatus,
   Severity,
+  TransactionState,
 } from "@hackmty/core";
 import type {
   CepSealState,
-  Confidence,
   NameMatch,
   PaymentLineState,
-  TransactionState,
   VerificationRail,
   VerificationStateName,
 } from "./contract";
@@ -213,13 +216,14 @@ export const SEAL_STATE_BADGE: Record<CepSealState, string> = {
 };
 
 /**
- * The level, in the only three words this product has for it.
+ * The three levels, in the only three words this product uses for them.
  *
- * ADR-0009 fixes them and forbids everything around them: no probability, no
- * percentage, no score, and never the word that would read as a guarantee about a
- * transfer nobody can recall. `confiable` is a statement about the evidence we
- * hold and the findings are rendered next to it, which is the only way it is ever
- * shown.
+ * `confiable` is a statement about the evidence we hold and nothing more. It is
+ * not "seguro": a SPEI cannot be recalled, so nobody can promise one is safe, and
+ * ADR-0009 forbids the word as a verdict in any language along with every
+ * probability, percentage and score. The level always arrives on screen with the
+ * findings that produced it, which is why `CONFIDENCE_RULE_LABEL` exists: the rule
+ * that fired is shown next to the level rather than left in a function.
  */
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   confiable: "Confiable",
@@ -227,6 +231,7 @@ export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   alerta: "Alerta",
 };
 
+/** The level reuses the decision palette, so one colour means one thing. */
 export const CONFIDENCE_BADGE: Record<Confidence, string> = {
   confiable: "badge badge-release",
   precaucion: "badge badge-verify",
@@ -235,39 +240,54 @@ export const CONFIDENCE_BADGE: Record<Confidence, string> = {
 
 export const CONFIDENCE_HELP: Record<Confidence, string> = {
   confiable:
-    "Los documentos que tenemos coinciden y no hay nada abierto. No es una garantia: un SPEI no regresa.",
-  precaucion:
-    "Falta una comprobacion o la cuenta no tiene historial de pagos detras.",
-  alerta: "Los documentos ya muestran un problema que cuesta dinero.",
+    "Los documentos que tenemos coinciden y no hay nada abierto en esta linea.",
+  precaucion: "Falta una comprobacion humana o la cuenta no tiene historial.",
+  alerta: "Los documentos ya prueban un problema en esta linea.",
+};
+
+/** Which rule gave the level, in the words of the table in ADR-0009. */
+export const CONFIDENCE_RULE_LABEL: Record<ConfidenceRule, string> = {
+  sat_definitive: "el proveedor esta listado en definitiva por el SAT",
+  critical_finding: "hay un hallazgo critico",
+  new_account_without_history: "la cuenta no tiene historial de pago detras",
+  pending_verification: "falta una verificacion",
+  warning_finding: "hay un hallazgo de atencion",
+  no_open_signal: "no hay ninguna senal abierta",
 };
 
 /**
- * The state of a payment, in the three words a screen says plus the two the run
- * counts internally.
+ * The state of one line, and the three public ones are not the whole set.
  *
- * `rojo` and `cancelado` share a colour and that is deliberate rather than lazy:
- * for a clerk both mean the same thing about the money, which is that it is not
- * leaving, and the word and the sentence next to it are what tell her whether
- * somebody still has to act. Painting them apart would invent a distinction the
- * palette does not have.
+ * `pendiente` and `liberado` are the two the run has always counted internally,
+ * and they are labelled here rather than folded into the other three because a
+ * line nobody has looked at is not green and a release on Wednesday is not
+ * `enviado` until the money leaves on Thursday. ADR-0009 argues both.
  */
-export const TRANSACTION_STATE_LABEL: Record<TransactionState, string> = {
-  pendiente: "Pendiente",
-  rojo: "Rojo",
+export const STATE_LABEL: Record<TransactionState, string> = {
+  rojo: "En rojo",
   cancelado: "Cancelado",
-  liberado: "Liberado",
   enviado: "Enviado",
+  pendiente: "Pendiente",
+  liberado: "Liberado",
 };
 
-export const TRANSACTION_STATE_BADGE: Record<TransactionState, string> = {
-  pendiente: "badge badge-neutral",
+/**
+ * `cancelado` is neutral on purpose: a line that did not go out is the product
+ * working, not an alarm. `rojo` is the one that carries the hold palette.
+ */
+export const STATE_BADGE: Record<TransactionState, string> = {
   rojo: "badge badge-hold",
-  cancelado: "badge badge-hold",
-  liberado: "badge badge-info",
+  cancelado: "badge badge-neutral",
   enviado: "badge badge-release",
+  pendiente: "badge badge-neutral",
+  liberado: "badge badge-verify",
 };
 
-export const TRANSACTION_STATE_HELP: Record<TransactionState, string> = {
+/**
+ * What each state means, for the one question the words alone do not answer:
+ * whether anybody still has to do something about this line.
+ */
+export const STATE_HELP: Record<TransactionState, string> = {
   pendiente: "Nadie ha decidido esta linea todavia.",
   rojo: "Esta detenida y enfrente de una persona.",
   cancelado: "No sale en esta corrida, y el motivo va junto al estado.",
@@ -278,10 +298,13 @@ export const TRANSACTION_STATE_HELP: Record<TransactionState, string> = {
 /**
  * What the rail did with one line, and the five states are never four.
  *
- * `sent` and `settled` keep different words and different colours because they
- * are two different claims: the first is that we asked, the second is that the
- * rail says it happened. ADR-0008 calls collapsing them the one thing the demo
- * must not do, since the CEP exists to prove exactly that difference.
+ * This is a different question from `STATE_LABEL` and that is why it is a second
+ * dictionary rather than a merge: the state is where the payment stands for the
+ * company, and this is what the rail said about it. `sent` and `settled` keep
+ * different words and different colours because they are two different claims,
+ * the first that we asked and the second that the rail says it happened, and
+ * ADR-0008 calls collapsing them the one thing the demo must not do, since the CEP
+ * exists to prove exactly that difference.
  */
 export const PAYMENT_LINE_LABEL: Record<PaymentLineState, string> = {
   queued: "En cola",
@@ -307,6 +330,41 @@ export const PAYMENT_LINE_HELP: Record<PaymentLineState, string> = {
   failed: "El riel la rechazo. El motivo va en la misma linea.",
   cancelled:
     "Se quedo fuera antes de enviar nada. El motivo va en la misma linea.",
+};
+
+/**
+ * The seven reads the assistant may perform, named for the clerk.
+ *
+ * Every one of them is a read of something this product already computed, and the
+ * list is closed: `AssistantTool` in the domain has no member that writes, which
+ * is ADR-0007 enforced in the type rather than in a sentence.
+ */
+export const ASSISTANT_TOOL_LABEL: Record<AssistantTool, string> = {
+  get_run: "Leer la corrida",
+  get_instruction: "Leer la instruccion y sus hallazgos",
+  get_verification: "Leer la verificacion de la cuenta",
+  get_execution: "Leer lo que hizo la corrida en el riel",
+  get_receipt: "Leer el comprobante del pago",
+  sat_lookup: "Consultar las listas del SAT",
+  consortium_signal: "Consultar la red SentryOne",
+};
+
+/** The five things the panel can offer, and there is no sixth. */
+export const PROPOSAL_KIND_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Verificar la cuenta con un centavo",
+  verify_call: "Llamar al proveedor para verificar",
+  decide: "Registrar una decision",
+  execute_run: "Enviar la corrida de pagos",
+  intake: "Dar de alta la instruccion",
+};
+
+/** The button each proposal puts in front of a person, in their words. */
+export const PROPOSAL_CONFIRM_LABEL: Record<ProposalKind, string> = {
+  verify_account: "Enviar el centavo",
+  verify_call: "Hacer la llamada",
+  decide: "Firmar la decision",
+  execute_run: "Abrir la corrida para enviarla",
+  intake: "Dar de alta el pago",
 };
 
 export const ESTABLISHED_BY_LABEL: Record<string, string> = {

@@ -1,156 +1,195 @@
 /**
- * Server-Sent Events, decoded by hand, because `EventSource` cannot POST.
+ * Server-Sent Events, decoded from a byte stream the browser hands over in
+ * arbitrary chunks.
  *
- * Two of the streams in `docs/09-api.md` start with a request that carries a body
- * and a header: `POST /api/v1/run/:id/execute` needs `confirm: true` and a valid
- * `X-Actor`, and the assistant turn needs the message. `EventSource` issues a bare
- * GET with neither, so the only way to read those two is `fetch` plus a reader,
- * and that means owning the framing. `GET /api/v1/events` stays on `EventSource`
- * in `api.ts`, where the browser's own reconnection is worth having.
+ * `EventSource` exists and the ledger stream uses it, but it can only ever issue
+ * a GET. Three endpoints of this API answer a stream to a POST, and
+ * `POST /api/v1/assistant/messages` is one of them, so the panel reads the
+ * response body of a `fetch` and needs the part `EventSource` was doing for
+ * free: turning chunks into frames.
  *
- * The framing is the part that looks trivial and is not. A chunk boundary can fall
- * anywhere, including between the two newlines that end a message, so the decoder
- * has to be incremental and has to hand back what it could not yet use. Three
- * things in the spec are load bearing here and all three are things Hono's
- * `streamSSE` actually emits:
+ * The decoder is a state machine over lines rather than a `split` over the whole
+ * body, and that is the whole reason this file exists. A chunk boundary lands
+ * wherever the network put it: in the middle of a field name, between `data:` and
+ * its value, or between the two newlines that dispatch a frame. A regex over one
+ * chunk drops every frame that straddles a boundary, which in practice is the
+ * long ones, which in this product are the tool results. So bytes accumulate in a
+ * buffer and a frame is only emitted on the blank line that the specification
+ * says ends it.
  *
- * - a message ends at a BLANK line, not at a newline;
- * - `data:` may appear more than once in one message and the values join with a
- *   newline between them, which is why the field is accumulated and not replaced;
- * - a line beginning with `:` is a comment, and the heartbeat that keeps the
- *   connection alive through a proxy is exactly that, so a decoder that treated it
- *   as a field would emit one empty message every fifteen seconds.
+ * It implements the parts of the WHATWG event-stream grammar this API uses, and
+ * says so rather than claiming the whole thing: `event`, `data` (repeatable,
+ * joined with a newline), `id` and `retry` are read, a line starting with `:` is
+ * a comment and is ignored, and `\r\n`, `\n` and a bare `\r` all end a line. The
+ * one deliberate omission is reconnection, because a POST turn is not something
+ * to replay on a dropped connection: the panel says the turn was cut and the
+ * clerk asks again.
  *
- * Pure and synchronous, so the framing is tested without a server, a socket or a
- * clock. `api.ts` owns the reader; this file owns the bytes.
+ * Pure and with no DOM in it, so `sse.test.ts` drives it with the nastiest chunk
+ * boundaries it can think of and no server at all.
  */
 
-/** One decoded message. `event` is the name, defaulting to the spec's `message`. */
-export interface SseMessage {
+/** One dispatched event. `event` defaults to `message`, like the specification. */
+export interface SseFrame {
   event: string;
   data: string;
   id?: string;
+  retry?: number;
 }
 
-/** The spec's default event name for a message that carries no `event:` field. */
-export const DEFAULT_EVENT_NAME = "message";
+export interface SseDecoder {
+  /** Feed a decoded text chunk. Returns the frames it completed, in order. */
+  push(chunk: string): SseFrame[];
+  /**
+   * Flush what is left when the stream ends.
+   *
+   * A well behaved server ends its last frame with a blank line, so this is
+   * normally empty. It is here because a stream that is cut mid-frame is a real
+   * thing during a demo, and a decoder that silently kept half an answer in a
+   * buffer would be the panel losing a turn it had already received.
+   */
+  flush(): SseFrame[];
+}
 
-/**
- * Splits whatever is buffered into whole messages and the remainder.
- *
- * The remainder is returned rather than dropped: a partial message is the normal
- * state of a stream between two chunks, and discarding it loses the line of a
- * payment the next chunk was going to complete.
- */
-export function decodeSse(buffer: string): {
-  messages: SseMessage[];
-  rest: string;
-} {
-  /* Normalised first, because the spec allows CRLF, CR and LF to end a line and a
-     server behind a proxy is not the only thing that decides which arrives. */
-  const normalised = buffer.replace(/\r\n|\r/g, "\n");
-  const messages: SseMessage[] = [];
-  let start = 0;
+const DEFAULT_EVENT = "message";
 
-  for (;;) {
-    const boundary = normalised.indexOf("\n\n", start);
+interface Draft {
+  event: string;
+  data: string[];
+  id?: string;
+  retry?: number;
+}
 
-    if (boundary === -1) {
-      break;
-    }
+function emptyDraft(): Draft {
+  return { event: DEFAULT_EVENT, data: [] };
+}
 
-    const frame = normalised.slice(start, boundary);
-    const message = parseSseFrame(frame);
-
-    if (message) {
-      messages.push(message);
-    }
-
-    start = boundary + 2;
+/** A draft is worth dispatching only once some field landed in it. */
+function frameOf(draft: Draft): SseFrame | null {
+  if (draft.data.length === 0 && draft.event === DEFAULT_EVENT) {
+    return null;
   }
 
-  return { messages, rest: normalised.slice(start) };
+  const frame: SseFrame = {
+    event: draft.event,
+    data: draft.data.join("\n"),
+  };
+
+  if (draft.id !== undefined) {
+    frame.id = draft.id;
+  }
+  if (draft.retry !== undefined) {
+    frame.retry = draft.retry;
+  }
+
+  return frame;
 }
 
-/**
- * One frame, already cut at its blank line, as a message.
- *
- * Answers null for a frame that carries no data at all: a heartbeat comment and a
- * frame of `id:` on its own are both real traffic and neither is a message.
- */
-export function parseSseFrame(frame: string): SseMessage | null {
-  let event = DEFAULT_EVENT_NAME;
-  let id: string | undefined;
-  const data: string[] = [];
+export function createSseDecoder(): SseDecoder {
+  let buffer = "";
+  let draft = emptyDraft();
 
-  for (const line of frame.split("\n")) {
-    if (line === "" || line.startsWith(":")) {
-      continue;
+  /** One line of the grammar. Returns a frame when the line dispatched one. */
+  const readLine = (line: string): SseFrame | null => {
+    if (line === "") {
+      const frame = frameOf(draft);
+      draft = emptyDraft();
+
+      return frame;
+    }
+
+    /* A comment. The usual one is the keep-alive a proxy needs to not close an
+       idle stream, and reading it as a field would invent an event. */
+    if (line.startsWith(":")) {
+      return null;
     }
 
     const colon = line.indexOf(":");
     const field = colon === -1 ? line : line.slice(0, colon);
-    /* One optional space after the colon belongs to the framing and not to the
-       value. A decoder that keeps it turns every JSON payload into a string that
-       starts with a space, which parses anyway and hides the bug until something
-       compares the raw text. */
-    const rawValue = colon === -1 ? "" : line.slice(colon + 1);
-    const value = rawValue.startsWith(" ") ? rawValue.slice(1) : rawValue;
+    const raw = colon === -1 ? "" : line.slice(colon + 1);
+    /* Exactly one leading space is part of the syntax and not of the value. */
+    const value = raw.startsWith(" ") ? raw.slice(1) : raw;
 
-    if (field === "event") {
-      event = value;
-    } else if (field === "data") {
-      data.push(value);
-    } else if (field === "id") {
-      id = value;
+    switch (field) {
+      case "event":
+        draft.event = value;
+        break;
+      case "data":
+        draft.data.push(value);
+        break;
+      case "id":
+        draft.id = value;
+        break;
+      case "retry": {
+        const retry = Number.parseInt(value, 10);
+        if (Number.isInteger(retry) && retry >= 0) {
+          draft.retry = retry;
+        }
+        break;
+      }
+      default:
+        /* An unknown field is ignored, which is what keeps a server free to add
+           one without this decoder being the thing that breaks. */
+        break;
     }
-    /* `retry` is reconnection advice and this reader never reconnects: the caller
-       started one piece of work and is waiting on it. Ignored rather than stored
-       so nothing here pretends to honour it. */
-  }
 
-  if (data.length === 0) {
     return null;
-  }
+  };
 
-  return id === undefined
-    ? { event, data: data.join("\n") }
-    : { event, data: data.join("\n"), id };
-}
+  return {
+    push(chunk: string): SseFrame[] {
+      buffer += chunk;
+      const frames: SseFrame[] = [];
 
-/**
- * The incremental form: feed it chunks, take whole messages out.
- *
- * A class rather than a closure because the buffer is the whole state and a reader
- * loop reads better with `reader.push(chunk)` in it than with a tuple being
- * rebound on every iteration.
- */
-export class SseBuffer {
-  private buffer = "";
+      /* A trailing `\r` is held back: it may be the first half of a `\r\n` that
+         the next chunk completes, and treating it as a line ending here would
+         dispatch the frame twice. */
+      while (true) {
+        const match = /\r\n|\n|\r/.exec(buffer);
 
-  /** Every message completed by this chunk, in arrival order. */
-  push(chunk: string): SseMessage[] {
-    this.buffer += chunk;
+        if (match === null) {
+          break;
+        }
+        if (
+          match[0] === "\r" &&
+          match.index === buffer.length - 1 &&
+          buffer.length > 0
+        ) {
+          break;
+        }
 
-    const { messages, rest } = decodeSse(this.buffer);
-    this.buffer = rest;
+        const line = buffer.slice(0, match.index);
+        buffer = buffer.slice(match.index + match[0].length);
 
-    return messages;
-  }
+        const frame = readLine(line);
+        if (frame !== null) {
+          frames.push(frame);
+        }
+      }
 
-  /**
-   * The last message when the stream ended without its blank line.
-   *
-   * Worth having rather than tidy: a server that closes the connection right after
-   * writing the final `done` has written a complete message, and dropping it would
-   * lose the one frame that carries the whole `PaymentExecution`.
-   */
-  flush(): SseMessage[] {
-    const frame = this.buffer;
-    this.buffer = "";
+      return frames;
+    },
 
-    const message = frame.trim() === "" ? null : parseSseFrame(frame);
+    flush(): SseFrame[] {
+      const frames: SseFrame[] = [];
 
-    return message ? [message] : [];
-  }
+      if (buffer !== "") {
+        const line = buffer;
+        buffer = "";
+        const frame = readLine(line);
+        if (frame !== null) {
+          frames.push(frame);
+        }
+      }
+
+      const last = frameOf(draft);
+      draft = emptyDraft();
+
+      if (last !== null) {
+        frames.push(last);
+      }
+
+      return frames;
+    },
+  };
 }

@@ -18,6 +18,7 @@ import type { LedgerEvent } from "@hackmty/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Actor,
+  AssistantSession,
   BeneficiaryRegistry,
   CepVerification,
   CepVerifyBody,
@@ -45,11 +46,31 @@ import type {
   VerifyCallResult,
   VerifyCallScript,
 } from "./contract";
-import { SseBuffer } from "./sse";
+import { createSseDecoder, type SseFrame } from "./sse";
 
 export const API_TIMEOUT_MS = 6000;
 export const API_PREFIX = "/api/v1";
 export const EVENTS_PATH = `${API_PREFIX}/events`;
+export const ASSISTANT_MESSAGES_PATH = `${API_PREFIX}/assistant/messages`;
+
+/**
+ * The `X-Actor` header of every write, formatted the way docs/09-api.md reads it.
+ *
+ * Two keys separated by `;`, and `name` is the rest of its pair so a real name
+ * needs no quoting. A name carrying a `;` is refused by the API rather than
+ * truncated, so it is refused here too: a decision recorded under half a name is
+ * worse than a request that did not go out, and the panel can say so before
+ * anybody presses anything.
+ */
+export function formatActor(actor: Actor): string | null {
+  const name = actor.name.trim();
+
+  if (name === "" || name.length > 120 || name.includes(";")) {
+    return null;
+  }
+
+  return `role=${actor.role}; name=${name}`;
+}
 
 export type ApiFailure = {
   /** HTTP status, or 0 when the request never produced a response. */
@@ -73,6 +94,16 @@ export type ApiResult<T> =
 export type RequestOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
+  /**
+   * Who is acting, sent as `X-Actor`. Every write in this product carries it and
+   * the ledger event it appends records the name, because nothing here executes
+   * without a person: docs/09-api.md "The actor on every write".
+   *
+   * It lives on the options rather than on each signature so that every write
+   * already written gained the header without changing its arguments, and so a
+   * read can never accidentally claim somebody acted.
+   */
+  actor?: Actor;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,12 +143,23 @@ type JsonInit = {
   body?: unknown;
 };
 
+/** The actor header, or nothing, so one expression builds every header bag. */
+function actorHeaders(actor?: Actor): Record<string, string> {
+  if (actor === undefined) {
+    return {};
+  }
+
+  const value = formatActor(actor);
+
+  return value === null ? {} : { "x-actor": value };
+}
+
 async function request(
   path: string,
   init: JsonInit = {},
   options: RequestOptions = {},
 ): Promise<ApiResult<unknown>> {
-  const { signal, timeoutMs = API_TIMEOUT_MS } = options;
+  const { signal, timeoutMs = API_TIMEOUT_MS, actor } = options;
   const controller = new AbortController();
   const forwardAbort = () => controller.abort();
 
@@ -134,8 +176,12 @@ async function request(
       method: init.method ?? "GET",
       headers:
         init.body === undefined
-          ? { accept: "application/json" }
-          : { accept: "application/json", "content-type": "application/json" },
+          ? { accept: "application/json", ...actorHeaders(actor) }
+          : {
+              accept: "application/json",
+              "content-type": "application/json",
+              ...actorHeaders(actor),
+            },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: controller.signal,
     });
@@ -464,6 +510,34 @@ export async function getPaymentReceipt(
 }
 
 /**
+ * One conversation of the assistant panel, projected from the
+ * `assistant_message` events of that session id.
+ *
+ * A read, so it carries no actor: `AssistantSession.actor` is who opened the
+ * conversation and it comes back on the payload, rather than being asserted by
+ * whoever is asking for it.
+ */
+export async function getAssistantSession(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiResult<AssistantSession>> {
+  return andThen(
+    await request(
+      `${API_PREFIX}/assistant/sessions/${encodeURIComponent(id)}`,
+      {},
+      options,
+    ),
+    (value) =>
+      shaped<AssistantSession>(
+        value,
+        (session) =>
+          typeof session.id === "string" && Array.isArray(session.messages),
+        "assistant session",
+      ),
+  );
+}
+
+/**
  * The constancia is a PDF, so it is a link and not a fetch.
  *
  * These build the href the anchor carries. Letting the browser navigate is what
@@ -724,6 +798,138 @@ export async function reseed(
 
 /* ---------------------------------------------------------------- streaming */
 
+/**
+ * A POST that answers `text/event-stream`, frame by frame.
+ *
+ * `EventSource` cannot do this: it only issues a GET, and three endpoints of this
+ * API stream a reply to a POST because each of them is one piece of work the
+ * caller started and is waiting on. So the response body is read here and
+ * `createSseDecoder` turns the chunks into frames. This function knows nothing
+ * about the assistant: it moves frames, and `lib/assistant.ts` is what decides
+ * what a frame means, which is what keeps the contract check testable with no
+ * network in it.
+ *
+ * The timeout deliberately covers only the wait for the headers. A six second
+ * ceiling is right for a JSON route and wrong for a stream, where the whole point
+ * is that the answer arrives over time: a server that never responds still fails
+ * fast, and a server that is answering is never cut off mid-sentence. Cancelling
+ * is the caller's `signal`, which is what the close button uses.
+ */
+export type SseStreamInit = {
+  method: "POST";
+  /** A `FormData` for the multipart form, or a JSON value for the other one. */
+  body?: BodyInit;
+  json?: unknown;
+};
+
+export async function streamSse(
+  path: string,
+  init: SseStreamInit,
+  onFrame: (frame: SseFrame) => void,
+  options: RequestOptions = {},
+): Promise<ApiResult<void>> {
+  const { signal, timeoutMs = API_TIMEOUT_MS, actor } = options;
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort();
+
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+
+  let timedOut = false;
+  let timer: number | undefined = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const clearHeaderTimeout = () => {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timer = undefined;
+    }
+  };
+
+  try {
+    const json = init.json !== undefined;
+    const response = await fetch(path, {
+      method: init.method,
+      headers: {
+        accept: "text/event-stream",
+        ...(json ? { "content-type": "application/json" } : {}),
+        ...actorHeaders(actor),
+      },
+      body: json ? JSON.stringify(init.json) : init.body,
+      signal: controller.signal,
+    });
+
+    clearHeaderTimeout();
+
+    if (!response.ok) {
+      /* A refusal is JSON even on a route that answers a stream, which is what
+         lets the panel show the 422 naming the variable this server lacks. */
+      const payload = await response.json().catch(() => null);
+
+      return { ok: false, error: failureFrom(response.status, payload) };
+    }
+
+    const body = response.body;
+
+    if (!body) {
+      return {
+        ok: false,
+        error: {
+          status: response.status,
+          message: "This browser cannot read a streamed response.",
+        },
+      };
+    }
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    const frames = createSseDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      for (const frame of frames.push(
+        decoder.decode(value, { stream: true }),
+      )) {
+        onFrame(frame);
+      }
+    }
+
+    for (const frame of frames.flush()) {
+      onFrame(frame);
+    }
+
+    return { ok: true, data: undefined };
+  } catch (error) {
+    if (timedOut) {
+      return {
+        ok: false,
+        error: {
+          status: 0,
+          message: `The API did not answer within ${timeoutMs} ms.`,
+        },
+      };
+    }
+
+    if (isAbortError(error)) {
+      return { ok: false, error: { status: 0, message: "Request cancelled." } };
+    }
+
+    return {
+      ok: false,
+      error: { status: 0, message: "The stream was cut before it finished." },
+    };
+  } finally {
+    clearHeaderTimeout();
+    signal?.removeEventListener("abort", forwardAbort);
+  }
+}
+
 export type EventsStatus = "connecting" | "open" | "closed" | "unsupported";
 
 export type UseEventsOptions = {
@@ -835,29 +1041,9 @@ export function useEvents(options: UseEventsOptions = {}): UseEvents {
 
 /* ------------------------------------------------------ the payment run out */
 
-export const ACTOR_HEADER = "X-Actor";
-
 /** The two event names `POST /run/:id/execute` writes, from docs/09-api.md. */
 export const EXECUTE_LINE_EVENT = "line";
 export const EXECUTE_DONE_EVENT = "done";
-
-/**
- * The `X-Actor` header value for one person.
- *
- * Two keys separated by `;`, and the name is the rest of the pair so a real name
- * needs no quoting. A name that carries a `;` is refused here rather than
- * truncated, because the API refuses it too and a header this client silently cut
- * in half would put half a person's name on a ledger entry.
- */
-export function actorHeaderValue(actor: Actor): string | null {
-  const name = actor.name.trim();
-
-  if (name === "" || name.length > 120 || name.includes(";")) {
-    return null;
-  }
-
-  return `role=${actor.role}; name=${name}`;
-}
 
 export type ExecuteRunHandlers = {
   /** Every `line` event, in arrival order, as the rail answered it. */
@@ -867,17 +1053,14 @@ export type ExecuteRunHandlers = {
 /**
  * The payment run leaving on the configured rail.
  *
- * `fetch` and not `EventSource`, because this stream starts with a body and a
- * header: `confirm: true` and a valid `X-Actor` are both required and an
- * `EventSource` can send neither. `sse.ts` owns the framing; this owns the reader.
+ * It rides `streamSse` like the assistant turn does, for the same reason that
+ * function exists: `EventSource` only issues a GET and this stream starts with a
+ * body and a header, `confirm: true` and a valid `X-Actor`, both required and
+ * neither optional. What this function adds on top is the meaning of a frame: a
+ * `line` is one payment the rail answered for, a `done` carries the whole
+ * `PaymentExecution`, and nothing else is read.
  *
  * Three things it deliberately does not do.
- *
- * It sets **no timeout**. Every other call in this file gives up after six
- * seconds, which is right for a read and wrong for a stream that is acknowledging
- * payments one at a time: aborting it would leave a run half sent with the screen
- * reporting a network failure. The caller's `signal` is still honoured, so a screen
- * that unmounts closes the connection.
  *
  * It **never retries**. A retried execute is a second request to move money, and
  * the endpoint is idempotent per instruction precisely so that a person can decide
@@ -887,6 +1070,11 @@ export type ExecuteRunHandlers = {
  * server with no rail, a `409` naming a line the decisions stop and a `403` for a
  * role that may not execute all arrive as an `ApiFailure` carrying the message the
  * API wrote, and nothing was appended to the ledger for any of them.
+ *
+ * It **refuses to send with no name on it**. `formatActor` answers null for an
+ * empty name or one carrying a `;`, and this stops before the request rather than
+ * letting the API reject it, because the screen can say so before anybody presses
+ * anything.
  */
 export async function executeRun(
   runId: string,
@@ -895,9 +1083,7 @@ export async function executeRun(
   handlers: ExecuteRunHandlers = {},
   options: RequestOptions = {},
 ): Promise<ApiResult<PaymentExecution>> {
-  const header = actorHeaderValue(actor);
-
-  if (header === null) {
+  if (formatActor(actor) === null) {
     return {
       ok: false,
       error: {
@@ -908,117 +1094,42 @@ export async function executeRun(
     };
   }
 
-  let response: Response;
-
-  try {
-    response = await fetch(
-      `${API_PREFIX}/run/${encodeURIComponent(runId)}/execute`,
-      {
-        method: "POST",
-        headers: {
-          accept: "text/event-stream",
-          "content-type": "application/json",
-          [ACTOR_HEADER]: header,
-        },
-        body: JSON.stringify(body),
-        signal: options.signal,
-      },
-    );
-  } catch (error) {
-    if (isAbortError(error)) {
-      return { ok: false, error: { status: 0, message: "Request cancelled." } };
-    }
-
-    return {
-      ok: false,
-      error: { status: 0, message: "The API is not reachable." },
-    };
-  }
-
-  if (!response.ok) {
-    /* A refusal answers the error envelope as JSON and never a stream. */
-    const payload: unknown = await response.json().catch(() => null);
-
-    return { ok: false, error: failureFrom(response.status, payload) };
-  }
-
-  const stream = response.body;
-
-  if (!stream) {
-    return {
-      ok: false,
-      error: {
-        status: response.status,
-        message: "The API accepted the run and sent no stream to follow it on.",
-      },
-    };
-  }
-
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  const buffer = new SseBuffer();
   let execution: PaymentExecution | null = null;
 
-  const handle = (event: string, data: string) => {
-    const parsed: unknown = parseJson(data);
+  const result = await streamSse(
+    `${API_PREFIX}/run/${encodeURIComponent(runId)}/execute`,
+    { method: "POST", json: body },
+    (frame) => {
+      const parsed: unknown = parseJson(frame.data);
 
-    if (!isRecord(parsed)) {
-      return;
-    }
+      if (!isRecord(parsed)) {
+        return;
+      }
 
-    if (event === EXECUTE_LINE_EVENT) {
+      if (frame.event === EXECUTE_LINE_EVENT) {
+        if (
+          typeof parsed.instructionId === "string" &&
+          typeof parsed.state === "string"
+        ) {
+          handlers.onLine?.(parsed as unknown as PaymentExecutionLine);
+        }
+
+        return;
+      }
+
       if (
-        typeof parsed.instructionId === "string" &&
-        typeof parsed.state === "string"
+        frame.event === EXECUTE_DONE_EVENT &&
+        Array.isArray(parsed.lines) &&
+        isRecord(parsed.totals)
       ) {
-        handlers.onLine?.(parsed as unknown as PaymentExecutionLine);
+        execution = parsed as unknown as PaymentExecution;
       }
+    },
+    { ...options, actor },
+  );
 
-      return;
-    }
-
-    if (
-      event === EXECUTE_DONE_EVENT &&
-      Array.isArray(parsed.lines) &&
-      isRecord(parsed.totals)
-    ) {
-      execution = parsed as unknown as PaymentExecution;
-    }
-  };
-
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      const chunk = decoder.decode(value, { stream: true });
-
-      for (const message of buffer.push(chunk)) {
-        handle(message.event, message.data);
-      }
-    }
-
-    for (const message of buffer.flush()) {
-      handle(message.event, message.data);
-    }
-  } catch (error) {
-    if (isAbortError(error)) {
-      return { ok: false, error: { status: 0, message: "Request cancelled." } };
-    }
-
-    return {
-      ok: false,
-      error: {
-        status: 0,
-        message:
-          "Se corto el flujo de la corrida. Vuelve a leer la ejecucion para ver que alcanzo a salir.",
-      },
-    };
-  } finally {
-    reader.releaseLock();
+  if (!result.ok) {
+    return result;
   }
 
   if (execution === null) {

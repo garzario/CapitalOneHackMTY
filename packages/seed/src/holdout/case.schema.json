@@ -11,7 +11,8 @@
     "kind",
     "input",
     "expectedFindings",
-    "expectedAction"
+    "expectedAction",
+    "expectedLevel"
   ],
   "properties": {
     "$schema": {
@@ -55,6 +56,11 @@
           "description": "The list rows in force for this case, as if a version had just been published."
         },
         "cep": { "$ref": "#/$defs/cep" },
+        "sat49BisEntries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sat49BisEntry" },
+          "description": "Article 49 Bis publications for this supplier. A separate statute from 69-B with one published outcome and no published clearing, so the two lists never share a row."
+        },
         "bankMirror": {
           "type": "array",
           "items": { "$ref": "#/$defs/ledgerTx" },
@@ -80,7 +86,11 @@
         }
       }
     },
-    "expectedAction": { "$ref": "#/$defs/action" }
+    "expectedAction": { "$ref": "#/$defs/action" },
+    "expectedLevel": {
+      "$ref": "#/$defs/confidence",
+      "description": "How the line should read on the screen. Labelled from what the case is, not derived from expectedFindings: deriving it through the same rule table the engine uses would make the level matrix agree with itself and measure nothing."
+    }
   },
   "$defs": {
     "rfc": {
@@ -119,6 +129,10 @@
       "description": "Provable from documents, or needs a human check. Never an accusation."
     },
     "action": { "enum": ["hold", "verify", "release"] },
+    "confidence": {
+      "enum": ["confiable", "precaucion", "alerta"],
+      "description": "The three words a line reads at. alerta: the documents say this payment is wrong. precaucion: something is open and a person checks. confiable: nothing is open."
+    },
     "paymentInstruction": {
       "type": "object",
       "additionalProperties": false,
@@ -267,6 +281,26 @@
           ]
         },
         "publishedAt": { "$ref": "#/$defs/day" },
+        "listVersion": { "type": "string" }
+      }
+    },
+    "sat49BisEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rfc", "name", "publishedAt", "oficio", "listVersion"],
+      "properties": {
+        "rfc": { "$ref": "#/$defs/rfc" },
+        "name": { "type": "string" },
+        "publishedAt": {
+          "$ref": "#/$defs/day",
+          "description": "DOF publication date of the oficio. The buyer's thirty natural days start here."
+        },
+        "oficio": {
+          "type": "string",
+          "description": "The resolution oficio, verbatim, which is the citation a clerk checks."
+        },
+        "notifiedBy": { "type": "string" },
+        "noticeEffectiveAt": { "$ref": "#/$defs/day" },
         "listVersion": { "type": "string" }
       }
     },
