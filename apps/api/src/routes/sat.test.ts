@@ -331,8 +331,23 @@ describe("POST /api/v1/sat/publish", () => {
       );
     }
     /* The publication comes first and its consequences after it, so a replay a
-       year later cannot show a payment re-decided by a list nobody had posted. */
-    expect(seen.slice(1).map((row) => row.type)).toEqual(["decision_made"]);
+       year later cannot show a payment re-decided by a list nobody had posted. The
+       cancellation is the second consequence and it follows the decision: the list
+       made this supplier definitive, so the line stops being a hold somebody can
+       wait out (issue #204, ADR-0009 row 4). */
+    expect(seen.slice(1).map((row) => row.type)).toEqual([
+      "decision_made",
+      "payment_cancelled",
+    ]);
+    const cancelled = seen[2];
+    if (cancelled?.type !== "payment_cancelled") {
+      throw new Error("the publication did not cancel the line it listed");
+    }
+    expect(cancelled.reason).toContain("articulo 69-B");
+    expect(cancelled.reason).toContain("Solo el propietario puede reabrirla");
+    /* No actor, because nobody dropped this line by hand. `payment_cancelled`
+       documents that field for exactly this case. */
+    expect(cancelled.actor).toBeUndefined();
   });
 });
 

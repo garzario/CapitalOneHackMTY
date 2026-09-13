@@ -98,13 +98,15 @@ export interface RunConstanciaInput extends ConstanciaCommon {
   items: readonly RunConstanciaItem[];
 }
 
-const ACTION_LABEL: Readonly<Record<Action, string>> = {
+/** How a proposed action is written on any document of this package. */
+export const ACTION_LABEL: Readonly<Record<Action, string>> = {
   hold: "Detenido",
   verify: "Por verificar",
   release: "Liberado",
 };
 
-const STATUS_LABEL: Readonly<Record<string, string>> = {
+/** How a 69-B situation is written on any document of this package. */
+export const STATUS_LABEL: Readonly<Record<string, string>> = {
   presunto: "Presunto",
   desvirtuado: "Desvirtuado",
   definitivo: "Definitivo",
@@ -122,7 +124,7 @@ const SYNTHETIC_BAND =
  */
 const MONTERREY_OFFSET_MINUTES = -360;
 
-function localStamp(iso: string): string {
+export function localStamp(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) {
     return iso;
@@ -139,8 +141,15 @@ const NOT_A_SIGNATURE =
   "La huella es un resumen SHA-256 del contenido del rango de eventos citado, no una firma electronica. " +
   "Sirve para comprobar que dos impresiones del mismo rango describen los mismos hechos. No acredita quien emitio el documento.";
 
-/** Draws the header every constancia shares, and returns the sheet to continue on. */
-function open(
+/**
+ * Draws the header every document of this package shares, and returns the sheet to
+ * continue on.
+ *
+ * Exported because `./letter.ts` is the third document and it is the same heading:
+ * the synthetic band, the title, the company and the instant. A second header would
+ * be a second document standard on the same desk.
+ */
+export function openSheet(
   doc: PdfDocument,
   input: ConstanciaCommon,
   title: string,
@@ -162,7 +171,7 @@ function open(
   return sheet;
 }
 
-/** The digest block, identical on both documents so it reads the same way. */
+/** The digest block, identical on both constancias so it reads the same way. */
 function closeWithFingerprint(sheet: Sheet, input: ConstanciaCommon): void {
   const fingerprint = fingerprintLedger(input.ledger, input.range ?? {});
 
@@ -198,7 +207,7 @@ export function sweepConstancia(input: SweepConstanciaInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Constancia de revision, articulo 69-B",
@@ -278,7 +287,7 @@ export function runConstancia(input: RunConstanciaInput): Uint8Array {
     createdAt: input.issuedAt,
   });
 
-  const sheet = open(
+  const sheet = openSheet(
     doc,
     input,
     "Constancia de corrida de pagos",
@@ -456,7 +465,12 @@ function state(finding: Finding): string {
 }
 
 /** Suggested filename, so a browser saves something a person can find again. */
-export function constanciaFilename(kind: "sweep" | "run", id: string): string {
+export function constanciaFilename(
+  kind: "sweep" | "run" | "carta",
+  id: string,
+): string {
   const safe = id.replace(/[^A-Za-z0-9._-]+/g, "-");
-  return `constancia-${kind}-${safe}.pdf`;
+  return kind === "carta"
+    ? `carta-${safe}.pdf`
+    : `constancia-${kind}-${safe}.pdf`;
 }

@@ -10,6 +10,7 @@ import {
   instructionDetailSchema,
   intakeResponseSchema,
   ledgerResponseSchema,
+  paymentRunSchema,
 } from "../schemas";
 import {
   createTestApp,
@@ -999,5 +1000,178 @@ describe("POST /api/v1/instructions/:id/decide", () => {
 
     expect(res.status).toBe(400);
     expect(body.error.message).toContain("action");
+  });
+});
+
+/**
+ * Issue #204: a definitive SAT listing cancels the line, and only a named owner
+ * reopens it with a written reason.
+ *
+ * The listing is made definitive through `POST /api/v1/sat/publish`, which is how
+ * it happens on stage, rather than by writing a finding into the store. A test that
+ * hand-built the evidence would pass with the engine unplugged.
+ */
+/**
+ * Issue #204: a definitive SAT listing cancels the line, and from there it is the
+ * owner rule of issue #199 that guards it.
+ *
+ * The listing is made definitive through `POST /api/v1/sat/publish`, which is how
+ * it happens on stage, rather than by appending the event by hand. The tests in
+ * "who may decide" above append it, which is right for testing the rule; this one
+ * proves the product actually produces it, so the two halves are checked against
+ * each other rather than each against its own fixture.
+ */
+describe("a definitive SAT listing cancels the line", () => {
+  /** The fixture line whose supplier the seeded 69-B list names. */
+  const LISTED_ID = "ins-2026w37-02";
+
+  async function withDefinitiveListing() {
+    const harness = createTestApp();
+    const detail = instructionDetailResponseSchema.parse(
+      await (
+        await harness.app.request(`/api/v1/instructions/${LISTED_ID}`)
+      ).json(),
+    );
+    expect(detail.instruction.supplierRfc).toBe("SYN020202BBB");
+
+    const published = await harness.app.request(
+      "/api/v1/sat/publish",
+      json({
+        simulate: true,
+        rfcs: [detail.instruction.supplierRfc],
+        status: "definitivo",
+      }),
+    );
+    expect(published.status).toBe(200);
+    return harness;
+  }
+
+  it("reads cancelado on the line, with the rule that cancelled it", async () => {
+    const { app } = await withDefinitiveListing();
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${LISTED_ID}`)).json(),
+    );
+
+    expect(detail.confidence).toBe("alerta");
+    expect(detail.confidenceRule).toBe("sat_definitive");
+    expect(detail.state).toBe("cancelado");
+    expect(detail.stateRule).toBe("sat_definitive");
+  });
+
+  it("appends the cancellation with the article in the sentence and no actor", async () => {
+    const { app, deps } = createTestApp();
+    const seen: LedgerEvent[] = [];
+    deps.events.subscribe((event) => seen.push(event));
+
+    await app.request(
+      "/api/v1/sat/publish",
+      json({ simulate: true, rfcs: ["SYN020202BBB"], status: "definitivo" }),
+    );
+
+    const cancelled = seen.filter(
+      (event) => event.type === "payment_cancelled",
+    );
+    expect(cancelled.length).toBeGreaterThan(0);
+    for (const event of cancelled) {
+      if (event.type !== "payment_cancelled") {
+        throw new Error("unreachable");
+      }
+      expect(event.reason).toContain("articulo 69-B");
+      expect(event.reason).toContain("Solo el propietario puede reabrirla");
+      /* No actor: nobody dropped this line by hand, the evidence cancelled it. */
+      expect(event.actor).toBeUndefined();
+    }
+  });
+
+  it("hands the owner rule of #199 the fact it reads, end to end", async () => {
+    /* The two halves meet on the ledger. Nothing in this test appends an event:
+       the publication wrote it and `deps.repo.cancellation` is what makes
+       `decideRequirement` answer `reopen_cancelled`. */
+    const { app } = await withDefinitiveListing();
+
+    const refused = await app.request(
+      `/api/v1/instructions/${LISTED_ID}/decide`,
+      json({
+        action: "release",
+        decidedBy: TEST_CLERK.name,
+        reason: "El proveedor insiste en que ya se aclaro.",
+      }),
+    );
+    expect(refused.status).toBe(403);
+
+    const noReason = await app.request(
+      `/api/v1/instructions/${LISTED_ID}/decide`,
+      json({ action: "release", decidedBy: TEST_OWNER.name }, TEST_OWNER),
+    );
+    expect(noReason.status).toBe(422);
+
+    const reopened = await app.request(
+      `/api/v1/instructions/${LISTED_ID}/decide`,
+      json(
+        {
+          action: "release",
+          decidedBy: TEST_OWNER.name,
+          reason: "El proveedor impugno la resolucion y entrego el acuse.",
+        },
+        TEST_OWNER,
+      ),
+    );
+    expect(reopened.status).toBe(200);
+
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${LISTED_ID}`)).json(),
+    );
+
+    /* The signature outranks the listing, which is ADR-0002 refusing to overrule a
+       person in either direction. The level does not move: the listing is still on
+       the line and the letter still names the article. */
+    expect(detail.state).toBe("liberado");
+    expect(detail.stateRule).toBe("released");
+    expect(detail.confidence).toBe("alerta");
+    expect(detail.decision?.reason).toContain("impugno la resolucion");
+  });
+
+  it("leaves the line cancelado when the owner holds it instead", async () => {
+    const { app } = await withDefinitiveListing();
+    const res = await app.request(
+      `/api/v1/instructions/${LISTED_ID}/decide`,
+      json(
+        {
+          action: "hold",
+          decidedBy: TEST_OWNER.name,
+          reason: "Lo reviso mañana con el contador.",
+        },
+        TEST_OWNER,
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    const detail = instructionDetailResponseSchema.parse(
+      await (await app.request(`/api/v1/instructions/${LISTED_ID}`)).json(),
+    );
+    expect(detail.state).toBe("cancelado");
+  });
+});
+
+describe("the level and the state on the instruction detail", () => {
+  it("are the same two words the run carries for that line", async () => {
+    const { app } = createTestApp();
+    const run = paymentRunSchema.parse(
+      await (await app.request("/api/v1/run/current")).json(),
+    );
+
+    for (const item of run.items) {
+      const detail = instructionDetailResponseSchema.parse(
+        await (
+          await app.request(`/api/v1/instructions/${item.instruction.id}`)
+        ).json(),
+      );
+
+      expect(detail.confidence).toBe(item.confidence);
+      expect(detail.confidenceRule).toBe(item.confidenceRule);
+      expect(detail.confidenceFindingIds).toEqual(item.confidenceFindingIds);
+      expect(detail.state).toBe(item.state);
+      expect(detail.stateRule).toBe(item.stateRule);
+    }
   });
 });
