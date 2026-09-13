@@ -10,7 +10,7 @@ Types are the ones in `packages/core/src/domain.ts`; the API never invents a sec
 
 | Method | Path | Returns | Notes |
 |---|---|---|---|
-| GET | `/health` | `{ ok, service, version, dependencies }` | liveness, plus what this instance was configured with. See "Health, and what it may not check" below |
+| GET | `/health` | `{ ok, service, version, dependencies }` | liveness, plus what this instance was configured with, as seven ordered rows. See "Health, and what it may not check" below |
 | GET | `/api/v1/run/current` | `PaymentRun` | this week's payment run: instructions, their decisions and findings, totals. Under `SEED=sentryone` the six controls are run over the generated company at boot, so the findings and the proposed actions on this payload are the engine's own output and not fixture rows. `Decision.decidedBy` stays absent on every line until a person confirms one |
 | GET | `/api/v1/instructions/:id` | `{ instruction, decision, findings, supplier, hold, confidence, confidenceRule, confidenceFindingIds, state, stateRule }` | detail panel. `hold` is the window the payment is stopped for, or `null` when it is released. The last five are the same level and state the run carries for that line. See "The hold window" and "Confidence and state" below |
 | GET | `/api/v1/suppliers/:rfc` | `{ supplier, cfdis, complements, findings, verifiedBeneficiaries }` | supplier drawer |
@@ -487,8 +487,12 @@ the rail, `failed` refused with a sentence a clerk can act on, `cancelled` dropp
 was sent. `sent` and `settled` are two different claims and this API never collapses them: a
 transfer is acknowledged when the rail says so and not when we asked.
 
-**Status codes.** `202` with the stream. `400` for a missing `confirm`. `403 forbidden` for a role
-that may not do it. `404` for a run nobody holds. `409` for a run already executed, or for a request
+**Status codes.** `202` with the stream. `400` for a missing `confirm`, and for an `X-Actor` that
+does not parse. **There is deliberately no `403` here**, and that is the role rule above rather than
+an omission: sending the run is the clerk's own work, because `docs/02-persona.md` puts a
+maker-checker chain in the anti-persona column, so both roles may execute and the owner-only shape is
+a release over a finding, which belongs to `decide`. The header is still required, because the ledger
+has to answer who. `404` for a run nobody holds. `409` for a run already executed, or for a request
 naming a line the decisions stop. `503 service_unavailable` when this server has no rail, with the
 message `packages/rail` wrote, naming `RAIL`, `NESSIE_API_KEY` and the `STP_*` variables. On a `503`
 nothing is appended, because a `payment_sent` for a payment that never left is the one entry this
@@ -801,8 +805,8 @@ curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/verify-acc
   | jq '{state, rail, claveRastreo, sealState, nameMatch, action: .decision.action}'
 # Which rails this server holds, and which of them has ever moved money. No secret in it.
 curl -s https://<host>/api/v1/rails | jq '{active, rails: [.rails[] | {id, configured, producesCep, live}]}'
-# What the instance was configured with. Never a key, and never a network call.
-curl -s https://<host>/health | jq '{ok, version, dependencies}'
+# What the instance was configured with, seven rows, no key and no network call.
+curl -s https://<host>/health | jq '{ok, version, dependencies: [.dependencies[] | {name, state}]}'
 # The actor, which every write needs. A clerk cannot release a payment a finding
 # stopped: 403 with the sentence that says who can, and nothing is appended.
 curl -s -X POST https://<host>/api/v1/instructions/INS-2026-09-07-047/decide \

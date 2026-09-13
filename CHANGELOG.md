@@ -133,7 +133,7 @@ then the screens, then the narrative, then the plumbing.
   now names both places with both codes: "Cambio la plaza dentro del mismo banco: la cuenta conocida
   esta en la plaza 580 (APODACA, NL) y esta en la plaza 180 (DISTRITO FEDERAL, DF)". The second
   comparison is new. `Cfdi.issuePlace` carries `LugarExpedicion`, the postal code a CFDI was issued
-  from and the only geography an invoice has, the parser reads it, `0013_cfdi_issue_place.sql` stores
+  from and the only geography an invoice has, the parser reads it, `0014_cfdi_issue_place.sql` stores
   it so the deployed API behaves like the in-memory one, and `plaza_off_invoice` fires when the plaza
   of a new account and the state of the invoices it settles disagree. A brand-new account with no
   history raises the level for lack of information and says so in those words:
@@ -548,7 +548,7 @@ then the screens, then the narrative, then the plumbing.
   in the same response. `POST /api/v1/instructions/:id/decide` takes a `reason` next to the required
   `decidedBy` and answers the `amountAtRisk` it was decided against: an urgent payment can be released
   under a named person's responsibility with a written argument, and both land on the `decision_made`
-  ledger event and on `decisions.reason` (`packages/db/migrations/0009_decision_reason.sql`), because a
+  ledger event and on `decisions.reason` (`packages/db/migrations/0011_decision_reason.sql`), because a
   hold with no way out is bypassed outside the product where nothing is recorded at all. And the run
   answers in pesos rather than in line counts: `runMoney` in `packages/core/src/exposure.ts` puts
   `heldAmount`, `toVerifyAmount`, `releasedAmount`, `stoppedAmount`, `amountAtRisk`,
@@ -1610,6 +1610,76 @@ then the screens, then the narrative, then the plumbing.
   and 69-B Bis to `packages/sat` or to say in the docs that the sweep covers 69-B only.
 
 ### Fixed
+
+- The docs read again against the merged tree, 00 to 14 plus the ADRs, `README.md` and `AGENTS.md`
+  (issue #202). The night of the 12th merged the assistant, the payment execution, the actor on every
+  write, the plaza, the three levels and the three states, and the four documents, and a narrative
+  that still described the product of the morning is the Wizard-of-Oz reading Capital One said they
+  hunt for. Seventeen files moved and every change is something the running product falsified, not a
+  rewording.
+
+  Five of them were claims that were simply untrue. `POST /api/v1/run/:id/execute` was documented with
+  a `403` branch the route deliberately does not have, because sending the run is the clerk's own work
+  and the owner-only shape belongs to `decide`. `AssistantTool` has nine members and ADR-0007, the
+  stand pitch, the demo script and judge card 17 all said seven. `packages/constancia` writes four
+  documents and `docs/07` said two. `apps/web` has ten screens and three docs said six. The CHANGELOG
+  pointed at `0013_cfdi_issue_place.sql` and `0009_decision_reason.sql`, which are `0014` and `0011`.
+
+  A sixth was true when this branch opened and stopped being true while it was open, which is worth
+  recording rather than hiding. `GET /health` answered `{ ok, service, version }` and the docs
+  promised a `dependencies` block, so this branch first corrected the docs down to the route; then
+  issue #200 merged and built the block, and the correction was reverted to `origin/dev`'s own words.
+  The same happened to the person selector: three documents said it was owed, issue #215 shipped
+  **Entrada y ajustes** with it, and every one of those sentences now says what the screen does and
+  that it is still not a login. A docs pass that lands after the features it describes has to be
+  re-read against the base it merges onto, not against the base it branched from.
+
+  Every count is read off a run on this branch rather than adjusted: `bun test` answers 2,594 tests
+  across 138 files, 2,476 passing and 118 skipping, where the README said 1,725 across 99 and 111,
+  `docs/07` said 1341 across 77 in two places, `docs/11` said 2,238 across 114, and `docs/01` said
+  2,196 across 118. The 118 skips are the database cases in six files, all of them gated on
+  `TEST_DATABASE_URL`. `bun run eval` answers 35 cases at 87.0 percent precision, 83.3 percent recall
+  and a 1.6 percent false positive rate, with 12 of 12 on `confiable`, and `bun run demo` is green on
+  all nine checks. The seeded run is 92 instructions for 2,174,210.76 MXN over 4,103 CFDIs, 3,801
+  complements and 2,446 bank-mirror rows, which is what `docs/07` already claimed and now verifiably.
+
+  `docs/03` is the one that was rewritten rather than corrected. The journey had six stages ending at
+  an archive artifact marked `TODO(fabbyyyy)`, and it said in its own words that SentryOne never sends
+  the SPEI and that the bank remains where it leaves from. It now has eight stages and four branches:
+  the payment arriving inside the conversation when a clerk drops a WhatsApp screenshot into the panel,
+  and the run leaving on the rail with a clave and a receipt per line, are two of them, and the fourth
+  branch is the one case where the evidence stops a payment with nobody's name on it, a definitive SAT
+  listing that only a named owner reopens with a written reason. It is nine stages by the time it
+  landed, because #215 put a front door in front of the invoice and the journey now starts where the
+  person says who they are signing as. Everything issues #206 and #213 had just added about the call
+  and the supplier profile is kept word for word. Every artifact it names exists, and the two screens
+  that are still owed, the count per level of #208 and the override reason asked for before the click
+  of #174, are listed under their own heading rather than implied.
+
+  `docs/07` gained the fourth flow, the run leaving on the rail, as a sequence diagram with the four
+  properties that are checkable rather than believable: idempotence per instruction and not per
+  request, `sent` and `settled` never collapsed, the execution folded out of the ledger and never
+  stored, and a cancelled line being a statement where a skipped one is not. The topology diagram
+  gained `packages/rail`, `packages/consortium`, the assistant, the plaza catalogue, article 49 Bis and
+  `levels.ts`, and the row that said an on-demand LLM explanation layer is not built now says which
+  half of it shipped and which half stays forbidden. `docs/08` grew the six domain types that have no
+  storage and explains why each one is read out of the ledger instead of a table, so the table counts
+  sixteen places and not ten, and the entities preamble names all eight event kinds the ledger learned
+  after `0003` rather than stopping at three.
+
+  The rest is the narrative catching up with what is true. `docs/11` ticks the rail row with the
+  86-line live Nessie run and the assistant row with its boundary, and gains four rows for the actor,
+  the definitive listing, the two vocabularies and the one-page letter, each with the part that is
+  still not on screen written into the gate. `docs/12` replaces a Patricio honest-gap cell dated
+  2026-09-12 that described the detectors and the API as open pull requests, names the file to open on
+  screen instead of carrying a TODO to find it, and stops saying a judge can re-verify the CEP on their
+  own phone, because the CEP on screen is the synthetic fixture and #57 is open. `docs/06` section 4.4
+  no longer says the screens pick the identity from a list, because the control that would do that is
+  not built. `AGENTS.md` states the ADR-0005 amendment rather than the runtime it replaced, and its
+  package list gained `sat`, `cep`, `extract`, `voice` and `constancia`, which it never had.
+
+  One thing was deliberately left alone. `docs/13-devpost.md` belongs to issue #76 and the Devpost
+  agent, so not a line of it is touched here even where it carries the same counts.
 
 - **A whole CLABE was leaving to the model, and printing on two documents** (issue #195, found
   verifying the wave-1 merges). The account left through the one field nobody thought of as an

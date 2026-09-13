@@ -435,10 +435,18 @@ read on the portal on 2026-09-12.
 ### 4.4 The identity selector is a demo affordance, not authentication
 
 Every write endpoint requires an `X-Actor` header carrying a name and a role, the API records it on
-the append-only ledger, and the screens pick it from a list of the two people in the synthetic
-company. **None of that is authentication and this page says so rather than letting a reader assume
-it.** The header is chosen by the caller, nothing verifies it, there is no password, no session and
-no account, and a `curl` can claim to be the owner as easily as the browser can.
+the append-only ledger, and the browser sends it from `apps/web/src/lib/actor.ts`, which holds the two
+people of the synthetic company and remembers the choice in `localStorage`. **None of that is
+authentication and this page says so rather than letting a reader assume it.** The header is chosen by
+the caller, nothing verifies it, there is no password, no session and no account, and a `curl` can
+claim to be the owner as easily as the browser can.
+
+Since issue #215 that choice is on a screen: **Entrada y ajustes** at `#/entrada` lists the two people
+of the synthetic company, switching one changes the header every subsequent write carries, and the
+capability list under it is run through the same `decideRequirement` the API enforces, so the screen
+cannot offer something the API would answer `403` to. **It is still a selector and not a login**, and
+the screen says that on the screen rather than leaving it to this file, because a judge who assumes a
+login exists has been misled by the absence of the sentence.
 
 What the header is for is the thing ADR-0002 does demand: that every action on somebody's money has
 a person's name against it in a record nobody can rewrite. That is an accountability requirement and

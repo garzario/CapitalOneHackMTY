@@ -137,7 +137,7 @@ the production deploy is triggered by step 4, not by anything here, and this ste
 2. Open the production URL on a phone, not only on the laptop. The judge card and the QR point at
    it and both are printed.
 3. Check the four things a static build gets wrong after a release: the app loads with no console
-   error, the API base URL is the production one and not `localhost`, the six screens render, and
+   error, the API base URL is the production one and not `localhost`, the ten screens render, and
    the favicon and social card resolve.
 4. Run the demo beats against the deployment, which is the same command the rehearsal uses:
 

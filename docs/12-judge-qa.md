@@ -50,7 +50,7 @@ pitch is a defect in the pitch and the rehearsal log records which ones were ask
 | 14 | Que porcentaje de las transferencias a proveedores se roba | "Nadie publica esa tasa, ni Banxico ni Condusef ni el INEGI. Lo publicado la acota entre dos por millon y siete por diez mil, con la derivacion en docs/04. Lo que si convierte: de cada peso reclamado por fraude regresa uno de cada cuatro, el veinticuatro punto tres por ciento, asi que el setenta y cinco punto siete no vuelve." | Fabricio | [Table 2, question 9](#9-what-percentage-of-supplier-transfers-in-mexico-is-stolen-we-answered-254-percent) | 60 |
 | 15 | La lista es publica y gratis. Por que no la consulto yo | "Porque la consulta no es lo dificil, la cadencia si, y ya se vende: ValidX y Portal de Proveedores barren a diario. Tiene que correr sobre cada proveedor en cada corrida, y otra vez hacia atras cada vez que el SAT publica, sobre facturas que ya pagaste y ya dedujiste. Revisar al dar de alta no protege nada." | Adan | [Shared answers](#shared-answers-anyone-can-give-these) | 58 |
 | 16 | El banco ya me muestra el nombre del beneficiario | "Uno si lo vende, HSBCnet, y unicamente para cuentas HSBC, por archivo y en horario. En general te lo muestra despues de capturar la cuenta y lo compara contra nada, porque el banco no tiene la factura. Nosotros comparamos el titular del comprobante firmado contra la razon social del CFDI, una vez por cuenta y no por pago." | Adan | [Shared answers](#shared-answers-anyone-can-give-these) | 58 |
-| 17 | Esto es un wrapper de un modelo de lenguaje | "No. El asistente lee y propone; ejecuta una persona. Siete herramientas, todas de lectura, y una que escriba no existe en el tipo. El nivel, el estado, la decision y los seis controles son funciones puras y probadas, y una prueba lee nuestro codigo y falla si aparece decide, score o recommend. Corre bun test sin red." | Patricio | [Shared answers](#shared-answers-anyone-can-give-these) | 57 |
+| 17 | Esto es un wrapper de un modelo de lenguaje | "No. El asistente lee y propone; ejecuta una persona. Nueve herramientas, todas de lectura, y una que escriba no existe en el tipo. El nivel, el estado, la decision y los seis controles son funciones puras y probadas, y una prueba lee nuestro codigo y falla si aparece decide, score o recommend. Corre bun test sin red." | Patricio | [Shared answers](#shared-answers-anyone-can-give-these) | 57 |
 | 18 | Que es real y que es sintetico | "La lista del SAT es real: catorce mil doscientos treinta y cuatro registros descargados el doce de septiembre, guardados tal cual, y la puede consultar usted. El CEP es un documento real de Banxico y nuestro lector tambien; el de pantalla es el sintetico. Todo lo demas es sintetico y marcado, y un RFC real nunca toca evidencia fabricada." | Adan | [Shared answers](#shared-answers-anyone-can-give-these) | 59 |
 | 19 | Por que reglas y no un modelo | "Cuatro razones y las cuatro se califican: costo que escala con el volumen, latencia, no determinismo que no se puede probar unitariamente, y datos financieros saliendo del perimetro. La decision es deterministica y las pruebas corren aqui, sin red, enfrente de usted. El unico modelo transcribe, y su esquema no tiene donde quepa un veredicto." | Patricio | [Shared answers](#shared-answers-anyone-can-give-these) | 55 |
 | 20 | Que pasa a diez veces el volumen | "Los seis controles sobre un pago cuestan cero marginal, porque no hay inferencia en esa ruta: eso es arquitectura, no una estimacion. Leer una CLABE de una foto son fracciones de un centavo de dolar, y solo cuando llega como foto. Lo primero que se rompe es el abanico del stream, y se particiona por empresa." | Fabian | [Shared answers](#shared-answers-anyone-can-give-these) | 56 |
@@ -191,11 +191,11 @@ is a statistic. And that any of this validates Lupita: it sizes the population s
 | Question | Answer |
 |---|---|
 | What do you own | `packages/core` (the six detectors and the decision engine), `packages/sat`, `packages/cep`, `packages/db`, the ADRs, CI, `docs/07`, `docs/08`, and every merge |
-| The one file to open on screen | The CLABE forensics detector beside its test file, from #34. TODO(garzario) confirm the exact path once it merges, and keep this row exact: pointing at a file that does not exist is the worst possible answer at this table |
+| The one file to open on screen | `packages/core/src/clabe.ts` beside `packages/core/src/clabe.test.ts`: 1,057 lines of control 2 and 897 lines of test, 69 cases, 556 assertions, green in 85 ms with no network. Keep this row exact, because pointing at a file that does not exist is the worst possible answer at this table |
 | The algorithm in three sentences | Six independent detectors each read one kind of document and return findings that carry an amount at risk, a state that is either provable from documents or needs a human check, and the evidence that produced them. One expected-loss decision weighs the amount at risk against the cost of delaying that payment by a day, and returns hold, verify or release. Everything is a pure function over the domain types, so the whole engine runs in a unit test with no network, no database and no model |
 | Why that model and not machine learning | The output has to be defensible to a person who is legally responsible for the payment, the inputs are documents rather than behaviour, and the positives are rare enough that a supervised model would be fitting noise. We measure ourselves against labelled cases we did not write, which is the part a model would also need and usually skips |
-| The current honest gap | As of 2026-09-12 the detectors, the schema and the API are in flight as separate pull requests, the blind metrics have not been run yet, and the deployed URL is not up. TODO(garzario): rewrite this cell at every milestone with what is merged, what is not, and the one thing most likely to break in the demo |
-| What is next | The measured false-positive rate against the hard negatives, and the ADR-0005 amendment that records why the API moved to a long-lived process |
+| The current honest gap | As of 2026-09-13 the six controls, the schema, the API, the assistant panel, the execution on the rail and the four documents are merged, the blind evaluation runs on demand, and the deployed pair answers. Ten screens are built, the entry screen with the person selector and the supplier profile among them. Two things are still open and both are screens rather than intelligence: the run totals show no count per level (#208), and the per-level matrix on `GET /api/v1/metrics` reaches no screen. The thing most likely to break in the demo is the SSE stream behind a conference proxy, which is why `?data=mock` exists and `bun run offline` is rehearsed. TODO(garzario): rewrite this cell at every milestone |
+| What is next | Closing the two screen gaps above, and the one piece of evidence this repository still owes: a real 0.01 MXN SPEI with the Banxico CEP that Banxico signs for it (#57), which is the only thing that would let a seal read `valid` instead of `not_checked` |
 
 ### Fabian (`fabbyyyy`), data platform, API and deploy
 
@@ -214,7 +214,7 @@ is a statistic. And that any of this validates Lupita: it sizes the population s
 |---|---|
 | What do you own | The deterministic generator (#43), the labelled holdout cases and the metrics harness (#55), the SAT list loader and the retroactive sweep (#35), the real CEP evidence (#57), and `assets/` |
 | The one file to open on screen | A holdout case JSON next to the metrics output, because the pair is the evaluation story |
-| The data in three sentences | One fixed seed, byte-identical output asserted in a test, a demo company of 28 employees and about 42 suppliers over eight months, and a watermark flag on every generated object. The thirty-five labelled cases that measure the controls come from ADR-0002 and the domain types rather than from reading the control source, and no case has been edited to make a control pass. The hard negatives are deliberate and there are twelve of them: a legitimate bank change backed by a payment complement, a legitimate plaza move with the complement to say so, a new supplier ramping up, a round-number retainer, and a partial legal-name match that is fine |
+| The data in three sentences | One fixed seed, byte-identical output asserted in a test, a demo company of 28 employees and 44 suppliers over eight months, and a watermark flag on every generated object. The thirty-five labelled cases that measure the controls come from ADR-0002 and the domain types rather than from reading the control source, and no case has been edited to make a control pass. The hard negatives are deliberate and there are twelve of them: a legitimate bank change backed by a payment complement, a legitimate plaza move with the complement to say so, a new supplier ramping up, a round-number retainer, and a partial legal-name match that is fine |
 | Why the labels are separate from the generator | Because a generator that creates both the data and the answer key measures nothing except itself |
 | The current honest gap | The evaluation is less blind than the protocol first promised: the controls were merged before the labels were written. What holds the number up is the second rule, that no case was edited to make a control pass, and the four labels that still disagree are counted against us. `beneficiary_cep` reads 0.0 percent because both its expectations are severity arguments, not a control going silent |
 | What is next | The level matrix is the view a clerk reads and it is one release old: `perLevel` is on `GET /api/v1/metrics` and no screen renders it yet |
@@ -299,18 +299,38 @@ auditable, reproducible and explainable to a regulator. ADR-0004.
 
 **Is this a wrapper around a language model.** No. Open `packages/core`, open the test file, run
 `bun test` with the Wi-Fi off. There is no model call in any path that produces a finding, a
-severity, a state or an action. A model is used only to phrase an already-computed finding when a
-human asks for it, and that call cannot change the decision.
+severity, a level, a state or an action: `confidenceOf`, `transactionStateOf`, `decide` and the six
+controls are pure functions with tests beside them. There are exactly two model calls in this product
+and neither one is in that path. `packages/extract` transcribes a CLABE off a photo or a voice note
+against a fixed schema with no field that could carry a judgment, and `boundary.test.ts` reads the
+package's own source and fails if it names anything from the decision layer. The assistant panel
+answers a clerk's question over nine tools that are all GETs of this same API, and it quotes the
+control's own Spanish rather than rewriting it: it reads and it proposes, and a person presses the
+button. ADR-0004 and ADR-0007.
 
-**What is real and what is synthetic.** Real: the SAT Article 69-B list in the lookup box, and one
-CEP with its clave de rastreo, which a judge can re-verify on the Banxico site from their own phone.
-Synthetic: every company, supplier, invoice, CLABE and instruction, each carrying `synthetic: true`,
-each watermarked on screen from that flag. Real RFCs are never attached to synthetic invoices, which
-is a binding rule in ADR-0002 and, once #35 lands, a test rather than a promise.
+**What is real and what is synthetic.** Real: the SAT Article 69-B list in the lookup box, 14,234
+rows committed with their provenance, and the CEP reader itself, which verifies XMLDSig against the
+Banxico certificate byte for byte. The CEP on screen is the synthetic fixture and the seal therefore
+reads `SELLO NO VERIFICADO`, which is `unconfirmed_scheme` and not `invalid`: two different claims and
+only one of them is ours to make. A real 0.01 MXN SPEI with the CEP Banxico signs for it is issue #57
+and it is open, so "re-verify it on your own phone" is not said. Synthetic: every company, supplier,
+invoice, CLABE and instruction, each carrying `synthetic: true`, each watermarked on screen from that
+flag. Real RFCs are never attached to synthetic invoices, and that is a test rather than a promise:
+`simulatePublication` throws `SyntheticOnlyError` on any RFC without the `SYN` prefix, asserted in
+`packages/sat/src/sweep.test.ts`, and the API validates it at the edge as well.
 
-**What is real versus stubbed in the build.** TODO, refresh at every milestone, and name the stub
-before a judge finds it. As of 2026-09-12 the vertical slice, the detectors, the schema and the
-deploy are separate open issues (#62, #33 to #39, #40, #44).
+**What is real versus stubbed in the build.** Named here before a judge finds it, as of 2026-09-13.
+Real and merged: the six controls, the two SAT lists, the plaza comparison, the CEP reader, the
+schema and its fourteen migrations, the API, the assistant panel, the run leaving on the rail with a
+receipt and a constancia per line, the four documents, and the deployed pair a judge can open on their
+own phone. Not a stub but not live either, and said in these words: `StpRail` is the rail that would
+produce a Banxico-signed CEP, it is written and unit tested on our side of the wire and it has never
+run, because this team holds no `empresa` contract, so `GET /api/v1/rails` reports `live: false` for
+it. The Nessie mirror is a Capital One sandbox and not a bank: the probe and one whole run of 86 lines
+have been written to it for real, and no pesos moved and no CEP was produced. Still owed: a real cent
+with its Banxico CEP (#57), the count per level in the run totals (#208), the override reason asked for
+before the click rather than after the refusal (#174), and the demo video (#73). TODO, refresh at every
+milestone.
 
 **Where the data comes from.** A deterministic synthetic generator in `packages/seed` with a
 committed seed, plus the Nessie sandbox as the company's bank mirror for reconciliation. No real
@@ -591,7 +611,7 @@ rather than talking around.
 - Since #199 the screen sends the identity the header carries rather than a fixed string, and the API
   refuses an override that has no reason with a `422` asking for it, so the prose is no longer optional
   on the one shape where it matters. What the screen still owes is asking for it before the click
-  instead of after the refusal, and the identity selector itself (#174).
+  instead of after the refusal (#174). The selector itself landed in #215, on **Entrada y ajustes**.
 - The screen carries a third figure, "Costo de retrasar un dia", and since #182 it reads a number on
   every one of the 92 payments: between MXN 101.98 and MXN 4,611.27, MXN 1,120.05 on the hero line.
   `Supplier.delayCostPerDay` is priced per supplier in `packages/seed/src/sentryone/delay-cost.ts` from
@@ -935,8 +955,8 @@ Five gaps to volunteer, in this order, because each one is cheaper said than fou
   projection in `docs/05` moved with it, about 41 wrongly stopped payments a year rather than 47, and it
   was restated rather than left at the old number. The name and the role are enforced on every write
   since issue #199 and an override with no reason is refused, so the release under a named person is no
-  longer only an API fact; what the screens still owe is the identity selector and asking for the
-  reason before the click rather than after the refusal (#174).
+  longer only an API fact; what the screens still owe is asking for the reason before the click rather
+  than after the refusal (#174). The person selector itself landed in #215.
 
 ### 9. "What percentage of supplier transfers in Mexico is stolen?" We answered 25.4 percent
 

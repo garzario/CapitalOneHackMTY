@@ -21,8 +21,14 @@ number.
 
 Transcribed from `packages/core/src/domain.ts`, including the fields the domain grew after the first
 schema landed: `Supplier.delayCostPerDay`, `PaymentComplement.paymentTotal` and `operationNumber`,
-`PaymentInstruction.audioRef` and `sentAt`, `Cfdi.issuePlace`, the CEP evidence fields, `ledger_tx`
-as a finding subject, and `verification_call`, `cent_sent` and `cep_awaited` as ledger events.
+`PaymentInstruction.audioRef` and `sentAt`, `Cfdi.issuePlace`, `Decision.reason` and
+`Decision.decidedByRole`, the CEP evidence fields, `ledger_tx` as a finding subject, and eight event
+kinds the ledger learned after `0003`: `verification_call`, `cent_sent` and `cep_awaited` from the
+one-cent verification, and `payment_settled`, `payment_failed`, `payment_cancelled`,
+`assistant_message` and `intake_image` from the assistant panel and the payment execution. Every one
+of the eight is a check-constraint change and no column, which is the property that made the event
+ledger the right system of record: the discriminant is `type` and the rest of the variant is
+`payload`.
 
 ```mermaid
 erDiagram
@@ -199,10 +205,12 @@ the honest version of the multi-tenancy answer in `docs/07-architecture.md`.
 
 ### Where the storage shape differs from the domain shape, and why
 
-Ten places, all deliberate. Seven of them are a storage shape that differs, and the API returns the
-domain shape in every case, per `docs/09-api.md`, with `packages/db/src/rows.ts` the only file that
-translates between the two. The last three are domain types with no storage at all, which is the same
-question answered the other way.
+Sixteen places, all deliberate. Eight of them are a storage shape that differs, and the API returns
+the domain shape in every case, per `docs/09-api.md`, with `packages/db/src/rows.ts` the only file
+that translates between the two. The last eight are domain types with no storage at all, which is the
+same question answered the other way. Four of those eight are read out of the event ledger rather
+than out of a table of their own, which is the rule and not a coincidence: a history that lived in two
+places would be two histories, and two copies of one answer is exactly what issue #125 cost.
 
 | Domain | Storage | Why |
 |---|---|---|
@@ -213,9 +221,15 @@ question answered the other way.
 | `Cep` | Columns on `verified_beneficiaries`, not a table of its own | A CEP only exists here as evidence that one supplier was really paid on one account, so the registry row and the document are the same fact. There is no orphan CEP to store. `clave_rastreo` carries a unique index, so one Banxico receipt can prove exactly one row |
 | `COMPANY` | A one-row table, absent from `domain.ts` | Every pure function is called with one company's context already selected, so the tenant key never reaches the intelligence lane. That is what makes a detector testable with ten lines of fixture. The multi-tenant path is written out in `docs/07-architecture.md` |
 | `NetworkSignal` | `consortium_snapshot` plus the one-row `consortium_pull` | The domain object is one answer about one pair, and it is computed from three stored facts: the pull, the pair row and how many accounts the network holds for that RFC. The split is what lets "the network was not read" and "the network read and knows nothing" be different answers. `apps/api/src/consortium.ts` is the only file that assembles one, and it hashes the RFC and the CLABE on the way in, so no raw identifier ever reaches these tables |
+| `Actor` | Two columns on `decisions`, and `payload` everywhere else | A name and a role, from the `X-Actor` header. It is not a user account and there is no `users` table: SentryOne holds no credentials and no session, so there is no identity to key a row on. `decisions.decided_by` and `decisions.decided_by_role` are columns because the decision is the one projection an auditor reads by query; on the other eight event kinds that carry an actor it lives in `payload` with the rest of the variant. `docs/06-regulatory-privacy.md` section 4.4 says what production needs |
 | `Sat49BisEntry` | Nothing. There is no table | Issue #180, and the absence is the design. `sat_list_entries` is keyed `(list_version, rfc, status)` and article 49 Bis has no status: fraccion X publishes one outcome and provides for no published clearing, so a row there would need a fifth `status` value that means "this is a different statute". More to the point, there is nothing to store: the SAT publishes that list one oficio at a time as a DOF note and ships no machine-readable file, so nothing in this repository can hold a 49 Bis version it did not transcribe by hand. `packages/sat/src/art49bis.ts` reads publications passed to it, `official49BisListing()` reports the coverage, and the day a file exists this row becomes a migration rather than a silent schema we guessed at in advance |
 | `Confidence` | Nothing. There is no column and there will not be one | `confidenceOf` in `packages/core/src/levels.ts` derives it from the findings and the decision on every read, and `0012_assistant_and_payment_events.sql` says in its own header that it adds no column for it. A stored level survives the findings it was computed from: a clerk who saw `alerta` on Thursday and a column that still reads `alerta` after the supplier cleared their name are two different claims, and only one of them is true. Same argument `holdWindow` already made for the deadline it never stores. ADR-0009 carries the rule table and forbids a second place that computes either |
 | `TransactionState` | Nothing, for the same reason | `transactionStateOf` derives it from the decision, the verification and the payment line. The events behind it ARE stored, which is the distinction worth keeping: `payment_sent`, `payment_settled`, `payment_failed` and `payment_cancelled` are facts on the append-only ledger, and the word the screen shows is a projection over them. Storing the word as well would be the fifth copy of one answer, and the failure of issue #125 was two copies |
+| `VerificationState` | Nothing. A fold over the ledger | Where the one-cent verification of one instruction stands, built by `foldVerification` in `apps/api/src/verification.ts` over the rows `readVerificationEvents` in `packages/db/src/queries.ts` returns, out of `cent_sent`, `cep_awaited`, `cep_verified` and `decision_made`. It is a state machine and not a pair of booleans, because "no lo hemos mandado" and "ya salio y estamos esperando" are the two a boolean would fold together, and it is a projection because the screen and the constancia have to read the same history. `GET /api/v1/instructions/:id/verification` answers exactly this, and `not_started` is a real answer rather than a `404` |
+| `PaymentExecution`, with its lines and its totals | Nothing. A fold over the ledger | What one run did on the rail, built by `foldExecution` in `apps/api/src/execution.ts` out of `payment_sent`, `payment_settled`, `payment_failed` and `payment_cancelled`. The five peso buckets are one per `PaymentLineState`, disjoint because a line has exactly one state, and they add to `amount` exactly, so a total that does not decompose is a total nobody can check against the rows under it. A run nobody executed folds to no lines and zeros, which is why `GET /api/v1/run/:id/execution` answers `200` there and never `404` |
+| `PaymentReceipt` | Nothing. Computed from the line and the instruction | `receiptFor` in `packages/core` builds it from the `payment_sent` and `payment_settled` of one line plus the instruction, the supplier and the CEP evidence already stored, and the `receiptId` is derived from the clave de rastreo rather than minted, so the same transfer is the same receipt on every reprint. Two honesty rules are in the shape and not in a column: `sealState` is a `SealState` and never a boolean, and the beneficiary account is `beneficiaryAccountLast4`, because a document that leaves the building does not need the other fourteen digits |
+| `AssistantSession` and `AssistantMessage` | `ledger_events` of type `assistant_message`, and nothing else | One conversation, projected from the rows of that session id on either store. The conversation is on the same append-only ledger as the payments because a proposal somebody acted on is part of the history of that payment, and a second home for it would be a second history, which is the argument `VerificationState` already makes. `imageRefs` are references and never bytes: what the ledger keeps about a screenshot is the `intake_image` reference, the media type and who dropped it. `AssistantUsage` travels on the event and not on the message, because the tokens are a fact about the call and not about the sentence a clerk reads, which is what lets the cost question be answered with a sum over rows |
+| `ActionProposal` | Nothing, and there will be no table | The offer a turn ends with. It is stored only as part of the `AssistantMessage` it belongs to, because a proposal is not a pending write: it becomes an action when a person presses the button, and what lands then is the ordinary `decision_made`, `cent_sent` or `payment_sent` with their name on it. A `proposals` table would be a queue of things the product intends to do, which is exactly the shape ADR-0007 refuses |
 
 ## Migrations
 

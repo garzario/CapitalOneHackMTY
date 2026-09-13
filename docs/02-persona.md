@@ -251,7 +251,7 @@ than averaging it away.
 
 ## Repository links
 
-- Journey and its three branches: `docs/03-user-journey.md`
+- Journey and its four branches: `docs/03-user-journey.md`
 - Domain decisions and evidence: `packages/core/src/domain.ts`
 - Synthetic scenario and generator: `packages/seed/src/sentryone/`
 - API contract: `docs/09-api.md`
