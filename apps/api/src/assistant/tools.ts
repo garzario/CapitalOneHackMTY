@@ -39,7 +39,7 @@ import type {
   TransactionState,
 } from "@hackmty/core";
 import { assessConfidence, transactionStateOf } from "@hackmty/core";
-import { maskClabe, maskDeep, maskEvidence } from "./mask";
+import { maskClabe, maskClabesInText, maskDeep, maskEvidence } from "./mask";
 import type { ModelFunctionDeclaration } from "./model";
 
 /**
@@ -124,6 +124,14 @@ function stringArg(
  * the answer has to be able to quote it rather than invent one. The evidence
  * travels because a level with no evidence under it is not a thing this product
  * shows, and that rule holds for the panel as much as for the screen.
+ *
+ * The explanation goes through `maskClabesInText` for the reason the structured
+ * evidence next to it does, and it is the case the first version of this file got
+ * wrong: control 2 writes its sentence with the known account spelled out in it
+ * ("difiere en 2 digitos de la cuenta 0125...4611"), so a projection that masked
+ * `evidence.clabe` and then passed the prose through sent the full eighteen digits
+ * anyway. ADR-0007 and `docs/06-regulatory-privacy.md` section 6.2 allow four
+ * digits to leave and the sentence still reads with `****4611` in it.
  */
 function findingChips(finding: Finding): Record<string, EvidenceValue> {
   return {
@@ -131,7 +139,7 @@ function findingChips(finding: Finding): Record<string, EvidenceValue> {
     severity: finding.severity,
     state: finding.state,
     amountAtRisk: finding.amountAtRisk,
-    explanation: finding.explanation,
+    explanation: maskClabesInText(finding.explanation),
     ...prefix(`evidence`, maskEvidence(finding.evidence)),
   };
 }

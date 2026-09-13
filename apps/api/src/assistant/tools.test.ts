@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { MemoryRepository } from "../repo";
 import { assistantToolSchema } from "../schemas";
+import { sentryoneDataset } from "../sentryone";
 import { createTestApp } from "../test-app";
 import { carriesFullClabe } from "./mask";
 import { type ApiCaller, READ_TOOLS, READ_TOOLS_BY_NAME } from "./tools";
@@ -284,5 +286,75 @@ describe("the endpoints issue #196 still owns", () => {
     );
 
     expect(receipt.ok).toBe(false);
+  });
+});
+
+describe("the engine's own sentence, on the generated company", () => {
+  /**
+   * The test the masking claim needed and did not have.
+   *
+   * Every projection in `tools.ts` masks the structured evidence, and the fixture
+   * in `synthetic.ts` writes a control 2 explanation that names no account, so the
+   * suite stayed green while the real engine did not. The generated company is what
+   * `SEED=sentryone` serves and what the demo runs on, and control 2's sentence
+   * there spells the known account out in prose: "difiere en 2 digitos de la cuenta
+   * 012...611, que ya se pago 52 veces". A projection that masked `evidence.clabe`
+   * and then passed `explanation` through sent eighteen digits to a third party,
+   * which is the one transfer ADR-0007 and `docs/06-regulatory-privacy.md` section
+   * 6.2 both forbid by name.
+   *
+   * It reads the generated company rather than a finding written here, because the
+   * sentence is the engine's and not ours: a fixture this file authored could be
+   * made to pass by wording it differently, and this one cannot.
+   */
+  it("sends a finding explanation with the account masked, not the eighteen digits", async () => {
+    const { app } = createTestApp({
+      repo: new MemoryRepository(0, sentryoneDataset),
+    });
+    const api = callerFor(app);
+
+    const run = await READ_TOOLS_BY_NAME.get_run!.run({}, api);
+    expect(run.ok).toBe(true);
+    if (!run.ok) {
+      return;
+    }
+
+    /* Every stopped line of the generated run, because which one carries the
+       forensics sentence is the seed's business and not this test's. */
+    const ids = Object.entries(run.result)
+      .filter(
+        ([key]) => key.startsWith("line.") && key.endsWith(".instructionId"),
+      )
+      .map(([, value]) => String(value));
+    expect(ids.length).toBeGreaterThan(0);
+
+    let sawMaskedAccountInProse = false;
+    for (const instructionId of ids) {
+      const outcome = await READ_TOOLS_BY_NAME.get_instruction!.run(
+        { instructionId },
+        api,
+      );
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) {
+        continue;
+      }
+      for (const [key, value] of Object.entries(outcome.result)) {
+        if (typeof value !== "string") {
+          continue;
+        }
+        /* Asserted per string value and never over a `JSON.stringify` of the whole
+           result: a float such as a false-positive rate of 0.015873015873015872
+           carries eighteen digits and would make the assertion fire on arithmetic. */
+        expect(carriesFullClabe(value)).toBe(false);
+        if (key.endsWith(".explanation") && value.includes("****")) {
+          sawMaskedAccountInProse = true;
+        }
+      }
+    }
+
+    /* And the case actually occurred. A seed that stopped writing the account into
+       the sentence would turn this into a test of nothing, and it says so here
+       rather than staying quietly green. */
+    expect(sawMaskedAccountInProse).toBe(true);
   });
 });

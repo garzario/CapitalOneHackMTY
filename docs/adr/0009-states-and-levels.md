@@ -42,6 +42,23 @@ disagree with the findings it was computed from, and a derived one cannot.
 `confiable` is a statement about the evidence we hold. "Safe" would be a guarantee about a transfer
 that cannot be recalled, and nobody can give one.
 
+**What that forbids, precisely, because the product does show three percentages.** The rule is about
+the risk of a payment: no probability, percentage or score may stand for the level of a line, for the
+chance that a payment is fraud, or next to a supplier's name as a verdict. It is not a ban on
+arithmetic a reader can check. Three numbers on the screens are the other kind and each one is
+reported with what it divides:
+
+| Where | Number | Why it is not a verdict |
+|---|---|---|
+| The run screen's composition | 27, 9 and 64 per cent of the run's own money | A share of one total, printed next to the peso amount and the instruction count it comes from, and the three add to 100. It says how the week splits, not how likely a payment is to be fraud |
+| The metrics screen | precision, recall and the false-positive rate | A measurement of the detectors against the labelled blind holdout, which is the evidence for "does this work at all". It is about the engine and never about one line |
+| The instruction panel | `ocrConfidence` | How much of a CLABE the transcription read, from `packages/extract`, about an image and not about a beneficiary. A typed CLABE always wins over one a model read |
+
+The boundary holds where it matters: none of the three is ever on a document that leaves the
+building. `docs/09-api.md` makes the evidence letter say so in those words, and the expected loss,
+the delay cost and the transcription confidence are all absent from the letter and from both
+constancias for exactly this reason.
+
 ### The confidence table
 
 First match wins. The order only decides which reason is reported, because every rule of one level
@@ -108,9 +125,11 @@ which is exactly what a judge tests by asking what the screen said before the ru
 - Follow-on: `apps/web` renders the level with its findings and the state as the three public ones;
   `apps/api` puts both on every instruction and on the run; the generated mock carries them per line
   so the offline run reads the same.
-- Now forbidden: a probability, a percentage or a score on any screen or in any document of this
-  product; the word "seguro" as a verdict, in Spanish or in English; a second place where either of
-  these two values is computed; a column that stores one.
+- Now forbidden: a probability, a percentage or a score standing for the risk of a payment or for
+  the level of a line, on any screen; any of the three on a document that leaves the building, which
+  is the evidence letter and both constancias; the word "seguro" as a verdict, in Spanish or in
+  English; a second place where either of these two values is computed; a column that stores one.
+  The table above says which numbers are arithmetic rather than a verdict and why.
 
 ## Alternatives considered
 

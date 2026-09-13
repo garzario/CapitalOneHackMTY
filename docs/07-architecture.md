@@ -378,7 +378,7 @@ sequenceDiagram
   A->>D: appendEvent payment_settled with the receipt id
   A->>D: LedgerTx debit on the company's own bank mirror
   Note over D: so control 6 reconciles the payment instead of<br/>reporting payment_not_in_mirror against it
-  A-->>L: 202 and a stream: one line per payment,<br/>one skipped per line left alone, then done
+  A-->>L: 202 and a stream: one line per state a payment reaches,<br/>one skipped per line left alone, then done
   A->>B: SSE event: ledger, once per appended event
 ```
 
@@ -392,7 +392,9 @@ send is a `409`, and a request naming a line the decisions stop is a `409` that 
 
 **`sent` and `settled` are two claims and nothing collapses them.** The rail reports which one it
 reached, `confirm` is asked as its own question, and a rail that cannot be asked leaves its lines on
-`sent`. On the Nessie mirror the strongest honest acknowledgement is that the row is on the account,
+`sent`. That is why a payment reaches the stream more than once on a rail that confirms, and why a
+client counts `PaymentExecution.lines` in the `done` frame rather than counting `line` events: the
+number of events per payment is a property of the rail and never of the contract. On the Nessie mirror the strongest honest acknowledgement is that the row is on the account,
 which is what `confirm` asks for: the `status` on a Nessie row is the one we posted, so reading it
 back would be us signing a settlement on our own behalf.
 
