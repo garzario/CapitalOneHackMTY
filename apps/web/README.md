@@ -30,6 +30,12 @@ Read from the page query string, before the hash, by `src/lib/resource.ts`:
 | `?data=api` | API only. A failure renders the error state. This is how a judge proves the deployed backend answers. |
 | `?data=mock` | Synthetic only. No request leaves the browser. |
 
+"No request leaves the browser" is a property somebody checks rather than an intention. It covers
+everything the page opens and not only the screens that load through `useResource`: the run screen's
+event stream and the API status card reach the network on their own, and both ask `reachesApi` in
+`src/lib/resource.ts` first. `src/lib/resource.test.ts` walks every source in `src/` and fails when a
+component calls `useEvents` without an `enabled:` or reads `/health` without consulting the mode.
+
 Two things never fall back, on purpose:
 
 - `GET /sat/lookup`, because the official Article 69-B list does not travel in the bundle
@@ -85,7 +91,11 @@ Routes, all hash based so the static build needs no rewrite rule and the QR code
 change of host: `#/run`, `#/instructions/:id`, `#/intake`, `#/sat`, `#/cep`, `#/metrics`.
 
 The intake page reads `rfc`, `amount` and `clabe` out of its own query, so the QR code can
-carry a prefilled instruction: `#/intake?rfc=SYN010101AAA&amount=184300`.
+carry a prefilled instruction: `#/intake?rfc=SYN990202S02&amount=38417.48`. That RFC is the
+one the screen's own placeholder shows, read off the run through `EXAMPLE_SUPPLIER_RFC`:
+the example here used to carry `SYN010101AAA`, which belongs to the hand-written fixture in
+`apps/api/src/synthetic.ts` and not to the company this app falls back to, so scanning it
+prefilled a supplier the offline run does not hold and the demo API answers 404 for.
 
 ## Design system
 

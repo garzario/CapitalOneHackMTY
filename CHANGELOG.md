@@ -790,6 +790,40 @@ then the screens, then the narrative, then the plumbing.
 
 ### Fixed
 
+- `?data=mock` was documented as "no request leaves the browser" and it was making two, so the offline
+  mode looked broken exactly where it is meant to be the strongest (found verifying issue #125).
+  `useResource` honoured the mode, so every screen that loads through it was silent, but two things open
+  a connection on their own and neither asked: the run screen's event stream (`useEvents` in
+  `RunScreen.tsx`, called with no `enabled`) and the API status card (`getHealth` in `StatusCard.tsx`).
+  Measured with headless Chrome counting requests, `?data=mock#/run` issued `GET /api/v1/events` and
+  `GET /health`. What it cost on screen is worse than the requests: the run header printed "Datos: solo
+  datos sinteticos" and "Flujo de eventos conectado" beside each other, two claims that cannot both be
+  true, and on a phone in a corridor the same card would have read "API no responde" in the hold colour
+  for a server the page had promised not to ask. `reachesApi` in `apps/web/src/lib/resource.ts` is now
+  the one rule, `auto` still allowed to try and fail because it is API first by definition. The run
+  screen holds the stream closed and says so in its own words rather than reporting a connection that
+  closed, and drops the Reconectar button, which offline could only offer a judge a button that fails.
+  The status card asks nothing, says "No se consulto la API", and explains that not knowing whether a
+  service answers is not the same claim as knowing it does not. `apps/web/src/lib/resource.test.ts`
+  guards the class rather than the two instances: it walks every source in `apps/web/src`, and a file
+  that calls `useEvents` has to pass `enabled:` in that call while a file that calls `getHealth` has to
+  consult the mode. Checking the call and not the file is the point, because the run screen already
+  carried `source !== "mock"` on the constancia link three hundred lines from the stream it was not
+  guarding, so a file-wide search would have passed on the broken version. 16 tests and 43 checks over
+  `resource.test.ts` and `RunScreen.test.ts`, and both guards were run against the pre-fix sources to
+  confirm they go red on them.
+- `scripts/web-mock.test.ts` could fail `bun run release-check` for being on a busy laptop. Its first
+  test runs the whole generator and diffs 152 KB byte for byte, which measures 3.6 to 3.8 seconds idle
+  against Bun's 5 second default; with the API, two vite servers and a headless Chrome running beside
+  it, it took 5.8, and release-check stopped three gates early and printed "do not tag" for a green
+  tree. The budget is now stated at 30 seconds with the measurement written next to it, so the gate
+  reports the repository rather than the load on the machine.
+- The QR prefill example in `apps/web/README.md` named `SYN010101AAA`, which belongs to the
+  hand-written fixture in `apps/api/src/synthetic.ts` and not to the seeded company this app falls back
+  to, so scanning it prefilled a supplier the offline run does not hold and the demo API answers 404
+  for. It is now the RFC and the amount the intake screen's own placeholder shows, read off the run
+  through `EXAMPLE_SUPPLIER_RFC`. Same failure as issue #125 in a smaller place: a folio written down
+  once and left behind when the dataset moved.
 - The API and the offline fallback of the web app were two different companies, so one RFC could carry
   two legal names on one screen (issue #125). `apps/web/src/lib/mock.ts` held a hand-written run of
   eight suppliers while the API booted the generated company from `@hackmty/seed`, and the two

@@ -30,6 +30,7 @@ import { StatusCard } from "../components/StatusCard";
 import { SupplierDrawer } from "../components/SupplierDrawer";
 import {
   decideInstruction,
+  type EventsStatus,
   getCurrentRun,
   runConstanciaHref,
   useEvents,
@@ -38,7 +39,7 @@ import type { PaymentRun } from "../lib/contract";
 import { formatClabe, formatCount, formatDate } from "../lib/format";
 import { SOURCE_LABEL } from "../lib/labels";
 import { bankName, mockRun } from "../lib/mock";
-import { useResource } from "../lib/resource";
+import { reachesApi, useResource } from "../lib/resource";
 import { instructionPath, Link } from "../lib/router";
 import { orderItems, runVerdict } from "../lib/run-view";
 
@@ -48,6 +49,37 @@ const ROW_ACCENT: Record<Action, string> = {
   verify: "var(--c-verify)",
   release: "var(--c-release)",
 };
+
+/**
+ * What the screen says about the event stream, in one place.
+ *
+ * It sits next to the data-source notice, so the two sentences have to be able
+ * to stand together. A stream nobody opened is not a stream that closed: under
+ * `?data=mock` the old wording read "Flujo de eventos cerrado" beside a
+ * Reconectar button, which offered a judge with no API a button that could only
+ * fail, for a connection the mode had already ruled out.
+ */
+export function streamLabel(allowed: boolean, status: EventsStatus): string {
+  if (!allowed) {
+    return "Sin conexion: el flujo de eventos no se abre";
+  }
+
+  if (status === "open") {
+    return "Flujo de eventos conectado";
+  }
+
+  return status === "connecting"
+    ? "Conectando al flujo de eventos"
+    : "Flujo de eventos cerrado";
+}
+
+/** Whether the reconnect affordance means anything right now. */
+export function canReconnectStream(
+  allowed: boolean,
+  status: EventsStatus,
+): boolean {
+  return allowed && status === "closed";
+}
 
 /** Applies a decision to a run without mutating it, for the offline path. */
 function withDecision(
@@ -90,7 +122,12 @@ export function RunScreen() {
   const onLedgerEvent = useCallback(() => {
     reload();
   }, [reload]);
-  const stream = useEvents({ onEvent: onLedgerEvent });
+  /* `?data=mock` promises that no request leaves the browser, and the stream is
+     a request. Held closed there rather than opened and reported, which is what
+     it used to do: the screen said "solo datos sinteticos" and "flujo de eventos
+     conectado" at the same time. */
+  const streamAllowed = reachesApi();
+  const stream = useEvents({ enabled: streamAllowed, onEvent: onLedgerEvent });
 
   const run = resource.status === "ready" ? resource.data : null;
   const source = resource.status === "ready" ? resource.source : null;
@@ -183,12 +220,8 @@ export function RunScreen() {
               </a>
             ) : null}
             <span className="subtle t-xs">
-              {stream.status === "open"
-                ? "Flujo de eventos conectado"
-                : stream.status === "connecting"
-                  ? "Conectando al flujo de eventos"
-                  : "Flujo de eventos cerrado"}
-              {stream.status === "closed" ? (
+              {streamLabel(streamAllowed, stream.status)}
+              {canReconnectStream(streamAllowed, stream.status) ? (
                 <>
                   {". "}
                   <button

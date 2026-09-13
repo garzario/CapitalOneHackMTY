@@ -52,29 +52,46 @@ const committed = readFileSync(TARGET, "utf8");
 /** The API, on the company `SEED=sentryone` serves for the demo week. */
 const api = new MemoryRepository(0, () => datasetForWeek());
 
+/**
+ * This one test runs the whole generator: eight months of CFDIs for 44 suppliers,
+ * the six controls over the run, and a byte-for-byte diff of 152 KB. It measures
+ * 3.6 to 3.8 seconds on an idle laptop, which is under Bun's 5 second default by
+ * too little: with the API, two vite servers and a headless Chrome running beside
+ * it, it took 5.8 and the whole `bun run release-check` stopped three gates early
+ * and printed "do not tag". A gate that goes red because the laptop is busy is a
+ * gate somebody debugs at 04:00 instead of trusting, so the budget is stated here
+ * rather than inherited. It is a timeout and not a performance target: if this
+ * ever approaches 30 seconds the generator got slow and that is worth knowing.
+ */
+const GENERATOR_TIMEOUT_MS = 30_000;
+
 describe("apps/web/src/lib/mock-data.ts", () => {
-  test("is what bun run web:mock writes", async () => {
-    const { source } = await renderWebMock();
+  test(
+    "is what bun run web:mock writes",
+    async () => {
+      const { source } = await renderWebMock();
 
-    if (source !== committed) {
-      /* A byte-for-byte diff of five thousand generated lines is unreadable, so
+      if (source !== committed) {
+        /* A byte-for-byte diff of five thousand generated lines is unreadable, so
          the failure names the first line that moved and what to run. */
-      const wanted = source.split("\n");
-      const found = committed.split("\n");
-      const at = wanted.findIndex((line, index) => line !== found[index]);
+        const wanted = source.split("\n");
+        const found = committed.split("\n");
+        const at = wanted.findIndex((line, index) => line !== found[index]);
 
-      throw new Error(
-        [
-          "apps/web/src/lib/mock-data.ts is stale. Run: bun run web:mock",
-          `first difference at line ${at + 1}`,
-          `generator: ${wanted[at]?.slice(0, 200) ?? "(end of file)"}`,
-          `committed: ${found[at]?.slice(0, 200) ?? "(end of file)"}`,
-        ].join("\n"),
-      );
-    }
+        throw new Error(
+          [
+            "apps/web/src/lib/mock-data.ts is stale. Run: bun run web:mock",
+            `first difference at line ${at + 1}`,
+            `generator: ${wanted[at]?.slice(0, 200) ?? "(end of file)"}`,
+            `committed: ${found[at]?.slice(0, 200) ?? "(end of file)"}`,
+          ].join("\n"),
+        );
+      }
 
-    expect(source).toBe(committed);
-  });
+      expect(source).toBe(committed);
+    },
+    GENERATOR_TIMEOUT_MS,
+  );
 
   test("was written from the seed and the week the documents cite", () => {
     /* The run `docs/10-demo-script.md`, `docs/11-pitch.md` and
