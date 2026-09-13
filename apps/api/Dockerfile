@@ -19,16 +19,26 @@ WORKDIR /srv/sentryone
 
 # Manifests first: this layer only changes when a dependency changes, so a code
 # edit rebuilds in seconds instead of reinstalling the workspace.
+#
+# Every workspace manifest has to be here or `bun install --frozen-lockfile` below
+# refuses the whole build with "Workspace dependency not found", and the place that
+# refusal shows up is a deploy and never a test. It happened: `packages/rail` and
+# `packages/consortium` arrived with issues #164 and #198 and were not added here, so
+# the image could not be built from the tree at all and the instance kept serving a
+# container from before either of them existed. `scripts/docker-image.test.ts` is now
+# the guard, and it reads the directories off disk rather than trusting this list.
 COPY package.json bun.lock bunfig.toml ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/cep/package.json packages/cep/
+COPY packages/consortium/package.json packages/consortium/
 COPY packages/constancia/package.json packages/constancia/
 COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 COPY packages/engine/package.json packages/engine/
 COPY packages/extract/package.json packages/extract/
 COPY packages/nessie/package.json packages/nessie/
+COPY packages/rail/package.json packages/rail/
 COPY packages/sat/package.json packages/sat/
 COPY packages/seed/package.json packages/seed/
 COPY packages/voice/package.json packages/voice/

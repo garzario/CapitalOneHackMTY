@@ -26,6 +26,7 @@
 
 import { createApp } from "../apps/api/src/app.ts";
 import { createConsortiumSource } from "../apps/api/src/consortium.ts";
+import { staticDependencySource } from "../apps/api/src/dependencies.ts";
 import { createDeps } from "../apps/api/src/deps.ts";
 import { UNAVAILABLE_EXTRACTOR } from "../apps/api/src/extraction.ts";
 import { MemoryRepository } from "../apps/api/src/repo.ts";
@@ -171,6 +172,13 @@ function inMemoryApi(): Api {
         pollDeadlineMs: 0,
         sleep: async () => {},
       },
+      /* Nothing configured and nothing probed, for the reason every other
+         dependency here is pinned: `GET /health` on a laptop holding a live
+         `DATABASE_URL` would query Tiger Data in the middle of a rehearsal. */
+      dependencies: staticDependencySource(),
+      /* The beat sheet is the output of this script. A request line per call would
+         bury it, so the API's log goes nowhere while the demo drives it. */
+      log: () => {},
     }),
   );
 
@@ -1290,6 +1298,8 @@ function networkInstance(allowed: boolean): NetworkInstance {
          network switched itself on because this laptop happens to export
          ALLOW_CONSORTIUM would prove something different on every machine. */
       consortium: createConsortiumSource(repo, { allowed }),
+      dependencies: staticDependencySource(),
+      log: () => {},
     }),
   );
 

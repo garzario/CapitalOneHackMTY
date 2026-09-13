@@ -73,6 +73,7 @@ function appFor(repo: Repository, allowed: boolean) {
       extractor: UNAVAILABLE_EXTRACTOR,
       cep: acceptOnlyCepSource(),
       consortium: createConsortiumSource(repo, { allowed }),
+      log: () => {},
     }),
   );
 }

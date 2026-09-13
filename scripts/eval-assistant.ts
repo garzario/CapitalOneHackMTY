@@ -396,6 +396,9 @@ function buildApp(model: AssistantModel) {
        by `apps/api/src/assistant/turn.test.ts` with a stubbed extractor. */
     extractor: UNAVAILABLE_EXTRACTOR,
     allowSeed: false,
+    /* The table this script prints is its output, and it asks the API hundreds of
+       questions, so the request log goes nowhere while it drives one. */
+    log: () => {},
   });
   return { app: createApp(deps), deps };
 }
